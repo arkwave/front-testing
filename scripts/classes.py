@@ -4,8 +4,6 @@ from calc import _compute_value, _compute_greeks
 lots = 10
 
 
-# TODO: code up exercise function if necessary (pretty sure it is.)
-
 class Option:
 
     """
@@ -26,7 +24,7 @@ class Option:
         13) barrier    =   American or European barrier.
         14) lots       =   the quantity of underlying being shorted or bought upon expiry. 
         15) bullet     =   True - Bullet. False - Daily.
-        16) underlying =   the underlying future.
+        16) underlying =   the underlying futures object
 
         Note: ki, ko, bullet and barrier default to None and must be expressly overridden if an exotic option is desired.
 
@@ -39,11 +37,14 @@ class Option:
     6) compute_value   : computes value of the object based on the appropriate valuation method.
     7) get_value       : getter method for the value of the object.
     8) update_tau      : updates time to expiry.
-    9) exercise        : exercises the option. [not yet implemented]
+    9) exercise        : exercises the option. as of now, returns a boolean.
     10) moneyness      : returns 1, 0 , -1 depending if option is itm, atm, otm.
+    11) get_future     : returns the underlying future object.
+    12) get_desc       : returns 'option'
+    13) get_underlying : returns the NAME of the underlying future.
     """
 
-    def __init__(self, strike, price, tau, char, vol, s, month, underlying, barrier=None, lots=lots, bullet=None, ki=None, ko=None):
+    def __init__(self, strike, price, tau, char, vol, s, underlying, barrier=None, lots=lots, bullet=None, ki=None, ko=None):
         self.underlying = underlying
         self.bullet = bullet
         self.lots = lots
@@ -57,12 +58,18 @@ class Option:
         self.vol = vol
         self.s = s
         self.r = 0
-        self.month = month
+
         self.value = self.compute_value()
         self.delta, self.gamma, self.theta, self.vega = self.init_greeks()
 
+    def get_future(self):
+        return self.underlying
+
     def get_month(self):
-        return self.month
+        return self.underlying.get_month()
+
+    def get_desc(self):
+        return self.desc
 
     def init_greeks(self):
         # initializes relevant greeks. only used once, when initializing Option
@@ -92,12 +99,32 @@ class Option:
         return self.value
 
     def update_tau(self, diff):
-        self.tau -= tau
+        self.tau -= diff
 
     def get_underlying(self):
-        return self.underlying
+        return self.underlying.get_name()
+
+    def exercise(self):
+        worth = self.moneyness()
+        if worth > 0:
+            return True
+        else:
+            return False
 
     def moneyness(self):
+        # at the money
+        if self.K == self.s:
+            return 0
+        if self.char == 'call':
+            if self.K < self.s:
+                return 1
+            else:
+                return -1
+        elif self.char == 'put':
+            if self.K > self.s:
+                return 1
+            else:
+                return -1
 
 
 class Future:
@@ -108,7 +135,6 @@ class Future:
     2) price  :  the quoted price of the future.
     3) desc   :  string description of the object
     4) lots   :  number of lots represented by each future contract.
-    5) tau    :  time to expiry.
     6) name   :  the commodity of this future
 
     Instance Methods:
@@ -118,22 +144,24 @@ class Future:
     4) update_greeks  : dummy method.
     5) get_month      : returns contract month.
     6) get_lots       : returns lot size
-    7) get_underlying : returns the name of this contract (i.e. the commodity)
+    7) get_name : returns the name of this contract (i.e. the commodity)
     '''
 
-    def __init__(self, month, tau, name lots=lots):
+    def __init__(self, month, name, price, lots=lots):
         self.name = name
         self.lots = lots
         self.desc = 'future'
         self.month = month
         self.price = price
-        self.tau = tau
 
     def greeks(self):
         # method included for completeness. Futures and Options are both
         # treated as securities in portfolio class, requiring equivalent
         # methods.
         return 0, 0, 0, 0
+
+    def get_desc(self):
+        return self.desc
 
     def get_value(self):
         # getter method for price of the future.
@@ -153,10 +181,7 @@ class Future:
     def get_lots(self):
         return self.lots
 
-    def update_tau(self, diff):
-        self.tau -= diff
-
-    def get_underlying(self):
+    def get_name(self):
         return self.name
 
 
@@ -191,8 +216,12 @@ class Portfolio:
 
     '''
 
-    def __init__(self, securities):
-        self.securities = securities
+# TODO: Currently exercising options only happens at expiry. Figure this
+# one out.
+
+    def __init__(self, options, futures):
+        self.options = options
+        self.futures = futures
         self.newly_added = []
         self.toberemoved = []
         self.sec_by_month = {}
@@ -206,25 +235,39 @@ class Portfolio:
         self.pnl = pnl
 
     def init_sec_by_month(self):
-        for sec in self.securities:
+        # add in options
+        for sec in self.options:
             month = sec.get_month()
             if month not in self.sec_by_month:
-                self.sec_by_month[month] = [set([sec]), 0, 0, 0, 0]
+                self.sec_by_month[month] = [set([sec]), set(), 0, 0, 0, 0]
             else:
                 self.sec_by_month[month][0].add(sec)
-        self.update_greeks_by_month(month, sec, True)
+            self.update_greeks_by_month(month, sec, True)
+        # add in futures
+        for sec in self.futures:
+            month = sec.get_month()
+            if month not in self.sec_by_month:
+                self.sec_by_month[month] = [set(), set([sec]), 0, 0, 0, 0]
+            else:
+                self.sec_by_month[month][1].add(sec)
 
     def add_security(self, security):
         # adds a security into the portfolio, and updates the sec_by_month
         # dictionary.
-        self.securities.append(security)
+        if security.get_desc() == 'option':
+            self.options.append(security)
+        elif security.get_desc() == 'future':
+            self.futures.append(security)
         self.newly_added.append(security)
         self.update_sec_by_month(True)
 
     def remove_security(self, security):
         # removes a security from the portfolio, updates sec_by_month, and
         # adjusts greeks of the portfolio.
-        self.securities.remove(security)
+        if security.get_desc() == 'option':
+            self.options.remove(security)
+        elif security.get_desc() == 'future':
+            self.futures.remove(security)
         self.toberemoved.append(security)
         self.update_sec_by_month(False)
 
@@ -241,30 +284,38 @@ class Portfolio:
         '''
         # adding/removing security to portfolio
         if price is None and vol is None:
+            # adding
             if added:
                 target = self.newly_added.copy()
                 self.newly_added.clear()
                 for sec in target:
                     month = sec.get_month()
                     if month not in self.sec_by_month:
-                        self.sec_by_month[month] = [set(sec), 0, 0, 0, 0]
+                        if sec.get_desc() == 'option':
+                            self.sec_by_month[month] = [
+                                set([sec]), set(), 0, 0, 0, 0]
+                        elif sec.get_desc() == 'future':
+                            self.sec_by_month[month] = [
+                                set(), set([sec]), 0, 0, 0, 0]
                     else:
-                        self.sec_by_month[month][0].add(sec)
-            # initialization case
+                        if sec.get_desc() == 'option':
+                            self.sec_by_month[month][0].add(sec)
+                        else:
+                            self.sec_by_month[month][1].add(sec)
+                    self.update_greeks_by_month(month, sec, added)
+            # removing
             else:
                 target = self.toberemoved.copy()
                 self.toberemoved.clear()
                 for sec in target:
                     month = sec.get_month()
                     self.sec_by_month[month][0].remove(sec)
-
-            self.update_greeks_by_month(month, sec, added)
+                    self.update_greeks_by_month(month, sec, added)
 
         # updating greeks per month when feeding in new prices/vols
         else:
-            target = self.securities
             # updating greeks based on new price and vol data
-            for sec in self.securities:
+            for sec in self.options:
                 sec.update_greeks(price, vol)
             # updating cumulative greeks on a month-by-month basis.
             for sec in self.securities:
@@ -276,31 +327,24 @@ class Portfolio:
                 self.update_greeks_by_month(month, sec, True)
 
     def update_greeks_by_month(self, month, sec, added):
-        '''
-        helper method that updates the collective greeks of the securities belonging to a given month
-        by grabbing the relevant list from sec_by_month and processing the securities in the first entry of the list.
-        Inputs: 
-        1) month  : string. month in question.
-        2) sec    : the individual security. 
-
-        Outputs: None. Updates the list contained in sec_by_month
-        '''
         data = self.sec_by_month[month]
         delta, gamma, theta, vega = sec.greeks()
         if added:
-            data[1] += delta
-            data[2] += gamma
-            data[3] += theta
-            data[4] += vega
+            data[2] += delta
+            data[3] += gamma
+            data[4] += theta
+            data[5] += vega
         else:
-            data[1] -= delta
-            data[2] -= gamma
-            data[3] -= theta
-            data[4] -= vega
+            data[2] -= delta
+            data[3] -= gamma
+            data[4] -= theta
+            data[5] -= vega
 
     def compute_value(self):
         val = 0
-        for sec in self.securities:
+        for sec in self.options:
+            val += sec.get_value()
+        for sec in self.futures:
             val += sec.get_value()
         return val
 
@@ -309,11 +353,27 @@ class Portfolio:
         return dic
 
     def get_securities(self):
-        lst = self.securities.copy()
-        return lst
+        lst1 = self.options.copy()
+        lst2 = self.futures.copy()
+        return lst1, lst2
 
     def get_underlying(self):
         u_set = set()
-        for sec in self.securities:
-            u_set.add(self.get_underlying())
+        for sec in self.options:
+            u_set.add(sec.get_underlying())
+        for sec in self.futures:
+            u_set.add(sec.get_name())
+
         return list(u_set)
+
+    def exercise_option(self, sec):
+        for option in self.options:
+            if option.moneyness() == 1:
+                # convert into a future.
+                underlying = option.get_future()
+                self.remove_security(option)
+                self.add_security(underlying)
+
+    def timestep(self, value):
+        for option in self.options:
+            option.update_tau(value)

@@ -6,13 +6,14 @@ from scripts import prep_data as dat
 import pandas as pd
 import numpy as np
 
-"""TODO:
-	> Step 1
-	> Step 2
-	> Step 3
-	> Step 4
-	> Step 5
-	> Step 6
+"""
+TODO:
+> Step 1 : feed_data
+> Step 2 : feed_data
+> Step 3 : handle_options
+> Step 4 : handle_futures
+> Step 5 : pnl accumulation
+> Step 6 : rebalancing.
 """
 
 
@@ -69,8 +70,36 @@ def feed_data(data, pf):
 
 		2) update the value of the portfolio according to the info fed in. 
 
+	Inputs: 
+		1) data : the data being fed into the portfolio.
+		2) pf   : an object of type Portfolio. Refer to scripts\classes.py for class documentation.
+
+	Outputs:
+		1) raw_diff: the change in the portfolio's value solely due to new price/vols.
+
 	"""
 
+
+def handle_options(pf):
+	"""
+	Inputs: 
+		1) pf  : an instance of a Portfolio object. 
+	
+	Outputs:
+		1) 
+	"""
+
+
+
+def handle_futures(pf):
+	"""
+	Inputs: 
+		1) pf  : an instance of a Portfolio object. 
+	
+	Outputs:
+		1) 
+	"""
+	pass
 
 
 if __name__ == '__main__':

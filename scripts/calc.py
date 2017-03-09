@@ -10,10 +10,9 @@ Script that contains implementation of the following calculation-related methods
  """
 
 '''
-TODO: 1) iv calculation
-      2) barrier valuation
-      3) calculating the option to buy, and how that changes greeks of profile.
-      4) pnl calculation
+TODO: 1) iv calculation [potentially not needed]
+      2) barrier valuation <<<<<<< 3/9/2017
+      3) option buying heuristics [to be discussed]
 '''
 
 from math import log, sqrt, exp, pi

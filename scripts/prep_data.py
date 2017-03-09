@@ -1,6 +1,6 @@
 '''
-TODO: 1) price series
-	  2) vol series
+TODO: 1) price/vol series transformation
+      2) identify structure of the data.
 '''
 
 
@@ -9,7 +9,7 @@ def read_data():
 
 
 def preprocess_data(portfolio, df):
-	df = clean_data(df)
+    df = clean_data(df)
     s_list = portfolio.get_underlying()
     tdf = df.copy()
     # TODO reading in the vols. specify this once the dataset is concrete.
@@ -23,7 +23,7 @@ def prep_data(portfolio):
     return df
 
 
-
 def clean_data(df):
-	# function that cleans data (i.e. standardizes names, all that boring stuff).
-	pass
+    # function that cleans data (i.e. standardizes names, all that boring
+    # stuff).
+    pass
