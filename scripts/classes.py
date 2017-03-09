@@ -25,6 +25,7 @@ class Option:
         14) lots       =   the quantity of underlying being shorted or bought upon expiry. 
         15) bullet     =   True - Bullet. False - Daily.
         16) underlying =   the underlying futures object
+        17) payoff     =   American or European option
 
         Note: ki, ko, bullet and barrier default to None and must be expressly overridden if an exotic option is desired.
 
@@ -44,7 +45,8 @@ class Option:
     13) get_underlying : returns the NAME of the underlying future.
     """
 
-    def __init__(self, strike, price, tau, char, vol, s, underlying, barrier=None, lots=lots, bullet=None, ki=None, ko=None):
+    def __init__(self, strike, price, tau, char, vol, s, underlying, payoff, barrier=None, lots=lots, bullet=None, ki=None, ko=None):
+        self.payoff = payoff
         self.underlying = underlying
         self.bullet = bullet
         self.lots = lots
@@ -93,7 +95,7 @@ class Option:
 
     def compute_value(self):
         # computes the value of this structure from relevant information.
-        return _compute_value(self.char, self.tau, self.vol, self.K, self.s, self.r, ki=self.ki, ko=self.ko)
+        return _compute_value(self.char, self.tau, self.vol, self.K, self.s, self.r, self.payoff, ki=self.ki, ko=self.ko)
 
     def get_value(self):
         return self.value
@@ -194,8 +196,7 @@ class Portfolio:
     1) securities    : list of Option or Future objects that constitute this portfolio.
     2) newly_added   : list of newly added securities to this portfolio. 
     3) sec_by_month  : dictionary that maps months to securities that expire in that month. 
-                       Format of the dictionary is Month: [set(securities), delta, gamma, theta, vega] 
-                       where the greeks are the aggregate greeks over all securities belonging to that month.
+                       Format of the dictionary is Month: [set(options), set(futures), delta, gamma, theta, vega] where the greeks are the aggregate greeks over all securities belonging to that month.
     4) value         : value of the overall portfolio. computed by summing the value of the securities present in the portfolio.
     5) PnL           : records overall change in value of portfolio.
 
@@ -216,7 +217,7 @@ class Portfolio:
 
     '''
 
-# TODO: Currently exercising options only happens at expiry. Figure this
+# TODO [Future]: Currently exercising options only happens at expiry. Figure this
 # one out.
 
     def __init__(self, options, futures):

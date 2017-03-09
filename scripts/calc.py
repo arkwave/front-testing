@@ -19,7 +19,7 @@ from math import log, sqrt, exp, pi
 from scipy.stats import norm
 
 
-def _bsm(option, tau, vol, K, s, r):
+def _bsm_euro(option, tau, vol, K, s, r):
     """Implementation of vanilla Black-Scholes Formula for Option Pricing.
     Inputs: 1) option     : call or put.
             2) tau        : time to expiry in years.
@@ -36,10 +36,23 @@ def _bsm(option, tau, vol, K, s, r):
     nd1, nd2 = norm.cdf(d1), norm.cdf(d2)
     negnd1, negnd2 = norm.cdf(-d1), norm.cdf(-d2)
     if option == 'call':
-        price = nd1*s - nd2*K*exp(-r*tau)
+        price = exp(-r*tau)*(nd1*s - nd2*K)
     elif option == 'put':
-        price = negnd2*K*exp(-r*tau) - negnd1*s
+        price = exp(-r*tau)*(negnd2*K - negnd1*s)
     return price
+
+
+def _bsm_amer(option, tau, vol, K, s, r):
+    """Implementation of vanilla Black-Scholes Formula for Option Pricing.
+    Inputs: 1) option     : call or put.
+            2) tau        : time to expiry in years.
+            3) vol        : volatility (sigma)
+            4) K          : strike price
+            5) underlying : price of underlying
+            6) interest   : interest rate
+
+    Output: 1) Price      : price of option according to BSM
+    """
 
 
 def _compute_greeks(char, K, tau, vol, s, r):
@@ -74,27 +87,34 @@ def _compute_greeks(char, K, tau, vol, s, r):
     return delta, gamma, theta, vega
 
 
-def _compute_iv(underlying, price, strike, tau, r):
-    pass
-
-
-def _compute_pnl(portfolio):
-    pass
-
-
-def _compute_value(char, tau, vol, K, s, r, ki=None, ko=None):
+def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None, barrier=None):
     '''Wrapper function that computes value of option. 
     Inputs: 1) ki : Knock in value.
             2) ko : Knock out value.
             #) Remaining inputs are identical to _bsm inputs. '''
     # vanilla option case
     if ki is None and ko is None:
-        return _bsm(char, tau, vol, K, s, r)
+        if payoff == 'amer':
+            return _bsm_amer(char, tau, vol, K, s, r)
+        elif payoff == 'euro':
+            return _bsm_euro(char, tau, vol, K, s, r)
     # barrier option case
     else:
-        return _barrier_valuation(char, tau, vol, K, s, r)
+        # if option.payoff() == 'american'
+        # elif option.payoff() == 'european'
+        return _barrier_valuation(char, tau, vol, K, s, r, barrier)
 
 
-def _barrier_valuation(option, tau, vol, strike, underlying, interest):
-    # implement barrier option valuations from Haug book.
+def _barrier_valuation(option, tau, vol, k, s, r, barrier):
+    if barrier == 'american':
+        return _barrier_amer(tau, vol, k, s, r)
+    elif barrier == 'european':
+        return _barrier_euro(tau, vol, k, s, r)
+
+
+def _barrier_amer(tau, vol, k, s, r):
+    pass
+
+
+def _barrier_amer(tau, vol, k, s, r):
     pass
