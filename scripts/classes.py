@@ -45,7 +45,8 @@ class Option:
     13) get_underlying : returns the NAME of the underlying future.
     """
 
-    def __init__(self, strike, price, tau, char, vol, s, underlying, payoff, barrier=None, lots=lots, bullet=None, ki=None, ko=None):
+    def __init__(self, strike, tau, char, vol, underlying, payoff, barrier=None, lots=lots, bullet=None, ki=None, ko=None):
+
         self.payoff = payoff
         self.underlying = underlying
         self.bullet = bullet
@@ -56,9 +57,9 @@ class Option:
         self.K = strike
         self.tau = tau
         self.char = char
-        self.price = price
+        # self.price = price
         self.vol = vol
-        self.s = s
+        self.s = self.underlying.get_price()
         self.r = 0
 
         self.value = self.compute_value()
@@ -78,20 +79,21 @@ class Option:
         # object.
         return _compute_greeks(self.char, self.K,  self.tau, self.vol, self.s, self.r)
 
-    def update_greeks(self, s, vol, tau):
+    def update_greeks(self, vol, tau):
         # method that updates greeks given new values of s, vol and tau, and subsequently updates value.
         # used in passage of time step.
         self.delta, self.gamma, self.theta, self.vega = _compute_greeks(
-            self.char, self.K, tau, vol, s, self.r)
+            self.char, self.K, tau, vol, self.s, self.r)
+        self.vol = vol
         self.value = self.compute_value()
 
     def greeks(self):
         # getter method for greeks. preserves abstraction barrier.
         return self.delta, self.gamma, self.theta, self.vega
 
-    def compute_vol(underlying, price, strike, tau, r):
-        # computes implied vol from market price data
-        return _compute_iv(underlying, price, strike, tau, r)
+    # def compute_vol(underlying, price, strike, tau, r):
+    #     # computes implied vol from market price data
+    #     return _compute_iv(underlying, price, strike, tau, r)
 
     def compute_value(self):
         # computes the value of this structure from relevant information.
@@ -162,6 +164,9 @@ class Future:
         # methods.
         return 0, 0, 0, 0
 
+    def get_price(self):
+        return self.price
+
     def get_desc(self):
         return self.desc
 
@@ -209,10 +214,10 @@ class Portfolio:
     6) update_sec_by_month    : updates sec_by_month dictionary in the case of 1) adds 2) removes 3) price/vol changes
     7) update_greeks_by_month : updates the greek counters associated with each month's securities.
     8) compute_value          : computes overall value of portfolio. sub-calls compute_value of each security.
-    9) get_securities_monthly : returns sec_by_month
-    10) get_securities        : returns list of securities
+    9) get_securities_monthly : returns sec_by_month dictionary.
+    10) get_securities        : returns a copy of (options, futures)
     11) timestep              : moves portfolio forward one day, decrements tau for all securities.
-    12) get_underlying        : returns a list of all underlying futures in this portfolio.
+    12) get_underlying        : returns a list of all underlying futures in this portfolio. returns the actual futures, NOT a copy.
 
 
     '''
@@ -362,8 +367,6 @@ class Portfolio:
         u_set = set()
         for sec in self.options:
             u_set.add(sec.get_underlying())
-        for sec in self.futures:
-            u_set.add(sec.get_name())
 
         return list(u_set)
 

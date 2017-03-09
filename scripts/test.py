@@ -1,14 +1,14 @@
 from classes import *
-f1 = Future('may', 'SX17', 50)
-f2 = Future('may', 'SX15', 50)
-f3 = Future('may', 'SX14', 50)
-f4 = Future('may', 'SX13', 50)
+f1 = Future('may', 'SX17', 17)
+f2 = Future('may', 'SX15', 16)
+f3 = Future('may', 'SX14', 15)
+f4 = Future('may', 'SX13', 14)
 
-s1 = Option(10, 20, 50, 'call', 10, 17,  f1, 'euro')
-s2 = Option(10, 5, 40, 'call', 10, 16,  f2, 'euro')
-s3 = Option(10, 15, 30, 'call', 10, 18,  f3, 'euro')
-s4 = Option(10, 10, 10, 'call', 10, 19,  f3, 'euro')
-s5 = Option(10, 8, 3, 'call', 10, 20, f4, 'euro')
+s1 = Option(10, 50, 'call', 10, f1, 'euro')
+s2 = Option(10, 40, 'call', 10, f2, 'euro')
+s3 = Option(10, 30, 'call', 10, f3, 'euro')
+s4 = Option(10, 10, 'call', 10, f3, 'euro')
+s5 = Option(10, 3, 'call', 10, f4, 'euro')
 optionList = [s1, s2]
 
 
@@ -50,14 +50,14 @@ print(pf2.get_securities_monthly())
 
 
 # testing exercising.
-s10 = Option(10, 20, 50, 'call', 10, 17, f1, 'euro')
+s10 = Option(10, 50, 'call', 10, f1, 'euro')
 pf3 = Portfolio([s10], [])
 print(pf3.get_securities_monthly())
 pf3.exercise_option(s10)
 print(pf3.get_securities_monthly())
 
 # testing passage of time.
-s10 = Option(10, 20, 50, 'call', 10, 17, f1, 'euro')
+s10 = Option(10, 50, 'call', 10, f1, 'euro')
 pf3 = Portfolio([s10], [])
 print(s10.tau)
 pf3.timestep(1)

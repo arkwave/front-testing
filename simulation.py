@@ -20,7 +20,9 @@ TODO:
 def run_simulation(df, pf, gamma_cond, vega_cond, delta_cond):
 	"""Each run of the simulation consists of 6 steps:
 	1) Feed data into the portfolio.
-	2) Compute the changes in the greeks arising from data fed in.
+	2) Compute:
+		> change in greeks from price and vol update
+		> change in overall value of portfolio from price and vol update.
 	3) Handle the options component:
 		> Check if option is bullet or daily. [PnL]
 		> Check for expiry/exercise. Expiry can be due to barriers or tau = 0. Record changes to:
@@ -36,6 +38,20 @@ def run_simulation(df, pf, gamma_cond, vega_cond, delta_cond):
 		> buy/sell options to hedge gamma/vega according to conditions
 		> buy/sell futures to zero delta (if required)
 	Process then repeats from step 1 for the next input.
+
+	Inputs:
+	1) df            :
+	2) pf            :
+	3) gamma_cond    :
+	4) vega_cond     :
+	5) delta_cond    :
+
+	Outputs:
+	1) Graph of daily PnL
+	2) Graph of cumulative PnL
+	3) Various summary statistics.
+
+
 	"""
 
     # Step 1 & 2
@@ -43,7 +59,7 @@ def run_simulation(df, pf, gamma_cond, vega_cond, delta_cond):
         # getting data pertinent to that day.
         data = df.iloc[[i]]
         # raw_change to be the difference between old and new value per iteration.
-        raw_change = feed_data(data, pf)
+        raw_change, pf = feed_data(data, pf)
 
     # Step 3
     	pf = handle_options(pf)
@@ -78,8 +94,21 @@ def feed_data(data, pf):
 		1) raw_diff: the change in the portfolio's value solely due to new price/vols.
 
 	"""
+	raw_diff = 0
+	prev_val = pf.compute_value()
+	# decrement tau
+	# feed in new values of price to :
+	# 	1) futures in portfolio (i.e. pf.futures)
+	#	2) futures that are underlying (i.e. pf.options.get_future())
+	#   result: updates prices of all futures, including underlying.
+	# feed in new values of vols to:
+	#	1) options in portfolio (i.e. pf.options)
+	# 	result: updates self.vol, greeks and value for each option.
+	# compute value again, store difference.
+	# return difference and new portfolio.
 
 
+	return raw_diff, pf
 def handle_options(pf):
 	"""
 	Inputs: 
