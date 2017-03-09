@@ -10,7 +10,7 @@ def read_data():
 
 def preprocess_data(portfolio, df):
     df = clean_data(df)
-    s_list = portfolio.get_underlying()
+    s_list = portfolio.get_underlying_names()
     tdf = df.copy()
     # TODO reading in the vols. specify this once the dataset is concrete.
     tdf = tdf[s_list]

@@ -83,7 +83,7 @@ class Option:
         # method that updates greeks given new values of s, vol and tau, and subsequently updates value.
         # used in passage of time step.
         self.delta, self.gamma, self.theta, self.vega = _compute_greeks(
-            self.char, self.K, tau, vol, self.s, self.r)
+            self.char, self.K, self.tau, vol, self.s, self.r)
         self.vol = vol
         self.value = self.compute_value()
 
@@ -218,10 +218,9 @@ class Portfolio:
     10) get_securities        : returns a copy of (options, futures)
     11) timestep              : moves portfolio forward one day, decrements tau for all securities.
     12) get_underlying        : returns a list of all underlying futures in this portfolio. returns the actual futures, NOT a copy.
-
+    13) get_all_futures       : returns a list of all futures, underlying and portfolio.
 
     '''
-
 # TODO [Future]: Currently exercising options only happens at expiry. Figure this
 # one out.
 
@@ -369,6 +368,12 @@ class Portfolio:
             u_set.add(sec.get_underlying())
 
         return list(u_set)
+
+    def get_all_futures(self):
+        retr = self.get_underlying()
+        futures = self.futures
+        retr.extend(futures)
+        return retr
 
     def exercise_option(self, sec):
         for option in self.options:
