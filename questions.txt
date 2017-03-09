@@ -1,0 +1,61 @@
+Questions for Ananthi:
+
+
+
+1) Explain project to him
+	
+	- module that simulates the performance of an options portfolio, and evolves portfolio by:
+		1. delta hedging
+		2. gamma/theta hedging.
+	
+	- what kind of data is available?
+		0.  trades that were made
+		0.5 portfolios that were traded
+		1.  underlying price data series
+		2.  vol series
+		3.  what kind of underlying
+		4.  time scale of data
+		5.  price series for options on various underlyings?
+
+		> current formulation requires high, low, close, vol for each underlying.
+
+	- potential access to the database?
+
+
+
+
+
+
+
+
+General questions - Data related.
+
+
+
+1. are all the options in the portfolio basis the same underlying? 
+[Probably not]
+
+2. if not, is there a certain range of underlying futures?
+	> would require high, low, close for each underlying in the entire portfolio across the testing period.
+	> would additionally require that each option have an 'underlying' marker so that value is computed appropriately.
+	> standardize data upon reading in; select data that is relevant to each option.
+
+3. are we assuming that options are never exercised, only expire?
+	> if not, this turns into effectively an options simulator.
+	> need to code in buying/selling rules for options/futures, and when the counterparty would choose to exercise.
+		- relationship between buying and hedging?
+		- what happens at the end of the month/three months upon expiry?
+
+
+
+
+
+Computation-specific questions:
+
+1. Selecting tau value when buying/selling options to go into the portfolio.
+	> what options are usually available in the market?
+	> any heuristic for selling options when greeks exceed bounds?
+
+2. Stochasticity in PnL: coming from the MC engine?
+
+
