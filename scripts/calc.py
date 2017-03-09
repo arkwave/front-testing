@@ -10,8 +10,12 @@ Script that contains implementation of the following calculation-related methods
  """
 
 '''
-TODO: 1) iv calculation [potentially not needed]
-      2) barrier valuation <<<<<<< 3/9/2017
+TODO: 1) american option valuation
+      2) barrier valuation [put off till end]
+        > supplemental numerical approximation methods for:
+            - american options
+            - european barrier
+            - american barrier
       3) option buying heuristics [to be discussed]
 '''
 
@@ -89,8 +93,9 @@ def _compute_greeks(char, K, tau, vol, s, r):
 
 def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None, barrier=None):
     '''Wrapper function that computes value of option. 
-    Inputs: 1) ki : Knock in value.
-            2) ko : Knock out value.
+    Inputs: 1) ki     : Knock in value.
+            2) ko     : Knock out value.
+            3) barrier: type of barrier
             #) Remaining inputs are identical to _bsm inputs. '''
     # vanilla option case
     if ki is None and ko is None:
@@ -100,16 +105,10 @@ def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None, barrier=No
             return _bsm_euro(char, tau, vol, K, s, r)
     # barrier option case
     else:
-        # if option.payoff() == 'american'
-        # elif option.payoff() == 'european'
-        return _barrier_valuation(char, tau, vol, K, s, r, barrier)
-
-
-def _barrier_valuation(option, tau, vol, k, s, r, barrier):
-    if barrier == 'american':
-        return _barrier_amer(tau, vol, k, s, r)
-    elif barrier == 'european':
-        return _barrier_euro(tau, vol, k, s, r)
+        if barrier == 'amer':
+            return _barrier_amer(tau, vol, K, s, r)
+        elif barrier == 'euro':
+            return _barrier_euro(tau, vol, K, s, r)
 
 
 def _barrier_amer(tau, vol, k, s, r):
@@ -118,3 +117,8 @@ def _barrier_amer(tau, vol, k, s, r):
 
 def _barrier_amer(tau, vol, k, s, r):
     pass
+
+
+###################################################
+#Supplemental Methods for Numerical Approximations#
+###################################################
