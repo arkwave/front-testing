@@ -57,6 +57,7 @@ def _bsm_amer(option, tau, vol, K, s, r):
 
     Output: 1) Price      : price of option according to BSM
     """
+    pass
 
 
 def _compute_greeks(char, K, tau, vol, s, r):

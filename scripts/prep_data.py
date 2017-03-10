@@ -6,6 +6,7 @@ TODO: 1) price/vol series transformation
 
 def read_data():
     # read in the appropriate data. Finish when dataset is concrete.
+    pass
 
 
 def preprocess_data(portfolio, df):
