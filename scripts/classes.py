@@ -131,6 +131,7 @@ class Option:
                 return -1
 
 
+# TODO: Tidy up this class, remove useless methods.
 class Future:
 
     '''
@@ -158,12 +159,6 @@ class Future:
         self.month = month
         self.price = price
 
-    def greeks(self):
-        # method included for completeness. Futures and Options are both
-        # treated as securities in portfolio class, requiring equivalent
-        # methods.
-        return 0, 0, 0, 0
-
     def get_price(self):
         return self.price
 
@@ -177,10 +172,6 @@ class Future:
     def update_price(self, price):
         # updates the price of the future object
         self.price = price
-
-    def update_greeks(self, price, vol):
-        # method intentionally left blank. Futures have no greeks.
-        pass
 
     def get_month(self):
         return self.month
