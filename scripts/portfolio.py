@@ -32,12 +32,12 @@ class Portfolio:
 # TODO [Future]: Currently exercising options only happens at expiry. Figure this
 # one out.
 
-    def __init__(self, long_sec, short_sec):
+    def __init__(self):
 
-        self.long_options = long_sec[0]
-        self.short_options = short_sec[0]
-        self.long_futures = long_sec[1]
-        self.short_futures = short_sec[1]
+        self.long_options = []
+        self.short_options = []
+        self.long_futures = []
+        self.short_futures = []
 
         self.newly_added = []
         self.toberemoved = []
@@ -50,9 +50,9 @@ class Portfolio:
         self.pnl = 0
 
         # updating initialized variables
-        self.init_sec_by_month('long')
-        self.init_sec_by_month('short')
-        self.compute_net_greeks(self.long_pos, self.short_pos)
+        # self.init_sec_by_month('long')
+        # self.init_sec_by_month('short')
+        # self.compute_net_greeks(self.long_pos, self.short_pos)
         self.value = self.compute_value()
 
     def set_pnl(self, pnl):
@@ -116,7 +116,7 @@ class Portfolio:
         elif security.get_desc() == 'future':
             ft.append(security)
         self.newly_added.append(security)
-        self.update_sec_by_month(True)
+        self.update_sec_by_month(True, flag)
 
     def remove_security(self, security, flag):
         # removes a security from the portfolio, updates sec_by_month, and
@@ -222,10 +222,16 @@ class Portfolio:
 
     def compute_value(self):
         val = 0
-        for sec in self.options:
+        # try:
+        for sec in self.long_options:
             val += sec.get_value()
-        for sec in self.futures:
+        for sec in self.short_options:
+            val -= sec.get_value()
+        for sec in self.long_futures:
             val += sec.get_value()
+        for sec in self.short_futures:
+            val -= sec.get_value()
+        # except
         return val
 
     def exercise_option(self, sec, flag):

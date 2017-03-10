@@ -1,6 +1,7 @@
 """ Overall script that runs the simulation """
 
-from scripts import classes as cs
+from scripts.classes import Option, Future
+from scripts.portfolio import Portfolio
 from scripts import calc as clc
 from scripts import prep_data as dat
 import pandas as pd
@@ -128,6 +129,6 @@ def rebalance(pf, delta_cond, gamma_cond, vega_cond):
 
 
 if __name__ == '__main__':
-    pf = None  # TODO: devise clean way to import a portfolio.
+    pf = dat.read_portfolio()
     df = dat.prep_data()
     run_simulation(df, pf)

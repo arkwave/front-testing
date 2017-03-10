@@ -1,5 +1,5 @@
 # File containing all the classes required by the simulation.
-from .calc import _compute_value, _compute_greeks
+from calc import _compute_value, _compute_greeks
 
 lots = 10
 
