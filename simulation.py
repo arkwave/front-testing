@@ -107,8 +107,6 @@ def feed_data(data, pf):
 
     return raw_diff, pf
 
-    return raw_diff, pf
-
 
 def handle_options(pf):
     """

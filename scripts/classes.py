@@ -79,7 +79,7 @@ class Option:
         # object.
         return _compute_greeks(self.char, self.K,  self.tau, self.vol, self.s, self.r)
 
-    def update_greeks(self, vol, tau):
+    def update_greeks(self, vol):
         # method that updates greeks given new values of s, vol and tau, and subsequently updates value.
         # used in passage of time step.
         self.delta, self.gamma, self.theta, self.vega = _compute_greeks(
@@ -321,7 +321,7 @@ class Portfolio:
         else:
             # updating greeks based on new price and vol data
             for sec in self.options:
-                sec.update_greeks(price, vol)
+                sec.update_greeks(vol)
             # updating cumulative greeks on a month-by-month basis.
             for sec in self.securities:
                 month = sec.get_month()
