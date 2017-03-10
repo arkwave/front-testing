@@ -131,7 +131,6 @@ class Option:
                 return -1
 
 
-# TODO: Tidy up this class, remove useless methods.
 class Future:
 
     '''

@@ -1,0 +1,62 @@
+
+
+8/3
+
+option class - framework.                         [Done]
+futures class - framework.                        [Done]
+portfolio class - framework.                      [Done]
+black scholes (euro)                              [Done]
+computational methods                             [Done]
+
+
+9/3
+
+moneyness                                         [Done]
+securities into options and futures               [Done]
+re-testing classes after changes.                 [Done]
+exercise option                                   [Done]
+convert option underlying into futures object     [Done]
+decrement tau                                     [Done]
+update documentation                              [Done]
+options on futures formula                        [Done]
+options class - euro vs amer                      [Done]
+options class - s is now underlying.price()       [Done]
+simulation - program structure                    [Done]
+feed_data - logic                                 [Done]
+feed_data - basic implementation				  [Done]
+rebalancing - logic                               [Done]
+
+
+
+10/3
+
+
+>>>>>> urgent II : short pos repr <<<<<<          [Done]
+data import                                       [Done]
+update documentation                              [Done]
+tidy up futures class                             [Done]
+test portfolio class                              [Done]
+
+
+11-12/3
+
+rigorous tests of portfolio class, make sure
+things update like they are supposed to.          []
+
+nail down simulation logic.                       []
+PnL implementation                                []
+
+
+13/3
+>>>>>> urgent todo: data familiarization <<<<<<   [Once account is active.]
+feed_data: finish implementation                  []
+
+
+
+
+
+
+
+
+
+

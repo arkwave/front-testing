@@ -94,7 +94,7 @@ class Portfolio:
         for month in common_months:
             long_greeks = self.long_pos[month][2:]
             short_greeks = self.short_pos[month][2:]
-            net = map(sub, long_greeks, short_greeks)
+            net = list(map(sub, long_greeks, short_greeks))
             self.net_greeks[month] = net
         # dealing with non overlaps
         for month in self.long_pos_unique:
@@ -206,17 +206,18 @@ class Portfolio:
         else:
             dic = self.short_pos
         data = dic[month]
-        delta, gamma, theta, vega = sec.greeks()
-        if added:
-            data[2] += delta
-            data[3] += gamma
-            data[4] += theta
-            data[5] += vega
-        else:
-            data[2] -= delta
-            data[3] -= gamma
-            data[4] -= theta
-            data[5] -= vega
+        if sec.get_desc() == 'option':
+            delta, gamma, theta, vega = sec.greeks()
+            if added:
+                data[2] += delta
+                data[3] += gamma
+                data[4] += theta
+                data[5] += vega
+            else:
+                data[2] -= delta
+                data[3] -= gamma
+                data[4] -= theta
+                data[5] -= vega
 
         self.compute_net_greeks()
 
