@@ -55,11 +55,20 @@ compute tau from label                            []
 flag indicating target or hedge in readin         []
 
 
+
+
+
+
 Remaining Todos:
 
->>>>>> General: <<<<<<<<<
+>>>>>> General: <<<<<<<<<Comp
 rigorous tests of portfolio class, make sure
 things update like they are supposed to.          []
+
+
+
+
+
 
 Do once the account has been made.
 >>>>>>> data-related: <<<<<<<<<<
@@ -69,8 +78,8 @@ data cleaning tools                               []
 data transformation 			                  []
 
 
-Do this on thursday. Copy formulas from Haug and from online.
 >>>>>> Computational todos : <<<<<<<<<<
+Implement the following based on the matlab pricing code.
 vol computation                                   []
 barrier option pricing                            []
 american option pricing                           []
