@@ -288,5 +288,3 @@ class Portfolio:
 
     def net_greeks(self):
         return self.net_greeks
-
-    def hedge(self, month, var)

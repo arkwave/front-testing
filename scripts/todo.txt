@@ -39,15 +39,15 @@ test portfolio class                              [Done]
 
 
 13/3
-rebalancing logic                                 [Done]
+gamma & vega hedging                              [Done]
+delta hedging                                     []
+value of future calculation                       []
+re-structure dictionaries to incl product         []
 hedge vs target dichotomy - extract from pos      []
-
 Update documentation							  []
 
 
-
-
-
+14/3
 
 
 Remaining Todos:
@@ -60,12 +60,15 @@ product specific information dic                  []
 
 
 >>>>>>> data-related: <<<<<<<<<<
-
 urgent todo: data familiarization                 []
 text file query from database                     []
+data cleaning tools                               []
+data transformation 			                  []
+compute tau from label                            []
 
 
 >>>>>> Computational todos : <<<<<<<<<<
+vol computation                                   []
 barrier option pricing                            []
 american option pricing                           []
 barrier option vol derivation.                    []
