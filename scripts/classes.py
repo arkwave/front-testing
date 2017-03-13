@@ -4,6 +4,12 @@ from calc import _compute_value, _compute_greeks
 lots = 10
 
 
+# TODO: Product specific information.
+# product : [futures_multiplier - (dollar_mult, lot_mult),
+# options_multiplier - (dollar_mult, lot_mult), futures_tick,
+# options_tick, brokerage]
+
+
 class Option:
 
     """
@@ -26,8 +32,9 @@ class Option:
         15) bullet     =   True - Bullet. False - Daily.
         16) underlying =   the underlying futures object
         17) payoff     =   American or European option
+        18) direc      =   Indicates the direction of the barrier (up and out etc.)
 
-        Note: ki, ko, bullet and barrier default to None and must be expressly overridden if an exotic option is desired.
+        Note: ki, ko, bullet, direc and barrier default to None and must be expressly overridden if an exotic option is desired.
 
     Instance Methods:
     1) get_month       : returns the month of the underlying contract.
@@ -43,13 +50,14 @@ class Option:
     11) get_future     : returns the underlying future object.
     12) get_desc       : returns 'option'
     13) get_underlying : returns the NAME of the underlying future.
+    14) check_active   : for barriers, checks to see if this barrier is active or not.
     """
 
-    def __init__(self, strike, tau, char, vol, underlying, payoff, barrier=None, lots=lots, bullet=None, ki=None, ko=None):
+    def __init__(self, strike, tau, char, vol, underlying, payoff, direc=None barrier=None, lots=lots, bullet=None, ki=None, ko=None):
 
         self.payoff = payoff
         self.underlying = underlying
-        self.bullet = bullet
+        self.bullet = bullet  # daily = list of bullets.
         self.lots = lots
         self.desc = 'option'
         self.ki = ki
@@ -57,13 +65,32 @@ class Option:
         self.K = strike
         self.tau = tau
         self.char = char
-        # self.price = price
         self.vol = vol
         self.s = self.underlying.get_price()
         self.r = 0
-
-        self.value = self.compute_value()
+        self.price = self.compute_price()
         self.delta, self.gamma, self.theta, self.vega = self.init_greeks()
+        self.active = self.check_active()
+        self.direc = direc
+
+    def check_active(self):
+        active = True
+        if self.ki:
+            if self.direc == 'up':
+                # check if up and in is active
+                if self.s < self.ki:
+                    active == False
+            elif self.direc == 'down':
+                if self.s > self.ki:
+                    active == False
+        if self.ko:
+            if self.direc == 'up':
+                if self.s > self.ko:
+                    active == False
+            elif self.direc == 'down':
+                if self.s < self.ko:
+                    active == False
+        return active
 
     def get_future(self):
         return self.underlying
@@ -85,7 +112,7 @@ class Option:
         self.delta, self.gamma, self.theta, self.vega = _compute_greeks(
             self.char, self.K, self.tau, vol, self.s, self.r)
         self.vol = vol
-        self.value = self.compute_value()
+        self.price = self.compute_value()
 
     def greeks(self):
         # getter method for greeks. preserves abstraction barrier.
@@ -95,12 +122,12 @@ class Option:
     #     # computes implied vol from market price data
     #     return _compute_iv(underlying, price, strike, tau, r)
 
-    def compute_value(self):
+    def compute_price(self):
         # computes the value of this structure from relevant information.
         return _compute_value(self.char, self.tau, self.vol, self.K, self.s, self.r, self.payoff, ki=self.ki, ko=self.ko)
 
-    def get_value(self):
-        return self.value
+    def get_price(self):
+        return self.price
 
     def update_tau(self, diff):
         self.tau -= diff
@@ -139,7 +166,7 @@ class Future:
     2) price  :  the quoted price of the future.
     3) desc   :  string description of the object
     4) lots   :  number of lots represented by each future contract.
-    6) name   :  the commodity of this future
+    5) product   :  the commodity of this future.
 
     Instance Methods:
     1) greeks         : dummy method.
@@ -151,12 +178,13 @@ class Future:
     7) get_name : returns the name of this contract (i.e. the commodity)
     '''
 
-    def __init__(self, month, name, price, lots=lots):
-        self.name = name
+    def __init__(self, month, price, product, lots=lots):
+        self.product = product
         self.lots = lots
         self.desc = 'future'
         self.month = month
         self.price = price
+        self.product = product
 
     def get_price(self):
         return self.price
@@ -164,7 +192,7 @@ class Future:
     def get_desc(self):
         return self.desc
 
-    def get_value(self):
+    def get_price(self):
         # getter method for price of the future.
         return self.price
 
@@ -178,5 +206,5 @@ class Future:
     def get_lots(self):
         return self.lots
 
-    def get_name(self):
-        return self.name
+    def get_product(self):
+        return self.product

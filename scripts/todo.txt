@@ -30,7 +30,6 @@ rebalancing - logic                               [Done]
 
 10/3
 
-
 >>>>>> urgent II : short pos repr <<<<<<          [Done]
 data import                                       [Done]
 update documentation                              [Done]
@@ -38,18 +37,39 @@ tidy up futures class                             [Done]
 test portfolio class                              [Done]
 
 
-11-12/3
+
+13/3
+rebalancing logic                                 [Done]
+hedge vs target dichotomy - extract from pos      []
+
+Update documentation							  []
+
+
+
+
+
+
+
+Remaining Todos:
+
+>>>>>> General: <<<<<<<<<
 
 rigorous tests of portfolio class, make sure
 things update like they are supposed to.          []
-
-nail down simulation logic.                       []
-PnL implementation                                []
+product specific information dic                  []
 
 
-13/3
->>>>>> urgent todo: data familiarization <<<<<<   [Once account is active.]
-feed_data: finish implementation                  []
+>>>>>>> data-related: <<<<<<<<<<
+
+urgent todo: data familiarization                 []
+text file query from database                     []
+
+
+>>>>>> Computational todos : <<<<<<<<<<
+barrier option pricing                            []
+american option pricing                           []
+barrier option vol derivation.                    []
+american option vol derivation.                   []
 
 
 

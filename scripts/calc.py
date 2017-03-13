@@ -9,18 +9,23 @@ Script that contains implementation of the following calculation-related methods
 4) Calculating PnL
  """
 
+
 '''
 TODO: 1) american option valuation
-      2) barrier valuation [put off till end]
+      2) barrier valuation 
         > supplemental numerical approximation methods for:
             - american options
             - european barrier
             - american barrier
-      3) option buying heuristics [to be discussed]
+      3) compute vol from strike, call and underlying price.
 '''
 
 from math import log, sqrt, exp, pi
 from scipy.stats import norm
+
+
+def _compute_vol(s, k, c, tau, r):
+    pass
 
 
 def _bsm_euro(option, tau, vol, K, s, r):
@@ -79,6 +84,7 @@ def _compute_greeks(char, K, tau, vol, s, r):
     d2 = d1 - vol*(sqrt(tau))
     gamma = (1/sqrt(2*pi)) * exp(-(d1**2) / 2) / (s*vol*sqrt(tau))
     vega = s*(1/sqrt(2*pi)) * exp(-(d1**2) / 2) * sqrt(tau)
+
     if char == 'call':
         # call option calc for delta and theta
         delta = norm.cdf(d1)
@@ -112,7 +118,7 @@ def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None, barrier=No
             return _barrier_euro(tau, vol, K, s, r)
 
 
-def _barrier_amer(tau, vol, k, s, r):
+def _barrier_euro(tau, vol, k, s, r):
     pass
 
 

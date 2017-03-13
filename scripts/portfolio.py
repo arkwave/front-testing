@@ -266,7 +266,7 @@ class Portfolio:
             ft = self.short_futures
         lst1 = op.copy()
         lst2 = ft.copy()
-        return lst1, lst2
+        return (lst1, lst2)
 
     def get_underlying(self):
         u_set = set()
@@ -285,3 +285,8 @@ class Portfolio:
         all_options = self.long_options + self.short_options
         for option in all_options:
             option.update_tau(value)
+
+    def net_greeks(self):
+        return self.net_greeks
+
+    def hedge(self, month, var)

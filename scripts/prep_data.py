@@ -1,6 +1,7 @@
 '''
 TODO: 1) price/vol series transformation
       2) identify structure of the data.
+      3) given K7.K7 extract expiry
 '''
 
 filepath = '..\portfolio_specs.txt'
