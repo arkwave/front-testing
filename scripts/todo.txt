@@ -40,33 +40,36 @@ test portfolio class                              [Done]
 
 13/3
 gamma & vega hedging                              [Done]
-delta hedging                                     []
-value of future calculation                       []
-re-structure dictionaries to incl product         []
-hedge vs target dichotomy - extract from pos      []
-Update documentation							  []
+re-structure dictionaries to incl product         [Done]
+Update documentation							  [Done]
+product specific information dic                  [Almost]
+
+
 
 
 14/3
+value of future calculation                       []
+delta hedging                                     []
+hedge vs target dichotomy - extract from pos      []
+compute tau from label                            []
+flag indicating target or hedge in readin         []
 
 
 Remaining Todos:
 
 >>>>>> General: <<<<<<<<<
-
 rigorous tests of portfolio class, make sure
 things update like they are supposed to.          []
-product specific information dic                  []
 
-
+Do once the account has been made.
 >>>>>>> data-related: <<<<<<<<<<
 urgent todo: data familiarization                 []
 text file query from database                     []
 data cleaning tools                               []
 data transformation 			                  []
-compute tau from label                            []
 
 
+Do this on thursday. Copy formulas from Haug and from online.
 >>>>>> Computational todos : <<<<<<<<<<
 vol computation                                   []
 barrier option pricing                            []
@@ -74,7 +77,10 @@ american option pricing                           []
 barrier option vol derivation.                    []
 american option vol derivation.                   []
 
-
+>>>>> Simulation Logic: <<<<<<
+1) Handle_options                                 []
+2) PnL                                            []
+3) Clean up feed_data once data format finalized  []
 
 
 

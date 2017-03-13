@@ -12,14 +12,15 @@ import numpy as np
 TODO:
 > Step 3     : handle_options
 > Step 4     : pnl accumulation
-> Step 5     : rebalancing.
+> Step 5     : rebalancing - delta hedging.
 
 """
 
 # TODO: Product specific information.
-# product : [futures_multiplier - (dollar_mult, lot_mult),
+
+# {product : [futures_multiplier - (dollar_mult, lot_mult),
 # options_multiplier - (dollar_mult, lot_mult), futures_tick,
-# options_tick, brokerage]
+# options_tick, brokerage]}
 
 # list of hedging conditions.
 hedges = {'delta': 'zero', 'gamma': (-5000, 5000), 'vega': (-5000, 5000)}
@@ -30,6 +31,7 @@ slippage = 1
 
 def run_simulation(df, pf, hedges):
     """Each run of the simulation consists of 6 steps:
+
     1) Feed data into the portfolio.
     2) Compute:
             > change in greeks from price and vol update
@@ -52,11 +54,11 @@ def run_simulation(df, pf, hedges):
     Process then repeats from step 1 for the next input.
 
     Inputs:
-    1) df            : dataframe containing price series for all futures (portfolio and underlying), and vol series for all futures.
-    2) pf            : Portfolio object.
+    1) df             : dataframe containing price and vol series for all futures.
+    2) pf             : Portfolio object.
     3) gamma_bound    : gamma limits
     4) vega_bound     : vega limits
-    5) delta_cond    : delta hedging strategy
+    5) delta_cond     : delta hedging strategy
 
     Outputs:
     1) Graph of daily PnL
@@ -112,7 +114,7 @@ def feed_data(data, pf):
     # update option attributes by feeding in vol.
     all_options = pf.get_securities()[0]
     for option in all_options:
-        name = option.get_underlying()
+        name = option.get_product()
         volname = name + '_' + 'vol'
         volvalue = df[volname]
         option.update_greeks(vol)
@@ -216,6 +218,10 @@ def hedge_gamma_vega(hedges, data, greeks, month):
             pf.add_security(putop, flag)
 
     return expenditure, pf
+
+
+def hedge_delta(cond, data, greeks, month):
+    pass
 
 
 if __name__ == '__main__':

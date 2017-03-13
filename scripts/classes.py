@@ -32,9 +32,13 @@ class Option:
         15) bullet     =   True - Bullet. False - Daily.
         16) underlying =   the underlying futures object
         17) payoff     =   American or European option
-        18) direc      =   Indicates the direction of the barrier (up and out etc.)
+        18) direc      =   Indicates the direction of the barrier (up and out etc.).
+        19) knockedin  =   boolean indicating if this barrier knockin option is active.
+        20) knockedout =   boolean indicating if this barrier knockout option is active.
 
-        Note: ki, ko, bullet, direc and barrier default to None and must be expressly overridden if an exotic option is desired.
+        Notes: 
+        1_ ki, ko, bullet, direc and barrier default to None and must be expressly overridden if an exotic option is desired.
+        2_ knockedin and knockedout should be set ONLY for options that are knockin and knockout options respectively. the program assumes this assignment is done correctly.
 
     Instance Methods:
     1) get_month       : returns the month of the underlying contract.
@@ -49,11 +53,11 @@ class Option:
     10) moneyness      : returns 1, 0 , -1 depending if option is itm, atm, otm.
     11) get_future     : returns the underlying future object.
     12) get_desc       : returns 'option'
-    13) get_underlying : returns the NAME of the underlying future.
+    13) get_product    : returns the NAME of the underlying future.
     14) check_active   : for barriers, checks to see if this barrier is active or not.
     """
 
-    def __init__(self, strike, tau, char, vol, underlying, payoff, direc=None barrier=None, lots=lots, bullet=None, ki=None, ko=None):
+    def __init__(self, strike, tau, char, vol, underlying, payoff, direc=None barrier=None, lots=lots, bullet=None, ki=None, ko=None, knockedin=None, knockedout=None):
 
         self.payoff = payoff
         self.underlying = underlying
@@ -72,7 +76,10 @@ class Option:
         self.delta, self.gamma, self.theta, self.vega = self.init_greeks()
         self.active = self.check_active()
         self.direc = direc
+        self.knockedout = True
+        self.knockedin = True
 
+    # TODO: update this to properly reflect knockedin/knockedout bools
     def check_active(self):
         active = True
         if self.ki:
@@ -92,7 +99,7 @@ class Option:
                     active == False
         return active
 
-    def get_future(self):
+    def get_underlying(self):
         return self.underlying
 
     def get_month(self):
@@ -118,9 +125,9 @@ class Option:
         # getter method for greeks. preserves abstraction barrier.
         return self.delta, self.gamma, self.theta, self.vega
 
-    # def compute_vol(underlying, price, strike, tau, r):
-    #     # computes implied vol from market price data
-    #     return _compute_iv(underlying, price, strike, tau, r)
+    def compute_vol(underlying, price, strike, tau, r):
+        # computes implied vol from market price data
+        return _compute_iv(underlying, price, strike, tau, r)
 
     def compute_price(self):
         # computes the value of this structure from relevant information.
@@ -132,8 +139,8 @@ class Option:
     def update_tau(self, diff):
         self.tau -= diff
 
-    def get_underlying(self):
-        return self.underlying.get_name()
+    def get_product(self):
+        return self.underlying.get_product()
 
     def exercise(self):
         worth = self.moneyness()
@@ -175,7 +182,7 @@ class Future:
     4) update_greeks  : dummy method.
     5) get_month      : returns contract month.
     6) get_lots       : returns lot size
-    7) get_name : returns the name of this contract (i.e. the commodity)
+    7) get_product    : returns the name of this contract (i.e. the commodity)
     '''
 
     def __init__(self, month, price, product, lots=lots):
