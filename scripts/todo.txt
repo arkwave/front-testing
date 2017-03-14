@@ -48,32 +48,31 @@ Update documentation							  [Done]
 14/3
 Implement the following based on the matlab pricing code.
 
-product specific information dic                  [Almost]
-update greeks based on lots etc                   [ALMOST]
-
-
-double check with ananthi regarding amer options  []
-
-vol computation                                   []
-barrier option pricing                            []
 american option pricing                           [Done]
+vol computation                                   [Done]
+barrier option pricing: american                  [Done]
+barrier option pricing: european                  []
 
-delta hedging                                     []
 
+product specific information dic                  []
+update greeks based on lots etc                   []
 
 
 15/3
-value of future calculation                       []
-hedge vs target dichotomy - extract from pos      []
-compute tau from label                            []
-flag indicating target or hedge in readin         []
-
+testing:
+1_ all computational methods.
+2_ portfolio object
+3_ options object
+4_ futures object
 
 
 16/3
-barrier option vol derivation.                    []
+delta hedging                                     []
+compute tau from label                            []
+value of future calculation                       []
+hedge vs target dichotomy - extract from pos      []
+flag indicating target or hedge in readin         []
 
-american option vol derivation.                   []
 
 
 

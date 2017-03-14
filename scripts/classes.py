@@ -26,16 +26,16 @@ class Option:
         9)  r          =   risk free interest rate. assumed to be 0, can be changed.
         10) desc       =   string description of the object
         11) month      =   month of expiry. used to keep greeks for different months separate.
-        12) value      =   theoretical black-scholes value of the option.
-        13) barrier    =   American or European barrier.
-        14) lots       =   the quantity of underlying being shorted or bought upon expiry. 
-        15) bullet     =   True - Bullet. False - Daily.
-        16) underlying =   the underlying futures object
-        17) payoff     =   American or European option
-        18) direc      =   Indicates the direction of the barrier (up and out etc.).
-        19) knockedin  =   boolean indicating if this barrier knockin option is active.
-        20) knockedout =   boolean indicating if this barrier knockout option is active.
-        21) expired    =   boolean indicating if the option has expired.
+        12) barrier    =   American or European barrier.
+        13) lots       =   the quantity of underlying being shorted or bought upon expiry. 
+        14) bullet     =   True - Bullet. False - Daily.
+        15) underlying =   the underlying futures object
+        16) payoff     =   American or European option
+        17) direc      =   Indicates the direction of the barrier (up and out etc.).
+        18) knockedin  =   boolean indicating if this barrier knockin option is active.
+        19) knockedout =   boolean indicating if this barrier knockout option is active.
+        20) expired    =   boolean indicating if the option has expired.
+        21) rebate     =   value paid to holder of option if option is knocked out.
 
         Notes: 
         1_ ki, ko, bullet, direc and barrier default to None and must be expressly overridden if an exotic option is desired.
@@ -59,7 +59,7 @@ class Option:
     15) expire         : expires this option. defaults to false upon initialization.
     """
 
-    def __init__(self, strike, tau, char, vol, underlying, payoff, direc=None barrier=None, lots=lots, bullet=None, ki=None, ko=None, knockedin=None, knockedout=None):
+    def __init__(self, strike, tau, char, vol, underlying, payoff, direc=None barrier=None, lots=lots, bullet=None, ki=None, ko=None, knockedin=None, knockedout=None, rebate=0):
 
         self.payoff = payoff
         self.underlying = underlying
@@ -81,6 +81,7 @@ class Option:
         self.knockedout = True
         self.knockedin = True
         self.expired = False  # defaults to false.
+        self.rebate = rebate
 
     # TODO: update this to properly reflect knockedin/knockedout bools
     def check_active(self):
@@ -132,7 +133,8 @@ class Option:
 
     def compute_vol(underlying, price, strike, tau, r):
         # computes implied vol from market price data
-        return _compute_iv(underlying, price, strike, tau, r)
+        product = self.get_product()
+        return _compute_iv(underlying, price, strike, tau, r, product)
 
     def compute_price(self):
         # computes the value of this structure from relevant information.
