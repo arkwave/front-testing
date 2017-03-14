@@ -139,14 +139,14 @@ class Portfolio:
         for product in long_products_unique:
             data = self.long_pos[product]
             # iterating over all months corresponding to non-overlapping
-            # product.
+            # product for which we have long positions
             for month in data:
                 self.net_greeks[product][month] = data[month][2:]
 
         for product in short_products_unique:
             data = self.long_pos[product]
             # iterating over all months corresponding to non-overlapping
-            # product.
+            # product for which we have short positions.
             for month in data:
                 self.net_greeks[product][month] = data[month][2:]
 

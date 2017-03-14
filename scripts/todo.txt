@@ -42,17 +42,43 @@ test portfolio class                              [Done]
 gamma & vega hedging                              [Done]
 re-structure dictionaries to incl product         [Done]
 Update documentation							  [Done]
-product specific information dic                  [Almost]
-
 
 
 
 14/3
-value of future calculation                       []
+Implement the following based on the matlab pricing code.
+
+product specific information dic                  [Almost]
+update greeks based on lots etc                   [ALMOST]
+
+
+double check with ananthi regarding amer options  []
+
+vol computation                                   []
+barrier option pricing                            []
+american option pricing                           [Done]
+
 delta hedging                                     []
+
+
+
+15/3
+value of future calculation                       []
 hedge vs target dichotomy - extract from pos      []
 compute tau from label                            []
 flag indicating target or hedge in readin         []
+
+
+
+16/3
+barrier option vol derivation.                    []
+
+american option vol derivation.                   []
+
+
+
+17/3
+
 
 
 
@@ -78,13 +104,7 @@ data cleaning tools                               []
 data transformation 			                  []
 
 
->>>>>> Computational todos : <<<<<<<<<<
-Implement the following based on the matlab pricing code.
-vol computation                                   []
-barrier option pricing                            []
-american option pricing                           []
-barrier option vol derivation.                    []
-american option vol derivation.                   []
+
 
 >>>>> Simulation Logic: <<<<<<
 1) Handle_options                                 []

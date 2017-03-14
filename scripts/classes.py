@@ -35,6 +35,7 @@ class Option:
         18) direc      =   Indicates the direction of the barrier (up and out etc.).
         19) knockedin  =   boolean indicating if this barrier knockin option is active.
         20) knockedout =   boolean indicating if this barrier knockout option is active.
+        21) expired    =   boolean indicating if the option has expired.
 
         Notes: 
         1_ ki, ko, bullet, direc and barrier default to None and must be expressly overridden if an exotic option is desired.
@@ -55,6 +56,7 @@ class Option:
     12) get_desc       : returns 'option'
     13) get_product    : returns the NAME of the underlying future.
     14) check_active   : for barriers, checks to see if this barrier is active or not.
+    15) expire         : expires this option. defaults to false upon initialization.
     """
 
     def __init__(self, strike, tau, char, vol, underlying, payoff, direc=None barrier=None, lots=lots, bullet=None, ki=None, ko=None, knockedin=None, knockedout=None):
@@ -78,6 +80,7 @@ class Option:
         self.direc = direc
         self.knockedout = True
         self.knockedin = True
+        self.expired = False  # defaults to false.
 
     # TODO: update this to properly reflect knockedin/knockedout bools
     def check_active(self):
@@ -111,13 +114,15 @@ class Option:
     def init_greeks(self):
         # initializes relevant greeks. only used once, when initializing Option
         # object.
-        return _compute_greeks(self.char, self.K,  self.tau, self.vol, self.s, self.r)
+        product = self.get_product()
+        return _compute_greeks(self.char, self.K,  self.tau, self.vol, self.s, self.r, product, self.payoff)
 
     def update_greeks(self, vol):
         # method that updates greeks given new values of s, vol and tau, and subsequently updates value.
         # used in passage of time step.
+        product = self.get_product()
         self.delta, self.gamma, self.theta, self.vega = _compute_greeks(
-            self.char, self.K, self.tau, vol, self.s, self.r)
+            self.char, self.K, self.tau, vol, self.s, self.r, product, self.payoff)
         self.vol = vol
         self.price = self.compute_value()
 
