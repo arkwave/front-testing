@@ -51,19 +51,20 @@ Implement the following based on the matlab pricing code.
 american option pricing                           [Done]
 vol computation                                   [Done]
 barrier option pricing: american                  [Done]
-barrier option pricing: european                  []
 
-
-product specific information dic                  []
-update greeks based on lots etc                   []
 
 
 15/3
+barrier option pricing: european                  []
+product specific information dic                  []
+update greeks based on lots etc                   []
+
 testing:
 1_ all computational methods.
-2_ portfolio object
-3_ options object
-4_ futures object
+
+
+
+
 
 
 16/3
@@ -77,21 +78,29 @@ flag indicating target or hedge in readin         []
 
 
 17/3
+testing: 
+2_ portfolio object
+3_ options object
+4_ futures object
 
 
 
 
-
-
+Next week:
+1) remaining simulation logic and data processing.
 
 Remaining Todos:
+
+
+
+
+
+
+
 
 >>>>>> General: <<<<<<<<<Comp
 rigorous tests of portfolio class, make sure
 things update like they are supposed to.          []
-
-
-
 
 
 
