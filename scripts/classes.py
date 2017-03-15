@@ -21,6 +21,9 @@ lots = 10
 # options_tick, brokerage]
 
 
+# FIXME: self.s not updating when future is update.
+# FIXME: Option has no attribute 'direc'
+
 class Option:
 
     """
@@ -70,8 +73,8 @@ class Option:
     15) expire         : expires this option. defaults to false upon initialization.
     """
 
-    def __init__(self, strike, tau, char, vol, underlying, payoff, direc=None, barrier=None, lots=lots, bullet=None, ki=None, ko=None, knockedin=None, knockedout=None, rebate=0):
-
+    def __init__(self, strike, tau, char, vol, underlying, payoff, direc=None, barrier=None, lots=lots, bullet=None, ki=None, ko=None, rebate=0):
+        self.barrier = barrier
         self.payoff = payoff
         self.underlying = underlying
         self.bullet = bullet  # daily = list of bullets.
@@ -89,10 +92,11 @@ class Option:
         self.delta, self.gamma, self.theta, self.vega = self.init_greeks()
         self.active = self.check_active()
         self.direc = direc
-        self.knockedout = True
-        self.knockedin = True
+        self.knockedout = False if (self.check_active() and ko) else True
+        self.knockedin = True if (self.check_active() and ki) else False
         self.expired = False  # defaults to false.
         self.rebate = rebate
+        self.product = self.get_product()
 
     # TODO: update this to properly reflect knockedin/knockedout bools
     def check_active(self):
@@ -127,14 +131,14 @@ class Option:
         # initializes relevant greeks. only used once, when initializing Option
         # object.
         product = self.get_product()
-        return _compute_greeks(self.char, self.K,  self.tau, self.vol, self.s, self.r, product, self.payoff)
+        return _compute_greeks(self.char, self.K,  self.tau, self.vol, self.s, self.r, product, self.payoff, self.lots)
 
     def update_greeks(self, vol):
         # method that updates greeks given new values of s, vol and tau, and subsequently updates value.
         # used in passage of time step.
         product = self.get_product()
         self.delta, self.gamma, self.theta, self.vega = _compute_greeks(
-            self.char, self.K, self.tau, vol, self.s, self.r, product, self.payoff)
+            self.char, self.K, self.tau, vol, self.s, self.r, product, self.payoff, self.lots)
         self.vol = vol
         self.price = self.compute_value()
 
@@ -208,8 +212,10 @@ class Future:
         self.lots = lots
         self.desc = 'future'
         self.month = month
-        self.price = price
-        self.product = product
+        if price >= 0:
+            self.price = price
+        else:
+            raise ValueError("Price cannot be negative")
 
     def get_price(self):
         return self.price

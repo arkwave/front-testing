@@ -11,12 +11,30 @@ from scripts.classes import Future
 
 
 def test_get_price():
-    pass
+    ft = Future('march', 30, 'C')
+    assert ft.get_price() == 30
+
+    ft.update_price(50)
+    assert ft.get_price() == 50
 
 
 def test_get_desc():
-    pass
+    ft = Future('march', 30, 'C')
+    assert ft.get_desc() == 'future'
 
 
 def test_update_price():
-    pass
+    ft = Future('march', 30, 'C')
+    assert ft.get_price() == 30
+    ft.update_price(50)
+    assert ft.get_price() == 50
+
+
+def test_get_product():
+    ft = Future('march', 30, 'C')
+    assert ft.get_product() == 'C'
+
+
+def test_get_month():
+    ft = Future('march', 30, 'C')
+    assert ft.get_month() == 'march'

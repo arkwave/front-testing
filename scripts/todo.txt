@@ -55,30 +55,35 @@ barrier option pricing: american                  [Done]
 
 
 15/3
-barrier option pricing: european                  []
 product specific information dic                  [Done]
 update greeks based on lots etc                   [Done]
+barrier option greeks : american                  [Done]
 
 
+barrier option pricing: european                  [Done]
+barrier option greeks : european                  [Done]
 
-testing:
-1_ all computational methods.
 
 
 
 16/3
-delta hedging                                     []
+testing:
+1_ all computational methods.                     []
+2_ portfolio object                               []
+3_ options object                                 []
+4_ futures object                                 []
+
+
+
+17/3
+delta hedging logic                               []
 compute tau from label                            []
 value of future calculation                       []
 hedge vs target dichotomy - extract from pos      []
 flag indicating target or hedge in readin         []
 
 
-17/3
-testing: 
-2_ portfolio object
-3_ options object
-4_ futures object
+
 
 
 
@@ -86,15 +91,9 @@ testing:
 Next week:
 1) remaining simulation logic and data processing.
 
+
+
 Remaining Todos:
-
-
-
-
-
-
-
-
 >>>>>> General: <<<<<<<<<Comp
 rigorous tests of portfolio class, make sure
 things update like they are supposed to.          []

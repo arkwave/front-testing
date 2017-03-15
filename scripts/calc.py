@@ -61,7 +61,7 @@ from scipy.stats import norm
 #####################################################################
 
 
-def _compute_value(char, tau, vol, K, s, r, payoff, product, ki=None, ko=None, barrier=None, d=None):
+def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None, barrier=None, d=None):
     '''Wrapper function that computes value of option.
     Inputs: 1) ki     : Knock in value.
             2) ko     : Knock out value.
@@ -77,20 +77,20 @@ def _compute_value(char, tau, vol, K, s, r, payoff, product, ki=None, ko=None, b
         # currently american == european since it's never optimal to exercise
         # before expiry.
         if payoff == 'amer':
-            return _bsm_euro(char, tau, vol, K, s, r, product)
+            return _bsm_euro(char, tau, vol, K, s, r)
         elif payoff == 'euro':
-            return _bsm_euro(char, tau, vol, K, s, r, product)
+            return _bsm_euro(char, tau, vol, K, s, r)
     # barrier option case
     else:
         if barrier == 'amer':
-            return _barrier_amer(char, tau, vol, K, s, r, payoff, d, product, ki, ko)
+            return _barrier_amer(char, tau, vol, K, s, r, payoff, d, ki, ko)
         elif barrier == 'euro':
-            return _barrier_euro(char, tau, vol, K, s, r, payoff, d, product, ki, ko)
+            return _barrier_euro(char, tau, vol, K, s, r, payoff, d, ki, ko)
 
 
 ################### Vanilla Option Valuation ######################
 
-def _bsm_euro(option, tau, vol, K, s, r, product):
+def _bsm_euro(option, tau, vol, K, s, r):
     """Vanilla european option pricing.
 
     Inputs: 1) option     : call or put.
@@ -114,7 +114,7 @@ def _bsm_euro(option, tau, vol, K, s, r, product):
     return price
 
 
-def _amer_option(option, tau, vol, K, s, r, product):
+def _amer_option(option, tau, vol, K, s, r):
     """Vanilla american option pricing.
 
     Inputs: 1) option     : call or put.
@@ -126,7 +126,7 @@ def _amer_option(option, tau, vol, K, s, r, product):
 
     Output: 1) Price      : price of option according to CRR Binomial Tree
     """
-    return _CRRbinomial('price', 'amer', option, s, k, tau, r, r, vol, product)
+    return _CRRbinomial('price', 'amer', option, s, k, tau, r, r, vol)
 
 
 ###########################################################################
@@ -134,7 +134,7 @@ def _amer_option(option, tau, vol, K, s, r, product):
 ####################### Barrier Option Valuation ##########################
 
 
-def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, rebate=0):
+def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0):
     """ Pricing model for options with european barrers.
 
     Inputs:
@@ -166,70 +166,70 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
         if direction == 'up':
             if ki:
                 # call up in
-                return _compute_value(char, tau, vol, K, s, r, payoff, product)
+                return _compute_value(char, tau, vol, K, s, r, payoff)
             if ko:
                 # call up out
                 vanPrice = _compute_value(
-                    char, tau, vol, ko, s, r, payoff, product)
+                    char, tau, vol, ko, s, r, payoff)
                 vol2 = _compute_iv(
-                    'call', s, ki, vanPrice, tau, r, 'euro', product)
+                    'call', s, ki, vanPrice, tau, r, 'euro')
                 p1 = call_put_spread(
-                    s, ko, k, r, vol2, vol, tau, 'callspread', product)
+                    s, ko, k, r, vol2, vol, tau, 'callspread')
                 p2 = call_put_spread(
-                    s, ko, ko-ticksize, r, vol2, vol2, tau, 'callspread', product)
+                    s, ko, ko-ticksize, r, vol2, vol2, tau, 'callspread')
                 return p1 - calc_lots*p2
         if direction == 'down':
             if ki:
                 # call down in
                 vanPrice = _compute_value(
-                    char, tau, vol, ki, s, r, payoff, product)
+                    char, tau, vol, ki, s, r, payoff)
                 vol2 = _compute_iv(
-                    'call', s, ki, vanPrice, tau, r, 'euro', product)
+                    'call', s, ki, vanPrice, tau, r, 'euro')
                 p1 = call_put_spread(s, ki, k, r, vol2, vol1, tau,
-                                     'callspread', product)
+                                     'callspread')
                 p2 = call_put_spread(
-                    s, ki + ticksize, ki, r, vol2, vol2, tau, 'callspread', product)
+                    s, ki + ticksize, ki, r, vol2, vol2, tau, 'callspread')
                 return p1 - calc_lots * p2
 
             if ko:
                 # call down out
-                return _compute_value(char, tau, vol, K, s, r, payoff, product)
+                return _compute_value(char, tau, vol, K, s, r, payoff)
 
     if char == 'put':
         if direction == 'up':
             if ki:
                 # put up in
                 vanPrice = _compute_value(
-                    char, tau, vol, ki, s, r, payoff, product)
+                    char, tau, vol, ki, s, r, payoff)
                 vol2 = _compute_iv(
-                    'call', s, ki, vanPrice, tau, r, 'euro', product)
+                    'call', s, ki, vanPrice, tau, r, 'euro')
                 p1 = call_put_spread(
-                    s, k, ki, r, vol, vol2, tau, 'putspread', product)
+                    s, k, ki, r, vol, vol2, tau, 'putspread')
                 p2 = call_put_spread(
-                    s, ki, ki-ticksize, r, vol2, vol2, tau, 'putspread', product)
+                    s, ki, ki-ticksize, r, vol2, vol2, tau, 'putspread')
                 return p1 - calc_lots*p2
             if ko:
-                return _compute_value(char, tau, vol, K, s, r, payoff, product)
+                return _compute_value(char, tau, vol, K, s, r, payoff)
         if direction == 'down':
             if ki:
                 # put down in
-                return _compute_value(char, tau, vol, K, s, r, payoff, product)
+                return _compute_value(char, tau, vol, K, s, r, payoff)
 
             if ko:
                 # put down out
                 vanPrice = _compute_value(
-                    char, tau, vol, ko, s, r, payoff, product)
+                    char, tau, vol, ko, s, r, payoff)
                 vol2 = _compute_iv(
-                    'call', s, ko, vanPrice, tau, r, 'euro', product)
+                    'call', s, ko, vanPrice, tau, r, 'euro')
                 p1 = call_put_spread(
-                    s, k, ko, r, vol, vol2, tau, 'putspread', product)
+                    s, k, ko, r, vol, vol2, tau, 'putspread')
                 p2 = call_put_spread(
-                    s, ko + ticksize, ko, r, vol2, vol2, tau, 'putspread', product)
+                    s, ko + ticksize, ko, r, vol2, vol2, tau, 'putspread')
                 return p1 - calc_lots*p2
     return price
 
 
-def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, rebate=0):
+def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0):
     """ Pricing model for options with american barrers. Currently, payoff is assumed to be European; consequently _compute_value defaults to computing the value of a European vanilla option.
 
     Inputs:
@@ -283,8 +283,7 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
                 if tau == 0:
                     return 0
                 if s >= ki:
-                    return _compute_value(char, tau, vol, k, s, r, payoff, product)
-                elif s < ki:
+                    return _compute_value(char, tau, vol, k, s, r, payoff)
                     if k >= ki:
                         return A + E
                     if k < ki:
@@ -296,17 +295,17 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
                 elif s < ko and k >= ko and tau > 0:
                     return F
                 elif s < ko and k >= ko and tau == 0:
-                    return _compute_value(char, tau, vol, k, s, r, payoff, product)
+                    return _compute_value(char, tau, vol, k, s, r, payoff)
                 elif s < ko and k < ko and tau > 0:
                     return A - B + C - D + F
                 elif s < ko and k < ko and tau == 0:
-                    return _compute_value(char, tau, vol, k, s, r, payoff, product)
+                    return _compute_value(char, tau, vol, k, s, r, payoff)
 
         if direction == 'down':
             if ki:
                 # call_down_in
                 if s <= ki:
-                    return _compute_value(char, tau, vol, k, s, r, payoff, product)
+                    return _compute_value(char, tau, vol, k, s, r, payoff)
                 elif s > ki and k >= ki and tau > 0:
                     return C + E
                 elif s > ki and k >= ki and tau == 0:
@@ -322,11 +321,11 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
                 elif s > ko and k >= ko and tau > 0:
                     return A - C + F
                 elif s > ko and k >= ko and tau == 0:
-                    return _compute_value(char, tau, vol, k, s, r, payoff, product)
+                    return _compute_value(char, tau, vol, k, s, r, payoff)
                 elif s > ko and k < ko and tau > 0:
                     return B - D + F
                 elif s > ko and k < ko and tau == 0:
-                    return _compute_value(char, tau, vol, k, s, r, payoff, product)
+                    return _compute_value(char, tau, vol, k, s, r, payoff)
 
     # put options
     elif char == 'put':
@@ -334,7 +333,7 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
             if ki:
                 # put_up_in
                 if s >= ki:
-                    return _compute_value(char, tau, vol, k, s, r, payoff, product)
+                    return _compute_value(char, tau, vol, k, s, r, payoff)
                 elif s < ki and k >= ki and tau > 0:
                     return A - B + D + E
                 elif s < ki and k >= ki and tau == 0:
@@ -350,17 +349,17 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
                 elif s < ko and k >= ko and tau > 0:
                     return B - D + F
                 elif s < ko and k >= ko and tau == 0:
-                    return _compute_value(char, tau, vol, k, s, r, payoff, product)
+                    return _compute_value(char, tau, vol, k, s, r, payoff)
                 elif s < ko and k < ko and tau > 0:
                     return A - C + F
                 elif s < ko and k < ko and tau == 0:
-                    return _compute_value(char, tau, vol, k, s, r, payoff, product)
+                    return _compute_value(char, tau, vol, k, s, r, payoff)
 
         if direction == 'down':
             if ki:
                 # put_down_in
                 if s <= ki:
-                    return _compute_value(char, tau, vol, k, s, r, payoff, product)
+                    return _compute_value(char, tau, vol, k, s, r, payoff)
                 elif s > ki and k >= ki and tau > 0:
                     return B - C + D + E
                 elif s > ki and k >= ki and tau == 0:
@@ -377,28 +376,28 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
                 elif s > ko and k > ko and tau > 0:
                     return A - B + C - D + F
                 elif s > ko and k > ko and tau == 0:
-                    return _compute_value(char, tau, vol, k, s, r, payoff, product)
+                    return _compute_value(char, tau, vol, k, s, r, payoff)
                 elif s > ko and k < ko and tau > 0:
                     return F
                 elif s > ko and k < ko and tau == 0:
-                    return _compute_value(char, tau, vol, k, s, r, payoff, product)
+                    return _compute_value(char, tau, vol, k, s, r, payoff)
 
 ##########################################################################
 
 
 ########################## Call-Put Spread Valuation #####################
-def call_put_spread(s, k1, k2, r, vol1, vol2, tau, optiontype, product, b=0):
+def call_put_spread(s, k1, k2, r, vol1, vol2, tau, optiontype, b=0):
     # call spread
     # _compute_value(char, tau, vol, K, s, r, payoff, product, ki=None,
     # ko=None, barrier=None, d=None)
     price = 0
     if optiontype == 'callspread':
-        p1 = _compute_value('call', tau, vol1, k1, s, r, payoff, product)
-        p2 = _compute_value('call', tau, vol2, k2, s, r, payoff, product)
+        p1 = _compute_value('call', tau, vol1, k1, s, r, payoff)
+        p2 = _compute_value('call', tau, vol2, k2, s, r, payoff)
         price = p2 - p1
     elif optiontype == 'putspread':
-        p1 = _compute_value('put', tau, vol1, k1, s, r, payoff, product)
-        p2 = _compute_value('put', tau, vol2, k2, s, r, payoff, product)
+        p1 = _compute_value('put', tau, vol1, k1, s, r, payoff)
+        p2 = _compute_value('put', tau, vol2, k2, s, r, payoff)
         price = p1 - p2
     return price
 
