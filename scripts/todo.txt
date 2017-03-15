@@ -57,7 +57,7 @@ barrier option pricing: american                  [Done]
 15/3
 barrier option pricing: european                  []
 product specific information dic                  [Done]
-update greeks based on lots etc                   []
+update greeks based on lots etc                   [Done]
 
 
 
