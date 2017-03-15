@@ -1,5 +1,16 @@
+"""
+File Name      : classes.py
+Author         : Ananth Ravi Kumar
+Date created   : 7/3/2017
+Last Modified  : 15/3/2017
+Python version : 3.5
+Description    : Script contains implementation of the Option and Futures classes, as well as helper methods that set/store/manipulate instance variables. This class is used in simulation.py.
+
+"""
+
+
 # File containing all the classes required by the simulation.
-from calc import _compute_value, _compute_greeks
+from .calc import _compute_value, _compute_greeks
 
 lots = 10
 
@@ -59,7 +70,7 @@ class Option:
     15) expire         : expires this option. defaults to false upon initialization.
     """
 
-    def __init__(self, strike, tau, char, vol, underlying, payoff, direc=None barrier=None, lots=lots, bullet=None, ki=None, ko=None, knockedin=None, knockedout=None, rebate=0):
+    def __init__(self, strike, tau, char, vol, underlying, payoff, direc=None, barrier=None, lots=lots, bullet=None, ki=None, ko=None, knockedin=None, knockedout=None, rebate=0):
 
         self.payoff = payoff
         self.underlying = underlying

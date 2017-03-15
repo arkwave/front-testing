@@ -1,3 +1,14 @@
+"""
+File Name      : portfolio.py
+Author         : Ananth Ravi Kumar
+Date created   : 7/3/2017
+Last Modified  : 15/3/2017
+Python version : 3.5
+Description    : Script contains implementation of the Portfolio class, as well as helper methods that set/store/manipulate instance variables. This class is used in simulation.py.
+
+"""
+
+
 from operator import sub
 
 
@@ -59,7 +70,7 @@ class Portfolio:
 
         self.net_greeks = {}
 
-        updating initialized variables
+        # updating initialized variables
         self.init_sec_by_month('long')
         self.init_sec_by_month('short')
         self.compute_net_greeks(self.long_pos, self.short_pos)
@@ -185,7 +196,7 @@ class Portfolio:
     # TODO: add in condition for knockouts and discretionary for knockin
     def remove_expired(self):
         for sec in self.long_options:
-            if sec.tau == 0ss:
+            if sec.tau == 0:
                 self.remove_security(sec, 'long')
         for sec in self.short_options:
             if sec.tau == 0:

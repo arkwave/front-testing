@@ -1,18 +1,51 @@
 """
-Script that contains implementation of the following calculation-related methods:
+File Name      : calc.py
+Author         : Ananth Ravi Kumar
+Date created   : 7/3/2017
+Last Modified  : 15/3/2017
+Python version : 3.5
+Description:
+
+Script contains implementation of the following calculation-related methods:
 
 1) Pricing for various instruments:
-    > vanilla options
-    > barrier options
+    > vanilla options (american and european)
+    > barrier options (american and european barriers)
+    > computing greeks for all option classes.
 
-3) Calculating IV
-4) Calculating PnL
+2) Calculating implied volatility for European and American Options.
+
+3) Various helper methods for numerical routines.
+
  """
 
+# format :
+# 'product' : [dollar_mult, lot_mult, futures_tick, options_tick, pnl_mult]
 
-# product : [futures_multiplier - (dollar_mult, lot_mult),
-# options_multiplier - (dollar_mult, lot_mult), futures_tick,
-# options_tick, brokerage]
+multipliers =
+{
+    'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
+    'LSU': [1, 50, 0.1, 10, 50],
+    'LCC': [1.2153, 10, 1, 25, 12.153],
+    'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
+    'CC':  [1, 10, 1, 50, 10],
+    'CT':  [22.046, 22.679851, 0.01, 1, 500],
+    'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
+    'W':   [0.3674333, 136.07911, 0.25, 10, 50],
+    'S':   [0.3674333, 136.07911, 0.25, 10, 50],
+    'C':   [0.3936786, 127.00717, 0.25, 10, 50],
+    'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
+    'LC':  [22.046, 18.143881, 0.025, 1, 400],
+    'LRC': [1, 10, 1, 50, 10],
+    'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
+    'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
+    'COM': [1.0604, 50, 0.25, 2.5, 53.02],
+    'OBM': [1.0604, 50, 0.25, 1, 53.02],
+    'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
+}
+
+# product : [futures_multiplier - (dollar_mult, lot_mult), futures_tick,
+# options_tick, pnl mult]
 
 from math import log, sqrt, exp, pi
 from scipy.stats import norm
@@ -23,7 +56,6 @@ from scipy.stats import norm
 #####################################################################
 
 
-# TODO: product-specific multipliers etc.
 def _compute_value(char, tau, vol, K, s, r, payoff, product, ki=None, ko=None, barrier=None, d=None):
     '''Wrapper function that computes value of option.
     Inputs: 1) ki     : Knock in value.
@@ -48,8 +80,8 @@ def _compute_value(char, tau, vol, K, s, r, payoff, product, ki=None, ko=None, b
         elif barrier == 'euro':
             return _barrier_euro(char, tau, vol, K, s, r, payoff, d, product, ki, ko)
 
-# TODO: product-specific multipliers etc.
 
+################### Vanilla Option Valuation ######################
 
 def _bsm_euro(option, tau, vol, K, s, r, product):
     """Vanilla european option pricing.
@@ -74,8 +106,6 @@ def _bsm_euro(option, tau, vol, K, s, r, product):
         price = exp(-r*tau)*(negnd2*K - negnd1*s)
     return price
 
-# TODO: product-specific multipliers etc.
-
 
 def _amer_option(option, tau, vol, K, s, r, product):
     """Vanilla american option pricing.
@@ -87,12 +117,16 @@ def _amer_option(option, tau, vol, K, s, r, product):
             5) underlying : price of underlying
             6) interest   : interest rate
 
-    Output: 1) Price      : price of option according to BSM
+    Output: 1) Price      : price of option according to CRR Binomial Tree
     """
-   return _CRRbinomial('price', 'amer', option, s, k, tau, r, r, vol, product)
+    return _CRRbinomial('price', 'amer', option, s, k, tau, r, r, vol, product)
 
 
-# TODO: product-specific multipliers etc.
+###########################################################################
+
+####################### Barrier Option Valuation ##########################
+
+
 def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, rebate=0):
     """ Pricing model for options with european barrers.
 
@@ -108,7 +142,7 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
     9) rebate    : premium returned if option knocks out. currently defaulted to 0
     10) ki       : knock in barrier amount.
     11) ko       : knock out barrier amount.
-    
+
     Outputs:
     1) Price
 
@@ -116,12 +150,9 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
     pass
 
 
-
-
-# TODO: product-specific multipliers etc.
 def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, rebate):
     """ Pricing model for options with american barrers.
-    
+
     Inputs:
     1) Char      : call or put.
     2) tau       : time to expiry.
@@ -143,7 +174,7 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
     eta = -1 if direction == 'up' else 1
     phi = 1 if char == 'call' else -1
     b = 0
-    mu = (b - ((vol**2)/2) )/(vol**2)
+    mu = (b - ((vol**2)/2))/(vol**2)
     lambd = sqrt(mu + 2*r/vol**2)
     x1 = log(s/k)/(vol * sqrt(tau)) + (1 + mu)*vol*sqrt(tau)
     if ki:
@@ -157,17 +188,17 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
         y2 = log(ko/s)/(vol * sqrt(tau)) + (1 + mu)*vol*sqrt(tau)
         z = log(ko/s)/(vol * sqrt(tau)) + lambd*(vol*sqrt(tau))
 
-    A = A_B('A', phi, b , r, x1, x2, tau, vol, s, k)
-    B = A_B('B', phi, b , r, x1, x2, tau, vol, s, k)
+    A = A_B('A', phi, b, r, x1, x2, tau, vol, s, k)
+    B = A_B('B', phi, b, r, x1, x2, tau, vol, s, k)
     C = C_D('C', phi, s, b, r, t, h, mu, eta, y1, y2, k, vol)
     D = C_D('D', phi, s, b, r, t, h, mu, eta, y1, y2, k, vol)
-    E = E(k, r, tau, eta, x2, vol, h, s, mu, y2) 
+    E = E(k, r, tau, eta, x2, vol, h, s, mu, y2)
     F = F(k, h, s, mu, l, eta, z, vol, tau)
 
     # pricing logic
 
     # option has expired.
-    
+
     # call options
     if char == 'call':
         if direction == 'up':
@@ -180,7 +211,7 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
                     if k >= ki:
                         return A + E
                     if k < ki:
-                        return B - C + D + E 
+                        return B - C + D + E
             # call_up_out
             if ko:
                 if s >= ko:
@@ -190,7 +221,7 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
                 elif s < ko and k >= ko and tau == 0:
                     return _compute_value(char, tau, vol, k, s, r, payoff, product)
                 elif s < ko and k < ko and tau > 0:
-                    return  A - B + C - D + F 
+                    return A - B + C - D + F
                 elif s < ko and k < ko and tau == 0:
                     return _compute_value(char, tau, vol, k, s, r, payoff, product)
 
@@ -204,7 +235,7 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
                 elif s > ki and k >= ki and tau == 0:
                     return 0
                 elif s > ki and k < ki and tau > 0:
-                    return A - B + D + E 
+                    return A - B + D + E
                 elif s > ki and k < ki and tau == 0:
                     return 0
             if ko:
@@ -212,11 +243,11 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
                 if s < ko:
                     return rebate*exp(-r*tau)
                 elif s > ko and k >= ko and tau > 0:
-                    return A - C + F 
+                    return A - C + F
                 elif s > ko and k >= ko and tau == 0:
                     return _compute_value(char, tau, vol, k, s, r, payoff, product)
                 elif s > ko and k < ko and tau > 0:
-                    return B - D + F 
+                    return B - D + F
                 elif s > ko and k < ko and tau == 0:
                     return _compute_value(char, tau, vol, k, s, r, payoff, product)
 
@@ -228,11 +259,11 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
                 if s >= ki:
                     return _compute_value(char, tau, vol, k, s, r, payoff, product)
                 elif s < ki and k >= ki and tau > 0:
-                    return A - B + D + E 
+                    return A - B + D + E
                 elif s < ki and k >= ki and tau == 0:
                     return 0
-                elif s < ki and k < ki and tau >0 :
-                    return C + E 
+                elif s < ki and k < ki and tau > 0:
+                    return C + E
                 elif s < ki and k < ki and tau == 0:
                     return 0
             if ko:
@@ -244,7 +275,7 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
                 elif s < ko and k >= ko and tau == 0:
                     return _compute_value(char, tau, vol, k, s, r, payoff, product)
                 elif s < ko and k < ko and tau > 0:
-                    return A - C + F 
+                    return A - C + F
                 elif s < ko and k < ko and tau == 0:
                     return _compute_value(char, tau, vol, k, s, r, payoff, product)
 
@@ -258,7 +289,7 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
                 elif s > ki and k >= ki and tau == 0:
                     return 0
                 elif s > ki and k < ki and tau > 0:
-                    return A + E 
+                    return A + E
                 elif s > ki and k < ki and tau == 0:
                     return 0
 
@@ -267,28 +298,23 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
                 if s <= ko:
                     return rebate * exp(-r*tau)
                 elif s > ko and k > ko and tau > 0:
-                    return A -B + C - D + F
+                    return A - B + C - D + F
                 elif s > ko and k > ko and tau == 0:
                     return _compute_value(char, tau, vol, k, s, r, payoff, product)
                 elif s > ko and k < ko and tau > 0:
-                    return F 
+                    return F
                 elif s > ko and k < ko and tau == 0:
                     return _compute_value(char, tau, vol, k, s, r, payoff, product)
-    
+
+##########################################################################
+
 
 #####################################################################
 ##################### Greek-related formulas ########################
 #####################################################################
 
 
-
-
-    # TODO: grab appropriate product-specific multipliers from dictionary and
-    # feed into computation.
-
-
-# TODO: product-specific multipliers etc.
-def _compute_greeks(char, K, tau, vol, s, r, product, payoff, barrier=None):
+def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots, barrier=None):
     """ Computes the greeks of various option profiles.
     Inputs:  1) char   : call or put
              2) K      : strike
@@ -298,7 +324,8 @@ def _compute_greeks(char, K, tau, vol, s, r, product, payoff, barrier=None):
              6) r      : interest
              7) product: underlying commodity.
              8) payoff : american or european option.
-             9) barrier: american or european barrier.
+             9) lots   : number of lots.
+             10) barrier: american or european barrier.
 
     Outputs: 1) delta  : dC/dS
              2) gamma  : d^2C/dS^2
@@ -310,31 +337,30 @@ def _compute_greeks(char, K, tau, vol, s, r, product, payoff, barrier=None):
     if payoff == 'euro':
         # vanilla case
         if barrier is None:
-            return _euro_vanilla_g(
-                char, K, tau, vol, s, r, product)
-        elif barrier = 'amer':
+            return _euro_vanilla_greeks(
+                char, K, tau, vol, s, r, product, lots)
+        elif barrier == 'amer':
             # greeks for european options with american barrier.
-            return _euro_barrier_amer_g()
-        elif barrier = 'euro':
+            return _euro_barrier_amer_greeks()
+        elif barrier == 'euro':
             # greeks for european options with european barrier.
-            return _euro_barrier_euro_g()
+            return _euro_barrier_euro_greeks()
 
     # american options
     elif payoff == 'amer':
         # vanilla case
         if barrier is None:
-            return _amer_vanilla_g(
-                char, K, tau, vol, s, r, product)
+            return _amer_vanilla_greeks(
+                char, K, tau, vol, s, r, product, lots)
         # american options with american barrier
-        elif barrier = 'amer':
-            return _amer_barrier_amer_g()
+        elif barrier == 'amer':
+            return _amer_barrier_amer_greeks()
         # american option with european barrier.
-        elif barrier = 'euro':
-            return _amer_barrier_euro_g()
+        elif barrier == 'euro':
+            return _amer_barrier_euro_greeks()
 
 
-# TODO: product-specific multipliers etc.
-def _euro_vanilla(char, K, tau, vol, s, r, product):
+def _euro_vanilla_greeks(char, K, tau, vol, s, r, product, lots):
     """Summary
 
     Args:
@@ -349,26 +375,30 @@ def _euro_vanilla(char, K, tau, vol, s, r, product):
     Returns:
         TYPE: Description
     """
+
     d1 = (log(s/K) + (r + 0.5 * vol ** 2)*tau) / \
         (vol * sqrt(tau))
     d2 = d1 - vol*(sqrt(tau))
-    gamma = (1/sqrt(2*pi)) * exp(-(d1**2) / 2) / (s*vol*sqrt(tau))
-    vega = s*(1/sqrt(2*pi)) * exp(-(d1**2) / 2) * sqrt(tau)
+
+    gamma1 = (1/sqrt(2*pi)) * exp(-(d1**2) / 2) / (s*vol*sqrt(tau))
+    vega1 = s*(1/sqrt(2*pi)) * exp(-(d1**2) / 2) * sqrt(tau)
+
     if char == 'call':
         # call option calc for delta and theta
-        delta = norm.cdf(d1)
-        theta = ((-s * ((1/sqrt(2*pi)) * exp(-(d1**2) / 2)) * vol) /
-                 2*sqrt(tau)) - (r * K * exp(-r*tau) * norm.cdf(d2))
+        delta1 = norm.cdf(d1)
+        theta1 = ((-s * ((1/sqrt(2*pi)) * exp(-(d1**2) / 2)) * vol) /
+                  2*sqrt(tau)) - (r * K * exp(-r*tau) * norm.cdf(d2))
     if char == 'put':
         # put option calc for delta and theta
-        delta = norm.cdf(d1) - 1
-        theta = ((-s * ((1/sqrt(2*pi)) * exp(-(d1**2) / 2)) * vol) /
-                 2*sqrt(tau)) + (r * K * exp(-r*tau) * norm.cdf(-d2))
+        delta1 = norm.cdf(d1) - 1
+        theta1 = ((-s * ((1/sqrt(2*pi)) * exp(-(d1**2) / 2)) * vol) /
+                  2*sqrt(tau)) + (r * K * exp(-r*tau) * norm.cdf(-d2))
+    delta, gamma, theta, vega = greeks_scaled(
+        delta1, gamma1, theta1, vega1, product, lots)
     return delta, gamma, theta, vega
 
 
-# TODO: product-specific multipliers etc.
-def _amer_vanilla_g(char, K, tau, vol, s, r, product):
+def _amer_vanilla_greeks(char, K, tau, vol, s, r, product):
     """Computes greeks for vanilla American options.
 
     Args:
@@ -383,35 +413,38 @@ def _amer_vanilla_g(char, K, tau, vol, s, r, product):
     Returns:
         TYPE: Description
     """
-    return _CRRbinomial('greeks', 'amer', char, s, K, tau, r, r, vol, product)
+    delta, gamma, theta, vega = _CRRbinomial(
+        'greeks', 'amer', char, s, K, tau, r, r, vol, product)
+    delta, gamma, theta, vega = greeks_scaled(
+        delta, gamma, theta, vega, product, lots)
+    return delta, gamma, theta, vega
 
 
 # TODO: _euro_barrier_amer_g()
-# TODO: product-specific multipliers etc.
-def _euro_barrier_amer_g():
+def _euro_barrier_amer_greeks():
     """Computes greeks of european options with american barriers. """
     pass
 
 # TODO: _euro_barrier_euro_g()
-# TODO: product-specific multipliers etc.
-def _euro_barrier_euro_g():
+
+
+def _euro_barrier_euro_greeks():
     """Computes greeks of european options with european barriers. """
     pass
 
 
 # TODO: _amer_barrier_euro_g
-# TODO: product-specific multipliers etc.
-def _amer_barrier_euro_g():
+def _amer_barrier_euro_greeks():
     """Computes greeks of american options with european barriers. """
     pass
 
+
 # TODO: _amer_barrier_amer_g
-# TODO: product-specific multipliers etc.
-def _amer_barrier_amer_g():
+def _amer_barrier_amer_greeks():
     """Computes greeks of american options with american barriers. """
     pass
 
-# TODO: product-specific multipliers etc.
+
 def _compute_iv(optiontype, s, k, c, tau, r, flag, product):
     """Computes implied volatility of plain vanilla puts and calls.
     Inputs:
@@ -425,18 +458,15 @@ def _compute_iv(optiontype, s, k, c, tau, r, flag, product):
 
     # european option
     if flag == 'euro':
-        return newton_raphson(s, k c, tau, r, optiontype)
+        return newton_raphson(s, k, c, tau, r, optiontype)
     # american option
     elif flag == 'amer':
-        return american_iv(s, k c, tau, r, optiontype)
+        return american_iv(s, k, c, tau, r, optiontype)
 
 
-
-
-
-#############################################################
-##### Supplemental Methods for Numerical Approximations #####
-#############################################################
+####################################################################
+##### Supplemental Methods for Numerical Approximations ############
+####################################################################
 
 def newton_raphson(option, s, k, c, tau, r, product, num_iter=100):
     """Newton's method for calculating IV for vanilla european options.
@@ -466,7 +496,7 @@ def newton_raphson(option, s, k, c, tau, r, product, num_iter=100):
     return sigma
 
 
-def american_iv(option, s, k c, tau, r, product, num_iter=100):
+def american_iv(option, s, k, c, tau, r, product, num_iter=100):
     """Newton's method for calculating IV for vanilla european options.
     Inputs:
     1) optiontype  : call or put.
@@ -493,10 +523,6 @@ def american_iv(option, s, k c, tau, r, product, num_iter=100):
     return sigma
 
 
-
-
-
-# TODO: product-specific multipliers etc.
 def _CRRbinomial(output_flag, payoff, option_type, s, k, tau, r, vol, product, n=100, b=0):
     """Implementation of a Cox-Ross-Rubinstein Binomial tree. Translalted from The Complete Guide to Options 
     Pricing Formulas, Chapter 7: Trees and Finite Difference methods by Espen Haug.
@@ -518,8 +544,6 @@ def _CRRbinomial(output_flag, payoff, option_type, s, k, tau, r, vol, product, n
         Price  : the price of this option
         Greeks : returns delta, gamma, theta, vega
     """
-
-    # TODO: product specific multipliers.
 
     if option_type == 'call':
         z = 1
@@ -555,7 +579,7 @@ def _CRRbinomial(output_flag, payoff, option_type, s, k, tau, r, vol, product, n
     returnvalue[3] = (returnvalue[3] - optionvalue[0]) / (2*dt) / 365
     returnvalue[0] = optionvalue[0]
 
-    if output_flag = 'price':
+    if output_flag == 'price':
         price = returnvalue[0]
         return price
     else:
@@ -563,10 +587,10 @@ def _CRRbinomial(output_flag, payoff, option_type, s, k, tau, r, vol, product, n
         vega = _num_vega(
             output_flag, payoff, option_type, s, k, tau, r, vol)
         greeks.append(vega)
-        return greeks
+        delta, gamma, theta, vega = greeks[0], greeks[1], greeks[2], greeks[3]
+        return delta, gamma, theta, vega
 
 
-# TODO: product-specific multipliers etc.
 def _num_vega(payoff, option_type, s, k, tau, r,  vol, b=0):
     """Computes vega from CRR binomial tree if option passed in is American, and uses
      closed-form analytic formula for vega if option is European.
@@ -595,26 +619,69 @@ def _num_vega(payoff, option_type, s, k, tau, r,  vol, b=0):
     # european case. use analytic formulation for vega.
     elif payoff == 'euro':
         vega = s*(1/sqrt(2*pi)) * exp(-(d1**2) / 2) * sqrt(tau)
+
+    # vega multiplier
+    lots = lots
+    lm = multipliers[product][1]
+    dm = multipliers[product][0]
+    vega = vega1*lots*lm*dm/100
+
     return vega
 
 
+def greeks_scaled(delta1, gamma1, theta1, vega1, product, lots):
+    """Summary
 
-def A_B(flag, phi, b , r, x1, x2, tau, vol, s, k):
+    Args:
+        delta1 (TYPE): Description
+        gamma1 (TYPE): Description
+        theta1 (TYPE): Description
+        vega1 (TYPE): Description
+        product (TYPE): Description
+        lots (TYPE): Description
+
+    Returns:
+        TYPE: Description
+    """
+    lots = lots
+    lm = multipliers[product][1]
+    dm = multipliers[product][0]
+    delta = delta1 * lots
+    gamma = gamma1*lots*lm/dm
+    vega = vega1*lots*lm*dm/100
+    theta = theta1*lots*lm*dm
+
+    return delta, gamma, theta, vega
+
+####################################################################
+#### Barrier Option Valuation Helper Methods #######################
+####################################################################
+
+# Note: the following are taken from Haug: The Complete Guide to Option Pricing
+
+
+def A_B(flag, phi, b, r, x1, x2, tau, vol, s, k):
     x == x1 if flag == 'A' else x2
-    ret = phi*s*exp((b-r)*tau)*norm.cdf(phi*x) - phi*k*exp(-r*tau)*norm.cdf(phi*x - phi*vol*sqrt(tau))
+    ret = phi*s*exp((b-r)*tau)*norm.cdf(phi*x) - phi*k * \
+        exp(-r*tau)*norm.cdf(phi*x - phi*vol*sqrt(tau))
     return ret
 
 
 def C_D(flag, phi, s, b, r, t, h, mu, eta, y1, y2, k, vol):
     y = y1 if flag == 'C' else y2
-    ret = (phi*s*exp((b-r)*tau) * (h/s)**(2*mu + 1) * norm.cdf(eta*y)) - (phi*k*exp(-r*tau) * (h/s)**(2*mu) * norm.cdf(eta*y1 - eta*vol*sqrt(tau)))
+    ret = (phi*s*exp((b-r)*tau) * (h/s)**(2*mu + 1) * norm.cdf(eta*y)) - \
+        (phi*k*exp(-r*tau) * (h/s)**(2*mu)
+         * norm.cdf(eta*y1 - eta*vol*sqrt(tau)))
     return ret
+
 
 def E(k, r, tau, eta, x, vol, h, s, mu, y):
-    ret = k*exp(-r*tau) * ( (norm.cdf(eta*x - eta*vol*sqrt(tau))) - ((h/s)**(2*mu) * norm.cdf(eta*y - eta*vol*sqrt(tau))) )
+    ret = k*exp(-r*tau) * ((norm.cdf(eta*x - eta*vol*sqrt(tau))) -
+                           ((h/s)**(2*mu) * norm.cdf(eta*y - eta*vol*sqrt(tau))))
     return ret
+
 
 def F(k, h, s, mu, l, eta, z, vol, tau):
-    ret = k* ( ((h/s)**(mu + l) * norm.cdf(eta*z)) + ((h/s)**(mu-l)*norm.cdf(eta*z 0 2*eta*l*vol*sqrt(tau))))
+    ret = k * (((h/s)**(mu + l) * norm.cdf(eta*z)) +
+               ((h/s)**(mu-l)*norm.cdf(eta*z - 2*eta*l*vol*sqrt(tau))))
     return ret
-

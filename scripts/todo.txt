@@ -56,14 +56,13 @@ barrier option pricing: american                  [Done]
 
 15/3
 barrier option pricing: european                  []
-product specific information dic                  []
+product specific information dic                  [Done]
 update greeks based on lots etc                   []
+
+
 
 testing:
 1_ all computational methods.
-
-
-
 
 
 
@@ -73,8 +72,6 @@ compute tau from label                            []
 value of future calculation                       []
 hedge vs target dichotomy - extract from pos      []
 flag indicating target or hedge in readin         []
-
-
 
 
 17/3

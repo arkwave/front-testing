@@ -1,3 +1,13 @@
+"""
+File Name      : prep_data.py
+Author         : Ananth Ravi Kumar
+Date created   : 7/3/2017
+Last Modified  : 15/3/2017
+Python version : 3.5
+Description    : Script contains methods to read-in and format data. These methods are used in simulation.py.
+
+"""
+
 '''
 TODO: 1) price/vol series transformation
       2) identify structure of the data.
@@ -5,8 +15,8 @@ TODO: 1) price/vol series transformation
 '''
 
 filepath = '..\portfolio_specs.txt'
-from portfolio import Portfolio
-from classes import Option, Future
+from .portfolio import Portfolio
+from .classes import Option, Future
 
 
 def read_data():
