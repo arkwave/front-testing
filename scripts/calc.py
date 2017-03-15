@@ -4,8 +4,8 @@ Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
 Last Modified  : 15/3/2017
 Python version : 3.5
-Description:
 
+Description:
 Script contains implementation of the following calculation-related methods:
 
 1) Pricing for various instruments:
@@ -17,13 +17,18 @@ Script contains implementation of the following calculation-related methods:
 
 3) Various helper methods for numerical routines.
 
+
+Notes:
+1) Currently, European vanilla and American Vanilla are assumed to be valued the same/have the same greeks.
+2) All barrier options require that the exercise structure be European. Even if an american option is passed in, it is valued like a European.
+
  """
 
-# format :
-# 'product' : [dollar_mult, lot_mult, futures_tick, options_tick, pnl_mult]
+# Dictionary of multipliers for greeks/pnl calculation.
+# format  =  'product' : [dollar_mult, lot_mult, futures_tick,
+# options_tick, pnl_mult]
 
-multipliers =
-{
+multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
     'LSU': [1, 50, 0.1, 10, 50],
     'LCC': [1.2153, 10, 1, 25, 12.153],
@@ -62,15 +67,17 @@ def _compute_value(char, tau, vol, K, s, r, payoff, product, ki=None, ko=None, b
             2) ko     : Knock out value.
             3) barrier: type of barrier
             4) d    : direction of barrier.
-            #) Remaining inputs are identical to _bsm inputs.
+            #) Remaining inputs are identical to _bsm_euro.
 
     Outputs: Price of the option
     '''
 
     # vanilla option case
-    if ki is None and ko is None:
+    if barrier is None:
+        # currently american == european since it's never optimal to exercise
+        # before expiry.
         if payoff == 'amer':
-            return _amer_option(char, tau, vol, K, s, r, product)
+            return _bsm_euro(char, tau, vol, K, s, r, product)
         elif payoff == 'euro':
             return _bsm_euro(char, tau, vol, K, s, r, product)
     # barrier option case
@@ -147,11 +154,83 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
     1) Price
 
     """
-    pass
+    # need to compute implied vol at barrier level.
+    # _compute_iv(optiontype, s, k, c, tau, r, flag, product):
+    # call_put_spread(s, k1, k2, r,  vol1, vol2, tau, optiontype, product, b=0)
+    ticksize = multipliers[product][2]
+    if ki:
+        calc_lots = (k - ki)/ticksize
+    if ko:
+        calc_lots = (k - ko)/ticksize
+    if char == 'call':
+        if direction == 'up':
+            if ki:
+                # call up in
+                return _compute_value(char, tau, vol, K, s, r, payoff, product)
+            if ko:
+                # call up out
+                vanPrice = _compute_value(
+                    char, tau, vol, ko, s, r, payoff, product)
+                vol2 = _compute_iv(
+                    'call', s, ki, vanPrice, tau, r, 'euro', product)
+                p1 = call_put_spread(
+                    s, ko, k, r, vol2, vol, tau, 'callspread', product)
+                p2 = call_put_spread(
+                    s, ko, ko-ticksize, r, vol2, vol2, tau, 'callspread', product)
+                return p1 - calc_lots*p2
+        if direction == 'down':
+            if ki:
+                # call down in
+                vanPrice = _compute_value(
+                    char, tau, vol, ki, s, r, payoff, product)
+                vol2 = _compute_iv(
+                    'call', s, ki, vanPrice, tau, r, 'euro', product)
+                p1 = call_put_spread(s, ki, k, r, vol2, vol1, tau,
+                                     'callspread', product)
+                p2 = call_put_spread(
+                    s, ki + ticksize, ki, r, vol2, vol2, tau, 'callspread', product)
+                return p1 - calc_lots * p2
+
+            if ko:
+                # call down out
+                return _compute_value(char, tau, vol, K, s, r, payoff, product)
+
+    if char == 'put':
+        if direction == 'up':
+            if ki:
+                # put up in
+                vanPrice = _compute_value(
+                    char, tau, vol, ki, s, r, payoff, product)
+                vol2 = _compute_iv(
+                    'call', s, ki, vanPrice, tau, r, 'euro', product)
+                p1 = call_put_spread(
+                    s, k, ki, r, vol, vol2, tau, 'putspread', product)
+                p2 = call_put_spread(
+                    s, ki, ki-ticksize, r, vol2, vol2, tau, 'putspread', product)
+                return p1 - calc_lots*p2
+            if ko:
+                return _compute_value(char, tau, vol, K, s, r, payoff, product)
+        if direction == 'down':
+            if ki:
+                # put down in
+                return _compute_value(char, tau, vol, K, s, r, payoff, product)
+
+            if ko:
+                # put down out
+                vanPrice = _compute_value(
+                    char, tau, vol, ko, s, r, payoff, product)
+                vol2 = _compute_iv(
+                    'call', s, ko, vanPrice, tau, r, 'euro', product)
+                p1 = call_put_spread(
+                    s, k, ko, r, vol, vol2, tau, 'putspread', product)
+                p2 = call_put_spread(
+                    s, ko + ticksize, ko, r, vol2, vol2, tau, 'putspread', product)
+                return p1 - calc_lots*p2
+    return price
 
 
-def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, rebate):
-    """ Pricing model for options with american barrers.
+def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, rebate=0):
+    """ Pricing model for options with american barrers. Currently, payoff is assumed to be European; consequently _compute_value defaults to computing the value of a European vanilla option.
 
     Inputs:
     1) Char      : call or put.
@@ -167,7 +246,7 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
     11) ko       : knock out barrier amount.
 
     Outputs:
-    1) Price  
+    1) Price
 
     """
     # initializing constants
@@ -196,8 +275,6 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
     F = F(k, h, s, mu, l, eta, z, vol, tau)
 
     # pricing logic
-
-    # option has expired.
 
     # call options
     if char == 'call':
@@ -309,13 +386,52 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, r
 ##########################################################################
 
 
-#####################################################################
-##################### Greek-related formulas ########################
-#####################################################################
+########################## Call-Put Spread Valuation #####################
+def call_put_spread(s, k1, k2, r, vol1, vol2, tau, optiontype, product, b=0):
+    # call spread
+    # _compute_value(char, tau, vol, K, s, r, payoff, product, ki=None,
+    # ko=None, barrier=None, d=None)
+    price = 0
+    if optiontype == 'callspread':
+        p1 = _compute_value('call', tau, vol1, k1, s, r, payoff, product)
+        p2 = _compute_value('call', tau, vol2, k2, s, r, payoff, product)
+        price = p2 - p1
+    elif optiontype == 'putspread':
+        p1 = _compute_value('put', tau, vol1, k1, s, r, payoff, product)
+        p2 = _compute_value('put', tau, vol2, k2, s, r, payoff, product)
+        price = p1 - p2
+    return price
 
 
+def call_put_spread_greeks(s, k1, k2, r, vol1, vol2, tau, optiontype, product, lots, b=0):
+    if optiontype == 'callspread':
+        delta1, gamma1, theta1, vega1 = _compute_greeks(
+            'call', k1, tau, vol1, s, r, product, payoff, lots)
+        delta2, gamma2, theta2, vega2 = _compute_greeks(
+            'call', k2, tau, vol2, s, r, product, payoff, lots)
+        delta = delta2 - delta1
+        gamma = gamma2 - gamma1
+        vega = vega2 - vega1
+        theta = theta2 - theta1
+    elif optiontype == 'putspread':
+        delta1, gamma1, theta1, vega1 = _compute_greeks(
+            'put', k1, tau, vol1, s, r, product, payoff, lots)
+        delta2, gamma2, theta2, vega2 = _compute_greeks(
+            'put', k2, tau, vol2, s, r, product, payoff, lots)
+        delta = -(delta2 - delta1)
+        gamma = -(gamma2 - gamma1)
+        vega = -(vega2 - vega1)
+        theta = -(theta2 - theta1)
+    return delta, gamma, theta, vega
+#############################################################################
+
+
+#############################################################################
+##################### Greek-related formulas ################################
+#############################################################################
 def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots, barrier=None):
-    """ Computes the greeks of various option profiles.
+    """ Computes the greeks of various option profiles. Currently, american and european greeks and pricing are assumed to be the same.
+
     Inputs:  1) char   : call or put
              2) K      : strike
              3) tau    : time to expiry
@@ -334,7 +450,7 @@ def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots, barrier=None
     """
 
     # european options
-    if payoff == 'euro':
+    if payoff == 'euro' or payoff == 'amer':
         # vanilla case
         if barrier is None:
             return _euro_vanilla_greeks(
@@ -346,18 +462,18 @@ def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots, barrier=None
             # greeks for european options with european barrier.
             return _euro_barrier_euro_greeks()
 
-    # american options
-    elif payoff == 'amer':
-        # vanilla case
-        if barrier is None:
-            return _amer_vanilla_greeks(
-                char, K, tau, vol, s, r, product, lots)
-        # american options with american barrier
-        elif barrier == 'amer':
-            return _amer_barrier_amer_greeks()
-        # american option with european barrier.
-        elif barrier == 'euro':
-            return _amer_barrier_euro_greeks()
+    # # american options
+    # elif payoff == 'amer':
+    #     # vanilla case
+    #     if barrier is None:
+    #         return _amer_vanilla_greeks(
+    #             char, K, tau, vol, s, r, product, lots)
+    #     # american options with american barrier
+    #     elif barrier == 'amer':
+    #         return _amer_barrier_amer_greeks()
+    #     # american option with european barrier.
+    #     elif barrier == 'euro':
+    #         return _amer_barrier_euro_greeks()
 
 
 def _euro_vanilla_greeks(char, K, tau, vol, s, r, product, lots):
@@ -398,7 +514,8 @@ def _euro_vanilla_greeks(char, K, tau, vol, s, r, product, lots):
     return delta, gamma, theta, vega
 
 
-def _amer_vanilla_greeks(char, K, tau, vol, s, r, product):
+# NIU: Not in Use.
+def _amer_vanilla_greeks(char, K, tau, vol, s, r, product, lots):
     """Computes greeks for vanilla American options.
 
     Args:
@@ -420,29 +537,136 @@ def _amer_vanilla_greeks(char, K, tau, vol, s, r, product):
     return delta, gamma, theta, vega
 
 
-# TODO: _euro_barrier_amer_g()
-def _euro_barrier_amer_greeks():
+def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, lots, rebate=0):
     """Computes greeks of european options with american barriers. """
-    pass
+    ticksize = multipliers[product][2]
+    change_spot = 0.1 * ticksize
+    change_vol = 0.0001
+    change_tau = 1/(24*365)
+    # computing delta
+    del1 = _barrier_amer(char, tau, vol, k, s+change_spot,
+                         r, payoff, direction, product, ki, ko, rebate=0)
+    del2 = _barrier_amer(char, tau, vol,
+                         k, s-change_spot,
+                         r, payoff, direction, product, ki, ko, rebate=0)
+    delta = (del1 - del2)/(2*change_spot)
+    # computing gamma
+    del3 = _barrier_amer(
+        char, tau, vol, k, s, r, payoff, direction, product, ki, ko, rebate=0)
+    gamma = (del1 - 2*del3 + del2)/(2*change_spot**2) if tau > 0 else 0
+    # computing vega
+    v1 = _barrier_amer(char, tau, vol+change_vol, k, s, r,
+                       payoff, direction, product, ki, ko, rebate=0)
+    v2 = _barrier_amer(char, tau, vol-change_vol, k, s, r,
+                       payoff, direction, product, ki, ko, rebate=0)
+    vega = (v1 - v2)/(2*change_vol) if tau > 0 else 0
+    # computing theta
+    t1 = _barrier_amer(char, tau, vol, k, s, r,
+                       payoff, direction, product, ki, ko, rebate=0)
+    t2 = _barrier_amer(char, tau-change_tau, vol-change_vol, k, s, r,
+                       payoff, direction, product, ki, ko, rebate=0)
+    theta = (t1 - t2)/change_tau if tau > 0 else 0
+    # scaling greeks to retrieve dollar value.
+    delta, gamma, theta, vega = greeks_scaled(
+        delta, gamma, theta, vega, product, lots)
+    return delta, gamma, theta, vega
 
-# TODO: _euro_barrier_euro_g()
 
-
-def _euro_barrier_euro_greeks():
+# TODO:
+def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, lots, rebate=0):
     """Computes greeks of european options with european barriers. """
-    pass
+    if ki:
+        calc_lots = (k - ki)/ticksize
+    if ko:
+        calc_lots = (k - ko)/ticksize
+    if char == 'call':
+        if direction == 'up':
+            if ki:
+                # call up in
+                return _compute_greeks(char, tau, vol, K, s, r, product, payoff, lots)
+            if ko:
+                # call up out
+                vanPrice = _compute_value(
+                    char, tau, vol, ko, s, r, payoff, product)
+                vol2 = _compute_iv(
+                    'call', s, ki, vanPrice, tau, r, 'euro', product)
+                d1, g1, t1, v1 = call_put_spread_greeks(
+                    s, ko, k, r, vol2, vol, tau, 'callspread', product, lots)
+                d2, g2, t2, v2 = call_put_spread_greeks(
+                    s, ko, ko-ticksize, r, vol2, vol2, tau, 'callspread', product, lots)
+                delta = d1 - calc_lots*d2
+                gamma = g1 - calc_lots*g2
+                theta = t1 - calc_lots*t2
+                vega = v1 - calc_lots*v2
+                return delta, gamma, theta, vega
+        if direction == 'down':
+            if ki:
+                # call down in
+                vanPrice = _compute_value(
+                    char, tau, vol, ki, s, r, payoff, product)
+                vol2 = _compute_iv(
+                    'call', s, ki, vanPrice, tau, r, 'euro', product)
+                d1, g1, t1, v1 = call_put_spread_greeks(s, ki, k, r, vol2, vol1, tau,
+                                                        'callspread', product, lots)
+                d2, g2, t2, v2 = call_put_spread(
+                    s, ki + ticksize, ki, r, vol2, vol2, tau, 'callspread', product, lots)
+                delta = d1 - calc_lots*d2
+                gamma = g1 - calc_lots*g2
+                theta = t1 - calc_lots*t2
+                vega = v1 - calc_lots*v2
+                return delta, gamma, theta, vega
+            if ko:
+                # call down out
+                return _compute_greeks(char, tau, vol, K, s, r, product, payoff, lots)
+
+    if char == 'put':
+        if direction == 'up':
+            if ki:
+                # put up in
+                vanPrice = _compute_value(
+                    char, tau, vol, ki, s, r, payoff, product)
+                vol2 = _compute_iv(
+                    'call', s, ki, vanPrice, tau, r, 'euro', product)
+                d1, g1, t1, v1 = call_put_spread_greeks(
+                    s, k, ki, r, vol, vol2, tau, 'putspread', product, lots)
+                d2, g2, t2, v2 = call_put_spread_greeks(
+                    s, ki, ki-ticksize, r, vol2, vol2, tau, 'putspread', product, lots)
+                delta = d1 - calc_lots*d2
+                gamma = g1 - calc_lots*g2
+                theta = t1 - calc_lots*t2
+                vega = v1 - calc_lots*v2
+                return delta, gamma, theta, vega
+            if ko:
+                return _compute_greeks(char, tau, vol, K, s, r, product, payoff, lots)
+        if direction == 'down':
+            if ki:
+                # put down in
+                return _compute_greeks(char, tau, vol, K, s, r, product, payoff, lots)
+            if ko:
+                # put down out
+                vanPrice = _compute_value(
+                    char, tau, vol, ko, s, r, payoff, product)
+                vol2 = _compute_iv(
+                    'call', s, ko, vanPrice, tau, r, 'euro', product)
+                d1, g1, t1, v1 = call_put_spread_greeks(
+                    s, k, ko, r, vol, vol2, tau, 'putspread', product, lots)
+                d2, g2, t2, v2 = call_put_spread_greeks(
+                    s, ko + ticksize, ko, r, vol2, vol2, tau, 'putspread', product, lots)
+
+                delta = d1 - calc_lots*d2
+                gamma = g1 - calc_lots*g2
+                theta = t1 - calc_lots*t2
+                vega = v1 - calc_lots*v2
+                return delta, gamma, theta, vega
+
+# def _amer_barrier_euro_greeks():
+#     """Computes greeks of american options with european barriers. """
+#     pass
 
 
-# TODO: _amer_barrier_euro_g
-def _amer_barrier_euro_greeks():
-    """Computes greeks of american options with european barriers. """
-    pass
-
-
-# TODO: _amer_barrier_amer_g
-def _amer_barrier_amer_greeks():
-    """Computes greeks of american options with american barriers. """
-    pass
+# def _amer_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, rebate=0):
+#     """Computes greeks of american options with american barriers. """
+#     pass
 
 
 def _compute_iv(optiontype, s, k, c, tau, r, flag, product):
@@ -451,7 +675,7 @@ def _compute_iv(optiontype, s, k, c, tau, r, flag, product):
     1) optiontype : call or put.
     2) s          : underlying
     3) k          : strike
-    4) c          : option price 
+    4) c          : option price
     5) tau        : time to expiry
     6) flag       : american or european option
     7) product    : underlying product"""
@@ -461,7 +685,8 @@ def _compute_iv(optiontype, s, k, c, tau, r, flag, product):
         return newton_raphson(s, k, c, tau, r, optiontype)
     # american option
     elif flag == 'amer':
-        return american_iv(s, k, c, tau, r, optiontype)
+        return newton_raphson(s, k, c, tau, r, optiontype)
+        # return american_iv(s, k, c, tau, r, optiontype)
 
 
 ####################################################################
@@ -496,6 +721,32 @@ def newton_raphson(option, s, k, c, tau, r, product, num_iter=100):
     return sigma
 
 
+def greeks_scaled(delta1, gamma1, theta1, vega1, product, lots):
+    """Summary
+
+    Args:
+        delta1 (TYPE): Description
+        gamma1 (TYPE): Description
+        theta1 (TYPE): Description
+        vega1 (TYPE): Description
+        product (TYPE): Description
+        lots (TYPE): Description
+
+    Returns:
+        TYPE: Description
+    """
+    lots = lots
+    lm = multipliers[product][1]
+    dm = multipliers[product][0]
+    delta = delta1 * lots
+    gamma = gamma1*lots*lm/dm
+    vega = vega1*lots*lm*dm/100
+    theta = theta1*lots*lm*dm
+
+    return delta, gamma, theta, vega
+
+
+# NIU: not currently being used.
 def american_iv(option, s, k, c, tau, r, product, num_iter=100):
     """Newton's method for calculating IV for vanilla european options.
     Inputs:
@@ -523,8 +774,9 @@ def american_iv(option, s, k, c, tau, r, product, num_iter=100):
     return sigma
 
 
+# NIU: Not in Use.
 def _CRRbinomial(output_flag, payoff, option_type, s, k, tau, r, vol, product, n=100, b=0):
-    """Implementation of a Cox-Ross-Rubinstein Binomial tree. Translalted from The Complete Guide to Options 
+    """Implementation of a Cox-Ross-Rubinstein Binomial tree. Translalted from The Complete Guide to Options
     Pricing Formulas, Chapter 7: Trees and Finite Difference methods by Espen Haug.
 
     Inputs:
@@ -591,6 +843,7 @@ def _CRRbinomial(output_flag, payoff, option_type, s, k, tau, r, vol, product, n
         return delta, gamma, theta, vega
 
 
+# NIU: Not in Use.
 def _num_vega(payoff, option_type, s, k, tau, r,  vol, b=0):
     """Computes vega from CRR binomial tree if option passed in is American, and uses
      closed-form analytic formula for vega if option is European.
@@ -628,30 +881,6 @@ def _num_vega(payoff, option_type, s, k, tau, r,  vol, b=0):
 
     return vega
 
-
-def greeks_scaled(delta1, gamma1, theta1, vega1, product, lots):
-    """Summary
-
-    Args:
-        delta1 (TYPE): Description
-        gamma1 (TYPE): Description
-        theta1 (TYPE): Description
-        vega1 (TYPE): Description
-        product (TYPE): Description
-        lots (TYPE): Description
-
-    Returns:
-        TYPE: Description
-    """
-    lots = lots
-    lm = multipliers[product][1]
-    dm = multipliers[product][0]
-    delta = delta1 * lots
-    gamma = gamma1*lots*lm/dm
-    vega = vega1*lots*lm*dm/100
-    theta = theta1*lots*lm*dm
-
-    return delta, gamma, theta, vega
 
 ####################################################################
 #### Barrier Option Valuation Helper Methods #######################
