@@ -70,8 +70,8 @@ barrier option greeks : european                  [Done]
 testing:
 1_ all computational methods.                     []
 2_ portfolio object                               []
-3_ options object                                 []
-4_ futures object                                 []
+3_ options object                                 [Done]
+4_ futures object                                 [Done]
 
 
 

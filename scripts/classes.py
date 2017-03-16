@@ -14,15 +14,28 @@ from .calc import _compute_value, _compute_greeks
 
 lots = 10
 
+multipliers = {
 
-# TODO: Product specific information.
-# product : [futures_multiplier - (dollar_mult, lot_mult),
-# options_multiplier - (dollar_mult, lot_mult), futures_tick,
-# options_tick, brokerage]
+    'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
+    'LSU': [1, 50, 0.1, 10, 50],
+    'LCC': [1.2153, 10, 1, 25, 12.153],
+    'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
+    'CC':  [1, 10, 1, 50, 10],
+    'CT':  [22.046, 22.679851, 0.01, 1, 500],
+    'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
+    'W':   [0.3674333, 136.07911, 0.25, 10, 50],
+    'S':   [0.3674333, 136.07911, 0.25, 10, 50],
+    'C':   [0.3936786, 127.00717, 0.25, 10, 50],
+    'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
+    'LC':  [22.046, 18.143881, 0.025, 1, 400],
+    'LRC': [1, 10, 1, 50, 10],
+    'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
+    'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
+    'COM': [1.0604, 50, 0.25, 2.5, 53.02],
+    'OBM': [1.0604, 50, 0.25, 1, 53.02],
+    'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
+}
 
-
-# FIXME: self.s not updating when future is update.
-# FIXME: Option has no attribute 'direc'
 
 class Option:
 
@@ -36,7 +49,6 @@ class Option:
         5)  tau        =   time to expiry in years (as per black-scholes)
         6)  char       =   call or put option.
         7)  vol        =   current implied volatility
-        8)  s          =   current price of underlying.
         9)  r          =   risk free interest rate. assumed to be 0, can be changed.
         10) desc       =   string description of the object
         11) month      =   month of expiry. used to keep greeks for different months separate.
@@ -82,40 +94,71 @@ class Option:
         self.desc = 'option'
         self.ki = ki
         self.ko = ko
+        # defaults to None. Is set upon first check_active call.
+        self.knockedout = None
+        # defaults to None. Is set upon first check_active call.
+        self.knockedin = None
+        self.direc = direc
         self.K = strike
         self.tau = tau
         self.char = char
         self.vol = vol
-        self.s = self.underlying.get_price()
         self.r = 0
         self.price = self.compute_price()
         self.delta, self.gamma, self.theta, self.vega = self.init_greeks()
+
         self.active = self.check_active()
-        self.direc = direc
-        self.knockedout = False if (self.check_active() and ko) else True
-        self.knockedin = True if (self.check_active() and ki) else False
         self.expired = False  # defaults to false.
         self.rebate = rebate
         self.product = self.get_product()
 
-    # TODO: update this to properly reflect knockedin/knockedout bools
     def check_active(self):
-        active = True
+        """Checks to see if this option object is active, i.e. if it has any value. Cases are as follows:
+        1) Knock-in barrier options are considered always active until expiry.
+        2) Knock-out options with an american barrier are considered NOT active when they hit the barrier.
+        3) Knock-out options with a European barrier and considered always active until expiry.
+        4) Vanilla options are always active until expiry.
+         """
+        s = self.underlying.get_price()
+        cond = (self.tau > 0)
+        if not cond:
+            return False
+        # base cases: if already knocked in or knocked out, return
+        # appropriately.
+        if self.knockedin:
+            return True
+        if self.knockedout:
+            return False
+        # barrier cases
         if self.ki:
+            # all knockin options contribute greeks/have value until expiry.
+            active = True if cond else False
             if self.direc == 'up':
-                # check if up and in is active
-                if self.s < self.ki:
-                    active == False
-            elif self.direc == 'down':
-                if self.s > self.ki:
-                    active == False
+                self.knockedin = True if (s >= self.ki) else False
+            if self.direc == 'down':
+                self.knockedin = True if (s <= self.ki) else False
         if self.ko:
-            if self.direc == 'up':
-                if self.s > self.ko:
-                    active == False
-            elif self.direc == 'down':
-                if self.s < self.ko:
-                    active == False
+            if self.barrier == 'amer':
+                # american up and out
+                if self.direc == 'up':
+                    active = False if s >= self.ko else True
+                    self.knockedout = not active
+                # american down and out
+                if self.direc == 'down':
+                    active = False if s <= self.ko else True
+                    self.knockedout = not active
+            # european knockout are active until expiry.
+            elif self.barrier == 'euro':
+                active = True if cond else False
+                # european up and out
+                if self.direc == 'up':
+                    self.knockedout = True if (s >= self.ko) else False
+                # european down and out
+                if self.direc == 'down':
+                    self.knockedout = True if (s <= self.ko) else False
+        else:
+            # vanilla case. true till expiry
+            active = True if cond else False
         return active
 
     def get_underlying(self):
@@ -131,19 +174,33 @@ class Option:
         # initializes relevant greeks. only used once, when initializing Option
         # object.
         product = self.get_product()
-        return _compute_greeks(self.char, self.K,  self.tau, self.vol, self.s, self.r, product, self.payoff, self.lots)
+        s = self.underlying.get_price()
+        return _compute_greeks(self.char, self.K,  self.tau, self.vol, s, self.r, product, self.payoff, self.lots)
 
-    def update_greeks(self, vol):
+    def update_greeks(self, vol=None):
         # method that updates greeks given new values of s, vol and tau, and subsequently updates value.
         # used in passage of time step.
-        product = self.get_product()
-        self.delta, self.gamma, self.theta, self.vega = _compute_greeks(
-            self.char, self.K, self.tau, vol, self.s, self.r, product, self.payoff, self.lots)
-        self.vol = vol
-        self.price = self.compute_value()
+
+        active = self.check_active()
+        self.active = active
+        if active:
+            if vol is None:
+                sigma = self.vol
+            else:
+                sigma = vol
+            product = self.get_product()
+            s = self.underlying.get_price()
+            self.delta, self.gamma, self.theta, self.vega = _compute_greeks(
+                self.char, self.K, self.tau, sigma, s, self.r, product, self.payoff, self.lots)
+            self.vol = sigma
+            self.price = self.compute_price()
+        else:
+            self.zero_option()
 
     def greeks(self):
-        # getter method for greeks. preserves abstraction barrier.
+        # getter method for greeks. preserves abstraction barrier. updates just
+        # in case price of underlying has changed.
+        self.update_greeks()
         return self.delta, self.gamma, self.theta, self.vega
 
     def compute_vol(underlying, price, strike, tau, r):
@@ -153,10 +210,27 @@ class Option:
 
     def compute_price(self):
         # computes the value of this structure from relevant information.
-        return _compute_value(self.char, self.tau, self.vol, self.K, self.s, self.r, self.payoff, ki=self.ki, ko=self.ko)
+        s = self.underlying.get_price()
+        product = self.underlying.get_product()
+        return _compute_value(self.char, self.tau, self.vol, self.K, s, self.r, self.payoff, ki=self.ki, ko=self.ko, barrier=self.barrier, d=self.direc, product=product)
 
     def get_price(self):
-        return self.price
+        # check for expiry case
+        if self.tau == 0:
+            s = self.underlying.get_price()
+            k = self.K
+            if self.char == 'call':
+                return max(s - k, 0)
+            elif self.char == 'put':
+                return max(k - s, 0)
+        # not expired; check if active.
+        else:
+            active = self.check_active()
+            self.active = active
+            if self.active:
+                price = self.compute_price()
+                self.price = price
+                return self.price
 
     def update_tau(self, diff):
         self.tau -= diff
@@ -172,19 +246,35 @@ class Option:
             return False
 
     def moneyness(self):
-        # at the money
-        if self.K == self.s:
-            return 0
-        if self.char == 'call':
-            if self.K < self.s:
-                return 1
-            else:
-                return -1
-        elif self.char == 'put':
-            if self.K > self.s:
-                return 1
-            else:
-                return -1
+        active = self.check_active()
+        self.active = active
+        if active:
+            s = self.underlying.get_price()
+            # at the money
+            if self.K == s:
+                return 0
+            if self.char == 'call':
+                # ITM
+                if self.K < s:
+                    return 1
+                # OTM
+                else:
+                    return -1
+            elif self.char == 'put':
+                # ITM
+                if self.K > s:
+                    return 1
+                # OTM
+                else:
+                    return -1
+        else:
+            return None
+
+    def zero_option(self):
+        self.delta, self.gamma, self.theta, self.vega = 0, 0, 0, 0
+
+    def check_expired(self):
+        return True if self.tau == 0 else False
 
 
 class Future:
