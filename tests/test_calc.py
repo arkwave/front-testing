@@ -11,6 +11,7 @@ from scripts.calc import *
 
 
 def test_bsm_euro():
+
     pass
 
 

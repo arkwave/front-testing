@@ -2,7 +2,7 @@
 File Name      : portfolio.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 15/3/2017
+Last Modified  : 16/3/2017
 Python version : 3.5
 Description    : Script contains implementation of the Portfolio class, as well as helper methods that set/store/manipulate instance variables. This class is used in simulation.py.
 
@@ -55,6 +55,8 @@ class Portfolio:
 # TODO [Future]: Currently exercising options only happens at expiry. Figure this
 # one out.
 
+# TODO: differentiating into hedges and target.
+
     def __init__(self):
 
         self.long_options = []
@@ -73,7 +75,7 @@ class Portfolio:
         # updating initialized variables
         self.init_sec_by_month('long')
         self.init_sec_by_month('short')
-        self.compute_net_greeks(self.long_pos, self.short_pos)
+        self.compute_net_greeks()
         self.value = self.compute_value()
 
     def set_pnl(self, pnl):
@@ -87,7 +89,7 @@ class Portfolio:
             ft = self.long_futures
             dic = self.long_pos
         elif iden == 'short':
-            op == self.short_options
+            op = self.short_options
             ft = self.short_futures
             dic = self.short_pos
 
@@ -193,12 +195,22 @@ class Portfolio:
         self.toberemoved.append(security)
         self.update_sec_by_month(False)
 
-    # TODO: add in condition for knockouts and discretionary for knockin
+    # TODO: add in condition for knockouts
     def remove_expired(self):
         for sec in self.long_options:
+            # handling barrier case
+            if sec.barrier == 'amer':
+                if sec.knockedout:
+                    self.remove_security(sec, 'long')
+            # vanilla/knockin case
             if sec.tau == 0:
                 self.remove_security(sec, 'long')
         for sec in self.short_options:
+            # handling barrier case.
+            if sec.barrier == 'amer':
+                if sec.knockedout:
+                    self.remove_security(sec, 'short')
+            # vanilla/knockin case
             if sec.tau == 0:
                 self.remove_security(sec, 'short')
 

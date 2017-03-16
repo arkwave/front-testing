@@ -75,16 +75,20 @@ testing:
 
 
 
-17/3
-delta hedging logic                               []
+Sri's comments:
 compute tau from label                            []
-value of future calculation                       []
 hedge vs target dichotomy - extract from pos      []
 flag indicating target or hedge in readin         []
 
 
 
 
+17/3
+delta hedging logic                               []
+compute tau from label                            []
+value of future calculation                       []
+hedge vs target dichotomy - extract from pos      []
+flag indicating target or hedge in readin         []
 
 
 
