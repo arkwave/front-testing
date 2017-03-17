@@ -28,6 +28,7 @@ Notes:
 # format  =  'product' : [dollar_mult, lot_mult, futures_tick,
 # options_tick, pnl_mult]
 
+# TODO: read this in during prep_data
 multipliers = {
 
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
@@ -511,18 +512,17 @@ def _euro_vanilla_greeks(char, K, tau, vol, s, r, product, lots):
     d2 = d1 - vol*(sqrt(tau))
 
     gamma1 = (1/sqrt(2*pi)) * exp(-(d1**2) / 2) / (s*vol*sqrt(tau))
-    vega1 = s*(1/sqrt(2*pi)) * exp(-(d1**2) / 2) * sqrt(tau)
+    vega1 = s * exp(r*tau) * norm.pdf(d1) * sqrt(tau)
 
     if char == 'call':
         # call option calc for delta and theta
         delta1 = norm.cdf(d1)
-        theta1 = ((-s * ((1/sqrt(2*pi)) * exp(-(d1**2) / 2)) * vol) /
-                  2*sqrt(tau)) - (r * K * exp(-r*tau) * norm.cdf(d2))
+        theta1 = (-s * norm.pdf(d1)*vol) / (2*sqrt(tau))
     if char == 'put':
         # put option calc for delta and theta
         delta1 = norm.cdf(d1) - 1
-        theta1 = ((-s * ((1/sqrt(2*pi)) * exp(-(d1**2) / 2)) * vol) /
-                  2*sqrt(tau)) + (r * K * exp(-r*tau) * norm.cdf(-d2))
+        theta1 = (-s * norm.pdf(d1)*vol) / (2*sqrt(tau))
+
     delta, gamma, theta, vega = greeks_scaled(
         delta1, gamma1, theta1, vega1, product, lots)
     return delta, gamma, theta, vega
@@ -748,15 +748,17 @@ def greeks_scaled(delta1, gamma1, theta1, vega1, product, lots):
     Returns:
         TYPE: Description
     """
-    lots = lots
-    lm = multipliers[product][1]
-    dm = multipliers[product][0]
-    delta = delta1 * lots
-    gamma = gamma1*lots*lm/dm
-    vega = vega1*lots*lm*dm/100
-    theta = theta1*lots*lm*dm
 
-    return delta, gamma, theta, vega
+    # lots = lots
+    # lm = multipliers[product][1]
+    # dm = multipliers[product][0]
+    # delta = delta1 * lots
+    # gamma = gamma1*lots*lm/dm
+    # vega = vega1*lots*lm*dm/100
+    # theta = theta1*lots*lm*dm/365
+
+    return delta1, gamma1, theta1/365, vega1/100
+    # return delta, gamma, theta1, vega1
 
 
 # NIU: not currently being used.
