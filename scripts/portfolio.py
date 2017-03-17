@@ -365,7 +365,7 @@ class Portfolio:
         for option in op:
             if option.moneyness() == 1:
                 # convert into a future.
-                underlying = option.get_future()
+                underlying = option.get_underlying()
                 self.remove_security(option, flag)
                 self.add_security(underlying, flag)
 

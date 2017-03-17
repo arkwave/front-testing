@@ -299,8 +299,25 @@ def test_compute_value():
 
 
 def test_exercise_option():
-    pass
+    pf = generate_portfolio()
+    # initial
+    assert len(pf.long_options) == 3
+    assert len(pf.long_futures) == 2
+    init_greeks = copy.deepcopy(pf.get_net_greeks())
 
+    # add option
+    ft = Future('june', 50, 'C')
+    op1 = Option(
+        35, 0.01, 'call', 0.4245569263291844, ft, 'amer')
+    pf.add_security(op1, 'long')
 
-def test_timestep():
-    pass
+    assert len(pf.long_options) == 4
+    add_greeks = copy.deepcopy(pf.get_net_greeks())
+    assert add_greeks != init_greeks
+
+    # exercise
+    pf.exercise_option(op1, 'long')
+    assert len(pf.long_options) == 3
+    assert len(pf.long_futures) == 3
+    ex_greeks = copy.deepcopy(pf.get_net_greeks())
+    assert ex_greeks == init_greeks

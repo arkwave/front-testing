@@ -78,7 +78,7 @@ class Option:
     8) update_tau      : updates time to expiry.
     9) exercise        : exercises the option. as of now, returns a boolean.
     10) moneyness      : returns 1, 0 , -1 depending if option is itm, atm, otm.
-    11) get_future     : returns the underlying future object.
+    11) get_underlying : returns the underlying future object.
     12) get_desc       : returns 'option'
     13) get_product    : returns the NAME of the underlying future.
     14) check_active   : for barriers, checks to see if this barrier is active or not.
