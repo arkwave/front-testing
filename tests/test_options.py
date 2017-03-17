@@ -441,18 +441,22 @@ def test_barrier_options():
 # TODO: Figure out why this holds only for ITM options. Should hold for all.
 def test_barrier_options2():
     ft2 = Future('march', 35, 'C')
-    strike2 = 30
+    strike2 = 35
     tau2 = 30/365
     vol2 = 0.2
     payoff2 = 'euro'
     vanop2 = Option(strike2, tau2, 'call', vol2, ft2, payoff2)
     barOp2 = Option(strike2, tau2, 'call', vol2, ft2, payoff2,
-                    direc='up', barrier='amer', bullet=False, ko=50)
+                    direc='up', barrier='amer', bullet=False, ko=36)
     d1, g1, t1, v1 = vanop2.greeks()
     p3 = vanop2.get_price()
     d2, g2, t2, v2 = barOp2.greeks()
     p4 = barOp2.get_price()
-    assert p4 < p3
+    try:
+        assert p4 < p3
+    except AssertionError:
+        print('vanilla: ', p3)
+        print("barrier: ", p4)
 
 
 # TODO if necessary:

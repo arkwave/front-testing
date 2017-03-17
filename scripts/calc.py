@@ -169,7 +169,7 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, r
         if direction == 'up':
             if ki:
                 # call up in
-                return _compute_value(char, tau, vol, K, s, r, payoff)
+                return _compute_value(char, tau, vol, k, s, r, payoff)
             if ko:
                 # call up out
                 vanPrice = _compute_value(
@@ -188,7 +188,7 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, r
                     char, tau, vol, ki, s, r, payoff)
                 vol2 = _compute_iv(
                     'call', s, ki, vanPrice, tau, r, 'euro', product)
-                p1 = call_put_spread(s, ki, k, r, vol2, vol1, tau,
+                p1 = call_put_spread(s, ki, k, r, vol2, vol, tau,
                                      'callspread', payoff)
                 p2 = call_put_spread(
                     s, ki + ticksize, ki, r, vol2, vol2, tau, 'callspread', payoff)
@@ -196,7 +196,7 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, r
 
             if ko:
                 # call down out
-                return _compute_value(char, tau, vol, K, s, r, payoff)
+                return _compute_value(char, tau, vol, k, s, r, payoff)
 
     if char == 'put':
         if direction == 'up':
@@ -212,11 +212,11 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, r
                     s, ki, ki-ticksize, r, vol2, vol2, tau, 'putspread', payoff)
                 return p1 - calc_lots*p2
             if ko:
-                return _compute_value(char, tau, vol, K, s, r, payoff)
+                return _compute_value(char, tau, vol, k, s, r, payoff)
         if direction == 'down':
             if ki:
                 # put down in
-                return _compute_value(char, tau, vol, K, s, r, payoff)
+                return _compute_value(char, tau, vol, k, s, r, payoff)
 
             if ko:
                 # put down out
@@ -262,26 +262,25 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0):
     b = 0
     mu = (b - ((vol**2)/2))/(vol**2)
     lambd = sqrt(mu**2 + 2*r/vol**2)
+    h = ki if ki else ko
     x1 = log(s/k)/(vol * sqrt(tau)) + (1 + mu)*vol*sqrt(tau)
-    if ki:
-        x2 = log(s/ki)/(vol * sqrt(tau)) + (1 + mu)*vol*sqrt(tau)
-        y1 = log(ki**2/(s*k))/(vol * sqrt(tau)) + (1 + mu)*vol*sqrt(tau)
-        y2 = log(ki/s)/(vol * sqrt(tau)) + (1 + mu)*vol*sqrt(tau)
-        z = log(ki/s)/(vol * sqrt(tau)) + lambd*(vol*sqrt(tau))
-        h = ki
-    if ko:
-        x2 = log(s/ko)/(vol * sqrt(tau)) + (1 + mu)*vol*sqrt(tau)
-        y1 = log(ko**2/(s*k))/(vol * sqrt(tau)) + (1 + mu)*vol*sqrt(tau)
-        y2 = log(ko/s)/(vol * sqrt(tau)) + (1 + mu)*vol*sqrt(tau)
-        z = log(ko/s)/(vol * sqrt(tau)) + lambd*(vol*sqrt(tau))
-        h = ko
+    x2 = log(s/h)/(vol * sqrt(tau)) + (1 + mu)*vol*sqrt(tau)
+    y1 = log(h**2/(s*k))/(vol * sqrt(tau)) + (1 + mu)*vol*sqrt(tau)
+    y2 = log(h/s)/(vol * sqrt(tau)) + (1 + mu)*vol*sqrt(tau)
+    z = log(h/s)/(vol * sqrt(tau)) + lambd*(vol*sqrt(tau))
 
     A = A_B('A', phi, b, r, x1, x2, tau, vol, s, k)
+    # print(A)
     B = A_B('B', phi, b, r, x1, x2, tau, vol, s, k)
+    # print(B)
     C = C_D('C', phi, s, b, r, tau, h, mu, eta, y1, y2, k, vol)
+    # print(C)
     D = C_D('D', phi, s, b, r, tau, h, mu, eta, y1, y2, k, vol)
+    # print(D)
     E = E_f(k, r, tau, eta, x2, vol, h, s, mu, y2)
+    # print(E)
     F = F_f(k, h, s, mu, lambd, eta, z, vol, tau)
+    # print(F)
 
     # pricing logic
 
@@ -292,10 +291,14 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0):
             if ki:
                 if s >= ki:
                     return _compute_value(char, tau, vol, k, s, r, payoff)
-                if k >= ki:
+                elif s < ki and k >= ki and tau > 0:
                     return A + E
-                if k < ki:
+                elif s < ki and k >= ki and tau == 0:
+                    return 0
+                elif s < ki and k < ki and tau > 0:
                     return B - C + D + E
+                elif s < ki and k < ki and tau == 0:
+                    return 0
             # call_up_out
             if ko:
                 if s >= ko:
@@ -315,6 +318,7 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0):
                 if s <= ki:
                     return _compute_value(char, tau, vol, k, s, r, payoff)
                 elif s > ki and k >= ki and tau > 0:
+                    print(C + E)
                     return C + E
                 elif s > ki and k >= ki and tau == 0:
                     return 0
@@ -731,7 +735,7 @@ def newton_raphson(option, s, k, c, tau, r, product, num_iter=100):
         if abs(diff) < precision:
             return guess
         guess = guess + diff/vega
-    return sigma
+    return guess
 
 
 def greeks_scaled(delta1, gamma1, theta1, vega1, product, lots):
@@ -915,7 +919,7 @@ def C_D(flag, phi, s, b, r, tau, h, mu, eta, y1, y2, k, vol):
     y = y1 if flag == 'C' else y2
     ret = (phi*s*exp((b-r)*tau) * (h/s)**(2*(mu + 1)) * norm.cdf(eta*y)) - \
         (phi*k*exp(-r*tau) * (h/s)**(2*mu)
-         * norm.cdf(eta*y1 - eta*vol*sqrt(tau)))
+         * norm.cdf(eta*y - eta*vol*sqrt(tau)))
     return ret
 
 
