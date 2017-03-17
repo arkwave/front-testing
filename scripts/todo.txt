@@ -83,7 +83,7 @@ flag indicating target or hedge in readin         []
 
 testing:
 1_ all computational methods.                     []
-2_ portfolio object                               []
+2_ portfolio object                               [Done]
 
 
 18/3
