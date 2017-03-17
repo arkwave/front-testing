@@ -67,9 +67,7 @@ barrier option greeks : european                  [Done]
 
 
 16/3
-testing:
-1_ all computational methods.                     []
-2_ portfolio object                               []
+
 3_ options object                                 [Done]
 4_ futures object                                 [Done]
 
@@ -81,26 +79,25 @@ hedge vs target dichotomy - extract from pos      []
 flag indicating target or hedge in readin         []
 
 
+17/3:
+
+testing:
+1_ all computational methods.                     []
+2_ portfolio object                               []
 
 
-17/3
+18/3
 delta hedging logic                               []
 compute tau from label                            []
 value of future calculation                       []
-hedge vs target dichotomy - extract from pos      []
-flag indicating target or hedge in readin         []
+
+19/3
+Remaining testing
 
 
 
 Next week:
 1) remaining simulation logic and data processing.
-
-
-
-Remaining Todos:
->>>>>> General: <<<<<<<<<Comp
-rigorous tests of portfolio class, make sure
-things update like they are supposed to.          []
 
 
 
@@ -110,7 +107,6 @@ urgent todo: data familiarization                 []
 text file query from database                     []
 data cleaning tools                               []
 data transformation 			                  []
-
 
 
 

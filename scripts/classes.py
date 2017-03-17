@@ -313,10 +313,6 @@ class Future:
     def get_desc(self):
         return self.desc
 
-    def get_price(self):
-        # getter method for price of the future.
-        return self.price
-
     def update_price(self, price):
         # updates the price of the future object
         self.price = price

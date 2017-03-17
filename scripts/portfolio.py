@@ -15,7 +15,7 @@ from operator import sub
 class Portfolio:
 
     """
-    Class representing the overall portfolio. 
+    Class representing the overall portfolio.
 
     Instance variables:
     1) long_options          : list of long options.
@@ -118,14 +118,17 @@ class Portfolio:
     def compute_net_greeks(self):
         # Computes net greeks organized hierarchically according to product and
         # month. Updates net_greeks by using long_pos and short_pos.
-        common_products = set(
-            self.long_pos.keys() & set(self.short_pos.keys()))
-
+        final_dic = {}
+        common_products = set(self.long_pos.keys()) & set(
+            self.short_pos.keys())
         long_products_unique = set(self.long_pos.keys()) - common_products
         short_products_unique = set(self.short_pos.keys()) - common_products
 
         # dealing with common products
         for product in common_products:
+            # checking existence.
+            if product not in final_dic:
+                final_dic[product] = {}
             # instantiating variables to make it neater.
             longdata = self.long_pos[product]
             shortdata = self.short_pos[product]
@@ -134,6 +137,7 @@ class Portfolio:
             # finding unique months within this product.
             long_pos_unique_mths = set(
                 longdata.keys()) - common_months
+            # print(long_pos_unique_mths)
             short_pos_unique_mths = set(
                 shortdata.keys()) - common_months
             # dealing with common months
@@ -141,27 +145,43 @@ class Portfolio:
                 long_greeks = longdata[month][2:]
                 short_greeks = shortdata[month][2:]
                 net = list(map(sub, long_greeks, short_greeks))
-                self.net_greeks[product][month] = net
+                final_dic[product][month] = net
             # dealing with non overlapping months
-            for month in longdata_unique_mths:
-                self.net_greeks[product][month] = longdata[month][2:]
-            for month in shortdata_unique_mths:
-                self.net_greeks[product][month] = shortdata[month][2:]
+            for month in long_pos_unique_mths:
+                # checking if month has options.
+                if longdata[month][0]:
+                    final_dic[product][month] = longdata[month][2:]
+            for month in short_pos_unique_mths:
+                # checking if month has options.
+                if shortdata[month][0]:
+                    final_dic[product][month] = shortdata[month][2:]
 
         # dealing with non-overlapping products
         for product in long_products_unique:
             data = self.long_pos[product]
+            # checking existence
+            if product not in final_dic:
+                final_dic[product] = {}
             # iterating over all months corresponding to non-overlapping
             # product for which we have long positions
             for month in data:
-                self.net_greeks[product][month] = data[month][2:]
+                # checking if month has options.
+                if data[month][0]:
+                    final_dic[product][month] = data[month][2:]
 
         for product in short_products_unique:
-            data = self.long_pos[product]
+            data = self.short_pos[product]
+            # checking existence
+            if product not in final_dic:
+                final_dic[product] = {}
             # iterating over all months corresponding to non-overlapping
             # product for which we have short positions.
             for month in data:
-                self.net_greeks[product][month] = data[month][2:]
+                # checking if month has options.
+                if data[month][0]:
+                    final_dic[product][month] = data[month][2:]
+
+        self.net_greeks = final_dic
 
     def add_security(self, security, flag):
         # adds a security into the portfolio, and updates relevant lists and
@@ -188,14 +208,16 @@ class Portfolio:
         elif flag == 'short':
             op = self.short_options
             ft = self.short_futures
-        if security.get_desc() == 'option':
-            op.remove(security)
-        elif security.get_desc() == 'future':
-            ft.remove(security)
-        self.toberemoved.append(security)
-        self.update_sec_by_month(False)
+        try:
+            if security.get_desc() == 'option':
+                op.remove(security)
+            elif security.get_desc() == 'future':
+                ft.remove(security)
+            self.toberemoved.append(security)
+            self.update_sec_by_month(False, flag)
+        except ValueError:
+            return -1
 
-    # TODO: add in condition for knockouts
     def remove_expired(self):
         for sec in self.long_options:
             # handling barrier case
@@ -218,7 +240,7 @@ class Portfolio:
         '''
         Helper method that updates the sec_by_month dictionary.
 
-        Inputs: 
+        Inputs:
         1) added  : boolean flag that indicates if securities are being added or removed. Valid inputs: True, False.
         2) flag   : string flag that indicates if the securities to be manipulated are short or long. Valid inputs: 'short', 'long'
         3) price  : new price of underlying. If explicitly passed in, the method assumes that new price/vol data is being fed into the portfolio, and acts accordingly. defaults to None.
@@ -268,12 +290,23 @@ class Portfolio:
                 for sec in target:
                     product = sec.get_product()
                     month = sec.get_month()
-                    if sec.get_desc() == 'option':
-                        dic[product][month][0].remove(sec)
+                    data = dic[product][month]
+                    try:
+                        if sec.get_desc() == 'option':
+                            data[0].remove(sec)
+                        else:
+                            data[1].remove(sec)
+                    except KeyError:
+                        print(
+                            "The security specified does not exist in this Portfolio")
+                    # check for degenerate case when removing sec results in no
+                    # securities associated to this product-month
+                    if not(data[0]) and not(data[1]):
+                        dic[product].pop(month)
+                        return self.compute_net_greeks()
                     else:
-                        dic[product][month][1].remove(sec)
-                    self.update_greeks_by_month(
-                        product, month, sec, added, flag)
+                        self.update_greeks_by_month(
+                            product, month, sec, added, flag)
 
         # updating greeks per month when feeding in new prices/vols
         else:
@@ -308,20 +341,19 @@ class Portfolio:
                 data[3] -= gamma
                 data[4] -= theta
                 data[5] -= vega
-
-        self.compute_net_greeks()
+            self.compute_net_greeks()
 
     def compute_value(self):
         val = 0
         # try:
         for sec in self.long_options:
-            val += sec.get_value()
+            val += sec.get_price()
         for sec in self.short_options:
-            val -= sec.get_value()
+            val -= sec.get_price()
         for sec in self.long_futures:
-            val += sec.get_value()
+            val += sec.get_price()
         for sec in self.short_futures:
-            val -= sec.get_value()
+            val -= sec.get_price()
         # except
         return val
 
@@ -381,7 +413,7 @@ class Portfolio:
         for option in all_options:
             option.update_tau(value)
 
-    def net_greeks(self):
+    def get_net_greeks(self):
         return self.net_greeks
 
     def get_all_future_names(self):
