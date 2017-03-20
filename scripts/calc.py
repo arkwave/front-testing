@@ -446,7 +446,7 @@ def call_put_spread_greeks(s, k1, k2, r, vol1, vol2, tau, optiontype, product, l
 #############################################################################
 ##################### Greek-related formulas ################################
 #############################################################################
-def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots, barrier=None):
+def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots, ki=None, ko=None, barrier=None, direction=None):
     """ Computes the greeks of various option profiles. Currently, american and european greeks and pricing are assumed to be the same.
 
     Inputs:  1) char   : call or put
@@ -482,10 +482,10 @@ def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots, barrier=None
                 char, K, tau, vol, s, r, product, lots)
         elif barrier == 'amer':
             # greeks for european options with american barrier.
-            return _euro_barrier_amer_greeks()
+            return _euro_barrier_amer_greeks(char, tau, vol, K, s, r, payoff, direction, product, ki, ko, lots)
         elif barrier == 'euro':
             # greeks for european options with european barrier.
-            return _euro_barrier_euro_greeks()
+            return _euro_barrier_euro_greeks(char, tau, vol, K, s, r, payoff, direction, product, ki, ko, lots)
 
     # # american options
     # elif payoff == 'amer':
@@ -568,28 +568,34 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction, produc
     change_vol = 0.0001
     change_tau = 1/(24*365)
     # computing delta
+    # char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0
     del1 = _barrier_amer(char, tau, vol, k, s+change_spot,
-                         r, payoff, direction, product, ki, ko, rebate=0)
+                         r, payoff, direction, ki, ko)
     del2 = _barrier_amer(char, tau, vol,
-                         k, s-change_spot,
-                         r, payoff, direction, product, ki, ko, rebate=0)
+                         k, max(0, s-change_spot),
+                         r, payoff, direction, ki, ko)
     delta = (del1 - del2)/(2*change_spot)
+
     # computing gamma
     del3 = _barrier_amer(
-        char, tau, vol, k, s, r, payoff, direction, product, ki, ko, rebate=0)
-    gamma = (del1 - 2*del3 + del2)/(2*change_spot**2) if tau > 0 else 0
+        char, tau, vol, k, s, r, payoff, direction, ki, ko)
+    gamma = (del1 - 2*del3 + del2)/(change_spot**2) if tau > 0 else 0
+
     # computing vega
     v1 = _barrier_amer(char, tau, vol+change_vol, k, s, r,
-                       payoff, direction, product, ki, ko, rebate=0)
-    v2 = _barrier_amer(char, tau, vol-change_vol, k, s, r,
-                       payoff, direction, product, ki, ko, rebate=0)
+                       payoff, direction, ki, ko)
+    tvol = max(0, vol - change_vol)
+
+    v2 = _barrier_amer(char, tau, tvol, k, s, r,
+                       payoff, direction, ki, ko)
     vega = (v1 - v2)/(2*change_vol) if tau > 0 else 0
+
     # computing theta
     t1 = _barrier_amer(char, tau, vol, k, s, r,
-                       payoff, direction, product, ki, ko, rebate=0)
-    t2 = _barrier_amer(char, tau-change_tau, vol-change_vol, k, s, r,
-                       payoff, direction, product, ki, ko, rebate=0)
-    theta = (t1 - t2)/change_tau if tau > 0 else 0
+                       payoff, direction, ki, ko)
+    t2 = _barrier_amer(char, tau-change_tau, vol, k, s, r,
+                       payoff, direction, ki, ko)
+    theta = (t2 - t1)/change_tau if tau > 0 else 0
     # scaling greeks to retrieve dollar value.
     delta, gamma, theta, vega = greeks_scaled(
         delta, gamma, theta, vega, product, lots)
@@ -598,6 +604,7 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction, produc
 
 def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, lots, rebate=0):
     """Computes greeks of european options with european barriers. """
+    ticksize = multipliers[product][2]
     if ki:
         calc_lots = (k - ki)/ticksize
     if ko:

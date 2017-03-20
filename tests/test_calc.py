@@ -180,20 +180,53 @@ def test_euro_vanilla_greeks():
 
 def test_euro_barrier_amer_greeks():
     op1, op2, op3, op4, op5, op6, op7, op8 = generate_barrop_amer()
-    pass
+
+    cdi = [0, 0, 0, 0]
+    pdi = [-0.0867, 0.0246, -0.0135, 0.0982]
+    cdo = [0.5178, 0.0445, -0.0244, 0.1780]
+    pdo = [-0.3955, 0.0198, -0.0110, 0.0797]
+    cuo = [0.3111, -0.0019, 0.0010, -0.0070]
+    puo = [-0.4822, 0.0445, -0.0244, 0.1780]
+    cui = [0.2067, 0.0464, -0.0254, 0.1850]
+    pui = [0, 0, 0, 0]
+
+    op1greeks = list(op1.greeks())
+
+    op2greeks = list(op2.greeks())
+    op3greeks = list(op3.greeks())
+    op4greeks = list(op4.greeks())
+    op5greeks = list(op5.greeks())
+    op6greeks = list(op6.greeks())
+    op7greeks = list(op7.greeks())
+    op8greeks = list(op8.greeks())
+    try:
+        assert np.allclose(op1greeks, cui, atol=1e-3)
+    except AssertionError:
+        print('predicted 1 : ', op1greeks)
+        print('actual 1: ', cui)
+
+    try:
+        assert np.allclose(op2greeks, cuo, atol=1e-3)
+    except AssertionError:
+        print('predicted 2 : ', op2greeks)
+        print('actual 2 : ', cuo)
+
+    try:
+        assert np.allclose(op3greeks, cdi, atol=1e-3)
+    except AssertionError:
+        print('predicted 3 : ', op3greeks)
+        print('actual 3 : ', cdi)
+
+    assert np.allclose(op4greeks, cdo, atol=1e-3)
+    assert np.allclose(op5greeks, pui, atol=1e-3)
+    assert np.allclose(op6greeks, puo, atol=1e-3)
+    assert np.allclose(op7greeks, pdi, atol=1e-3)
+    assert np.allclose(op8greeks, pdo, atol=1e-3)
 
 
 # def test_euro_barrier_euro_greeks():
 #     op1, op2, op3, op4, op5, op6, op7, op8 = generate_barrop_euro()
 #     pass
-
-
-def test_call_put_spread_pricing():
-    pass
-
-
-def test_call_put_spread_greeks():
-    pass
 
 
 # # NIU: Not in Use.

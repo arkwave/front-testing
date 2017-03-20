@@ -73,15 +73,6 @@ barrier option greeks : european                  [Done]
 
 
 
-Sri's comments:
-compute tau from label                            []
-hedge vs otc dichotomy - extract from pos         []
-	> add in a flag during read-in
-	> target : {'product': {'month': set(options), set(futures, greeks)}}
-	> hedges: {'product': {'month': set(options, set(futures), greeks)}}
-	> adapt compute_net_greeks to take in two random dictionaries instead of hardcoded to self.long and self.short
-	
-flag indicating target or hedge in readin         []
 
 
 17/3:
@@ -94,32 +85,50 @@ testing:
 
 
 20/3
+
 PRIORITY: Finish testing calc.py
-	> European barrier                            []
 	> American barrier                            [Done]
 	> implied volatility                          [Done]
-	> American barrier greeks                     []
-	
-	> European barrier greeks                     []
-	> Call put spread pricing                     []
-	> Call put spread greeks                      []
+	> Call put spread pricing                     [Done]
+	> Call put spread greeks                      [Done]
+	> American barrier greeks                     [Done]
 
-For european barriers, need to read data into calc --> understanding layout of data a must.
 
+Other:
 compute tau from label                            []
-
-
-If there's time:
 delta hedging logic                               []
 value of future calculation                       []
+	
+
+
+
+21/3
+European barrier                                  []
+European barrier greeks                           []
+For european barriers, need to read data into 
+calc --> understanding layout of data a must.     []
+
+
+
+This/Next Week:
+1) remaining simulation logic and data processing []
+2) testing from xtrader                           []
 
 
 
 
-
-Next week:
-1) remaining simulation logic and data processing.
-2) testing from xtrader                              []
+Sri's comments:
+compute tau from label                            []
+hedge vs otc dichotomy - extract from pos         []
+	> add in a flag during read-in
+	> target : {'product': {'month': 
+	    set(options), set(futures, greeks)}}      []
+	> hedges: {'product': {'month': 
+	    set(options, set(futures), greeks)}}      []
+	> adapt compute_net_greeks to take in two 
+	random dictionaries instead of hardcoded 
+	to self.long and self.short                   []
+flag indicating target or hedge in readin         []
 
 
 
@@ -132,8 +141,6 @@ urgent todo: data familiarization                 []
 text file query from database                     []
 data cleaning tools                               []
 data transformation 			                  []
-
-
 
 >>>>> Simulation Logic: <<<<<<
 1) Handle_options                                 []

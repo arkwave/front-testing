@@ -174,9 +174,11 @@ class Option:
     def init_greeks(self):
         # initializes relevant greeks. only used once, when initializing Option
         # object.
+        # char, K, tau, vol, s, r, product, payoff, lots, ki=None, ko=None,
+        # barrier=None, direction=None
         product = self.get_product()
         s = self.underlying.get_price()
-        return _compute_greeks(self.char, self.K,  self.tau, self.vol, s, self.r, product, self.payoff, self.lots)
+        return _compute_greeks(self.char, self.K,  self.tau, self.vol, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc)
 
     def update_greeks(self, vol=None):
         # method that updates greeks given new values of s, vol and tau, and subsequently updates value.
@@ -192,7 +194,7 @@ class Option:
             product = self.get_product()
             s = self.underlying.get_price()
             self.delta, self.gamma, self.theta, self.vega = _compute_greeks(
-                self.char, self.K, self.tau, sigma, s, self.r, product, self.payoff, self.lots)
+                self.char, self.K, self.tau, sigma, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc)
             self.vol = sigma
             self.price = self.compute_price()
         else:
