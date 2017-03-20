@@ -2,7 +2,7 @@
 File Name      : calc.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 15/3/2017
+Last Modified  : 20/3/2017
 Python version : 3.5
 
 Description:
@@ -56,6 +56,7 @@ multipliers = {
 
 from math import log, sqrt, exp, pi
 from scipy.stats import norm
+import numpy as np
 
 
 #####################################################################
@@ -103,8 +104,8 @@ def _bsm_euro(option, tau, vol, K, s, r):
 
     Output: 1) Price      : price of option according to BSM
     """
-    if vol is None:
-        raise ValueError('Vol cannot be None')
+    if vol is None or vol == 0:
+        raise ValueError('Vol cannot be None or 0')
     d1 = (log(s/K) + (r + 0.5 * (vol ** 2))*tau) / \
         (vol * sqrt(tau))
     d2 = d1 - vol*(sqrt(tau))
@@ -175,7 +176,9 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, r
                 vanPrice = _compute_value(
                     char, tau, vol, ko, s, r, payoff)
                 vol2 = _compute_iv(
-                    'call', s, ko, vanPrice, tau, r, 'euro', product)
+                    'call', s, ko, vanPrice, tau, r, 'euro')
+                if vol2 == 0:
+                    raise ValueError('Volatility cannot be 0')
                 p1 = call_put_spread(
                     s, ko, k, r, vol2, vol, tau, 'callspread', payoff)
                 p2 = call_put_spread(
@@ -187,7 +190,9 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, r
                 vanPrice = _compute_value(
                     char, tau, vol, ki, s, r, payoff)
                 vol2 = _compute_iv(
-                    'call', s, ki, vanPrice, tau, r, 'euro', product)
+                    'call', s, ki, vanPrice, tau, r, 'euro')
+                if vol2 == 0:
+                    raise ValueError('Volatility cannot be 0')
                 p1 = call_put_spread(s, ki, k, r, vol2, vol, tau,
                                      'callspread', payoff)
                 p2 = call_put_spread(
@@ -205,7 +210,10 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, r
                 vanPrice = _compute_value(
                     char, tau, vol, ki, s, r, payoff)
                 vol2 = _compute_iv(
-                    'call', s, ki, vanPrice, tau, r, 'euro', product)
+                    'call', s, ki, vanPrice, tau, r, 'euro')
+                if vol2 == 0:
+                    raise ValueError('Volatility cannot be 0')
+
                 p1 = call_put_spread(
                     s, k, ki, r, vol, vol2, tau, 'putspread', payoff)
                 p2 = call_put_spread(
@@ -223,7 +231,10 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, r
                 vanPrice = _compute_value(
                     char, tau, vol, ko, s, r, payoff)
                 vol2 = _compute_iv(
-                    'call', s, ko, vanPrice, tau, r, 'euro', product)
+                    'call', s, ko, vanPrice, tau, r, 'euro')
+                if vol2 == 0:
+                    print('debug values: ', s, ko, vanPrice, tau, r)
+                    raise ValueError('Volatility cannot be 0')
                 p1 = call_put_spread(
                     s, k, ko, r, vol, vol2, tau, 'putspread', payoff)
                 p2 = call_put_spread(
@@ -257,12 +268,14 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0):
     #     return _compute_value(char, tau, vol, k, s, r, payoff)
 
     # initializing constants
+    # scaling for calc
     eta = -1 if direction == 'up' else 1
     phi = 1 if char == 'call' else -1
     b = 0
     mu = (b - ((vol**2)/2))/(vol**2)
     lambd = sqrt(mu**2 + 2*r/vol**2)
     h = ki if ki else ko
+
     x1 = log(s/k)/(vol * sqrt(tau)) + (1 + mu)*vol*sqrt(tau)
     x2 = log(s/h)/(vol * sqrt(tau)) + (1 + mu)*vol*sqrt(tau)
     y1 = log(h**2/(s*k))/(vol * sqrt(tau)) + (1 + mu)*vol*sqrt(tau)
@@ -270,17 +283,11 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0):
     z = log(h/s)/(vol * sqrt(tau)) + lambd*(vol*sqrt(tau))
 
     A = A_B('A', phi, b, r, x1, x2, tau, vol, s, k)
-    # print(A)
     B = A_B('B', phi, b, r, x1, x2, tau, vol, s, k)
-    # print(B)
     C = C_D('C', phi, s, b, r, tau, h, mu, eta, y1, y2, k, vol)
-    # print(C)
     D = C_D('D', phi, s, b, r, tau, h, mu, eta, y1, y2, k, vol)
-    # print(D)
-    E = E_f(k, r, tau, eta, x2, vol, h, s, mu, y2)
-    # print(E)
-    F = F_f(k, h, s, mu, lambd, eta, z, vol, tau)
-    # print(F)
+    E = E_f(rebate, r, tau, eta, x2, vol, h, s, mu, y2)
+    F = F_f(rebate, h, s, mu, lambd, eta, z, vol, tau)
 
     # pricing logic
 
@@ -318,7 +325,6 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0):
                 if s <= ki:
                     return _compute_value(char, tau, vol, k, s, r, payoff)
                 elif s > ki and k >= ki and tau > 0:
-                    print(C + E)
                     return C + E
                 elif s > ki and k >= ki and tau == 0:
                     return 0
@@ -606,7 +612,7 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction, produc
                 vanPrice = _compute_value(
                     char, tau, vol, ko, s, r, payoff, product)
                 vol2 = _compute_iv(
-                    'call', s, ki, vanPrice, tau, r, 'euro', product)
+                    'call', s, ki, vanPrice, tau, r, 'euro')
                 d1, g1, t1, v1 = call_put_spread_greeks(
                     s, ko, k, r, vol2, vol, tau, 'callspread', product, lots)
                 d2, g2, t2, v2 = call_put_spread_greeks(
@@ -622,7 +628,7 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction, produc
                 vanPrice = _compute_value(
                     char, tau, vol, ki, s, r, payoff, product)
                 vol2 = _compute_iv(
-                    'call', s, ki, vanPrice, tau, r, 'euro', product)
+                    'call', s, ki, vanPrice, tau, r, 'euro')
                 d1, g1, t1, v1 = call_put_spread_greeks(s, ki, k, r, vol2, vol1, tau,
                                                         'callspread', product, lots)
                 d2, g2, t2, v2 = call_put_spread_greeks(
@@ -643,7 +649,7 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction, produc
                 vanPrice = _compute_value(
                     char, tau, vol, ki, s, r, payoff, product)
                 vol2 = _compute_iv(
-                    'call', s, ki, vanPrice, tau, r, 'euro', product)
+                    'call', s, ki, vanPrice, tau, r, 'euro')
                 d1, g1, t1, v1 = call_put_spread_greeks(
                     s, k, ki, r, vol, vol2, tau, 'putspread', product, lots)
                 d2, g2, t2, v2 = call_put_spread_greeks(
@@ -664,7 +670,7 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction, produc
                 vanPrice = _compute_value(
                     char, tau, vol, ko, s, r, payoff, product)
                 vol2 = _compute_iv(
-                    'call', s, ko, vanPrice, tau, r, 'euro', product)
+                    'call', s, ko, vanPrice, tau, r, 'euro')
                 d1, g1, t1, v1 = call_put_spread_greeks(
                     s, k, ko, r, vol, vol2, tau, 'putspread', product, lots)
                 d2, g2, t2, v2 = call_put_spread_greeks(
@@ -686,7 +692,7 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction, produc
 #     pass
 
 
-def _compute_iv(optiontype, s, k, c, tau, r, flag, product):
+def _compute_iv(optiontype, s, k, c, tau, r, flag):
     """Computes implied volatility of plain vanilla puts and calls.
     Inputs:
     1) optiontype : call or put.
@@ -699,10 +705,10 @@ def _compute_iv(optiontype, s, k, c, tau, r, flag, product):
 
     # european option
     if flag == 'euro':
-        return newton_raphson(optiontype, s, k, c, tau, r, product)
+        return newton_raphson(optiontype, s, k, c, tau, r)
     # american option
     elif flag == 'amer':
-        return newton_raphson(optiontype, s, k, c, tau, r, product)
+        return newton_raphson(optiontype, s, k, c, tau, r)
         # return american_iv(s, k, c, tau, r, optiontype)
 
 
@@ -710,7 +716,7 @@ def _compute_iv(optiontype, s, k, c, tau, r, flag, product):
 ##### Supplemental Methods for Numerical Approximations ############
 ####################################################################
 
-def newton_raphson(option, s, k, c, tau, r, product, num_iter=100):
+def newton_raphson(option, s, k, c, tau, r, num_iter=100):
     """Newton's method for calculating IV for vanilla european options.
     Inputs:
     1) option  : call or put.
@@ -723,18 +729,25 @@ def newton_raphson(option, s, k, c, tau, r, product, num_iter=100):
 
     Outputs: Implied volatility of this VANILLA EUROPEAN option.
      """
-    precision = 1e-5
+    precision = 1e-3
     guess = 0.5
     for i in range(num_iter):
-        d1 = (log(s/k) + (r + 0.5 * guess ** 2)*tau) / \
-            (guess * sqrt(tau))
-        option_price = _bsm_euro(option, tau, guess, k, s, r)
-        vega = s*(1/sqrt(2*pi)) * exp(-(d1**2) / 2) * sqrt(tau)
-        price = option_price
-        diff = c - option_price
-        if abs(diff) < precision:
-            return guess
-        guess = guess + diff/vega
+        try:
+            d1 = (log(s/k) + (r + 0.5 * guess ** 2)*tau) / \
+                (guess * sqrt(tau))
+            option_price = _bsm_euro(option, tau, guess, k, s, r)
+            vega = s*(1/sqrt(2*pi)) * exp(-(d1**2) / 2) * sqrt(tau)
+            diff = option_price - c
+            if abs(diff) < precision:
+                return guess
+            guess = guess - diff/vega
+        except RuntimeWarning:
+            print('guess: ', guess)
+            print('diff: ', diff)
+            print('tau: ', tau)
+            print('vol: ', vol)
+    if np.isnan(guess):
+        guess = 0
     return guess
 
 
@@ -762,7 +775,7 @@ def greeks_scaled(delta1, gamma1, theta1, vega1, product, lots):
     # theta = theta1*lots*lm*dm/365
 
     return delta1, gamma1, theta1/365, vega1/100
-    # return delta, gamma, theta1, vega1
+    # return delta, gamma, theta, vega
 
 
 # NIU: not currently being used.
@@ -781,15 +794,21 @@ def american_iv(option, s, k, c, tau, r, product, num_iter=100):
     precision = 1e-5
     guess = 0.5
     for i in range(num_iter):
-        d1 = (log(s/K) + (r + 0.5 * guess ** 2)*tau) / \
-            (guess * sqrt(tau))
-        option_price = _amer_option(option, tau, guess, K, s, r, product)
-        vega = _num_vega('amer', option, s, k, tau, r, r, guess)
-        price = option_price
-        diff = c - option_price
-        if abs(diff) < precision:
-            return sigma
-        sigma = sigma + diff/vega
+        try:
+            d1 = (log(s/K) + (r + 0.5 * guess ** 2)*tau) / \
+                (guess * sqrt(tau))
+            option_price = _amer_option(option, tau, guess, K, s, r, product)
+            vega = _num_vega('amer', option, s, k, tau, r, r, guess)
+            price = option_price
+            diff = c - option_price
+            if abs(diff) < precision:
+                return sigma
+            sigma = sigma + diff/vega
+        except RuntimeWarning:
+            print('guess: ', guess)
+            print('diff: ', diff)
+            print('tau: ', tau)
+            print('vol: ', vol)
     return sigma
 
 
@@ -909,6 +928,7 @@ def _num_vega(payoff, option_type, s, k, tau, r,  vol, b=0):
 
 
 def A_B(flag, phi, b, r, x1, x2, tau, vol, s, k):
+    # vol = vol*100
     x = x1 if flag == 'A' else x2
     ret = phi*s*exp((b-r)*tau)*norm.cdf(phi*x) - phi*k * \
         exp(-r*tau)*norm.cdf(phi*x - phi*vol*sqrt(tau))
@@ -916,20 +936,28 @@ def A_B(flag, phi, b, r, x1, x2, tau, vol, s, k):
 
 
 def C_D(flag, phi, s, b, r, tau, h, mu, eta, y1, y2, k, vol):
+    # vol = vol*100
     y = y1 if flag == 'C' else y2
-    ret = (phi*s*exp((b-r)*tau) * (h/s)**(2*(mu + 1)) * norm.cdf(eta*y)) - \
-        (phi*k*exp(-r*tau) * (h/s)**(2*mu)
-         * norm.cdf(eta*y - eta*vol*sqrt(tau)))
+    ret = (phi*s*exp((b-r)*tau)*((h/s)**(2*(mu + 1)))*norm.cdf(eta*y)) - \
+        phi*k*exp(-r*tau) * ((h/s)**(2*mu))*norm.cdf(eta*y - eta*vol*sqrt(tau))
+
+    # ret =  phi*s*exp((b-r)*tau)*((h/s)**(2*(1 + mu)))*norm.cdf(eta*y) - \
+    # phi*k*exp(-r*tau) * ((h/s) ^ (2*mu))*norm.cdf(eta*y - eta*vol*sqrt(tau))
     return ret
 
 
 def E_f(k, r, tau, eta, x, vol, h, s, mu, y):
-    ret = k*exp(-r*tau) * ((norm.cdf(eta*x - eta*vol*sqrt(tau))) -
-                           ((h/s)**(2*mu) * norm.cdf(eta*y - eta*vol*sqrt(tau))))
+    # tau = tau * 365
+    # vol = vol*100
+    ret = k*exp(-r*tau) * (norm.cdf(eta*x - eta*vol*sqrt(tau)) -
+                           ((h/s)**(2*mu)) * norm.cdf(eta*y - eta*vol*sqrt(tau)))
+    # ret = k*exp(-r*tau) * (norm.cdf(eta*x - eta*vol*sqrt(tau)) -
+    #                         ((h/s)^(2*mu))*  norm.cdf(eta*y - eta*vol*sqrt(tau)))
     return ret
 
 
 def F_f(k, h, s, mu, l, eta, z, vol, tau):
-    ret = k * (((h/s)**(mu + l) * norm.cdf(eta*z)) +
-               ((h/s)**(mu-l)*norm.cdf(eta*z - 2*eta*l*vol*sqrt(tau))))
+    # vol = vol*100
+    ret = k * (((h/s)**(mu + l)) * norm.cdf(eta*z) + (h/s)**(mu-l)
+               * norm.cdf(eta*z - 2*eta*l * vol*sqrt(tau)))
     return ret

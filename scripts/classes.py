@@ -14,6 +14,8 @@ from .calc import _compute_value, _compute_greeks
 
 lots = 10
 
+# multipliers = prep.read_multipliers()
+
 multipliers = {
 
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
@@ -106,7 +108,6 @@ class Option:
         self.r = 0
         self.price = self.compute_price()
         self.delta, self.gamma, self.theta, self.vega = self.init_greeks()
-
         self.active = self.check_active()
         self.expired = False  # defaults to false.
         self.rebate = rebate
@@ -204,9 +205,11 @@ class Option:
         return self.delta, self.gamma, self.theta, self.vega
 
     def compute_vol(underlying, price, strike, tau, r):
-        # computes implied vol from market price data
+        # computes implied vol from market price data. only holds for vanilla
+        # options.
         product = self.get_product()
-        return _compute_iv(underlying, price, strike, tau, r, product)
+        if self.barrier is None:
+            return _compute_iv(underlying, price, strike, tau, r, product)
 
     def compute_price(self):
         # computes the value of this structure from relevant information.

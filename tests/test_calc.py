@@ -2,12 +2,12 @@
 File Name      : test_calc.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 15/3/2017
+Last Modified  : 20/3/2017
 Python version : 3.5
 Description    : File contains tests for the methods in calc.py
 
 """
-from scripts.calc import *
+from scripts.calc import _compute_iv
 from scripts.classes import Option, Future
 import numpy as np
 
@@ -106,6 +106,29 @@ def test_bsm_euro():
 
 def test_compute_iv():
     op1, op2, op3, op4, op5, op6 = generate_vanop()
+    oplist = [op1, op2, op3, op4, op5, op6]
+    ivlist = []
+    truelist = [0.2243, 0.5787, 0, 0.2243, 0, 0.7092]
+    for op in oplist:
+        char = op.char
+        s = op.underlying.get_price()
+        k = op.K
+        c = 4
+        tau = op.tau
+        r = 0
+        payoff = op.payoff
+        iv = _compute_iv(char, s, k, c, tau, r, payoff)
+        ivlist.append(iv)
+    try:
+        assert np.allclose(ivlist, truelist, atol=1e-4)
+    except AssertionError:
+        print(ivlist)
+        print(truelist)
+
+
+def test_iv_pathological():
+    result = _compute_iv('call', 100, 80, 0.0162787346047, 0.2, 0, 'euro')
+    print('pathological: ', result)
 
 
 def test_barrier_amer():
@@ -121,31 +144,16 @@ def test_barrier_amer():
     plist = [op1.get_price(), op2.get_price(), op3.get_price(), op4.get_price(),
              op5.get_price(), op6.get_price(), op7.get_price(), op8.get_price()]
     actuals = [cui, cuo, cdi, cdo, pui, puo, pdi, pdo]
-
     try:
-        assert np.allclose(plist, actuals)
+        assert np.allclose(plist, actuals, atol=1e-2)
     except AssertionError:
-        print(plist)
-        print(actuals)
-
-    # try:
-    #     assert np.isclose(op1.get_price(), cui)
-    # except AssertionError:
-    #     print(op1.get_price())
-    #     print(cui)
-
-    # assert np.isclose(op2.get_price(), cuo)
-    # assert np.isclose(op3.get_price(), cdi)
-    # assert np.isclose(op4.get_price(), cdo)
-    # assert np.isclose(op5.get_price(), pui)
-    # assert np.isclose(op6.get_price(), puo)
-    # assert np.isclose(op7.get_price(), pdi)
-    # assert np.isclose(op8.get_price(), pdo)
+        print('barrier_amer_prices: ', plist)
+        print('barrier_amer_actuals: ', actuals)
 
 
-def test_barrier_euro():
-    #op1, op2, op3, op4, op5, op6, op7, op8 = generate_barrop_euro()
-    pass
+# def test_barrier_euro():
+#     op1, op2, op3, op4, op5, op6, op7, op8 = generate_barrop_euro()
+#     pass
 
 
 def test_euro_vanilla_greeks():
@@ -172,11 +180,21 @@ def test_euro_vanilla_greeks():
 
 def test_euro_barrier_amer_greeks():
     op1, op2, op3, op4, op5, op6, op7, op8 = generate_barrop_amer()
-
-
-def test_euro_barrier_euro_greeks():
-    #op1, op2, op3, op4, op5, op6, op7, op8 = generate_barrop_euro()
     pass
+
+
+# def test_euro_barrier_euro_greeks():
+#     op1, op2, op3, op4, op5, op6, op7, op8 = generate_barrop_euro()
+#     pass
+
+
+def test_call_put_spread_pricing():
+    pass
+
+
+def test_call_put_spread_greeks():
+    pass
+
 
 # # NIU: Not in Use.
 # def test_amer_barrier_euro_greeks():

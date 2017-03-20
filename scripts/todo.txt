@@ -75,7 +75,7 @@ barrier option greeks : european                  [Done]
 
 Sri's comments:
 compute tau from label                            []
-hedge vs target dichotomy - extract from pos      []
+hedge vs otc dichotomy - extract from pos         []
 	> add in a flag during read-in
 	> target : {'product': {'month': set(options), set(futures, greeks)}}
 	> hedges: {'product': {'month': set(options, set(futures), greeks)}}
@@ -96,15 +96,21 @@ testing:
 20/3
 PRIORITY: Finish testing calc.py
 	> European barrier                            []
-	> American barrier                            []
-	> implied volatility                          []
+	> American barrier                            [Done]
+	> implied volatility                          [Done]
+	> American barrier greeks                     []
+	
+	> European barrier greeks                     []
+	> Call put spread pricing                     []
+	> Call put spread greeks                      []
 
+For european barriers, need to read data into calc --> understanding layout of data a must.
+
+compute tau from label                            []
 
 
 If there's time:
-setup vpn access                                  []
 delta hedging logic                               []
-compute tau from label                            []
 value of future calculation                       []
 
 
@@ -113,6 +119,8 @@ value of future calculation                       []
 
 Next week:
 1) remaining simulation logic and data processing.
+2) testing from xtrader                              []
+
 
 
 

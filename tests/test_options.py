@@ -2,7 +2,7 @@
 File Name      : test_options.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 16/3/2017
+Last Modified  : 20/3/2017
 Python version : 3.5
 Description    : File contains tests for Options class methods in classes.py
 
@@ -438,7 +438,6 @@ def test_barrier_options():
     assert l1 == l2
 
 
-# TODO: Figure out why this holds only for ITM options. Should hold for all.
 def test_barrier_options2():
     ft2 = Future('march', 35, 'C')
     strike2 = 35
@@ -457,9 +456,3 @@ def test_barrier_options2():
     except AssertionError:
         print('vanilla: ', p3)
         print("barrier: ", p4)
-
-
-# TODO if necessary:
-# test init greeks
-# test update greeks (pretty sure this works fine since it is being called by all the others.
-# test greeks (redundant)
