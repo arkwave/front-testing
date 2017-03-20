@@ -30,11 +30,14 @@ TODO:
 # options_multiplier - (dollar_mult, lot_mult), futures_tick,
 # options_tick, brokerage]}
 
+# TODO: Figure out how to pass in lots efficiently.
+
 # list of hedging conditions.
 hedges = {'delta': 'zero', 'gamma': (-5000, 5000), 'vega': (-5000, 5000)}
 
 # slippage/brokerage
 slippage = 1
+lots = 10
 
 
 def run_simulation(df, pf, hedges):
@@ -150,18 +153,19 @@ def rebalance(data, pf, hedges):
     # return both the portfolio, as well as the gain/loss from short/long pos
     expenditure = 0
     # hedging delta, gamma, vega.
-    dic = pf.net_greeks()
-    for month in dic:
-        net = dic[month]
-        cost, pf = hedge_gamma_vega(hedges, data, net, month)
-        expenditure += cost
-        cost, pf = hedge_delta(hedges['delta'], data, net, month)
-        expenditure += cost
+    dic = pf.get_net_greeks()
+    for product in dic:
+        for month in dic[product]:
+            net = dic[product][month]
+            cost, pf = hedge_gamma_vega(hedges, data, net, month)
+            expenditure += cost
+            cost, pf = hedge_delta(hedges['delta'], data, net, month)
+            expenditure += cost
     return expenditure, pf
 
 
 # TODO: delta hedging
-def hedge_gamma_vega(hedges, data, greeks, month):
+def hedge_gamma_vega(hedges, data, greeks, month, pf):
     expenditure = 0
     # naming variables for clarity.
     delta = greeks[0]
@@ -228,8 +232,28 @@ def hedge_gamma_vega(hedges, data, greeks, month):
     return expenditure, pf
 
 
-def hedge_delta(cond, data, greeks, month):
-    pass
+def hedge_delta(cond, data, greeks, month, pf):
+    future_price = data[price]  # placeholder
+    expenditure = 0
+    if cond == 'zero':
+        # flag that indicates delta hedging.
+        for product in greeks:
+            for month in greeks[product]:
+                vals = greeks[product][month]
+                delta = vals[0]
+                flag = 'short' if delta > 0 else 'long'
+                # long delta; need to short futures.
+                # TODO: math.ceil isn't the right thing. figure out how
+                # lots play into price.
+                num_lots_needed = delta * 100
+                num_futures = ceil(num_lots_needed / lots)
+                for i in range(len(num_futures)):
+                    pf.add_security(ft, flag)
+                    if flag == 'short':
+                        expenditure -= future_price
+                    else:
+                        expenditure += future_price
+    return expenditure, pf
 
 
 if __name__ == '__main__':

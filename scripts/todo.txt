@@ -92,21 +92,27 @@ PRIORITY: Finish testing calc.py
 	> Call put spread pricing                     [Done]
 	> Call put spread greeks                      [Done]
 	> American barrier greeks                     [Done]
+delta hedging logic                               [Done]
+
+
 
 
 Other:
-compute tau from label                            []
-delta hedging logic                               []
-value of future calculation                       []
+compute tau from label double check               []
 	
+
+
+
+
+21/3:
+familiarize with data                             []
+prep_data steps                                   []
 
 
 
 21/3
 European barrier                                  []
 European barrier greeks                           []
-For european barriers, need to read data into 
-calc --> understanding layout of data a must.     []
 
 
 
