@@ -8,23 +8,28 @@ Description    : File contains tests for the methods in prep_data.py
 
 """
 from scripts.prep_data import *
-
-
-def test_read_data():
-    pass
-
-
-def test_preprocess_data():
-    pass
-
-
-def test_prep_data():
-    pass
+import os
 
 
 def test_prep_portfolio():
-    pass
+    path = 'portfolio_specs.txt'
+    # try:
+    vdata, pdata = read_data(path)
+    # except FileNotFoundError:
+    #     print('Curr directory: ', os.getcwd())
+    vdata = clean_data(vdata, 'vol')
+    pdata = clean_data(pdata, 'p')
 
+    pmin = min(pdata['value_date'])
+    vmin = min(vdata['value_date'])
 
-def clean_data():
-    pass
+    assert pmin == vmin
+
+    sim_start = pmin
+    pf = prep_portfolio(vdata, pdata, pmin)
+
+    longs = pf.long_pos
+    short = pf.short_pos
+
+    assert len(longs) == 1
+    assert len(short) == 1

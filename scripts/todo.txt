@@ -96,12 +96,7 @@ delta hedging logic                               [Done]
 
 
 
-
-Other:
-compute tau from label double check               []
 	
-
-
 
 
 21/3:
@@ -109,13 +104,14 @@ familiarize with data                             [Done]
 prep_data steps                                   
 	> compute ttm from label for op               [Done]
 	> reading in data                             [Done]
-	> alter prep_portfolio
-	> clean price data                            []
+	> alter prep_portfolio                        [Done]
+	> clean price data                            [Done]
+flag indicating target or hedge in readin         [Done]
 
 
-
-hedge vs otc dichotomy - extract from pos         []
-	> add in a flag during read-in
+22/3:
+tidy up expiry month for each class per month     []
+hedge vs otc dichotomy - extract from pos         
 	> target : {'product': {'month': 
 	    set(options), set(futures, greeks)}}      []
 	> hedges: {'product': {'month': 
@@ -123,18 +119,20 @@ hedge vs otc dichotomy - extract from pos         []
 	> adapt compute_net_greeks to take in two 
 	random dictionaries instead of hardcoded 
 	to self.long and self.short                   []
-flag indicating target or hedge in readin         []
 
 
 
-22/3
+Other:
+compute tau from label double check               []
 European barrier                                  []
 European barrier greeks                           []
 
 
 
+
+
 This/Next Week:
-1) remaining simulation logic and data processing []
+1) remaining simulation logic                     []
 2) testing from xtrader                           []
 
 
@@ -151,10 +149,6 @@ hedge vs otc dichotomy - extract from pos         []
 	> adapt compute_net_greeks to take in two 
 	random dictionaries instead of hardcoded 
 	to self.long and self.short                   []
-flag indicating target or hedge in readin         []
-
-
-
 
 
 
@@ -162,7 +156,6 @@ Do once the account has been made.
 >>>>>>> data-related: <<<<<<<<<<
 urgent todo: data familiarization                 []
 text file query from database                     []
-data cleaning tools                               []
 data transformation 			                  []
 
 >>>>> Simulation Logic: <<<<<<
