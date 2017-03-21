@@ -107,7 +107,8 @@ class Option:
         self.vol = vol
         self.r = 0
         self.price = self.compute_price()
-        self.delta, self.gamma, self.theta, self.vega = self.init_greeks()
+        # self.delta, self.gamma, self.theta, self.vega = self.init_greeks()
+        self.init_greeks()
         self.active = self.check_active()
         self.expired = False  # defaults to false.
         self.rebate = rebate
@@ -174,11 +175,15 @@ class Option:
     def init_greeks(self):
         # initializes relevant greeks. only used once, when initializing Option
         # object.
-        # char, K, tau, vol, s, r, product, payoff, lots, ki=None, ko=None,
-        # barrier=None, direction=None
         product = self.get_product()
         s = self.underlying.get_price()
-        return _compute_greeks(self.char, self.K,  self.tau, self.vol, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc)
+        delta, gamma, theta, vega = _compute_greeks(
+            self.char, self.K,  self.tau, self.vol, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc)
+        self.delta = delta
+        self.gamma = gamma
+        self.theta = theta
+        self.vega = vega
+        # return delta, gamma, theta, vega
 
     def update_greeks(self, vol=None):
         # method that updates greeks given new values of s, vol and tau, and subsequently updates value.

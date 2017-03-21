@@ -95,7 +95,9 @@ def prep_portfolio(voldata, pricedata, sim_start):
                     u_name = volid.split('.')[0]
                     f_price = pricedata[(pricedata['value_date'] == sim_start) &
                                         (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
-
+                    # print(f_mth, f_name, u_name, f_price, direc, ki,
+                    # ko, bullet, flag, OTC, strike, tau, vol, payoff,
+                    # barriertype)
                     underlying = Future(f_mth, f_price, f_name)
                     opt = Option(strike, tau, char, vol, underlying,
                                  payoff, direc=direc, barrier=barriertype,
@@ -168,10 +170,10 @@ def ttm(df, s):
 # FIXME: this needs to be changed.
 
 
-# def third_fridays(row):
-#     """Utility method"""
-#     return [week[calendar.FRIDAY]
-#             for week in calendar.monthcalendar(row[1], row[0])][3]
+def third_fridays(row):
+    """Utility method"""
+    return [week[calendar.FRIDAY]
+            for week in calendar.monthcalendar(row[1], row[0])][3]
 
 
 # if __name__ == '__main__':
