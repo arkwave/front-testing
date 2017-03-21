@@ -24,12 +24,6 @@ TODO:
 
 """
 
-# TODO: Product specific information.
-
-# {product : [futures_multiplier - (dollar_mult, lot_mult),
-# options_multiplier - (dollar_mult, lot_mult), futures_tick,
-# options_tick, brokerage]}
-
 # TODO: Figure out how to pass in lots efficiently.
 
 # list of hedging conditions.

@@ -1,25 +1,12 @@
-%% Specifications:
-
-%% 1) Options should have the following format:
-%% 	'Option',strike,time_to_expiry,call_or_put,vol,'Future',contract_month,contract_name,contract_price,long_or_short
-
-%% 	Example:
-%% 	Option,10,50,'call',10,'euro',Future,'may', 'SX17', 17, 'long'.
+../datasets/settlement_vol_surf_table.csv
+../datasets/settlement_prices.csv
 
 
-%% 2) Futures object should have the following format:
-%% 	'Future',month,contract_name,price,long_or_short.
+%% Option,strike,vol_id,callorput,optiontype,barriertype,
+%% direction,knockin,knockout,bullet,longorshort,hedgeorOTC
 
-%% 	Example:
-%% 	Future,'may', 'SX19', 14, 'short'
+Option,100,C Z7.Z7,call,euro,amer,up,None,120,True,long,OTC
+Option,100,C Z7.Z7,call,euro,None,None,None,None,True,short,hedge
+Future,C Z7,long,OTC
 
-%% Note: NO SPACES BETWEEN COMMAS
 
-%% Start specifications below this line:
-
-Option,10,50,'call',10,'euro',Future,'may','SX17',17,'long'
-Option,10,40,'call',10,'euro',Future,'may','SX15',16,'short'
-Option,10,30,'call',10,'euro',Future,'may','SX14',15,'long'
-Option,10,10,'call',10,'euro',Future,'may','SX14',15,'short'
-Option,10,3,'call',10,'euro',Future,'may','SX13',14,'long'
-Future,'may','SX19',14,'short'

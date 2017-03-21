@@ -2,7 +2,7 @@
 File Name      : test_calc.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 20/3/2017
+Last Modified  : 21/3/2017
 Python version : 3.5
 Description    : File contains tests for the methods in calc.py
 
@@ -13,7 +13,7 @@ import numpy as np
 
 
 def generate_vanop():
-    ft = Future('march', 100, 'C')
+    ft = Future('Z7', 100, 'C')
     op1 = Option(100, 0.2, 'call', .20, ft, 'amer')
     op2 = Option(120, 0.2, 'call', .20, ft, 'amer')
     op3 = Option(80, 0.2, 'call', .20, ft, 'amer')
