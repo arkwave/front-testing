@@ -44,6 +44,9 @@ def read_data(filepath):
             volDF = pd.read_csv(volpath)
             priceDF = pd.read_csv(pricepath)
             edf = pd.read_csv(expath)
+            volDF = clean_data(volDF, 'vol', edf)
+            priceDF = clean_data(priceDF, 'price', edf)
+            edf = edf.dropna()
         except FileNotFoundError:
             print(volpath)
             print(pricepath)
@@ -55,7 +58,8 @@ def read_data(filepath):
 
 
 def prep_portfolio(voldata, pricedata, sim_start):
-    """Reads in portfolio specifications from portfolio_specs.txt
+    """
+    Reads in portfolio specifications from portfolio_specs.txt
     """
     pf = Portfolio()
     with open(filepath) as f:
@@ -71,6 +75,7 @@ def prep_portfolio(voldata, pricedata, sim_start):
                     opmth = volid.split()[1].split('.')[0]
                     char = inputs[3]
                     volflag = 'C' if char == 'call' else 'P'
+
                     # get tau from data
                     tau = voldata[(voldata['value_date'] == sim_start) &
                                   (voldata['vol_id'] == volid) &
@@ -82,9 +87,9 @@ def prep_portfolio(voldata, pricedata, sim_start):
                                   (voldata['strike'] == strike)]['settle_vol'].values[0]
 
                     payoff = str(inputs[4])
-                    barriertype = str(inputs[5])
 
-                    # TODO: Handle european barrier option with barrier vol.
+                    barriertype = None if inputs[
+                        5] == 'None' else str(inputs[5])
                     direc = None if inputs[6] == 'None' else str(inputs[6])
                     ki = None if inputs[7] == 'None' else int(inputs[7])
                     ko = None if inputs[8] == 'None' else int(inputs[8])
@@ -118,13 +123,10 @@ def prep_portfolio(voldata, pricedata, sim_start):
                     ft = Future(mth, price, product, OTC)
                     pf.add_security(ft, flag)
 
-    print('Shorts: ', pf.short_pos)
-    print('Longs: ', pf.long_pos)
-    print('Net Greeks: ', pf.net_greeks)
     return pf
 
 
-def clean_data(df, flag):
+def clean_data(df, flag, edf):
     df = df.dropna()
     # adjusting for datetime stuff
     df['value_date'] = pd.to_datetime(df['value_date'])
@@ -132,18 +134,19 @@ def clean_data(df, flag):
         # cleaning volatility data
         df = df.dropna()
         # calculating time to expiry
-        df = ttm(df, df['vol_id'])
+        df = ttm(df, df['vol_id'], edf)
+    df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
     return df
 
 
-def ttm(df, s):
+def ttm(df, s, edf=None):
     """Takes in a vol_id (for example C Z7.Z7) and outputs the time to expiry for the option in years """
     s = s.unique()
     df['tau'] = ''
     for iden in s:
         expdate = get_expiry_date(iden, edf).values[0]
         currdate = pd.to_datetime(df[(df['vol_id'] == iden)]['value_date'])
-        timedelta = (expdate - currdate).dt.days
+        timedelta = (expdate - currdate).dt.days / 365
         df = df.assign(tau=timedelta)
     return df
 
@@ -167,11 +170,9 @@ def get_expiry_date(volid, edf):
     return expdate
 
 
-# if __name__ == '__main__':
-#     # compute simulation start day; earliest day in dataframe.
-#     voldata, pricedata = read_data()
-#     # just a sanity check, these two should be the same.
-#     sim_start = min(min(voldata['value_date']), min(pricedata['value_date']))
-#     voldata = clean_data(voldata, 'vol', sim_start)
-#     pricedata = clean_data(pricedata, 'vol', sim_start)
-#     pf = prep_portfolio(voldata, pricedata, sim_start)
+if __name__ == '__main__':
+    # compute simulation start day; earliest day in dataframe.
+    voldata, pricedata, edf = read_data('filepath')
+    # just a sanity check, these two should be the same.
+    sim_start = min(min(voldata['value_date']), min(pricedata['value_date']))
+    pf = prep_portfolio(voldata, pricedata, sim_start)

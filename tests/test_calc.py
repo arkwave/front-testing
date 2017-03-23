@@ -14,42 +14,44 @@ import numpy as np
 
 def generate_vanop():
     ft = Future('Z7', 100, 'C')
-    op1 = Option(100, 0.2, 'call', .20, ft, 'amer')
-    op2 = Option(120, 0.2, 'call', .20, ft, 'amer')
-    op3 = Option(80, 0.2, 'call', .20, ft, 'amer')
-    op4 = Option(100, 0.2, 'put', .20, ft, 'amer')
-    op5 = Option(120, 0.2, 'put', .20, ft, 'amer')
-    op6 = Option(80, 0.2, 'put', .20, ft, 'amer')
+    tau = 0.2
+    op1 = Option(100, tau, 'call', .20, ft, 'amer')
+    op2 = Option(120, tau, 'call', .20, ft, 'amer')
+    op3 = Option(80, tau, 'call', .20, ft, 'amer')
+    op4 = Option(100, tau, 'put', .20, ft, 'amer')
+    op5 = Option(120, tau, 'put', .20, ft, 'amer')
+    op6 = Option(80, tau, 'put', .20, ft, 'amer')
     return op1, op2, op3, op4, op5, op6
 
 
 def generate_barrop_euro():
-    ft = Future('march', 100, 'C')
+    ft = Future('march', 300, 'C')
+    tau = 327/365
     # european barriers
     # call up in
     op1 = Option(
-        100, 0.2, 'call', .20, ft, 'amer', direc='up', barrier='euro', ki=120)
+        300, tau, 'call', .20, ft, 'amer', direc='up', barrier='euro', ki=320)
     # call up out
     op2 = Option(
-        100, 0.2, 'call', .20, ft, 'amer', direc='up', barrier='euro', ko=120)
+        300, tau, 'call', .20, ft, 'amer', direc='up', barrier='euro', ko=320)
     # call down in
     op3 = Option(
-        100, 0.2, 'call', .20, ft, 'amer', direc='down', barrier='euro', ki=80)
+        300, tau, 'call', .20, ft, 'amer', direc='down', barrier='euro', ki=280)
     # call down out
     op4 = Option(
-        100, 0.2, 'call', .20, ft, 'amer', direc='down', barrier='euro', ko=80)
+        300, tau, 'call', .20, ft, 'amer', direc='down', barrier='euro', ko=280)
     # put up in
     op5 = Option(
-        100, 0.2, 'put', .20, ft, 'amer', direc='up', barrier='euro', ki=120)
+        300, tau, 'put', .20, ft, 'amer', direc='up', barrier='euro', ki=320)
     # put up out
     op6 = Option(
-        100, 0.2, 'put', .20, ft, 'amer', direc='up', barrier='euro', ko=120)
+        300, tau, 'put', .20, ft, 'amer', direc='up', barrier='euro', ko=320)
     # put down in
     op7 = Option(
-        100, 0.2, 'put', .20, ft, 'amer', direc='down', barrier='euro', ki=80)
+        300, tau, 'put', .20, ft, 'amer', direc='down', barrier='euro', ki=280)
     # put down out
     op8 = Option(
-        100, 0.2, 'put', .20, ft, 'amer', direc='down', barrier='euro', ko=80)
+        300, tau, 'put', .20, ft, 'amer', direc='down', barrier='euro', ko=280)
     # american barriers
     return op1, op2, op3, op4, op5, op6, op7, op8
 
@@ -126,9 +128,9 @@ def test_compute_iv():
         print(truelist)
 
 
-def test_iv_pathological():
-    result = _compute_iv('call', 100, 80, 0.0162787346047, 0.2, 0, 'euro')
-    print('pathological: ', result)
+# def test_iv_pathological():
+#     result = _compute_iv('call', 100, 80, 0.0162787346047, 0.2, 0, 'euro')
+#     print('pathological: ', result)
 
 
 def test_barrier_amer():
@@ -151,9 +153,9 @@ def test_barrier_amer():
         print('barrier_amer_actuals: ', actuals)
 
 
-# def test_barrier_euro():
-#     op1, op2, op3, op4, op5, op6, op7, op8 = generate_barrop_euro()
-#     pass
+def test_barrier_euro():
+    op1, op2, op3, op4, op5, op6, op7, op8 = generate_barrop_euro()
+    pass
 
 
 def test_euro_vanilla_greeks():
@@ -224,9 +226,9 @@ def test_euro_barrier_amer_greeks():
     assert np.allclose(op8greeks, pdo, atol=1e-3)
 
 
-# def test_euro_barrier_euro_greeks():
-#     op1, op2, op3, op4, op5, op6, op7, op8 = generate_barrop_euro()
-#     pass
+def test_euro_barrier_euro_greeks():
+    op1, op2, op3, op4, op5, op6, op7, op8 = generate_barrop_euro()
+    pass
 
 
 # # NIU: Not in Use.

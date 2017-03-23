@@ -2,7 +2,7 @@
 File Name      : portfolio.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 16/3/2017
+Last Modified  : 21/3/2017
 Python version : 3.5
 Description    : Script contains implementation of the Portfolio class, as well as helper methods that set/store/manipulate instance variables. This class is used in simulation.py.
 
@@ -50,10 +50,6 @@ class Portfolio:
     18) get_all_future_names  : returns a set of names of ALL futures
 
     """
-
-
-# TODO [Future]: Currently exercising options only happens at expiry. Figure this
-# one out.
 
 # TODO: differentiating into hedges and target.
 

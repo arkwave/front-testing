@@ -2,7 +2,7 @@
 File Name      : classes.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 15/3/2017
+Last Modified  : 23/3/2017
 Python version : 3.5
 Description    : Script contains implementation of the Option and Futures classes, as well as helper methods that set/store/manipulate instance variables. This class is used in simulation.py.
 
@@ -123,6 +123,7 @@ class Option:
          """
         s = self.underlying.get_price()
         cond = (self.tau > 0)
+        # expired case
         if not cond:
             return False
         # base cases: if already knocked in or knocked out, return
@@ -154,6 +155,7 @@ class Option:
                 active = True if cond else False
                 # european up and out
                 if self.direc == 'up':
+                    # print('Euro Up Out Hit')
                     self.knockedout = True if (s >= self.ko) else False
                 # european down and out
                 if self.direc == 'down':
@@ -177,12 +179,28 @@ class Option:
         # object.
 
         product = self.get_product()
-        print(product)
+        # print(product)
         s = self.underlying.get_price()
-        print(s)
-        delta, gamma, theta, vega = _compute_greeks(
-            self.char, self.K,  self.tau, self.vol, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc)
-        print(delta, gamma, theta, vega)
+        # print(s)
+        try:
+            delta, gamma, theta, vega = _compute_greeks(
+                self.char, self.K,  self.tau, self.vol, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc)
+        except TypeError:
+            print('char: ', self.char)
+            print('strike: ', self.K)
+            print('tau: ', self.tau)
+            print('vol: ', self.vol)
+            print('s: ', s)
+            print('r: ', self.r)
+            print('product: ', product)
+            print('payoff: ', self.payoff)
+            print('ki: ', self.ki)
+            print('ko: ', self.ko)
+            print('barrier: ', self.barrier)
+            print('direction: ', self.direc)
+            # print(_compute_greeks(self.char, self.K,  self.tau, self.vol, s, self.r, product,
+            # self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc))
+        # print(delta, gamma, theta, vega)
         self.delta = delta
         self.gamma = gamma
         self.theta = theta
@@ -282,6 +300,7 @@ class Option:
                 else:
                     return -1
         else:
+            # print('hit none case')
             return None
 
     def zero_option(self):

@@ -14,11 +14,11 @@ import os
 def test_prep_portfolio():
     path = 'portfolio_specs.txt'
     # try:
-    vdata, pdata = read_data(path)
+    vdata, pdata, edf = read_data(path)
     # except FileNotFoundError:
     #     print('Curr directory: ', os.getcwd())
-    vdata = clean_data(vdata, 'vol')
-    pdata = clean_data(pdata, 'p')
+    # vdata = clean_data(vdata, 'vol')
+    # pdata = clean_data(pdata, 'p')
 
     pmin = min(pdata['value_date'])
     vmin = min(vdata['value_date'])

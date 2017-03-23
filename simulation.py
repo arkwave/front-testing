@@ -2,7 +2,7 @@
 File Name      : simulation.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 15/3/2017
+Last Modified  : 23/3/2017
 Python version : 3.5
 Description    : Overall script that runs the simulation
 
@@ -32,6 +32,9 @@ hedges = {'delta': 'zero', 'gamma': (-5000, 5000), 'vega': (-5000, 5000)}
 # slippage/brokerage
 slippage = 1
 lots = 10
+
+# passage of time
+timestep = 1/365
 
 
 def run_simulation(df, pf, hedges):
