@@ -564,25 +564,25 @@ def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots, ki=None, ko=
 
 
 def _euro_vanilla_greeks(char, K, tau, vol, s, r, product, lots):
-"""
-    Inputs:  1) char   : call or put
-             2) K      : strike
-             3) tau    : time to expiry
-             4) vol    : volatility (sigma)
-             5) s      : price of underlying
-             6) r      : interest
-             7) product: underlying commodity.
-             8) payoff : american or european option.
-             9) lots   : number of lots.
-             10) barrier: american or european barrier.
+    """
+        Inputs:  1) char   : call or put
+                 2) K      : strike
+                 3) tau    : time to expiry
+                 4) vol    : volatility (sigma)
+                 5) s      : price of underlying
+                 6) r      : interest
+                 7) product: underlying commodity.
+                 8) payoff : american or european option.
+                 9) lots   : number of lots.
+                 10) barrier: american or european barrier.
 
-    Outputs: 1) delta  : dC/dS
-             2) gamma  : d^2C/dS^2
-             3) theta  : dC/dt
-             4) vega   : dC/dvol
-"""
+        Outputs: 1) delta  : dC/dS
+                 2) gamma  : d^2C/dS^2
+                 3) theta  : dC/dt
+                 4) vega   : dC/dvol
+        """
 
-# addressing degenerate case
+    # addressing degenerate case
     if vol == 0:
         gamma, theta, vega = 0, 0, 0
         if char == 'call':
@@ -819,7 +819,8 @@ def _compute_iv(optiontype, s, k, c, tau, r, flag):
 ####################################################################
 ##### Supplemental Methods for Numerical Approximations ############
 ####################################################################
-
+# TODO: Perhaps use Binomial method instead of Newton-Raphson for
+# convergence guarantees.
 def newton_raphson(option, s, k, c, tau, r, num_iter=100):
     """Newton's method for calculating IV for vanilla european options.
     Inputs:
@@ -839,12 +840,8 @@ def newton_raphson(option, s, k, c, tau, r, num_iter=100):
         try:
             d1 = (log(s/k) + (r + 0.5 * guess ** 2)*tau) / \
                 (guess * sqrt(tau))
-            d11 = (guess**2 * tau * sqrt(tau) -
-                   (log(s/k)+(r+guess**2)*tau)*sqrt(tau)) / (guess**(2*tau))
             option_price = _bsm_euro(option, tau, guess, k, s, r)
             vega = s * norm.pdf(d1) * sqrt(tau)
-            pvega = s * norm.pdf(d1) * d11 - k*exp(-r*tau)
-            # vega = s*(1/sqrt(2*pi)) * exp(-(d1**2) / 2) * sqrt(tau)
             diff = option_price - c
             if abs(diff) < precision:
                 return guess
