@@ -2,7 +2,7 @@
 File Name      : prep_data.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 21/3/2017
+Last Modified  : 23/3/2017
 Python version : 3.5
 Description    : Script contains methods to read-in and format data. These methods are used in simulation.py.
 
@@ -30,7 +30,7 @@ sym_to_month = {'F': 1, 'G': 2, 'H': 3, 'J': 4, 'K': 5,
                 'M': 6, 'L': 7, 'Q': 8, 'U': 9, 'V': 10, 'X': 11, 'Z': 12}
 decade = 10
 filepath = 'portfolio_specs.txt'
-edf = pd.read_csv('../datasets/option_expiry_from 2008.csv')
+
 
 def read_data(filepath):
     """
@@ -40,15 +40,18 @@ def read_data(filepath):
         try:
             volpath = f.readline().strip('\n')
             pricepath = f.readline().strip('\n')
+            expath = f.readline().strip('\n')
             volDF = pd.read_csv(volpath)
             priceDF = pd.read_csv(pricepath)
+            edf = pd.read_csv(expath)
         except FileNotFoundError:
             print(volpath)
             print(pricepath)
+            print(expath)
             import os
             print(os.getcwd())
 
-    return volDF, priceDF
+    return volDF, priceDF, edf
 
 
 def prep_portfolio(voldata, pricedata, sim_start):
@@ -95,9 +98,7 @@ def prep_portfolio(voldata, pricedata, sim_start):
                     u_name = volid.split('.')[0]
                     f_price = pricedata[(pricedata['value_date'] == sim_start) &
                                         (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
-                    # print(f_mth, f_name, u_name, f_price, direc, ki,
-                    # ko, bullet, flag, OTC, strike, tau, vol, payoff,
-                    # barriertype)
+
                     underlying = Future(f_mth, f_price, f_name)
                     opt = Option(strike, tau, char, vol, underlying,
                                  payoff, direc=direc, barrier=barriertype,
@@ -124,67 +125,46 @@ def prep_portfolio(voldata, pricedata, sim_start):
 
 
 def clean_data(df, flag):
-    """Summary
-
-    Args:
-        df (TYPE): Description
-        flag (TYPE): Description
-
-    Returns:
-        TYPE: Description
-    """
-
     df = df.dropna()
     # adjusting for datetime stuff
     df['value_date'] = pd.to_datetime(df['value_date'])
     if flag == 'vol':
         # cleaning volatility data
         df = df.dropna()
-        df['Product'] = df['vol_id'].str.split().str[0]
-        df['Month'] = df['vol_id'].str.split().str[1].str.split('.').str[1]
         # calculating time to expiry
-        opmth = ttm(
-            df, df['vol_id'].str.split().str[1].str.split('.').str[0])
-        df['tau'] = opmth
-
+        df = ttm(df, df['vol_id'])
     return df
 
 
 def ttm(df, s):
     """Takes in a vol_id (for example C Z7.Z7) and outputs the time to expiry for the option in years """
-    # print(type(sim_start))
-    # print(sim_start)
-    expdate = get_expiry_date(s, edf)
-    currdate = pd.to_datetime(df[(df['vol_id'] == s)]['value_date'])
-    ttm = currdate - expdate
-    print(ttm)
-    return ttm
-    
-    
-
-
-# FIXME: this needs to be changed.
-def third_fridays(row):
-    """Utility method"""
-    return [week[calendar.FRIDAY]
-            for week in calendar.monthcalendar(row[1], row[0])][3]
+    s = s.unique()
+    df['tau'] = ''
+    for iden in s:
+        expdate = get_expiry_date(iden, edf).values[0]
+        currdate = pd.to_datetime(df[(df['vol_id'] == iden)]['value_date'])
+        timedelta = (expdate - currdate).dt.days
+        df = df.assign(tau=timedelta)
+    return df
 
 
 def get_expiry_date(volid, edf):
-    # handle differences in format
+    # handle differences in format; expiry dates are in format Z17.Z17 for
+    # 2017 contracts, while vol/price data are in Z7.Z7 format.
+
     target = volid.split()
-    op_yr = str(int(target[1][1]) + decade)
-    un_yr = str(int(target[1][-1]) + decade)
+    op_yr = pd.to_numeric(target[1][1]) + decade
+    op_yr = op_yr.astype(str)
+    un_yr = pd.to_numeric(target[1][-1]) + decade
+    un_yr = un_yr.astype(str)
     op_mth = target[1][0]
     un_mth = target[1][3]
     prod = target[0]
     overall = op_mth + op_yr + '.' + un_mth + un_yr
-    expdate = edf[(edf['vol_id'] == overall) & (edf['product']==prod)]['expiry_date']
+    expdate = edf[(edf['vol_id'] == overall) & (edf['product'] == prod)][
+        'expiry_date']
     expdate = pd.to_datetime(expdate)
     return expdate
-
-
-
 
 
 # if __name__ == '__main__':

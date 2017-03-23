@@ -175,10 +175,14 @@ class Option:
     def init_greeks(self):
         # initializes relevant greeks. only used once, when initializing Option
         # object.
+
         product = self.get_product()
+        print(product)
         s = self.underlying.get_price()
+        print(s)
         delta, gamma, theta, vega = _compute_greeks(
             self.char, self.K,  self.tau, self.vol, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc)
+        print(delta, gamma, theta, vega)
         self.delta = delta
         self.gamma = gamma
         self.theta = theta
