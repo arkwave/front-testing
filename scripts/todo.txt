@@ -113,6 +113,22 @@ flag indicating target or hedge in readin         [Done]
 
 23/3:
 tidy up expiry month for each class per month     [Done]
+knockout for european barriers                    [Done]
+European barrier                                  [Done]
+European barrier greeks                           [Done]
+Figure out why vols and 0 and what to do abt that [Done]
+fix the nonetype error                            [Done]
+documentation for:
+	> option                                      [Done]
+	> portfolio                                   [Done]
+	> prep_data                                   [Done]
+	> calc                                        [Done]
+write-up                                          []
+
+
+
+
+if time:
 hedge vs otc dichotomy - extract from pos         
 	> target : {'product': {'month': 
 	    set(options), set(futures, greeks)}}      []
@@ -124,9 +140,6 @@ hedge vs otc dichotomy - extract from pos
 
 
 
-Other:
-European barrier                                  []
-European barrier greeks                           []
 
 
 
@@ -135,12 +148,15 @@ European barrier greeks                           []
 This/Next Week:
 1) remaining simulation logic                     []
 2) testing from xtrader                           []
+3) testing for european barrier greeks            []
+4) testing for european barrier pricing.          []
+
+
 
 
 
 
 Sri's comments:
-compute tau from label                            []
 hedge vs otc dichotomy - extract from pos         []
 	> add in a flag during read-in
 	> target : {'product': {'month': 
@@ -154,12 +170,8 @@ hedge vs otc dichotomy - extract from pos         []
 
 
 
-
-
 Do once the account has been made.
 >>>>>>> data-related: <<<<<<<<<<
-urgent todo: data familiarization                 []
-text file query from database                     []
 data transformation 			                  []
 
 >>>>> Simulation Logic: <<<<<<

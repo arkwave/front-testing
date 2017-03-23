@@ -23,18 +23,20 @@ TODO: 1) price/vol series transformation
 '''
 
 
-# useful variables.
+# Dictionary mapping month to symbols and vice versa
 month_to_sym = {1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
                 7: 'L', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'}
 sym_to_month = {'F': 1, 'G': 2, 'H': 3, 'J': 4, 'K': 5,
                 'M': 6, 'L': 7, 'Q': 8, 'U': 9, 'V': 10, 'X': 11, 'Z': 12}
 decade = 10
+
+# specifies the filepath for the read-in file.
 filepath = 'portfolio_specs.txt'
 
 
 def read_data(filepath):
     """
-    Summary: Reads in the relevant data files specified in portfolio_specs.txt
+    Summary: Reads in the relevant data files specified in portfolio_specs.txt, which is specified by filepath.
     """
     with open(filepath) as f:
         try:
@@ -59,7 +61,15 @@ def read_data(filepath):
 
 def prep_portfolio(voldata, pricedata, sim_start):
     """
-    Reads in portfolio specifications from portfolio_specs.txt
+    Reads in portfolio specifications from portfolio_specs.txt and constructs a portfolio object. The paths to the dataframes are specified in the first 3 lines of portfolio_specs.txt, while the remaining securities to be added into this portfolio are stored in the remaining lines. By design, all empty lines or lines beginning with %% are ignored.
+
+    Args:
+        voldata (pandas dataframe)  : dataframe containing the volatility surface (i.e. strike-wise volatilities)
+        pricedata (pandas dataframe): dataframe containing the daily price of underlying.
+        sim_start (pandas dataframe): start date of the simulation. defaults to the earliest date in the dataframes.
+
+    Returns:
+        pf (Portfolio)              : reads in 
     """
     pf = Portfolio()
     with open(filepath) as f:
@@ -127,6 +137,18 @@ def prep_portfolio(voldata, pricedata, sim_start):
 
 
 def clean_data(df, flag, edf):
+    """Function that cleans the dataframes passed into it by:
+    1) dropping NaN entries
+    2) converting dates to datetime objects
+    3) In the case of the vol dataframe, reads in the vol_id and computes the time to expiry.
+    Args:
+        df (pandas dataframe)   : the dataframe to be cleaned.
+        flag (pandas dataframe) : determines which dataframe is being processed.
+        edf (pandas dataframe)  : dataframe containing the expiries of options.
+
+    Returns:
+        TYPE: Description
+    """
     df = df.dropna()
     # adjusting for datetime stuff
     df['value_date'] = pd.to_datetime(df['value_date'])
@@ -152,9 +174,7 @@ def ttm(df, s, edf=None):
 
 
 def get_expiry_date(volid, edf):
-    # handle differences in format; expiry dates are in format Z17.Z17 for
-    # 2017 contracts, while vol/price data are in Z7.Z7 format.
-
+    """Computes the expiry date of the option given a vol_id """
     target = volid.split()
     op_yr = pd.to_numeric(target[1][1]) + decade
     op_yr = op_yr.astype(str)
