@@ -6,26 +6,35 @@ decade = 10
 df = pd.read_csv('../datasets/settlement_vol_surf_table.csv')
 
 s = df['vol_id']
+overall = pd.Series(['Z17.Z17' for _ in range(5426)])
+prod = pd.Series(['C' for _ in range(5426)])
 # print('s: ', s)
 
 def get_expiry_date(volid, edf):
     # handle differences in format
-    target = volid.str.split()
-    op_yr = pd.to_numeric(target.str[1].str[1]) + decade
-    op_yr = op_yr.to_string()
-    un_yr = pd.to_numeric(target.str[1].str[-1]) + decade
-    un_yr = un_yr.to_string()
+
+    target = volid.split()
+    op_yr = pd.to_numeric(target[1][1]) + decade
+    op_yr = op_yr.astype(str)
+    un_yr = pd.to_numeric(target[1][-1]) + decade
+    un_yr = un_yr.astype(str)
     
-    op_mth = target.str[1].str[0]
-    un_mth = target.str[1].str[3]
-    prod = target.str[0]
-    
+    op_mth = target[1][0]
+    un_mth = target[1][3]
+    prod = target[0]
     # print(prod)
-    overall = op_mth.str.cat(op_yr) #.str.cat('.').str.cat(un_mth).str.cat(un_yr)
-    print(overall)  
-    # print(prod)
-    expdate = edf[(edf['vol_id'] == overall) & (edf['product'] == prod) ]['expiry_date']
+
+    overall = op_mth + op_yr + '.' + un_mth + un_yr
+    # t1 = op_mth.str.cat(op_yr.values)
+    # t2 = un_mth.str.cat(un_yr.values)
+    # overall = t1.str.cat(t2, sep='.')
+    # print(overall)
+    # print(len(overall))
+    # prod.name = 'product'
+    # print(prod.name)
+    expdate = edf[(edf['vol_id'] == overall) & (edf['product'] == prod)]['expiry_date']
     expdate = pd.to_datetime(expdate)
+    # print(expdate)
     return expdate
 
 
@@ -33,11 +42,19 @@ def ttm(df, s):
     """Takes in a vol_id (for example C Z7.Z7) and outputs the time to expiry for the option in years """
     # print(type(sim_start))
     # print(sim_start)
-    expdate = get_expiry_date(s, edf)
-    currdate = pd.to_datetime(df[(df['vol_id'] == s)]['value_date'])
-    ttm = currdate - expdate
-    print(ttm)
-    return ttm
+    s = s.unique()
+    df['tau'] = ''
+    for iden in s:
+        # print(iden)
+        # full = 
+        expdate = get_expiry_date(iden, edf)
+        currdate = pd.to_datetime(df[(df['vol_id'] == iden)]['value_date'])
+        print('currdate: ', currdate)
+        print('expdate: ', expdate)
+        timedelta = currdate - expdate
+        print('diff: ', timedelta)
+        df[(df['vol_id'] == iden)]['tau']  = timedelta
+    return df
 
 
 def clean_data(df, flag):
@@ -57,12 +74,7 @@ def clean_data(df, flag):
     if flag == 'vol':
         # cleaning volatility data
         df = df.dropna()
-        # df['Product'] = df['vol_id'].str.split().str[0]
-        # df['Month'] = df['vol_id'].str.split().str[1].str.split('.').str[1]
         # calculating time to expiry
-        opmth = ttm(
-            df, df['vol_id'])
-        df['tau'] = opmth
-
+        df = ttm(df, df['vol_id'])
     return df
 

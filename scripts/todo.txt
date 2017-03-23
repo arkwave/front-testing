@@ -111,8 +111,8 @@ flag indicating target or hedge in readin         [Done]
 
 
 
-22/3:
-tidy up expiry month for each class per month     []
+23/3:
+tidy up expiry month for each class per month     [Done]
 hedge vs otc dichotomy - extract from pos         
 	> target : {'product': {'month': 
 	    set(options), set(futures, greeks)}}      []
@@ -125,7 +125,6 @@ hedge vs otc dichotomy - extract from pos
 
 
 Other:
-compute tau from label double check               []
 European barrier                                  []
 European barrier greeks                           []
 
@@ -151,6 +150,9 @@ hedge vs otc dichotomy - extract from pos         []
 	> adapt compute_net_greeks to take in two 
 	random dictionaries instead of hardcoded 
 	to self.long and self.short                   []
+
+
+
 
 
 
