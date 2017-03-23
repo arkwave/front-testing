@@ -2,7 +2,7 @@
 File Name      : portfolio.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 21/3/2017
+Last Modified  : 23/3/2017
 Python version : 3.5
 Description    : Script contains implementation of the Portfolio class, as well as helper methods that set/store/manipulate instance variables. This class is used in simulation.py.
 
@@ -60,6 +60,7 @@ class Portfolio:
         self.long_futures = []
         self.short_futures = []
 
+        # utility litst
         self.newly_added = []
         self.toberemoved = []
 
@@ -78,6 +79,15 @@ class Portfolio:
         self.pnl = pnl
 
     def init_sec_by_month(self, iden):
+        """Initializing method that creates the relevant futures list, options list, and dictionary depending on the flag passed in. 
+
+        Args:
+            iden (str): flag that indicates which set of data structures is to be initialized. 
+            Valid Inputs: 'long', 'short' to initialize long and short positions respectively.
+
+        Returns:
+            None: Initializes the relevant data structures.
+        """
         # initialize dictionaries based on whether securities are long or
         # short.
         if iden == 'long':
@@ -112,8 +122,8 @@ class Portfolio:
                 dic[prod][month][1].add(sec)
 
     def compute_net_greeks(self):
-        # Computes net greeks organized hierarchically according to product and
-        # month. Updates net_greeks by using long_pos and short_pos.
+        ''' Computes net greeks organized hierarchically according to product and
+         month. Updates net_greeks by using long_pos and short_pos. '''
         final_dic = {}
         common_products = set(self.long_pos.keys()) & set(
             self.short_pos.keys())
@@ -215,6 +225,7 @@ class Portfolio:
             return -1
 
     def remove_expired(self):
+        '''Removes all expired options from the portfolio. '''
         for sec in self.long_options:
             # handling barrier case
             if sec.barrier == 'amer':
@@ -320,6 +331,20 @@ class Portfolio:
                 self.update_greeks_by_month(product, month, sec, True, flag)
 
     def update_greeks_by_month(self, product, month, sec, added, flag):
+        """Updates the greeks for each month. This method is called every time update_sec_by_month
+        is called, and does the work of actually computing changes to monthly greeks in the self.long_pos and self.short_pos
+        dictionaries.
+
+        Args:
+            product (str): The product to be updated.
+            month (str): The month to be updated.
+            sec (Security): the security that has been added/removed.
+            added (boolean): boolean indicating if the security was added or removed.
+            flag (str): long or short. indicates which part of the portfolio the security was added/removed to/from.
+
+        Returns:
+            None: Update data structures in place and calls compute_net_greeks. 
+        """
         if flag == 'long':
             dic = self.long_pos
         else:
@@ -340,6 +365,11 @@ class Portfolio:
             self.compute_net_greeks()
 
     def compute_value(self):
+        """Computes the value of this portfolio by summing across all securities contained within. Current computation takes (value of long positions - value of short positions)
+
+        Returns:
+            double: The value of this portfolio.
+        """
         val = 0
         # try:
         for sec in self.long_options:
@@ -354,6 +384,15 @@ class Portfolio:
         return val
 
     def exercise_option(self, sec, flag):
+        """Exercises an option if it is in-the-money. This consist of removing an object object from the relevant dictionary (i.e. either long- or short-pos), and adding a future to the relevant dictionary. Documentation for 'moneyness' can be found in classes.py in the Options class.
+
+        Args:
+            sec (Option) : the options object to be exercised.
+            flag (str)   : indicating which if the option is currently held as a long or short. 
+
+        Returns:
+            None         : Updates data structures in-place, returns nothing.
+        """
         if flag == 'long':
             op = self.long_options
         else:
@@ -368,6 +407,14 @@ class Portfolio:
  ### getter/utility methods ###
 
     def get_securities_monthly(self, flag):
+        """Returns the position dictionary based on the flag passed in.
+
+        Args:
+            flag (str): if flag == long, returns long_pos. otherwise, returns short_pos
+
+        Returns:
+            dictionary: returns the relevant dictionary.
+        """
         if flag == 'long':
             dic = self.long_pos
         else:

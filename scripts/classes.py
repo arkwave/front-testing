@@ -74,9 +74,9 @@ class Option:
     2) init_greeks     : initializes the greeks of this option. only called on init.
     3) update_greeks   : updates and reassigns greeks upon changes in underlying price/vol.
     4) greeks          : getter method that returns a tuple of the greeks
-    5) compute_vol     :  [not implemented]
-    6) compute_value   : computes value of the object based on the appropriate valuation method.
-    7) get_value       : getter method for the value of the object.
+    5) compute_vol     : computes the implied volatility of this option.
+    6) compute_price   : computes value of the object based on the appropriate valuation method.
+    7) get_price       : getter method for the value of the object.
     8) update_tau      : updates time to expiry.
     9) exercise        : exercises the option. as of now, returns a boolean.
     10) moneyness      : returns 1, 0 , -1 depending if option is itm, atm, otm.
@@ -84,7 +84,8 @@ class Option:
     12) get_desc       : returns 'option'
     13) get_product    : returns the NAME of the underlying future.
     14) check_active   : for barriers, checks to see if this barrier is active or not.
-    15) expire         : expires this option. defaults to false upon initialization.
+    15) check_expired  : expires this option. defaults to false upon initialization.
+    16) zero_option    : zeros the option's greeks.
     """
 
     def __init__(self, strike, tau, char, vol, underlying, payoff, direc=None, barrier=None, lots=lots, bullet=None, ki=None, ko=None, rebate=0):
@@ -107,7 +108,6 @@ class Option:
         self.vol = vol
         self.r = 0
         self.price = self.compute_price()
-        # self.delta, self.gamma, self.theta, self.vega = self.init_greeks()
         self.init_greeks()
         self.active = self.check_active()
         self.expired = False  # defaults to false.
@@ -115,10 +115,10 @@ class Option:
         self.product = self.get_product()
 
     def check_active(self):
-        """Checks to see if this option object is active, i.e. if it has any value. Cases are as follows:
+        """Checks to see if this option object is active, i.e. if it has any value/contributes greeks. Cases are as follows:
         1) Knock-in barrier options are considered always active until expiry.
         2) Knock-out options with an american barrier are considered NOT active when they hit the barrier.
-        3) Knock-out options with a European barrier and considered always active until expiry.
+        3) Knock-out options with a European barrier are considered always active until expiry.
         4) Vanilla options are always active until expiry.
          """
         s = self.underlying.get_price()
@@ -278,6 +278,11 @@ class Option:
             return False
 
     def moneyness(self):
+        """Checks to see the 'moneyness' of the option.
+
+        Returns:
+            int: returns 1, 0, -1 for ITM, ATM and OTM options respectively. 
+        """
         active = self.check_active()
         self.active = active
         if active:
@@ -321,10 +326,9 @@ class Future:
     5) product   :  the commodity of this future.
 
     Instance Methods:
-    1) greeks         : dummy method.
-    2) get_value      : returns price of the future.
+    1) get_desc       : returns 'future'
+    2) get_price      : returns price of the future.
     3) update_price   : updates the price based on inputted data.
-    4) update_greeks  : dummy method.
     5) get_month      : returns contract month.
     6) get_lots       : returns lot size
     7) get_product    : returns the name of this contract (i.e. the commodity)
