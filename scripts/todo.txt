@@ -125,7 +125,7 @@ write-up                                          []
 
 
 
-if time:
+Left to do:
 hedge vs otc dichotomy - extract from pos         
 	> target : {'product': {'month': 
 	    set(options), set(futures, greeks)}}      []
