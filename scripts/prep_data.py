@@ -30,7 +30,7 @@ sym_to_month = {'F': 1, 'G': 2, 'H': 3, 'J': 4, 'K': 5,
                 'M': 6, 'L': 7, 'Q': 8, 'U': 9, 'V': 10, 'X': 11, 'Z': 12}
 decade = 10
 filepath = 'portfolio_specs.txt'
-
+edf = pd.read_csv('../datasets/option_expiry_from 2008.csv')
 
 def read_data(filepath):
     """
@@ -154,26 +154,37 @@ def ttm(df, s):
     """Takes in a vol_id (for example C Z7.Z7) and outputs the time to expiry for the option in years """
     # print(type(sim_start))
     # print(sim_start)
-    mth = s.str[0]
-    mth = pd.Series([sym_to_month[i] for i in mth])
-    yr = pd.to_numeric(s.str[1]) + 2000 + decade
-    tdf = pd.concat([mth, yr], axis=1)
-    tdf.columns = ['month', 'year']
-    tdf['day'] = tdf.apply(third_fridays, axis=1)
-    tdf = pd.to_datetime(tdf)
-    # print(type(tdf[0]))
-    # print(tdf)
-    tdf = tdf - pd.to_datetime(df['value_date'])
+    expdate = get_expiry_date(s, edf)
+    currdate = pd.to_datetime(df[(df['vol_id'] == s)]['value_date'])
+    ttm = currdate - expdate
+    print(ttm)
+    return ttm
+    
+    
 
-    return (tdf.dt.days) / 365
 
 # FIXME: this needs to be changed.
-
-
 def third_fridays(row):
     """Utility method"""
     return [week[calendar.FRIDAY]
             for week in calendar.monthcalendar(row[1], row[0])][3]
+
+
+def get_expiry_date(volid, edf):
+    # handle differences in format
+    target = volid.split()
+    op_yr = str(int(target[1][1]) + decade)
+    un_yr = str(int(target[1][-1]) + decade)
+    op_mth = target[1][0]
+    un_mth = target[1][3]
+    prod = target[0]
+    overall = op_mth + op_yr + '.' + un_mth + un_yr
+    expdate = edf[(edf['vol_id'] == overall) & (edf['product']==prod)]['expiry_date']
+    expdate = pd.to_datetime(expdate)
+    return expdate
+
+
+
 
 
 # if __name__ == '__main__':
