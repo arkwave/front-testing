@@ -13,13 +13,7 @@ import os
 
 def test_prep_portfolio():
     path = 'portfolio_specs.txt'
-    # try:
     vdata, pdata, edf = read_data(path)
-    # except FileNotFoundError:
-    #     print('Curr directory: ', os.getcwd())
-    # vdata = clean_data(vdata, 'vol')
-    # pdata = clean_data(pdata, 'p')
-
     pmin = min(pdata['value_date'])
     vmin = min(vdata['value_date'])
 
@@ -28,8 +22,8 @@ def test_prep_portfolio():
     sim_start = pmin
     pf = prep_portfolio(vdata, pdata, pmin)
 
-    longs = pf.long_pos
-    short = pf.short_pos
+    otc = pf.OTC
+    hedge = pf.hedges
 
-    assert len(longs) == 1
-    assert len(short) == 1
+    assert len(otc) == 1
+    assert len(hedge) == 1

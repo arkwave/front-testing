@@ -104,8 +104,8 @@ def prep_portfolio(voldata, pricedata, sim_start):
                     ki = None if inputs[7] == 'None' else int(inputs[7])
                     ko = None if inputs[8] == 'None' else int(inputs[8])
                     bullet = True if inputs[9] == 'True' else False
-                    flag = str(inputs[10])
-                    OTC = True if inputs[11].strip('\n') == 'OTC' else False
+                    flag = str(inputs[11]).strip('\n')
+                    shorted = True if inputs[10] == 'short' else False
 
                     # handle underlying construction
                     f_mth = volid.split()[1].split('.')[1]
@@ -116,7 +116,7 @@ def prep_portfolio(voldata, pricedata, sim_start):
 
                     underlying = Future(f_mth, f_price, f_name)
                     opt = Option(strike, tau, char, vol, underlying,
-                                 payoff, direc=direc, barrier=barriertype,
+                                 payoff, shorted=shorted, direc=direc, barrier=barriertype,
                                  bullet=bullet, ki=ki, ko=ko)
                     pf.add_security(opt, flag)
 
@@ -127,10 +127,10 @@ def prep_portfolio(voldata, pricedata, sim_start):
                     mth = full[1]
                     price = pricedata[(pricedata['underlying_id'] == inputs[1]) &
                                       (pricedata['value_date'] == sim_start)]['settle_value'].values[0]
-                    flag = inputs[3]
-                    OTC = True if inputs[4] == 'OTC' else False
+                    flag = inputs[4].strip('\n')
+                    shorted = True if inputs[4] == 'short' else False
 
-                    ft = Future(mth, price, product, OTC)
+                    ft = Future(mth, price, product, shorted=shorted)
                     pf.add_security(ft, flag)
 
     return pf

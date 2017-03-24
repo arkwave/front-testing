@@ -62,9 +62,10 @@ class Option:
     14) check_active   : for barriers, checks to see if this barrier is active or not.
     15) check_expired  : expires this option. defaults to false upon initialization.
     16) zero_option    : zeros the option's greeks.
+    17) shorted           : indicates if this is security is being longed or shorted.
     """
 
-    def __init__(self, strike, tau, char, vol, underlying, payoff, direc=None, barrier=None, lots=lots, bullet=None, ki=None, ko=None, rebate=0):
+    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, direc=None, barrier=None, lots=lots, bullet=None, ki=None, ko=None, rebate=0):
         self.barrier = barrier
         self.payoff = payoff
         self.underlying = underlying
@@ -89,6 +90,7 @@ class Option:
         self.expired = False  # defaults to false.
         self.rebate = rebate
         self.product = self.get_product()
+        self.shorted = shorted
 
     def check_active(self):
         """Checks to see if this option object is active, i.e. if it has any value/contributes greeks. Cases are as follows:
@@ -295,11 +297,12 @@ class Future:
 
     '''
     Class representing a Future object. Instance variables are:
-    1) month  :  the contract month.
-    2) price  :  the quoted price of the future.
-    3) desc   :  string description of the object
-    4) lots   :  number of lots represented by each future contract.
+    1) month     :  the contract month.
+    2) price     :  the quoted price of the future.
+    3) desc      :  string description of the object
+    4) lots      :  number of lots represented by each future contract.
     5) product   :  the commodity of this future.
+    6) shorted   :  bool indicating whether this future is being shorted or longed
 
     Instance Methods:
     1) get_desc       : returns 'future'
@@ -310,11 +313,12 @@ class Future:
     7) get_product    : returns the name of this contract (i.e. the commodity)
     '''
 
-    def __init__(self, month, price, product, lots=lots):
+    def __init__(self, month, price, product, shorted=None, lots=lots):
         self.product = product
         self.lots = lots
         self.desc = 'future'
         self.month = month
+        self.shorted = shorted
         if price >= 0:
             self.price = price
         else:

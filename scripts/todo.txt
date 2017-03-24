@@ -125,27 +125,30 @@ write-up                                          [Done]
 
 
 
-Left to do:
-hedge vs otc dichotomy - extract from pos         
+24/3:
+
+hedge vs otc dichotomy         
 	> target : {'product': {'month': 
-	    set(options), set(futures, greeks)}}      []
+	    set(options), set(futures, greeks)}}      [Done]
 	> hedges: {'product': {'month': 
-	    set(options, set(futures), greeks)}}      []
+	    set(options, set(futures), greeks)}}      [Done]
 	> adapt compute_net_greeks to take in two 
 	random dictionaries instead of hardcoded 
-	to self.long and self.short                   []
+	to self.long and self.short                   [Done]
+	> replaced long with OTC                      [Done]
+	> replaced short with hedge                   [Done]
+	> reflected changes in portfolio_specs        [Done]
+	> updated prep_portfolio                      [Done]
+	> updated tests                               [Done]
 
-CSV file that specifies the multiplier dictionary []
-
-
+2) testing from xtrader                           []
+3) testing for european barrier greeks            []
+4) testing for european barrier pricing.          []
 
 
 
 This/Next Week:
 1) remaining simulation logic                     []
-2) testing from xtrader                           []
-3) testing for european barrier greeks            []
-4) testing for european barrier pricing.          []
 
 
 data transformation 			                  []

@@ -18,33 +18,33 @@ class Portfolio:
     Class representing the overall portfolio.
 
     Instance variables:
-    1) long_options          : list of long options.
-    2) short_options         : list of short options.
-    3) long_futures          : list of long futures
-    4) short_futures         : list of short futures.
+    1) OTC_options          : list of OTC options.
+    2) hedge_options         : list of hedge options.
+    3) OTC_futures          : list of OTC futures
+    4) hedge_futures         : list of hedge futures.
     5) newly_added           : list of newly added securities to this portfolio. used for ease of bookkeeping.
     6) toberemoved           : list of securities to be removed from this portfolio. used for ease of bookkeeping.
     7) value                 : value of the overall portfolio. computed by summing the value of the securities present in the portfolio.
-    8) long_pos              : dictionary of the form {product : {month: [set(options), set(futures), delta, gamma, theta, vega]}} containing long positions.
-    9) short_pos             : dictionary of the form {product : {month: [set(options), set(futures), delta, gamma, theta, vega]}} containing short positions.
+    8) OTC              : dictionary of the form {product : {month: [set(options), set(futures), delta, gamma, theta, vega]}} containing OTC positions.
+    9) hedges             : dictionary of the form {product : {month: [set(options), set(futures), delta, gamma, theta, vega]}} containing hedge positions.
     10) net_greeks           : dictionary of the form {product : {month: [delta, gamma, theta, vega]}} containing net greeks, organized hierarchically by product and month.
 
     Instance Methods:
     1) set_pnl                : setter method for pnl.
-    2) init_sec_by_month      : initializes long_pos, short_pos and net_greeks dictionaries. Only called at init.
+    2) init_sec_by_month      : initializes OTC, hedges and net_greeks dictionaries. Only called at init.
     3) add_security           : adds security to portfolio, adjusts greeks accordingly.
     4) remove_security        : removes security from portfolio, adjusts greeks accordingly.
     5) remove_expired         : removes all expired securities from portfolio, adjusts greeks accordingly.
-    6) update_sec_by_month    : updates long_pos, short_pos and net_greeks dictionaries in the case of 1) adds 2) removes 3) price/vol changes
+    6) update_sec_by_month    : updates OTC, hedges and net_greeks dictionaries in the case of 1) adds 2) removes 3) price/vol changes
     7) update_greeks_by_month : updates the greek counters associated with each month's securities.
     8) compute_value          : computes overall value of portfolio. sub-calls compute_value method of each security.
-    9) get_securities_monthly : returns long_pos or short_pos dictionary, depending on flag inputted.
-    10) get_securities        : returns a copy of (options, futures) containing either long- or short-securities, depending on flag inputted.
+    9) get_securities_monthly : returns OTC or hedges dictionary, depending on flag inputted.
+    10) get_securities        : returns a copy of (options, futures) containing either OTC- or hedge-securities, depending on flag inputted.
     11) timestep              : moves portfolio forward one day, decrementing tau for all securities.
     12) get_underlying        : returns a list of all UNDERLYING futures in this portfolio. returns the actual futures, NOT a copy.
     13) get_all_futures       : returns a list of all futures, UNDERLYING and PORTFOLIO.
-    14) compute_net_greeks    : computes the net product-specific monthly greeks, using long_pos and short_pos as inputs.
-    15) exercise_option       : if the option is in the money, exercises it, removing the option from the portfolio and adding/shorting a future as is appropriate.
+    14) compute_net_greeks    : computes the net product-specific monthly greeks, using OTC and hedges as inputs.
+    15) exercise_option       : if the option is in the money, exercises it, removing the option from the portfolio and adding/hedgeing a future as is appropriate.
     16) net_greeks            : returns the self.net_greeks dictionary.
     17) get_underlying_names  : returns a set of names of UNDERLYING futures.
     18) get_all_future_names  : returns a set of names of ALL futures
@@ -55,23 +55,23 @@ class Portfolio:
 
     def __init__(self):
 
-        self.long_options = []
-        self.short_options = []
-        self.long_futures = []
-        self.short_futures = []
+        self.OTC_options = []
+        self.hedge_options = []
+        self.OTC_futures = []
+        self.hedge_futures = []
 
         # utility litst
         self.newly_added = []
         self.toberemoved = []
 
-        self.long_pos = {}
-        self.short_pos = {}
+        self.OTC = {}
+        self.hedges = {}
 
         self.net_greeks = {}
 
         # updating initialized variables
-        self.init_sec_by_month('long')
-        self.init_sec_by_month('short')
+        self.init_sec_by_month('OTC')
+        self.init_sec_by_month('hedge')
         self.compute_net_greeks()
         self.value = self.compute_value()
 
@@ -83,21 +83,21 @@ class Portfolio:
 
         Args:
             iden (str): flag that indicates which set of data structures is to be initialized. 
-            Valid Inputs: 'long', 'short' to initialize long and short positions respectively.
+            Valid Inputs: 'OTC', 'hedge' to initialize OTC and hedge positions respectively.
 
         Returns:
             None: Initializes the relevant data structures.
         """
-        # initialize dictionaries based on whether securities are long or
-        # short.
-        if iden == 'long':
-            op = self.long_options
-            ft = self.long_futures
-            dic = self.long_pos
-        elif iden == 'short':
-            op = self.short_options
-            ft = self.short_futures
-            dic = self.short_pos
+        # initialize dictionaries based on whether securities are OTC or
+        # hedge.
+        if iden == 'OTC':
+            op = self.OTC_options
+            ft = self.OTC_futures
+            dic = self.OTC
+        elif iden == 'hedge':
+            op = self.hedge_options
+            ft = self.hedge_futures
+            dic = self.hedges
 
         # add in options
         for sec in op:
@@ -123,12 +123,12 @@ class Portfolio:
 
     def compute_net_greeks(self):
         ''' Computes net greeks organized hierarchically according to product and
-         month. Updates net_greeks by using long_pos and short_pos. '''
+         month. Updates net_greeks by using OTC and hedges. '''
         final_dic = {}
-        common_products = set(self.long_pos.keys()) & set(
-            self.short_pos.keys())
-        long_products_unique = set(self.long_pos.keys()) - common_products
-        short_products_unique = set(self.short_pos.keys()) - common_products
+        common_products = set(self.OTC.keys()) & set(
+            self.hedges.keys())
+        OTC_products_unique = set(self.OTC.keys()) - common_products
+        hedge_products_unique = set(self.hedges.keys()) - common_products
 
         # dealing with common products
         for product in common_products:
@@ -136,52 +136,52 @@ class Portfolio:
             if product not in final_dic:
                 final_dic[product] = {}
             # instantiating variables to make it neater.
-            longdata = self.long_pos[product]
-            shortdata = self.short_pos[product]
-            common_months = set(longdata.keys()) & set(
-                shortdata.keys())
+            OTCdata = self.OTC[product]
+            hedgedata = self.hedges[product]
+            common_months = set(OTCdata.keys()) & set(
+                hedgedata.keys())
             # finding unique months within this product.
-            long_pos_unique_mths = set(
-                longdata.keys()) - common_months
-            # print(long_pos_unique_mths)
-            short_pos_unique_mths = set(
-                shortdata.keys()) - common_months
+            OTC_unique_mths = set(
+                OTCdata.keys()) - common_months
+            # print(OTC_unique_mths)
+            hedges_unique_mths = set(
+                hedgedata.keys()) - common_months
             # dealing with common months
             for month in common_months:
-                long_greeks = longdata[month][2:]
-                short_greeks = shortdata[month][2:]
-                net = list(map(sub, long_greeks, short_greeks))
+                OTC_greeks = OTCdata[month][2:]
+                hedge_greeks = hedgedata[month][2:]
+                net = list(map(sub, OTC_greeks, hedge_greeks))
                 final_dic[product][month] = net
             # dealing with non overlapping months
-            for month in long_pos_unique_mths:
+            for month in OTC_unique_mths:
                 # checking if month has options.
-                if longdata[month][0]:
-                    final_dic[product][month] = longdata[month][2:]
-            for month in short_pos_unique_mths:
+                if OTCdata[month][0]:
+                    final_dic[product][month] = OTCdata[month][2:]
+            for month in hedges_unique_mths:
                 # checking if month has options.
-                if shortdata[month][0]:
-                    final_dic[product][month] = shortdata[month][2:]
+                if hedgedata[month][0]:
+                    final_dic[product][month] = hedgedata[month][2:]
 
         # dealing with non-overlapping products
-        for product in long_products_unique:
-            data = self.long_pos[product]
+        for product in OTC_products_unique:
+            data = self.OTC[product]
             # checking existence
             if product not in final_dic:
                 final_dic[product] = {}
             # iterating over all months corresponding to non-overlapping
-            # product for which we have long positions
+            # product for which we have OTC positions
             for month in data:
                 # checking if month has options.
                 if data[month][0]:
                     final_dic[product][month] = data[month][2:]
 
-        for product in short_products_unique:
-            data = self.short_pos[product]
+        for product in hedge_products_unique:
+            data = self.hedges[product]
             # checking existence
             if product not in final_dic:
                 final_dic[product] = {}
             # iterating over all months corresponding to non-overlapping
-            # product for which we have short positions.
+            # product for which we have hedge positions.
             for month in data:
                 # checking if month has options.
                 if data[month][0]:
@@ -192,14 +192,18 @@ class Portfolio:
     def add_security(self, security, flag):
         # adds a security into the portfolio, and updates relevant lists and
         # adjusts greeks of the portfolio.
-        if flag == 'long':
-            op = self.long_options
-            ft = self.long_futures
-        elif flag == 'short':
-            op = self.short_options
-            ft = self.short_futures
+
+        if flag == 'OTC':
+            op = self.OTC_options
+            ft = self.OTC_futures
+        elif flag == 'hedge':
+            op = self.hedge_options
+            ft = self.hedge_futures
         if security.get_desc() == 'option':
-            op.append(security)
+            try:
+                op.append(security)
+            except UnboundLocalError:
+                print('flag: ', flag)
         elif security.get_desc() == 'future':
             ft.append(security)
         self.newly_added.append(security)
@@ -208,12 +212,12 @@ class Portfolio:
     def remove_security(self, security, flag):
         # removes a security from the portfolio, updates relevant list and
         # adjusts greeks of the portfolio.
-        if flag == 'long':
-            op = self.long_options
-            ft = self.long_futures
-        elif flag == 'short':
-            op = self.short_options
-            ft = self.short_futures
+        if flag == 'OTC':
+            op = self.OTC_options
+            ft = self.OTC_futures
+        elif flag == 'hedge':
+            op = self.hedge_options
+            ft = self.hedge_futures
         try:
             if security.get_desc() == 'option':
                 op.remove(security)
@@ -226,22 +230,22 @@ class Portfolio:
 
     def remove_expired(self):
         '''Removes all expired options from the portfolio. '''
-        for sec in self.long_options:
+        for sec in self.OTC_options:
             # handling barrier case
             if sec.barrier == 'amer':
                 if sec.knockedout:
-                    self.remove_security(sec, 'long')
+                    self.remove_security(sec, 'OTC')
             # vanilla/knockin case
             if sec.tau == 0:
-                self.remove_security(sec, 'long')
-        for sec in self.short_options:
+                self.remove_security(sec, 'OTC')
+        for sec in self.hedge_options:
             # handling barrier case.
             if sec.barrier == 'amer':
                 if sec.knockedout:
-                    self.remove_security(sec, 'short')
+                    self.remove_security(sec, 'hedge')
             # vanilla/knockin case
             if sec.tau == 0:
-                self.remove_security(sec, 'short')
+                self.remove_security(sec, 'hedge')
 
     def update_sec_by_month(self, added, flag, price=None, vol=None):
         '''
@@ -249,22 +253,22 @@ class Portfolio:
 
         Inputs:
         1) added  : boolean flag that indicates if securities are being added or removed. Valid inputs: True, False.
-        2) flag   : string flag that indicates if the securities to be manipulated are short or long. Valid inputs: 'short', 'long'
+        2) flag   : string flag that indicates if the securities to be manipulated are hedge or OTC. Valid inputs: 'hedge', 'OTC'
         3) price  : new price of underlying. If explicitly passed in, the method assumes that new price/vol data is being fed into the portfolio, and acts accordingly. defaults to None.
         4) vol    : new vol. If explicitly passed in, the method assumes that new price/vol data is being fed into the portfolio, and acts accordingly. defaults to None.
 
-        Outputs : Updates long_pos, short_pos and net_greeks dictionaries.
+        Outputs : Updates OTC, hedges and net_greeks dictionaries.
 
         Notes: this method does 90% of all the heavy lifting in the portfolio class. Don't mess with this unless you know EXACTLY what each part is doing.
         '''
-        if flag == 'long':
-            dic = self.long_pos
-            op = self.long_options
-            ft = self.long_futures
-        elif flag == 'short':
-            dic = self.short_pos
-            op = self.short_options
-            ft = self.short_futures
+        if flag == 'OTC':
+            dic = self.OTC
+            op = self.OTC_options
+            ft = self.OTC_futures
+        elif flag == 'hedge':
+            dic = self.hedges
+            op = self.hedge_options
+            ft = self.hedge_futures
         # adding/removing security to portfolio
         if price is None and vol is None:
             # adding
@@ -319,6 +323,7 @@ class Portfolio:
         else:
             # updating greeks based on new price and vol data
             for sec in op:
+                sec.underlying.update_price(price)
                 sec.update_greeks(vol)
             # updating cumulative greeks on a month-by-month basis.
             for sec in op:
@@ -332,7 +337,7 @@ class Portfolio:
 
     def update_greeks_by_month(self, product, month, sec, added, flag):
         """Updates the greeks for each month. This method is called every time update_sec_by_month
-        is called, and does the work of actually computing changes to monthly greeks in the self.long_pos and self.short_pos
+        is called, and does the work of actually computing changes to monthly greeks in the self.OTC and self.hedges
         dictionaries.
 
         Args:
@@ -340,63 +345,71 @@ class Portfolio:
             month (str): The month to be updated.
             sec (Security): the security that has been added/removed.
             added (boolean): boolean indicating if the security was added or removed.
-            flag (str): long or short. indicates which part of the portfolio the security was added/removed to/from.
+            flag (str): OTC or hedge. indicates which part of the portfolio the security was added/removed to/from.
 
         Returns:
             None: Update data structures in place and calls compute_net_greeks. 
         """
-        if flag == 'long':
-            dic = self.long_pos
+
+        if flag == 'OTC':
+            dic = self.OTC
+
         else:
-            dic = self.short_pos
+            dic = self.hedges
         data = dic[product][month]
+
         if sec.get_desc() == 'option':
             delta, gamma, theta, vega = sec.greeks()
-            if added:
+
+            if (added and not sec.shorted) or (not added and sec.shorted):
+                # adding a long option or removing a short option.
                 data[2] += delta
                 data[3] += gamma
                 data[4] += theta
                 data[5] += vega
-            else:
+
+            elif (added and sec.shorted) or (not added and not sec.shorted):
+                # adding a short option or removing a long option.
                 data[2] -= delta
                 data[3] -= gamma
                 data[4] -= theta
                 data[5] -= vega
+
             self.compute_net_greeks()
 
     def compute_value(self):
-        """Computes the value of this portfolio by summing across all securities contained within. Current computation takes (value of long positions - value of short positions)
+        """Computes the value of this portfolio by summing across all securities contained within. Current computation takes (value of OTC positions - value of hedge positions)
 
         Returns:
             double: The value of this portfolio.
         """
         val = 0
         # try:
-        for sec in self.long_options:
+        for sec in self.OTC_options:
             val += sec.get_price()
-        for sec in self.short_options:
+        for sec in self.hedge_options:
             val -= sec.get_price()
-        for sec in self.long_futures:
+        for sec in self.OTC_futures:
             val += sec.get_price()
-        for sec in self.short_futures:
+        for sec in self.hedge_futures:
             val -= sec.get_price()
         # except
         return val
 
     def exercise_option(self, sec, flag):
-        """Exercises an option if it is in-the-money. This consist of removing an object object from the relevant dictionary (i.e. either long- or short-pos), and adding a future to the relevant dictionary. Documentation for 'moneyness' can be found in classes.py in the Options class.
+        """Exercises an option if it is in-the-money. This consist of removing an object object from the relevant dictionary (i.e. either OTC- or hedge-pos), and adding a future to the relevant dictionary. Documentation for 'moneyness' can be found in classes.py in the Options class.
 
         Args:
             sec (Option) : the options object to be exercised.
-            flag (str)   : indicating which if the option is currently held as a long or short. 
+            flag (str)   : indicating which if the option is currently held as a OTC or hedge. 
 
         Returns:
             None         : Updates data structures in-place, returns nothing.
         """
-        if flag == 'long':
-            op = self.long_options
+        if flag == 'OTC':
+            op = self.OTC_options
         else:
-            op = self.short_options
+            op = self.hedge_options
         for option in op:
             if option.moneyness() == 1:
                 # convert into a future.
@@ -410,32 +423,32 @@ class Portfolio:
         """Returns the position dictionary based on the flag passed in.
 
         Args:
-            flag (str): if flag == long, returns long_pos. otherwise, returns short_pos
+            flag (str): if flag == OTC, returns OTC. otherwise, returns hedges
 
         Returns:
             dictionary: returns the relevant dictionary.
         """
-        if flag == 'long':
-            dic = self.long_pos
+        if flag == 'OTC':
+            dic = self.OTC
         else:
-            dic = self.short_pos
+            dic = self.hedges
         dic = dic.copy()
         return dic
 
     def get_securities(self, flag):
-        if flag == 'long':
-            op = self.long_options
-            ft = self.long_futures
+        if flag == 'OTC':
+            op = self.OTC_options
+            ft = self.OTC_futures
         else:
-            op = self.short_options
-            ft = self.short_futures
+            op = self.hedge_options
+            ft = self.hedge_futures
         lst1 = op.copy()
         lst2 = ft.copy()
         return (lst1, lst2)
 
     def get_underlying(self):
         u_set = set()
-        all_options = self.long_options + self.short_options
+        all_options = self.OTC_options + self.hedge_options
         for sec in all_options:
             u_set.add(sec.get_underlying())
         return list(u_set)
@@ -447,12 +460,12 @@ class Portfolio:
 
     def get_all_futures(self):
         retr = self.get_underlying()
-        port_futures = self.long_futures + self.short_futures
+        port_futures = self.OTC_futures + self.hedge_futures
         retr.extend(port_futures)
         return retr
 
     def timestep(self, value):
-        all_options = self.long_options + self.short_options
+        all_options = self.OTC_options + self.hedge_options
         for option in all_options:
             option.update_tau(value)
 
