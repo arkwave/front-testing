@@ -65,6 +65,10 @@ multipliers = {
     'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
 }
 
+# TODO: Include brokerage for options/futures, and bid-ask spread for options.
+# TODO: Bid-ask for options will vary depending on configuration. i.e. <
+# 60 days, 60-120 days, > 120 days serial time deltas will have different
+# spreads.
 filepath = 'portfolio_specs.txt'
 
 

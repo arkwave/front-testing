@@ -119,7 +119,7 @@ documentation for:
 	> portfolio                                   [Done]
 	> prep_data                                   [Done]
 	> calc                                        [Done]
-write-up                                          []
+write-up                                          [Done]
 
 
 
