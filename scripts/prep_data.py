@@ -187,6 +187,7 @@ def clean_data(df, flag, edf):
         df['contract_mth'] = df['underlying_id'].str.split().str[1].str[0]
         df['contract_yr'] = pd.to_numeric(
             df['underlying_id'].str.split().str[1].str[1])
+        df = assign_ci(df)
     df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
     return df
 
