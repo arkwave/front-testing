@@ -20,6 +20,7 @@ import traceback
 
 '''
 TODO: 1) price/vol series transformation
+      2) read in multipliers from csv
 '''
 
 
@@ -181,6 +182,13 @@ def clean_data(df, flag, edf):
         df = df.dropna()
         # calculating time to expiry
         df = ttm(df, df['vol_id'], edf)
+        df['underlying_id'] = df['vol_id'].str.split('.').str[0]
+        df['pdt'] = df['underlying_id'].str.split().str[0]
+        df['op_mth'] = df['vol_id'].str.split('.').str[0].str.split().str[1]
+        df['contract_mth'] = df['underlying_id'].str.split().str[1].str[0]
+        df['contract_yr'] = pd.to_numeric(
+            df['underlying_id'].str.split().str[1].str[1])
+        df = assign_ci(df)
     elif flag == 'price':
         # clean price data
         df['pdt'] = df['underlying_id'].str.split().str[0]
@@ -241,6 +249,11 @@ def assign_ci(df):
             df.ix[(df['contract_mth'] == mth) & (df['contract_yr'] == curr_yr % (2000 + decade))
                   & (df['pdt'] == 'C'), 'cont'] = dist
     return df
+
+
+def scale_vols(voldata, pricedata):
+    pass
+
 
 if __name__ == '__main__':
     # compute simulation start day; earliest day in dataframe.

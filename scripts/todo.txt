@@ -147,7 +147,9 @@ hedge vs otc dichotomy
 Basic stuff:
 > getting the right data.                         [Done]
 > price returns transformations                   []
+	> log(curr - prev) taking rollover into acct
 > vol surface difference transformation           []
+	> atm_curr - atm_prev
 > data transformation 			                  []
 
 
