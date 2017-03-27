@@ -21,7 +21,7 @@ def test_vanilla_pricing():
         s = row['s']
         price = row['price']
         ft = Future('Z6', s, product)
-        op = Option(strike, tau, 'call', vol, ft, 'euro', False)
+        op = Option(strike, tau, 'call', vol, ft, 'euro', False, 'Z7')
         prices.append(op.get_price())
     try:
         assert np.allclose(prices, actuals, atol=0.1354)

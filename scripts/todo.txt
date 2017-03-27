@@ -141,17 +141,44 @@ hedge vs otc dichotomy
 	> updated prep_portfolio                      [Done]
 	> updated tests                               [Done]
 
-2) testing from xtrader                           []
-3) testing for european barrier greeks            []
-4) testing for european barrier pricing.          []
+
+27/3:
+
+Basic stuff:
+> getting the right data.                         [Done]
+> price returns transformations                   []
+> vol surface difference transformation           []
+> data transformation 			                  []
+
+
+Data processing steps:
+> allocating C1 C2 C3 based on front month        [Done]
+> selection rollover logic                        []
+> add in ordering/month flags in options          [Done]
+
+
+Data selection steps:
+> selecting vol from vol surface based on delta   []
+> selecting vol from vol surface based on strike  []
+
+
+Aux:
+> testing                                         []
 
 
 
-This/Next Week:
-1) remaining simulation logic                     []
+28/3:
+
+feed_data                                                []
+handle_options                                           []
+2) testing from xtrader                                  []
+3) testing for european barrier greeks                   []
+4) testing for european barrier pricing.                 []
+5) adapt computation to intake returns and change in vol []
+6) reading in multiplier list                            []
 
 
-data transformation 			                  []
+
 
 >>>>> Simulation Logic: <<<<<<
 1) Handle_options                                 []

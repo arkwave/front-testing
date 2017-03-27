@@ -15,12 +15,12 @@ import numpy as np
 def generate_vanop():
     ft = Future('Z7', 100, 'C')
     tau = 0.2
-    op1 = Option(100, tau, 'call', .20, ft, 'amer', False)
-    op2 = Option(120, tau, 'call', .20, ft, 'amer', False)
-    op3 = Option(80, tau, 'call', .20, ft, 'amer', False)
-    op4 = Option(100, tau, 'put', .20, ft, 'amer', False)
-    op5 = Option(120, tau, 'put', .20, ft, 'amer', False)
-    op6 = Option(80, tau, 'put', .20, ft, 'amer', False)
+    op1 = Option(100, tau, 'call', .20, ft, 'amer', False, 'Z7')
+    op2 = Option(120, tau, 'call', .20, ft, 'amer', False, 'Z7')
+    op3 = Option(80, tau, 'call', .20, ft, 'amer', False, 'Z7')
+    op4 = Option(100, tau, 'put', .20, ft, 'amer', False, 'Z7')
+    op5 = Option(120, tau, 'put', .20, ft, 'amer', False, 'Z7')
+    op6 = Option(80, tau, 'put', .20, ft, 'amer', False, 'Z7')
     return op1, op2, op3, op4, op5, op6
 
 
@@ -30,28 +30,28 @@ def generate_barrop_euro():
     # european barriers
     # call up in
     op1 = Option(
-        300, tau, 'call', .20, ft, 'amer', False, direc='up', barrier='euro', ki=320)
+        300, tau, 'call', .20, ft, 'amer', False, 'Z7', direc='up', barrier='euro', ki=320)
     # call up out
     op2 = Option(
-        300, tau, 'call', .20, ft, 'amer', False, direc='up', barrier='euro', ko=320)
+        300, tau, 'call', .20, ft, 'amer', False, 'Z7', direc='up', barrier='euro', ko=320)
     # call down in
     op3 = Option(
-        300, tau, 'call', .20, ft, 'amer', False, direc='down', barrier='euro', ki=280)
+        300, tau, 'call', .20, ft, 'amer', False, 'Z7', direc='down', barrier='euro', ki=280)
     # call down out
     op4 = Option(
-        300, tau, 'call', .20, ft, 'amer', False, direc='down', barrier='euro', ko=280)
+        300, tau, 'call', .20, ft, 'amer', False, 'Z7', direc='down', barrier='euro', ko=280)
     # put up in
     op5 = Option(
-        300, tau, 'put', .20, ft, 'amer', False, direc='up', barrier='euro', ki=320)
+        300, tau, 'put', .20, ft, 'amer', False, 'Z7', direc='up', barrier='euro', ki=320)
     # put up out
     op6 = Option(
-        300, tau, 'put', .20, ft, 'amer', False, direc='up', barrier='euro', ko=320)
+        300, tau, 'put', .20, ft, 'amer', False, 'Z7', direc='up', barrier='euro', ko=320)
     # put down in
     op7 = Option(
-        300, tau, 'put', .20, ft, 'amer', False, direc='down', barrier='euro', ki=280)
+        300, tau, 'put', .20, ft, 'amer', False, 'Z7', direc='down', barrier='euro', ki=280)
     # put down out
     op8 = Option(
-        300, tau, 'put', .20, ft, 'amer', False, direc='down', barrier='euro', ko=280)
+        300, tau, 'put', .20, ft, 'amer', False, 'Z7', direc='down', barrier='euro', ko=280)
     # american barriers
     return op1, op2, op3, op4, op5, op6, op7, op8
 
@@ -61,28 +61,28 @@ def generate_barrop_amer():
     # european barriers
     # call up in
     op1 = Option(
-        100, 0.2, 'call', .20, ft, 'amer', False, direc='up', barrier='amer', ki=120)
+        100, 0.2, 'call', .20, ft, 'amer', False, 'Z7', direc='up', barrier='amer', ki=120)
     # call up out
     op2 = Option(
-        100, 0.2, 'call', .20, ft, 'amer', False, direc='up', barrier='amer', ko=120)
+        100, 0.2, 'call', .20, ft, 'amer', False, 'Z7', direc='up', barrier='amer', ko=120)
     # call down in
     op3 = Option(
-        100, 0.2, 'call', .20, ft, 'amer', False, direc='down', barrier='amer', ki=80)
+        100, 0.2, 'call', .20, ft, 'amer', False, 'Z7', direc='down', barrier='amer', ki=80)
     # call down out
     op4 = Option(
-        100, 0.2, 'call', .20, ft, 'amer', False, direc='down', barrier='amer', ko=80)
+        100, 0.2, 'call', .20, ft, 'amer', False, 'Z7', direc='down', barrier='amer', ko=80)
     # put up in
     op5 = Option(
-        100, 0.2, 'put', .20, ft, 'amer', False, direc='up', barrier='amer', ki=120)
+        100, 0.2, 'put', .20, ft, 'amer', False, 'Z7', direc='up', barrier='amer', ki=120)
     # put up out
     op6 = Option(
-        100, 0.2, 'put', .20, ft, 'amer', False, direc='up', barrier='amer', ko=120)
+        100, 0.2, 'put', .20, ft, 'amer', False, 'Z7', direc='up', barrier='amer', ko=120)
     # put down in
     op7 = Option(
-        100, 0.2, 'put', .20, ft, 'amer', False, direc='down', barrier='amer', ki=80)
+        100, 0.2, 'put', .20, ft, 'amer', False, 'Z7', direc='down', barrier='amer', ki=80)
     # put down out
     op8 = Option(
-        100, 0.2, 'put', .20, ft, 'amer', False, direc='down', barrier='amer', ko=80)
+        100, 0.2, 'put', .20, ft, 'amer', False, 'Z7', direc='down', barrier='amer', ko=80)
     # american barriers
     return op1, op2, op3, op4, op5, op6, op7, op8
 

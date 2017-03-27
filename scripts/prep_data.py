@@ -9,8 +9,8 @@ Description    : Script contains methods to read-in and format data. These metho
 """
 
 # Imports
-from .portfolio import Portfolio
-from .classes import Option, Future
+# from .portfolio import Portfolio
+# from .classes import Option, Future
 import pandas as pd
 import calendar
 import datetime as dt
@@ -25,13 +25,37 @@ TODO: 1) price/vol series transformation
 
 # Dictionary mapping month to symbols and vice versa
 month_to_sym = {1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
-                7: 'L', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'}
+                7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'}
 sym_to_month = {'F': 1, 'G': 2, 'H': 3, 'J': 4, 'K': 5,
-                'M': 6, 'L': 7, 'Q': 8, 'U': 9, 'V': 10, 'X': 11, 'Z': 12}
+                'M': 6, 'N': 7, 'Q': 8, 'U': 9, 'V': 10, 'X': 11, 'Z': 12}
 decade = 10
 
 # specifies the filepath for the read-in file.
 filepath = 'portfolio_specs.txt'
+
+# details contract months for each commodity. used in the continuation
+# assignment.
+contract_mths = {
+
+    'LH':  ['G', 'J', 'K', 'M', 'N', 'Q', 'V', 'Z'],
+    'LSU': ['H', 'K', 'Q', 'V', 'Z'],
+    'LCC': ['H', 'K', 'N', 'U', 'Z'],
+    'SB':  ['H', 'K', 'N', 'V'],
+    'CC':  ['H', 'K', 'N', 'U', 'Z'],
+    'CT':  ['H', 'K', 'N', 'Z'],
+    'KC':  ['H', 'K', 'N', 'U', 'Z'],
+    'W':   ['H', 'K', 'N', 'U', 'Z'],
+    'S':   ['F', 'H', 'K', 'N', 'Q', 'U', 'X'],
+    'C':   ['H', 'K', 'N', 'U', 'Z'],
+    'BO':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
+    'LC':  ['G', 'J', 'M', 'Q', 'V' 'Z'],
+    'LRC': ['F', 'H', 'K', 'N', 'U', 'X'],
+    'KW':  ['H', 'K', 'N', 'U', 'Z'],
+    'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
+    'COM': ['G', 'K', 'Q', 'X'],
+    'OBM': ['H', 'K', 'U', 'Z'],
+    'MW':  ['H', 'K', 'N', 'U', 'Z']
+}
 
 
 def read_data(filepath):
@@ -69,7 +93,7 @@ def prep_portfolio(voldata, pricedata, sim_start):
         sim_start (pandas dataframe): start date of the simulation. defaults to the earliest date in the dataframes.
 
     Returns:
-        pf (Portfolio)              : reads in 
+        pf (Portfolio)              : reads in
     """
     pf = Portfolio()
     with open(filepath) as f:
@@ -116,7 +140,7 @@ def prep_portfolio(voldata, pricedata, sim_start):
 
                     underlying = Future(f_mth, f_price, f_name)
                     opt = Option(strike, tau, char, vol, underlying,
-                                 payoff, shorted=shorted, direc=direc, barrier=barriertype,
+                                 payoff, shorted=shorted, month=opmth, direc=direc, barrier=barriertype,
                                  bullet=bullet, ki=ki, ko=ko)
                     pf.add_security(opt, flag)
 
@@ -157,19 +181,27 @@ def clean_data(df, flag, edf):
         df = df.dropna()
         # calculating time to expiry
         df = ttm(df, df['vol_id'], edf)
+    elif flag == 'price':
+        # clean price data
+        df['pdt'] = df['underlying_id'].str.split().str[0]
+        df['contract_mth'] = df['underlying_id'].str.split().str[1].str[0]
+        df['contract_yr'] = pd.to_numeric(
+            df['underlying_id'].str.split().str[1].str[1])
     df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
     return df
 
 
-def ttm(df, s, edf=None):
+def ttm(df, s, edf):
     """Takes in a vol_id (for example C Z7.Z7) and outputs the time to expiry for the option in years """
     s = s.unique()
     df['tau'] = ''
+    df['expdate'] = ''
     for iden in s:
         expdate = get_expiry_date(iden, edf).values[0]
         currdate = pd.to_datetime(df[(df['vol_id'] == iden)]['value_date'])
         timedelta = (expdate - currdate).dt.days / 365
-        df = df.assign(tau=timedelta)
+        df.ix[(df['vol_id'] == iden), 'tau'] = timedelta
+        df.ix[(df['vol_id'] == iden), 'expdate'] = expdate
     return df
 
 
@@ -190,9 +222,38 @@ def get_expiry_date(volid, edf):
     return expdate
 
 
+def assign_ci(price_df):
+    today = dt.date.today()
+    print(today)
+    curr_mth = month_to_sym[today.month]
+    print('Curr_mth: ', curr_mth)
+    curr_day = today.day
+    print('Curr_day: ', curr_day)
+    curr_yr = today.year
+    print('Curr_yr: ', curr_yr)
+    products = price_df['pdt'].unique()
+    price_df['cont'] = ''
+    for pdt in products:
+        all_mths = contract_mths[pdt]
+        print('all months: ', all_mths)
+        post = sorted([month for month in all_mths if month > curr_mth])
+        pre = sorted([month for month in all_mths if month < curr_mth])
+        ordering = post + pre
+        print('ordering: ', ordering)
+        for i in range(len(ordering)):
+            mth = ordering[i]
+            if mth not in price_df['contract_mth'].values:
+                continue
+            print('Month: ', mth)
+            ret = i
+            price_df.ix[(price_df['contract_mth'] == mth) &
+                        (price_df['contract_yr'] == curr_yr) &
+                        (price_df['pdt'] == pdt), 'cont'] = ret
+    return price_df
+
 if __name__ == '__main__':
     # compute simulation start day; earliest day in dataframe.
-    voldata, pricedata, edf = read_data('filepath')
+    voldata, pricedata, edf = read_data(filepath)
     # just a sanity check, these two should be the same.
-    sim_start = min(min(voldata['value_date']), min(pricedata['value_date']))
-    pf = prep_portfolio(voldata, pricedata, sim_start)
+    # sim_start = min(min(voldata['value_date']), min(pricedata['value_date']))
+    # pf = prep_portfolio(voldata, pricedata, sim_start)

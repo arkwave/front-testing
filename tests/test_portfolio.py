@@ -24,15 +24,15 @@ def generate_portfolio():
 
     # options
     op1 = Option(
-        35, 0.05106521860205984, 'call', 0.4245569263291844, ft1, 'amer', False)
+        35, 0.05106521860205984, 'call', 0.4245569263291844, ft1, 'amer', False, 'Z7')
     op2 = Option(
-        29, 0.2156100288506942, 'call', 0.45176132048500206, ft2, 'amer', False)
+        29, 0.2156100288506942, 'call', 0.45176132048500206, ft2, 'amer', False, 'Z7')
     op3 = Option(30, 0.21534276294769317, 'call', 0.14464169782291536,
-                 ft3, 'amer', True, direc='up', barrier='amer', bullet=False, ko=35)
+                 ft3, 'amer', True, 'Z7',  direc='up', barrier='amer', bullet=False, ko=35)
     op4 = Option(33, 0.22365510948646386, 'put', 0.18282926924909026,
-                 ft4, 'amer', False, direc='down', barrier='amer', bullet=False, ki=28)
+                 ft4, 'amer', False, 'Z7', direc='down', barrier='amer', bullet=False, ki=28)
     op5 = Option(
-        32, 0.010975090692443346, 'put', 0.8281728247909962, ft5, 'amer', True)
+        32, 0.010975090692443346, 'put', 0.8281728247909962, ft5, 'amer', True, 'Z7')
 
     # Portfolio Futures
     ft6 = Future('may', 37, 'C', shorted=False)
@@ -73,7 +73,7 @@ def test_add_multiple():
     assert len(pf.OTC_options) == 3
     ft = Future('march', 30, 'C')
     op = Option(
-        35, 0.05106521860205984, 'call', 0.4245569263291844, ft, 'amer', True)
+        35, 0.05106521860205984, 'call', 0.4245569263291844, ft, 'amer', True, 'Z7')
     pf.add_security(op, 'OTC')
     pf.add_security(op, 'OTC')
     assert len(pf.OTC_options) == 5
@@ -197,7 +197,7 @@ def test_remove_security_futures():
 def test_remove_security_options():
     pf = generate_portfolio()
     ft_test = Future('aug', 50, 'C')
-    op_test = Option(35, 0.02, 'call', 0.8, ft_test, 'amer', False)
+    op_test = Option(35, 0.02, 'call', 0.8, ft_test, 'amer', False, 'Z7')
     prev_net = copy.deepcopy(pf.get_net_greeks())
     prev_OTCs = copy.deepcopy(pf.get_securities_monthly('OTC'))
     assert len(pf.get_securities_monthly('OTC')) == 3
@@ -258,7 +258,7 @@ def test_remove_expired():
     ft = Future('june', 50, 'C')
     init_net = copy.deepcopy(pf.get_net_greeks())
     op1 = Option(
-        35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False)
+        35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'Z7')
     pf.add_security(op1, 'OTC')
     assert len(pf.OTC_options) == 4
     assert len(pf.OTC['C']) == 3
@@ -281,7 +281,7 @@ def test_compute_value():
     init_val = pf.compute_value()
     ft = Future('june', 50, 'C')
     op1 = Option(
-        35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False)
+        35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'Z7')
     opval = op1.get_price()
     # testing OTC pos
     pf.add_security(op1, 'OTC')
@@ -308,7 +308,7 @@ def test_exercise_option():
     # add option
     ft = Future('june', 50, 'C')
     op1 = Option(
-        35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False)
+        35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'Z7')
     pf.add_security(op1, 'OTC')
 
     assert len(pf.OTC_options) == 4

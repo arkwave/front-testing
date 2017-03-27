@@ -40,6 +40,8 @@ class Option:
         19) knockedout =   boolean indicating if this barrier knockout option is active.
         20) expired    =   boolean indicating if the option has expired.
         21) rebate     =   value paid to holder of option if option is knocked out.
+        22) ordering   =   indicating if this option is c1, c2, ... c8. For vol/price purposes.
+        23) month      =   indicates the month of expiry of this option. i.e. K7, H7. First two letters of the vol_id; i.e. if the vol_id is K7.Z7, this field would be K7 while the underlying future's corresponding field would be Z7.
 
         Notes: 
         1_ ki, ko, bullet, direc and barrier default to None and must be expressly overridden if an exotic option is desired.
@@ -62,10 +64,14 @@ class Option:
     14) check_active   : for barriers, checks to see if this barrier is active or not.
     15) check_expired  : expires this option. defaults to false upon initialization.
     16) zero_option    : zeros the option's greeks.
-    17) shorted           : indicates if this is security is being longed or shorted.
+    17) shorted        : indicates if this is security is being longed or shorted.
+    18) set_ordering   : sets the ordering of this option.
+    19) get_ordering   : return self.ordering
+    20) get_month      : returns the month associated with this option.
     """
 
-    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, direc=None, barrier=None, lots=lots, bullet=None, ki=None, ko=None, rebate=0):
+    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=lots, bullet=None, ki=None, ko=None, rebate=0, ordering=None):
+        self.month = month
         self.barrier = barrier
         self.payoff = payoff
         self.underlying = underlying
@@ -91,6 +97,16 @@ class Option:
         self.rebate = rebate
         self.product = self.get_product()
         self.shorted = shorted
+        self.ordering = ordering
+
+    def set_ordering(string):
+        self.ordering = string
+
+    def get_ordering(string):
+        return self.ordering
+
+    def get_month():
+        return self.month
 
     def check_active(self):
         """Checks to see if this option object is active, i.e. if it has any value/contributes greeks. Cases are as follows:
