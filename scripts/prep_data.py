@@ -198,10 +198,11 @@ def ttm(df, s, edf):
     df['expdate'] = ''
     for iden in s:
         expdate = get_expiry_date(iden, edf).values[0]
+        print(expdate)
         currdate = pd.to_datetime(df[(df['vol_id'] == iden)]['value_date'])
         timedelta = (expdate - currdate).dt.days / 365
-        df.ix[(df['vol_id'] == iden), 'tau'] = timedelta
-        df.ix[(df['vol_id'] == iden), 'expdate'] = expdate
+        df.ix[df['vol_id'] == iden, 'tau'] = timedelta
+        df.ix[df['vol_id'] == iden, 'expdate'] = pd.to_datetime(expdate)
     return df
 
 
@@ -222,34 +223,23 @@ def get_expiry_date(volid, edf):
     return expdate
 
 
-def assign_ci(price_df):
+def assign_ci(df):
     today = dt.date.today()
-    print(today)
     curr_mth = month_to_sym[today.month]
-    print('Curr_mth: ', curr_mth)
     curr_day = today.day
-    print('Curr_day: ', curr_day)
     curr_yr = today.year
-    print('Curr_yr: ', curr_yr)
-    products = price_df['pdt'].unique()
-    price_df['cont'] = ''
+    products = df['pdt'].unique()
+    df['cont'] = ''
     for pdt in products:
         all_mths = contract_mths[pdt]
-        print('all months: ', all_mths)
-        post = sorted([month for month in all_mths if month > curr_mth])
-        pre = sorted([month for month in all_mths if month < curr_mth])
-        ordering = post + pre
-        print('ordering: ', ordering)
-        for i in range(len(ordering)):
-            mth = ordering[i]
-            if mth not in price_df['contract_mth'].values:
+        # finding rightward distance.
+        for mth in all_mths:
+            if mth not in df['contract_mth'].values:
                 continue
-            print('Month: ', mth)
-            ret = i
-            price_df.ix[(price_df['contract_mth'] == mth) &
-                        (price_df['contract_yr'] == curr_yr) &
-                        (price_df['pdt'] == pdt), 'cont'] = ret
-    return price_df
+            dist = (all_mths.index(mth) - all_mths.index(curr_mth)) % 5
+            df.ix[(df['contract_mth'] == mth) & (df['contract_yr'] == curr_yr % (2000 + decade))
+                  & (df['pdt'] == 'C'), 'cont'] = dist
+    return df
 
 if __name__ == '__main__':
     # compute simulation start day; earliest day in dataframe.
