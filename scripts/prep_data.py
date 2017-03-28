@@ -94,7 +94,7 @@ def prep_portfolio(voldata, pricedata, sim_start):
         sim_start (pandas dataframe): start date of the simulation. defaults to the earliest date in the dataframes.
 
     Returns:
-        pf (Portfolio)              : reads in
+        pf (Portfolio)              : a portfolio object.
     """
     pf = Portfolio()
     with open(filepath) as f:
@@ -206,8 +206,12 @@ def ttm(df, s, edf):
     df['tau'] = ''
     df['expdate'] = ''
     for iden in s:
-        expdate = get_expiry_date(iden, edf).values[0]
-        print(expdate)
+        expdate = get_expiry_date(iden, edf)
+        print('Expdate: ', expdate)
+        try:
+            expdate = expdate.values[0]
+        except IndexError:
+            print('Vol ID: ', iden)
         currdate = pd.to_datetime(df[(df['vol_id'] == iden)]['value_date'])
         timedelta = (expdate - currdate).dt.days / 365
         df.ix[df['vol_id'] == iden, 'tau'] = timedelta
@@ -233,6 +237,14 @@ def get_expiry_date(volid, edf):
 
 
 def assign_ci(df):
+    """Identifies the continuation numbers of each underlying.
+    
+    Args:
+        df (Pandas Dataframe): Dataframe of price data, in the same format as that returned by read_data.
+    
+    Returns:
+        Pandas dataframe     : Dataframe with the CIs populated.
+    """
     today = dt.date.today()
     curr_mth = month_to_sym[today.month]
     curr_day = today.day
@@ -253,6 +265,12 @@ def assign_ci(df):
 
 def scale_vols(voldata, pricedata):
     pass
+
+
+
+def scale_prices(pricedata):
+    pass
+
 
 
 if __name__ == '__main__':

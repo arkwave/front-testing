@@ -146,31 +146,36 @@ hedge vs otc dichotomy
 
 Basic stuff:
 > getting the right data.                         [Done]
+
+Data processing steps:
+> allocating C1 C2 C3 based on front month        [Done]
+> add in ordering/month flags in options          [Done]
+
+
+
+
+
+28/3:
+> Not all options in expiry list; N7.Z7 for ex.   []
 > price returns transformations                   []
 	> log(curr - prev) taking rollover into acct
 > vol surface difference transformation           []
 	> atm_curr - atm_prev
 > data transformation 			                  []
 
-
-Data processing steps:
-> allocating C1 C2 C3 based on front month        [Done]
-> selection rollover logic                        []
-> add in ordering/month flags in options          [Done]
-
-
 Data selection steps:
 > selecting vol from vol surface based on delta   []
 > selecting vol from vol surface based on strike  []
-
+> selection rollover logic                        []
 
 Aux:
 > testing                                         []
 
 
 
-28/3:
 
+
+29/3:
 feed_data                                                []
 handle_options                                           []
 2) testing from xtrader                                  []

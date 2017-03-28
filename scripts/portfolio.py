@@ -18,15 +18,15 @@ class Portfolio:
     Class representing the overall portfolio.
 
     Instance variables:
-    1) OTC_options          : list of OTC options.
+    1) OTC_options           : list of OTC options.
     2) hedge_options         : list of hedge options.
-    3) OTC_futures          : list of OTC futures
+    3) OTC_futures           : list of OTC futures
     4) hedge_futures         : list of hedge futures.
     5) newly_added           : list of newly added securities to this portfolio. used for ease of bookkeeping.
     6) toberemoved           : list of securities to be removed from this portfolio. used for ease of bookkeeping.
     7) value                 : value of the overall portfolio. computed by summing the value of the securities present in the portfolio.
-    8) OTC              : dictionary of the form {product : {month: [set(options), set(futures), delta, gamma, theta, vega]}} containing OTC positions.
-    9) hedges             : dictionary of the form {product : {month: [set(options), set(futures), delta, gamma, theta, vega]}} containing hedge positions.
+    8) OTC                   : dictionary of the form {product : {month: [set(options), set(futures), delta, gamma, theta, vega]}} containing OTC positions.
+    9) hedges                : dictionary of the form {product : {month: [set(options), set(futures), delta, gamma, theta, vega]}} containing hedge positions.
     10) net_greeks           : dictionary of the form {product : {month: [delta, gamma, theta, vega]}} containing net greeks, organized hierarchically by product and month.
 
     Instance Methods:
