@@ -158,13 +158,16 @@ Data processing steps:
 
 > Not all options in expiry list; N7.Z7 for ex.      [Done]
 > Debug all prep functions                           [Done]
-
-> price returns transformations                      []
+> follow up with kishor about expiries               [Done]
+> price returns transformations                      [Done]
 	> log(curr - prev) taking rollover into acct
+> price transformation                               [Done]
+
+
 > vol surface difference transformation              []
 	> atm_curr - atm_prev
-> data transformation 	         	                 []
 > updating future and options object with ordering   []
+
 
 Data selection steps:
 > selecting vol from vol surface based on delta      []
@@ -174,10 +177,6 @@ Data selection steps:
 
 Aux:
 > generate data requirements from portfolio object   []
-> testing                                            []
-> follow up with kishor about expiries               [Done]
-> ananthi about ci logic                             []
-
 
 
 

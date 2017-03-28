@@ -210,10 +210,12 @@ def clean_data(df, flag, edf=None):
         df['contract_mth'] = df['underlying_id'].str.split().str[1].str[0]
         df['contract_yr'] = pd.to_numeric(
             df['underlying_id'].str.split().str[1].str[1])
+        df = get_expiry(df, edf)
         df = assign_ci(df)
+        df = scale_prices(df)
 
     df = df.dropna()
-    # df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
+    df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
 
     return df
 
@@ -351,8 +353,8 @@ def get_expiry(pricedata, edf, rollover=None):
         TYPE: Description
     """
     products = pricedata['pdt'].unique()
-    pricedata['ro_date'] = ''
-    pricedata['ro_date'] = pd.to_datetime(pricedata['ro_date'])
+    pricedata['expdate'] = ''
+    pricedata['expdate'] = pd.to_datetime(pricedata['expdate'])
     for prod in products:
         # 1: isolate the rollover date.
         df = pricedata[pricedata['pdt'] == prod]
@@ -365,7 +367,7 @@ def get_expiry(pricedata, edf, rollover=None):
                 roll_date = edf[(edf.opmth == mth) & (edf['product'] == prod)][
                     'expiry_date'].values[0]
                 pricedata.ix[(pricedata['pdt'] == prod) &
-                             (pricedata['underlying_id'] == uid), 'ro_date'] = roll_date
+                             (pricedata['underlying_id'] == uid), 'expdate'] = roll_date
             except IndexError:
                 print('mth: ', mth)
                 print('uid: ', uid)
@@ -374,18 +376,89 @@ def get_expiry(pricedata, edf, rollover=None):
     return pricedata
 
 
-# def construct_ci_vols(pricedata, edf, rollover=None):
-#     """Summary
+def get_rollover_dates(pricedata):
+    """Generates dictionary of form {product: [c1 rollover, c2 rollover, ...]}. If ci rollover is 0, then no rollover happens.
 
-#     Args:
-#         pricedata (TYPE): Description
-#         edf (TYPE): Description
-#         rollover (None, optional): Description
+    Args:
+        pricedata (TYPE): Dataframe of prices, same format as that returned by read_data
 
-#     Returns:
-#         TYPE: Description
-#     """
-#     pass
+    Returns:
+        rollover_dates: dictionary of rollover dates, organized by product.
+    """
+    products = pricedata['pdt'].unique()
+    rollover_dates = {}
+    for product in products:
+        # filter by product.
+        df = pricedata[pricedata.pdt == product]
+        conts = sorted(pricedata['cont'].unique())
+        rollover_dates[product] = [0] * len(conts)
+        for i in range(len(conts)):
+            cont = conts[i]
+            df2 = df[df['cont'] == cont]
+            test = df2[df2['value_date'] > df2['expdate']]['value_date']
+            if not test.empty:
+                try:
+                    rollover_dates[product][i] = min(test)
+                except (ValueError, TypeError):
+                    print('i: ', i)
+                    print('cont: ', cont)
+                    print('min: ', min(test))
+                    print('product: ', product)
+    return rollover_dates
+
+
+def construct_ci_price(pricedata, rollover='opex'):
+    """Constructs the CI price.
+
+    Args:
+        pricedata (TYPE): price data frame of same format as read_data
+        rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
+
+    Returns:
+        TYPE: Description
+    """
+    retDF = None
+    if rollover == 'opex':
+        ro_dates = get_rollover_dates(pricedata)
+
+        products = pricedata['pdt'].unique()
+        for product in products:
+            conts = sorted(pricedata['cont'].unique())
+            most_recent = 0
+            for cont in conts:
+                df = pricedata[(pricedata.pdt == product) &
+                               (pricedata['cont'] == cont)]
+                rdate = ro_dates[product][cont]
+                # rollover date exists.
+                if rdate != 0:
+                    # select items of relevance
+                    breakpoint = most_recent if most_recent != 0 else min(df[
+                                                                          'value_date'])
+                    df = df[(df['value_date'] < rdate) & (df['value_date'] >= breakpoint)][
+                        ['cont', 'settle_value', 'returns', 'value_date']]
+                    most_recent = rdate
+                # no rollover date.
+                else:
+                    df = df[['cont', 'settle_value', 'returns', 'value_date']]
+                # updating retDF
+                retDF = df if retDF is None else pd.concat([retDF, df])
+    else:
+        return -1
+    return retDF
+
+
+def construct_ci_vols(pricedata, edf, rollover=None):
+    """Summary
+
+    Args:
+        pricedata (TYPE): Description
+        edf (TYPE): Description
+        rollover (None, optional): Description
+
+    Returns:
+        TYPE: Description
+    """
+    pass
 
 
 if __name__ == '__main__':
