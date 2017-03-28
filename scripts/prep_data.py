@@ -8,9 +8,9 @@ Description    : Script contains methods to read-in and format data. These metho
 
 """
 
-# Imports
-from . import portfolio
-from . import classes
+# # Imports
+# from . import portfolio
+# from . import classes
 import pandas as pd
 import calendar
 import datetime as dt
@@ -67,15 +67,19 @@ def read_data(filepath):
     """
     with open(filepath) as f:
         try:
+            # get paths
             volpath = f.readline().strip('\n')
             pricepath = f.readline().strip('\n')
             expath = f.readline().strip('\n')
+            # import dataframes
             volDF = pd.read_csv(volpath)
             priceDF = pd.read_csv(pricepath)
             edf = pd.read_csv(expath)
-            volDF = clean_data(volDF, 'vol', edf)
-            priceDF = clean_data(priceDF, 'price', edf)
-            edf = edf.dropna()
+            # clean dataframes
+            edf = clean_data(edf, 'exp')
+            volDF = clean_data(volDF, 'vol', edf=edf)
+            priceDF = clean_data(priceDF, 'price', edf=edf)
+
         except FileNotFoundError:
             print(volpath)
             print(pricepath)
@@ -163,7 +167,7 @@ def prep_portfolio(voldata, pricedata, sim_start):
     return pf
 
 
-def clean_data(df, flag, edf):
+def clean_data(df, flag, edf=None):
     """Function that cleans the dataframes passed into it by:
     1) dropping NaN entries
     2) converting dates to datetime objects
@@ -176,23 +180,32 @@ def clean_data(df, flag, edf):
     Returns:
         TYPE: Description
     """
-    # df = df.dropna()
-    # adjusting for datetime stuff
-    df['value_date'] = pd.to_datetime(df['value_date'])
-    if flag == 'vol':
-        # cleaning volatility data
+    # cleaning expiry data
+    if flag == 'exp':
+        # cleaning expiry data
+        df['expiry_date'] = pd.to_datetime(df['expiry_date'])
+        df = df[(df['year'] > 10)]
+        s = df['opmth']
+        df['opmth'] = s.str[0] + (pd.to_numeric(s.str[1:]) % 10).astype(str)
+
+    # cleaning volatility data
+    elif flag == 'vol':
+        df['value_date'] = pd.to_datetime(df['value_date'])
         df = df.dropna()
         # calculating time to expiry
         df = ttm(df, df['vol_id'], edf)
-        df['underlying_id'] = df['vol_id'].str.split('.').str[0]
+        df['underlying_id'] = df[
+            'vol_id'].str.split().str[0] + '  ' + df['vol_id'].str.split('.').str[1]
         df['pdt'] = df['underlying_id'].str.split().str[0]
         df['op_mth'] = df['vol_id'].str.split('.').str[0].str.split().str[1]
         df['contract_mth'] = df['underlying_id'].str.split().str[1].str[0]
         df['contract_yr'] = pd.to_numeric(
             df['underlying_id'].str.split().str[1].str[1])
         df = assign_ci(df)
+
+    # cleaning price data
     elif flag == 'price':
-        # clean price data
+        df['value_date'] = pd.to_datetime(df['value_date'])
         df['pdt'] = df['underlying_id'].str.split().str[0]
         df['contract_mth'] = df['underlying_id'].str.split().str[1].str[0]
         df['contract_yr'] = pd.to_numeric(
@@ -227,21 +240,20 @@ def ttm(df, s, edf):
 def get_expiry_date(volid, edf):
     """Computes the expiry date of the option given a vol_id """
     target = volid.split()
-    op_yr = pd.to_numeric(target[1][1]) + decade
-    op_yr = op_yr.astype(str)
-    un_yr = pd.to_numeric(target[1][-1]) + decade
-    un_yr = un_yr.astype(str)
+    op_yr = target[1][1]  # + decade
+    # op_yr = op_yr.astype(str)
     op_mth = target[1][0]
-    un_mth = target[1][3]
+    # un_yr = pd.to_numeric(target[1][-1]) + decade
+    # un_yr = un_yr.astype(str)
+    # un_mth = target[1][3]
     prod = target[0]
-    overall = op_mth + op_yr + '.' + un_mth + un_yr
-    expdate = edf[(edf['vol_id'] == overall) & (edf['product'] == prod)][
+    overall = op_mth + op_yr  # + '.' + un_mth + un_yr
+    expdate = edf[(edf['opmth'] == overall) & (edf['product'] == prod)][
         'expiry_date']
     expdate = pd.to_datetime(expdate)
     return expdate
 
 
-# may not be necessary.
 def assign_ci(df):
     """Identifies the continuation numbers of each underlying.
 
@@ -269,38 +281,39 @@ def assign_ci(df):
     return df
 
 
-def scale_vols(voldata, pricedata, flag='atm'):
-    """Scales vol data. Currently, laterally shifts the vol curves by taking atm_vol_curr - atm_vol_prev.
+# def scale_vols(voldata, pricedata, flag='atm'):
+#     """Scales vol data. Currently, laterally shifts the vol curves by taking atm_vol_curr - atm_vol_prev.
 
-    Args:
-        voldata (TYPE): Dataframe of volatilities of the form returned by read_data
-        pricedata (TYPE): Dataframe of prices of the form returned by read_data
+#     Args:
+#         voldata (TYPE): Dataframe of volatilities of the form returned by read_data
+# pricedata (TYPE): Dataframe of prices of the form returned by read_data
 
-    Returns:
-        voldata: dataframe with an additional field indicating scaled volatilities. 
-    """
-    # find atm price
-    ids = voldata.vol_id.unique()
-    for iden in ids:
-        df = voldata[(voldata['vol_id'] == iden)]
-        dates = sorted(df.value_date)
-        uid = df['underlying_id'].unique()
-        for date in dates:
-            # get atm price
-            atm_price = pricedata[(pricedata.value_date == date) & (
-                pricedata.underlying_id == uid)]['settle_value'].values[0]
-            # interpolate vol data
+#     Returns:
+#         voldata: dataframe with an additional field indicating scaled volatilities.
+#     """
+#     # find atm price
+#     ids = voldata.vol_id.unique()
+#     for iden in ids:
+#         df = voldata[(voldata['vol_id'] == iden)]
+#         dates = sorted(df.value_date)
+#         uid = df['underlying_id'].unique()
+#         for date in dates:
+#             # get atm price
+#             atm_price = pricedata[(pricedata.value_date == date) & (
+#                 pricedata.underlying_id == uid)]['settle_value'].values[0]
+#             # interpolate vol data
 
-            cvols = df[(df['value_date'] == date) & (df.underlying_id == uid) & (df.call_put_id == 'C')][
-                'settle_vol']
-            pvols = df[(df['value_date'] == date) & (df.underlying_id == uid) & (df.call_put_id == 'P')][
-                'settle_vol']
+#             cvols = df[(df['value_date'] == date) & (df.underlying_id == uid) & (df.call_put_id == 'C')][
+#                 'settle_vol']
+#             pvols = df[(df['value_date'] == date) & (df.underlying_id == uid) & (df.call_put_id == 'P')][
+#                 'settle_vol']
 
-            strikes = df[(df['value_date'] == date) & (df.underlying_id == uid)][
-                'strike']
+#             strikes = df[(df['value_date'] == date) & (df.underlying_id == uid)][
+#                 'strike']
 
-    # isolate atm vol
-    # lateral scaling
+#     # isolate atm vol
+
+#     # lateral scaling
 
 
 def scale_prices(pricedata):
@@ -326,18 +339,59 @@ def scale_prices(pricedata):
     return pricedata
 
 
-# TODO: Check with Ananthi if we have Ci code with flexible rollover.
-def construct_ci_price(pricedata, rollover=None):
-    pass
+def get_expiry(pricedata, edf, rollover=None):
+    """Summary
+
+    Args:
+        pricedata (TYPE): Description
+        edf (TYPE): Description
+        rollover (None, optional): Description
+
+    Returns:
+        TYPE: Description
+    """
+    products = pricedata['pdt'].unique()
+    pricedata['ro_date'] = ''
+    pricedata['ro_date'] = pd.to_datetime(pricedata['ro_date'])
+    for prod in products:
+        # 1: isolate the rollover date.
+        df = pricedata[pricedata['pdt'] == prod]
+
+        uids = df['underlying_id'].unique()
+        for uid in uids:
+            # need to get same-month (i.e. Z7.Z7 expiries)
+            mth = uid.split()[1]
+            try:
+                roll_date = edf[(edf.opmth == mth) & (edf['product'] == prod)][
+                    'expiry_date'].values[0]
+                pricedata.ix[(pricedata['pdt'] == prod) &
+                             (pricedata['underlying_id'] == uid), 'ro_date'] = roll_date
+            except IndexError:
+                print('mth: ', mth)
+                print('uid: ', uid)
+                print('prod: ', prod)
+
+    return pricedata
 
 
-def construct_ci_vols(voldata):
-    pass
+# def construct_ci_vols(pricedata, edf, rollover=None):
+#     """Summary
+
+#     Args:
+#         pricedata (TYPE): Description
+#         edf (TYPE): Description
+#         rollover (None, optional): Description
+
+#     Returns:
+#         TYPE: Description
+#     """
+#     pass
 
 
 if __name__ == '__main__':
     # compute simulation start day; earliest day in dataframe.
     voldata, pricedata, edf = read_data(filepath)
+
     # just a sanity check, these two should be the same.
     sim_start = min(min(voldata['value_date']), min(pricedata['value_date']))
     assert (sim_start == min(voldata['value_date']))

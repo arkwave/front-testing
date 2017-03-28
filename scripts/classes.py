@@ -105,6 +105,9 @@ class Option:
     def get_ordering(string):
         return self.ordering
 
+    def decrement_ordering(i):
+        self.ordering -= i
+
     def get_month():
         return self.month
 
