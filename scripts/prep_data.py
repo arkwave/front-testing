@@ -2,21 +2,23 @@
 File Name      : prep_data.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 23/3/2017
+Last Modified  : 28/3/2017
 Python version : 3.5
 Description    : Script contains methods to read-in and format data. These methods are used in simulation.py.
 
 """
 
 # Imports
-# from .portfolio import Portfolio
-# from .classes import Option, Future
+from . import portfolio
+from . import classes
 import pandas as pd
 import calendar
 import datetime as dt
 import ast
 import sys
 import traceback
+import numpy as np
+import scipy
 
 '''
 TODO: 1) price/vol series transformation
@@ -96,7 +98,7 @@ def prep_portfolio(voldata, pricedata, sim_start):
     Returns:
         pf (Portfolio)              : a portfolio object.
     """
-    pf = Portfolio()
+    pf = portfolio.Portfolio()
     with open(filepath) as f:
         for line in f:
             if "%%" in line or line in ['\n', '\r\n']:
@@ -139,10 +141,10 @@ def prep_portfolio(voldata, pricedata, sim_start):
                     f_price = pricedata[(pricedata['value_date'] == sim_start) &
                                         (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
 
-                    underlying = Future(f_mth, f_price, f_name)
-                    opt = Option(strike, tau, char, vol, underlying,
-                                 payoff, shorted=shorted, month=opmth, direc=direc, barrier=barriertype,
-                                 bullet=bullet, ki=ki, ko=ko)
+                    underlying = classes.Future(f_mth, f_price, f_name)
+                    opt = classes.Option(strike, tau, char, vol, underlying,
+                                         payoff, shorted=shorted, month=opmth, direc=direc, barrier=barriertype,
+                                         bullet=bullet, ki=ki, ko=ko)
                     pf.add_security(opt, flag)
 
                 # input specifies a future
@@ -155,7 +157,7 @@ def prep_portfolio(voldata, pricedata, sim_start):
                     flag = inputs[4].strip('\n')
                     shorted = True if inputs[4] == 'short' else False
 
-                    ft = Future(mth, price, product, shorted=shorted)
+                    ft = classes.Future(mth, price, product, shorted=shorted)
                     pf.add_security(ft, flag)
 
     return pf
@@ -174,7 +176,7 @@ def clean_data(df, flag, edf):
     Returns:
         TYPE: Description
     """
-    df = df.dropna()
+    # df = df.dropna()
     # adjusting for datetime stuff
     df['value_date'] = pd.to_datetime(df['value_date'])
     if flag == 'vol':
@@ -196,7 +198,10 @@ def clean_data(df, flag, edf):
         df['contract_yr'] = pd.to_numeric(
             df['underlying_id'].str.split().str[1].str[1])
         df = assign_ci(df)
-    df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
+
+    df = df.dropna()
+    # df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
+
     return df
 
 
@@ -207,7 +212,7 @@ def ttm(df, s, edf):
     df['expdate'] = ''
     for iden in s:
         expdate = get_expiry_date(iden, edf)
-        print('Expdate: ', expdate)
+        # print('Expdate: ', expdate)
         try:
             expdate = expdate.values[0]
         except IndexError:
@@ -236,12 +241,13 @@ def get_expiry_date(volid, edf):
     return expdate
 
 
+# may not be necessary.
 def assign_ci(df):
     """Identifies the continuation numbers of each underlying.
-    
+
     Args:
         df (Pandas Dataframe): Dataframe of price data, in the same format as that returned by read_data.
-    
+
     Returns:
         Pandas dataframe     : Dataframe with the CIs populated.
     """
@@ -263,19 +269,77 @@ def assign_ci(df):
     return df
 
 
-def scale_vols(voldata, pricedata):
-    pass
+def scale_vols(voldata, pricedata, flag='atm'):
+    """Scales vol data. Currently, laterally shifts the vol curves by taking atm_vol_curr - atm_vol_prev.
 
+    Args:
+        voldata (TYPE): Dataframe of volatilities of the form returned by read_data
+        pricedata (TYPE): Dataframe of prices of the form returned by read_data
+
+    Returns:
+        voldata: dataframe with an additional field indicating scaled volatilities. 
+    """
+    # find atm price
+    ids = voldata.vol_id.unique()
+    for iden in ids:
+        df = voldata[(voldata['vol_id'] == iden)]
+        dates = sorted(df.value_date)
+        uid = df['underlying_id'].unique()
+        for date in dates:
+            # get atm price
+            atm_price = pricedata[(pricedata.value_date == date) & (
+                pricedata.underlying_id == uid)]['settle_value'].values[0]
+            # interpolate vol data
+
+            cvols = df[(df['value_date'] == date) & (df.underlying_id == uid) & (df.call_put_id == 'C')][
+                'settle_vol']
+            pvols = df[(df['value_date'] == date) & (df.underlying_id == uid) & (df.call_put_id == 'P')][
+                'settle_vol']
+
+            strikes = df[(df['value_date'] == date) & (df.underlying_id == uid)][
+                'strike']
+
+    # isolate atm vol
+    # lateral scaling
 
 
 def scale_prices(pricedata):
+    """Converts price data into returns, by applying log(curr/prev). Treats each underlying security by itself so as to avoid taking the quotient of two different securities.
+
+    Args:
+        pricedata (pandas dataframe): Dataframe of prices, of the form returned by read_data
+
+    Returns:
+        pandas dataframe: dataframe with an additional field indicating returns.
+    """
+    ids = pricedata['underlying_id'].unique()
+    pricedata['returns'] = ''
+    for x in ids:
+        # scale each price independently
+        df = pricedata[(pricedata['underlying_id'] == x)]
+        s = df['settle_value']
+        s1 = s.shift(-1)
+        ret = np.log(s1/s)
+        pricedata.ix[
+            (pricedata['underlying_id'] == x), 'returns'] = ret
+    pricedata = pricedata.dropna()
+    return pricedata
+
+
+# TODO: Check with Ananthi if we have Ci code with flexible rollover.
+def construct_ci_price(pricedata, rollover=None):
     pass
 
+
+def construct_ci_vols(voldata):
+    pass
 
 
 if __name__ == '__main__':
     # compute simulation start day; earliest day in dataframe.
     voldata, pricedata, edf = read_data(filepath)
     # just a sanity check, these two should be the same.
-    # sim_start = min(min(voldata['value_date']), min(pricedata['value_date']))
+    sim_start = min(min(voldata['value_date']), min(pricedata['value_date']))
+    assert (sim_start == min(voldata['value_date']))
+    assert (sim_start == min(pricedata['value_date']))
     # pf = prep_portfolio(voldata, pricedata, sim_start)

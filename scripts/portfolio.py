@@ -8,7 +8,6 @@ Description    : Script contains implementation of the Portfolio class, as well 
 
 """
 
-
 from operator import sub
 
 

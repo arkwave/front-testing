@@ -10,7 +10,7 @@ Description    : Script contains implementation of the Option and Futures classe
 
 
 # File containing all the classes required by the simulation.
-from .calc import _compute_value, _compute_greeks
+from . import calc
 
 lots = 10
 
@@ -177,7 +177,7 @@ class Option:
         s = self.underlying.get_price()
         # print(s)
         try:
-            delta, gamma, theta, vega = _compute_greeks(
+            delta, gamma, theta, vega = calc._compute_greeks(
                 self.char, self.K,  self.tau, self.vol, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc)
         except TypeError:
             print('char: ', self.char)
@@ -192,7 +192,7 @@ class Option:
             print('ko: ', self.ko)
             print('barrier: ', self.barrier)
             print('direction: ', self.direc)
-            # print(_compute_greeks(self.char, self.K,  self.tau, self.vol, s, self.r, product,
+            # print(calc._compute_greeks(self.char, self.K,  self.tau, self.vol, s, self.r, product,
             # self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc))
         # print(delta, gamma, theta, vega)
         self.delta = delta
@@ -214,7 +214,7 @@ class Option:
                 sigma = vol
             product = self.get_product()
             s = self.underlying.get_price()
-            self.delta, self.gamma, self.theta, self.vega = _compute_greeks(
+            self.delta, self.gamma, self.theta, self.vega = calc._compute_greeks(
                 self.char, self.K, self.tau, sigma, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc)
             self.vol = sigma
             self.price = self.compute_price()
@@ -232,13 +232,13 @@ class Option:
         # options.
         product = self.get_product()
         if self.barrier is None:
-            return _compute_iv(underlying, price, strike, tau, r, product)
+            return calc._compute_iv(underlying, price, strike, tau, r, product)
 
     def compute_price(self):
         # computes the value of this structure from relevant information.
         s = self.underlying.get_price()
         product = self.underlying.get_product()
-        return _compute_value(self.char, self.tau, self.vol, self.K, s, self.r, self.payoff, ki=self.ki, ko=self.ko, barrier=self.barrier, d=self.direc, product=product)
+        return calc._compute_value(self.char, self.tau, self.vol, self.K, s, self.r, self.payoff, ki=self.ki, ko=self.ko, barrier=self.barrier, d=self.direc, product=product)
 
     def get_price(self):
         # check for expiry case
@@ -331,6 +331,7 @@ class Future:
 
     def __init__(self, month, price, product, shorted=None, lots=lots):
         self.product = product
+        self.first_notice = None
         self.lots = lots
         self.desc = 'future'
         self.month = month

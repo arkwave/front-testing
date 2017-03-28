@@ -36,6 +36,7 @@ from math import log, sqrt, exp, pi
 from scipy.stats import norm
 import numpy as np
 import pandas as pd
+from . import prep_data
 
 
 # Dictionary of multipliers for greeks/pnl calculation.
@@ -70,6 +71,8 @@ multipliers = {
 # 60 days, 60-120 days, > 120 days serial time deltas will have different
 # spreads.
 filepath = 'portfolio_specs.txt'
+
+voldf, pricedf, edf = prep_data.read_data(filepath)
 
 
 #####################################################################
@@ -168,18 +171,29 @@ def get_barrier_vol(df, product, tau, call_put_id, barlevel):
     Returns:
         bvol (double)         : implied volatility at the barrier as specified by the vol surface df
     """
+    bvol = 0
     df['product'] = df['vol_id'].str.split().str[0]
-    bvol = df[(np.isclose(df['tau'], tau, atol=1e-4)) &
-              (df['call_put_id'] == call_put_id) &
-              (df['strike'] == barlevel) &
-              (df['product'] == product)]
-    bvol = bvol['settle_vol'].values[0]
+    try:
+
+        bvol = df[(np.isclose(df['tau'].astype(np.float64), tau, atol=1e-4)) &
+                  (df['call_put_id'] == call_put_id) &
+                  (df['strike'] == barlevel) &
+                  (df['pdt'] == product)]
+        bvol = bvol['settle_vol'].values[0]
+    except TypeError:
+        print(type(barlevel))
+        print(type(df['strike'][0]))
+        print('barlevel: ', barlevel)
+        print('strikeval: ', df['strike'])
+        print('tau_val: ', tau)
+        print('Product: ', product)
+
     return bvol
 
 
 def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, rebate=0):
-    from .prep_data import read_data
-    voldf, pricedf, edf = read_data(filepath)
+    # from .prep_data import read_data
+    # voldf, pricedf, edf = read_data(filepath)
     """ Pricing model for options with European barriers.
 
     Inputs:
@@ -716,8 +730,8 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction, produc
     Returns:
         delta, gamma, theta, vega : greeks of this instrument.
     """
-    from .prep_data import read_data
-    voldf, pricedf, edf = read_data(filepath)
+    # from .prep_data import read_data
+    # voldf, pricedf, edf = read_data(filepath)
     call_put_id = 'C' if char == 'call' else 'P'
     barlevel = ki if ki else ko
     ticksize = multipliers[product][2]
