@@ -164,6 +164,7 @@ Data processing steps:
 > price transformation                               [Done]
 
 
+29/3
 > vol surface difference transformation              []
 	> atm_curr - atm_prev
 > updating future and options object with ordering   []
@@ -180,7 +181,7 @@ Aux:
 
 
 
-29/3:
+30/3:
 feed_data                                             []
 handle_options                                        []
 2) testing from xtrader                               []
@@ -188,7 +189,6 @@ handle_options                                        []
 4) testing for european barrier pricing.              []
 5) adapt computation for returns and change in vol    []
 6) reading in multiplier list                         []
-
 
 
 

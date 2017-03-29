@@ -407,6 +407,7 @@ def get_rollover_dates(pricedata):
     return rollover_dates
 
 
+# FIXME: filtering will break, cont/product filtered together.
 def construct_ci_price(pricedata, rollover='opex'):
     """Constructs the CI price.
 
@@ -465,8 +466,8 @@ def construct_ci_price(pricedata, rollover='opex'):
     return final 
 
 
-def construct_ci_vols(pricedata, edf, rollover=None):
-    """Summary
+def construct_ci_vols(voldata, edf, rollover=None):
+    """Scales volatility surfaces and associates them with a product and an ordering number (ci).
 
     Args:
         pricedata (TYPE): Description
@@ -476,7 +477,21 @@ def construct_ci_vols(pricedata, edf, rollover=None):
     Returns:
         TYPE: Description
     """
-    pass
+    products = voldata.pdt.unique()
+    for product in products:
+        # filter first by cont, then by opmth
+        df = voldata[voldata['pdt'] == product]
+        conts = df.cont.unique()
+        for cont in conts:
+            df2 = voldata[voldata.pdt==product & voldata.cont=cont]
+            opmths = df2.op_mth.unique()
+            for mth in opmth:
+                df3 = voldata[voldata.pdt==product & voldata.cont==cont & voldata.op_mth == mth]
+                # now scale vols.
+                # get atm vol today
+                # get atm vol yesterday
+                # laterally shift entire vol curve by diff = curr - yesterday.
+                # append to a new dataframe similar to construct_ci_price and return. naming convention: Product ci opmth
 
 
 if __name__ == '__main__':
