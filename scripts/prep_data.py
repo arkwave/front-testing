@@ -19,6 +19,7 @@ import sys
 import traceback
 import numpy as np
 import scipy
+import math
 
 '''
 TODO: 1) price/vol series transformation
@@ -187,6 +188,7 @@ def clean_data(df, flag, edf=None):
         df = df[(df['year'] > 10)]
         s = df['opmth']
         df['opmth'] = s.str[0] + (pd.to_numeric(s.str[1:]) % 10).astype(str)
+        df.reset_index(drop=True, inplace=True)
 
     # cleaning volatility data
     elif flag == 'vol':
@@ -196,12 +198,14 @@ def clean_data(df, flag, edf=None):
         df = ttm(df, df['vol_id'], edf)
         df['underlying_id'] = df[
             'vol_id'].str.split().str[0] + '  ' + df['vol_id'].str.split('.').str[1]
-        df['pdt'] = df['underlying_id'].str.split().str[0]
-        df['op_mth'] = df['vol_id'].str.split('.').str[0].str.split().str[1]
-        df['contract_mth'] = df['underlying_id'].str.split().str[1].str[0]
-        df['contract_yr'] = pd.to_numeric(
-            df['underlying_id'].str.split().str[1].str[1])
+        df['pdt'] = df['underlying_id'].str.split().str[0]        
+        # df['op_mth'] = df['vol_id'].str.split('.').str[0].str.split().str[1]
+        # df['contract_mth'] = df['underlying_id'].str.split().str[1].str[0]
+        # df['contract_yr'] = pd.to_numeric(
+        #     df['underlying_id'].str.split().str[1].str[1])
         df = assign_ci(df)
+        df['label'] = df['vol_id'] + ' ' + df['cont'].astype(str) + ' ' + df.call_put_id
+        df.reset_index(drop=True, inplace=True)
 
     # cleaning price data
     elif flag == 'price':
@@ -213,6 +217,7 @@ def clean_data(df, flag, edf=None):
         df = get_expiry(df, edf)
         df = assign_ci(df)
         df = scale_prices(df)
+        df.reset_index(drop=True, inplace=True)
 
     df = df.dropna()
     # df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
@@ -281,41 +286,6 @@ def assign_ci(df):
             df.ix[(df['contract_mth'] == mth) & (df['contract_yr'] == curr_yr % (2000 + decade))
                   & (df['pdt'] == 'C'), 'cont'] = dist
     return df
-
-
-# def scale_vols(voldata, pricedata, flag='atm'):
-#     """Scales vol data. Currently, laterally shifts the vol curves by taking atm_vol_curr - atm_vol_prev.
-
-#     Args:
-#         voldata (TYPE): Dataframe of volatilities of the form returned by read_data
-# pricedata (TYPE): Dataframe of prices of the form returned by read_data
-
-#     Returns:
-#         voldata: dataframe with an additional field indicating scaled volatilities.
-#     """
-#     # find atm price
-#     ids = voldata.vol_id.unique()
-#     for iden in ids:
-#         df = voldata[(voldata['vol_id'] == iden)]
-#         dates = sorted(df.value_date)
-#         uid = df['underlying_id'].unique()
-#         for date in dates:
-#             # get atm price
-#             atm_price = pricedata[(pricedata.value_date == date) & (
-#                 pricedata.underlying_id == uid)]['settle_value'].values[0]
-#             # interpolate vol data
-
-#             cvols = df[(df['value_date'] == date) & (df.underlying_id == uid) & (df.call_put_id == 'C')][
-#                 'settle_vol']
-#             pvols = df[(df['value_date'] == date) & (df.underlying_id == uid) & (df.call_put_id == 'P')][
-#                 'settle_vol']
-
-#             strikes = df[(df['value_date'] == date) & (df.underlying_id == uid)][
-#                 'strike']
-
-#     # isolate atm vol
-
-#     # lateral scaling
 
 
 def scale_prices(pricedata):
@@ -407,7 +377,6 @@ def get_rollover_dates(pricedata):
     return rollover_dates
 
 
-# FIXME: filtering will break, cont/product filtered together.
 def construct_ci_price(pricedata, rollover='opex'):
     """Constructs the CI price.
 
@@ -425,6 +394,7 @@ def construct_ci_price(pricedata, rollover='opex'):
 
         products = pricedata['pdt'].unique()
         for product in products:
+            # df = pricedata[pricedata.pdt == product]
             retDF = None 
             all_mths = contract_mths[product]
             ci_num = len(all_mths)
@@ -447,7 +417,9 @@ def construct_ci_price(pricedata, rollover='opex'):
                 else:
                     df = df[['cont', 'settle_value', 'returns', 'value_date']]
                 # updating tmp
-                tmp = df if tmp is None else pd.concat([tmp, df])
+                # placeholder indicates a rollover point.
+                placeholder = pd.DataFrame([]).transpose().reset_index(drop=True)
+                tmp = df if tmp is None else pd.concat([tmp, placeholder ,  df])
             # now that c_1 has been established, shift to find the rest of the c_i for this product.
             tmp.reset_index(drop=True, inplace=True)
             for i in range(ci_num):
@@ -459,39 +431,80 @@ def construct_ci_price(pricedata, rollover='opex'):
             # names = [product + '_c' + str(i) for i in range(ci_num)]
             # retDF.names = names 
             final = retDF if final is None else pd.concat([final, retDF])
-            final.to_csv('debug_final.csv')
+            final.to_csv('debug_final.csv', index = False)
 
     else:
         return -1
     return final 
 
 
-def construct_ci_vols(voldata, edf, rollover=None):
+def civols(vdf, pdf,rollover=None):
     """Scales volatility surfaces and associates them with a product and an ordering number (ci).
 
     Args:
-        pricedata (TYPE): Description
+        pdf (TYPE): Description
         edf (TYPE): Description
         rollover (None, optional): Description
 
     Returns:
         TYPE: Description
     """
-    products = voldata.pdt.unique()
-    for product in products:
-        # filter first by cont, then by opmth
-        df = voldata[voldata['pdt'] == product]
-        conts = df.cont.unique()
-        for cont in conts:
-            df2 = voldata[voldata.pdt==product & voldata.cont=cont]
-            opmths = df2.op_mth.unique()
-            for mth in opmth:
-                df3 = voldata[voldata.pdt==product & voldata.cont==cont & voldata.op_mth == mth]
-                # now scale vols.
-                # get atm vol today
-                # get atm vol yesterday
-                # laterally shift entire vol curve by diff = curr - yesterday.
-                # append to a new dataframe similar to construct_ci_price and return. naming convention: Product ci opmth
+    # label = composite index that displays 1) Product 2) opmth 3) cond number.
+    t = time.time()
+    labels = vdf.label.unique()
+    retDF = vdf.copy()
+    retDF['vol change'] = ''
+
+    for label in labels:
+        df = vdf[vdf.label == label]
+        dates = sorted(df['value_date'].unique())
+        # df.reset_index(drop=True, inplace=True)
+        for i in range(len(dates)):
+            # first date in this label-df
+            try:
+                date = dates[i]
+                if i == 0:
+                    dvol = 0
+                else:
+                    prevdate = dates[i-1] 
+                    prev_atm_price = pdf[(pdf['value_date'] == prevdate)]['settle_value'].values[0]
+                    curr_atm_price = pdf[(pdf['value_date'] == date)]['settle_value'].values[0]
+                    # calls
+                    curr_vol_surface = df[(df['value_date'] == date)][['strike','settle_vol']]
+                    # print(curr_vol_surface)
+                    if curr_vol_surface.empty:
+                        print('CURR SURF EMPTY')
+                    prev_vol_surface = df[(df['value_date'] == prevdate)][['strike','settle_vol']]
+                    # print(prev_vol_surface)
+                    if prev_vol_surface.empty:
+                        print('PREV VOL SURF EMPTY')
+                    # round strikes up/down to nearest 10.                
+                    curr_atm_vol = curr_vol_surface.loc[(curr_vol_surface['strike'] == (round(curr_atm_price/10) * 10)), 'settle_vol']
+                    if curr_atm_vol.empty:
+                        print('ATM EMPTY. BREAKING.')
+                    curr_atm_vol = curr_atm_vol.values[0]
+                    if np.isnan(curr_atm_vol):
+                        print('ATM VOL IS NAN')
+                    prev_atm_vol = prev_vol_surface.loc[(prev_vol_surface['strike'] == (round(prev_atm_price/10) * 10)), 'settle_vol']
+                    if prev_atm_vol.empty:
+                        print('PREV SURF EMPTY')
+                    prev_atm_vol = prev_atm_vol.values[0]
+                    if np.isnan(prev_atm_vol):
+                        print('PREV VOL IS NAN')
+                    dvol = curr_vol_surface['settle_vol'] - prev_atm_vol
+                    # print('Diff: ', diff)
+                retDF.ix[(retDF.label == label) & (retDF['value_date'] == date), 'vol change'] = dvol 
+            except (IndexError):
+                print('Label: ', label)
+                print('Index: ', index)
+                print('product: ', product)
+                print('cont: ', cont)
+                print('idens: ', mth)
+
+    elapsed = time.time() - t
+    print('[CIVOLS] Time Elapsed: ', elapsed)
+    return retDF
+
 
 
 if __name__ == '__main__':
