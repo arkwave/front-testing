@@ -9,8 +9,8 @@ Description    : Script contains methods to read-in and format data. These metho
 """
 
 # # Imports
-from . import portfolio
-from . import classes
+# from . import portfolio
+# from . import classes
 import pandas as pd
 import calendar
 import datetime as dt
@@ -215,7 +215,7 @@ def clean_data(df, flag, edf=None):
         df = scale_prices(df)
 
     df = df.dropna()
-    df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
+    # df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
 
     return df
 
@@ -415,16 +415,21 @@ def construct_ci_price(pricedata, rollover='opex'):
         rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
 
     Returns:
-        TYPE: Description
+        pandas dataframe : prices arranged according to c_i indexing.
     """
-    retDF = None
+    tmp = None
+    final = None
     if rollover == 'opex':
         ro_dates = get_rollover_dates(pricedata)
 
         products = pricedata['pdt'].unique()
         for product in products:
+            retDF = None 
+            all_mths = contract_mths[product]
+            ci_num = len(all_mths)
             conts = sorted(pricedata['cont'].unique())
             most_recent = 0
+            # for all underlyings corresponding to this product, in CI order.
             for cont in conts:
                 df = pricedata[(pricedata.pdt == product) &
                                (pricedata['cont'] == cont)]
@@ -440,11 +445,24 @@ def construct_ci_price(pricedata, rollover='opex'):
                 # no rollover date.
                 else:
                     df = df[['cont', 'settle_value', 'returns', 'value_date']]
-                # updating retDF
-                retDF = df if retDF is None else pd.concat([retDF, df])
+                # updating tmp
+                tmp = df if tmp is None else pd.concat([tmp, df])
+            # now that c_1 has been established, shift to find the rest of the c_i for this product.
+            tmp.reset_index(drop=True, inplace=True)
+            for i in range(ci_num):
+                ciseries = tmp[tmp['cont']>=i]['returns']
+                ciseries.reset_index(drop=True, inplace=True)
+                # ciseries = ciseries.shift(-(ciseries.isnull().sum()))
+                ciseries.name = product + '_c' + str(i)
+                retDF = ciseries if retDF is None else pd.concat([retDF, ciseries], axis=1)
+            # names = [product + '_c' + str(i) for i in range(ci_num)]
+            # retDF.names = names 
+            final = retDF if final is None else pd.concat([final, retDF])
+            final.to_csv('debug_final.csv')
+
     else:
         return -1
-    return retDF
+    return final 
 
 
 def construct_ci_vols(pricedata, edf, rollover=None):

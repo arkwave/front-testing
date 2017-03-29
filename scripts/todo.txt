@@ -181,21 +181,21 @@ Aux:
 
 
 29/3:
-feed_data                                                []
-handle_options                                           []
-2) testing from xtrader                                  []
-3) testing for european barrier greeks                   []
-4) testing for european barrier pricing.                 []
-5) adapt computation to intake returns and change in vol []
-6) reading in multiplier list                            []
+feed_data                                             []
+handle_options                                        []
+2) testing from xtrader                               []
+3) testing for european barrier greeks                []
+4) testing for european barrier pricing.              []
+5) adapt computation for returns and change in vol    []
+6) reading in multiplier list                         []
 
 
 
 
 >>>>> Simulation Logic: <<<<<<
-1) Handle_options                                 []
-2) PnL                                            []
-3) Clean up feed_data once data format finalized  []
+1) Handle_options                                     []
+2) PnL                                                []
+3) Clean up feed_data once data format finalized      []
 
 
 
