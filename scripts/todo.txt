@@ -165,26 +165,26 @@ Data processing steps:
 
 
 29/3
-> track rollover in prcice and vol                   []
 > vol surface difference transformation              []
-	> atm_curr - atm_prev
-> updating future and options object with ordering   []
-
-
-
-Data selection steps:
-> selecting vol from vol surface based on delta      []
+	> atm_curr - atm_prev 	                         [Done]
+	> helper to isolate option ordering based on mth [Done]
+> selection rollover logic                           [Done]
 > selecting vol from vol surface based on strike     [Done]
-> selection rollover logic                           []
 
 
 
-Aux:
+30/3 [Morning]
+> finish indexing vols ci option indexng             []
+> track rollover in prcice and vol                   []
+> updating future and options object with ordering   []
 > generate data requirements from portfolio object   []
 
 
 
-30/3:
+> selecting vol from vol surface based on delta      [Not required atm]
+
+
+30/3 [At work]
 feed_data                                             []
 handle_options                                        []
 2) testing from xtrader                               []

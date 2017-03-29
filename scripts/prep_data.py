@@ -200,9 +200,9 @@ def clean_data(df, flag, edf=None):
             'vol_id'].str.split().str[0] + '  ' + df['vol_id'].str.split('.').str[1]
         df['pdt'] = df['underlying_id'].str.split().str[0]        
         # df['op_mth'] = df['vol_id'].str.split('.').str[0].str.split().str[1]
-        # df['contract_mth'] = df['underlying_id'].str.split().str[1].str[0]
-        # df['contract_yr'] = pd.to_numeric(
-        #     df['underlying_id'].str.split().str[1].str[1])
+        df['contract_mth'] = df['underlying_id'].str.split().str[1].str[0]
+        df['contract_yr'] = pd.to_numeric(
+            df['underlying_id'].str.split().str[1].str[1])
         df = assign_ci(df)
         df['label'] = df['vol_id'] + ' ' + df['cont'].astype(str) + ' ' + df.call_put_id
         df.reset_index(drop=True, inplace=True)
@@ -271,23 +271,47 @@ def assign_ci(df):
         Pandas dataframe     : Dataframe with the CIs populated.
     """
     today = dt.date.today()
+    curr_mth_val = today.month
     curr_mth = month_to_sym[today.month]
     curr_day = today.day
     curr_yr = today.year
     products = df['pdt'].unique()
     df['cont'] = ''
     for pdt in products:
-        all_mths = contract_mths[pdt]
+        lst = contract_mths[pdt]
         # finding rightward distance.
-        for mth in all_mths:
+        for mth in lst:
             if mth not in df['contract_mth'].values:
                 continue
-            dist = (all_mths.index(mth) - all_mths.index(curr_mth)) % 5
+            dist = find_cdist(mth, curr_mth, all_mths)
             df.ix[(df['contract_mth'] == mth) & (df['contract_yr'] == curr_yr % (2000 + decade))
                   & (df['pdt'] == 'C'), 'cont'] = dist
     return df
 
 
+def find_cdist(x1, x2, lst):
+    """Given two symbolic months (e.g. N7 and Z7), identifies the ordering of the month (c1, c2, etc.)
+    
+    Args:
+        x1 (TYPE): current month
+        x2 (TYPE): target month
+        lst (TYPE): list of contract months for this product.
+    
+    Returns:
+        int: ordering
+    """
+    # case 1: month is a contract month.
+    if x1 in lst:
+        dist = (lst.index(x1) - lst.index(x2)) % len(lst)
+    # case 2: month is NOT a contract month. C1 would be nearest contract month. 
+    else:
+        mthvals = [sym_to_month[x] for x in lst]
+        mthvals.append(sym_to_month[x1])
+        mthvals = sorted(mthvals)
+        dist = mthvals.index(x2) - mthvals.index(x1)
+    return dist
+
+    
 def scale_prices(pricedata):
     """Converts price data into returns, by applying log(curr/prev). Treats each underlying security by itself so as to avoid taking the quotient of two different securities.
 
@@ -396,8 +420,8 @@ def construct_ci_price(pricedata, rollover='opex'):
         for product in products:
             # df = pricedata[pricedata.pdt == product]
             retDF = None 
-            all_mths = contract_mths[product]
-            ci_num = len(all_mths)
+            lst = contract_mths[product]
+            ci_num = len(lst)
             conts = sorted(pricedata['cont'].unique())
             most_recent = 0
             # for all underlyings corresponding to this product, in CI order.
