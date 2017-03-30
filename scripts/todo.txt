@@ -175,6 +175,7 @@ Data processing steps:
 
 30/3 [Morning]
 > finish indexing vols ci option indexng             [Done]
+> testing find_cdist                                 [Done]
 
 
 

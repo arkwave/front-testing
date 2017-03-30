@@ -303,7 +303,7 @@ def find_cdist(x1, x2, lst):
     """
     # case 1: month is a contract month.
     if x1 in lst:
-        dist = (lst.index(x1) - lst.index(x2)) % len(lst)
+        dist = (lst.index(x2) - lst.index(x1)) % len(lst)
     # case 2: month is NOT a contract month. C1 would be nearest contract month. 
     else:
         mthvals = [sym_to_month[x] for x in lst]
