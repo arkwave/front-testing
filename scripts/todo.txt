@@ -183,10 +183,25 @@ Data processing steps:
 
 
 30/3 [At work]. Priority: finish the CI stuff/testing.
-> rollover in price                                  []
-> rollover in vol                                    []
+> rollover in price                                  [Done]
+	> testing                                        []
+> fix find_dist and assign ci to take into account 
+multiple years.                                      [Done]
+	> testing                                        [Done]
+
+
+
+> New task: delta interpolation dataframe.           []
+> mapping between CIs and symbols.                   []
+
+
+
 > updating future and options object with ordering   []
 > generate data requirements from portfolio object   []
+
+
+
+
 
 2) testing from xtrader                               []
 3) testing for european barrier greeks                []
@@ -195,6 +210,8 @@ Data processing steps:
 6) reading in multiplier list                         []
 
 7) that moneyness error.
+
+
 
 31/3:
 feed_data                                             []

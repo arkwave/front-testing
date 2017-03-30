@@ -9,8 +9,9 @@ Description    : Script contains methods to read-in and format data. These metho
 """
 
 # # Imports
-from . import portfolio
-from . import classes
+# from . import portfolio
+# from . import classes
+
 import pandas as pd
 import calendar
 import datetime as dt
@@ -20,13 +21,16 @@ import traceback
 import numpy as np
 import scipy
 import math
-import time 
+import time
 
 '''
 TODO: 1) price/vol series transformation
       2) read in multipliers from csv
 '''
 
+
+# setting pandas warning levels
+pd.options.mode.chained_assignment = None
 
 # Dictionary mapping month to symbols and vice versa
 month_to_sym = {1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
@@ -67,6 +71,7 @@ def read_data(filepath):
     """
     Summary: Reads in the relevant data files specified in portfolio_specs.txt, which is specified by filepath.
     """
+    t = time.time()
     with open(filepath) as f:
         try:
             # get paths
@@ -88,7 +93,8 @@ def read_data(filepath):
             print(expath)
             import os
             print(os.getcwd())
-
+    elapsed = time.time() - t
+    print('[READ_DATA] elapsed: ', elapsed)
     return volDF, priceDF, edf
 
 
@@ -104,6 +110,7 @@ def prep_portfolio(voldata, pricedata, sim_start):
     Returns:
         pf (Portfolio)              : a portfolio object.
     """
+    t = time.time()
     pf = portfolio.Portfolio()
     with open(filepath) as f:
         for line in f:
@@ -165,7 +172,8 @@ def prep_portfolio(voldata, pricedata, sim_start):
 
                     ft = classes.Future(mth, price, product, shorted=shorted)
                     pf.add_security(ft, flag)
-
+    elapsed = time.time() - t
+    print('[PREP_PORTFOLIO] elapsed: ', elapsed)
     return pf
 
 
@@ -187,9 +195,10 @@ def clean_data(df, flag, edf=None):
         # cleaning expiry data
         df['expiry_date'] = pd.to_datetime(df['expiry_date'])
         df = df[(df['year'] > 10)]
-        s = df['opmth']
-        df['opmth'] = s.str[0] + (pd.to_numeric(s.str[1:]) % 10).astype(str)
-        df.reset_index(drop=True, inplace=True)
+        s = df['opmth'].copy()
+        # df['opmth'] = ''
+        df.ix[:, 'opmth'] = s.str[0] + \
+            (pd.to_numeric(s.str[1:]) % 10).astype(str)
 
     # cleaning volatility data
     elif flag == 'vol':
@@ -197,31 +206,45 @@ def clean_data(df, flag, edf=None):
         df = df.dropna()
         # calculating time to expiry
         df = ttm(df, df['vol_id'], edf)
+
+        # generating additional identifying fields.
         df['underlying_id'] = df[
             'vol_id'].str.split().str[0] + '  ' + df['vol_id'].str.split('.').str[1]
-        df['pdt'] = df['underlying_id'].str.split().str[0]        
-        # df['op_mth'] = df['vol_id'].str.split('.').str[0].str.split().str[1]
-        df['contract_mth'] = df['underlying_id'].str.split().str[1].str[0]
-        df['contract_yr'] = pd.to_numeric(
-            df['underlying_id'].str.split().str[1].str[1])
+
+        df['pdt'] = df['underlying_id'].str.split().str[0]
+
+        # df['contract_mth'] = df['underlying_id'].str.split().str[1].str[0]
+        # df['contract_yr'] = pd.to_numeric(
+        # df['underlying_id'].str.split().str[1].str[1])
+
+        df['ftmth'] = df['underlying_id'].str.split().str[1]
+        # transformative functions
         df = assign_ci(df)
-        df['label'] = df['vol_id'] + ' ' + df['cont'].astype(str) + ' ' + df.call_put_id
-        df.reset_index(drop=True, inplace=True)
+        df.to_csv('debug_assignment_ci.csv')
+        try:
+            df['label'] = df['vol_id'] + ' ' + \
+                df['cont'].astype(str) + ' ' + df.call_put_id
+        except TypeError:
+            print(df.vol_id[0])
+            print('vol_id type: ', type(df.vol_id[0]))
+            print('cont type: ', type(df.cont[0]))
 
     # cleaning price data
     elif flag == 'price':
         df['value_date'] = pd.to_datetime(df['value_date'])
         df['pdt'] = df['underlying_id'].str.split().str[0]
-        df['contract_mth'] = df['underlying_id'].str.split().str[1].str[0]
-        df['contract_yr'] = pd.to_numeric(
-            df['underlying_id'].str.split().str[1].str[1])
+        df['ftmth'] = df['underlying_id'].str.split().str[1]
+        # df['contract_mth'] = df['underlying_id'].str.split().str[1].str[0]
+        # df['contract_yr'] = pd.to_numeric(
+        #     df['underlying_id'].str.split().str[1].str[1])
+        # transformative functions.
         df = get_expiry(df, edf)
         df = assign_ci(df)
         df = scale_prices(df)
-        df.reset_index(drop=True, inplace=True)
 
+    df.reset_index(drop=True, inplace=True)
     df = df.dropna()
-    # df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
+    df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
 
     return df
 
@@ -280,39 +303,84 @@ def assign_ci(df):
     df['cont'] = ''
     for pdt in products:
         lst = contract_mths[pdt]
-        # finding rightward distance.
-        for mth in lst:
-            if mth not in df['contract_mth'].values:
-                continue
-            dist = find_cdist(mth, curr_mth, lst)
-            df.ix[(df['contract_mth'] == mth) & (df['contract_yr'] == curr_yr % (2000 + decade))
-                  & (df['pdt'] == 'C'), 'cont'] = dist
+        df2 = df[df.pdt == pdt]
+        ftmths = df2.ftmth.unique()
+        for ftmth in ftmths:
+            m1 = curr_mth + str(curr_yr % (2000 + decade))
+            dist = find_cdist(m1, ftmth, lst)
+            df.ix[(df.pdt == pdt) & (df.ftmth == ftmth), 'cont'] = dist
     return df
 
 
 def find_cdist(x1, x2, lst):
     """Given two symbolic months (e.g. N7 and Z7), identifies the ordering of the month (c1, c2, etc.)
-    
+
     Args:
         x1 (TYPE): current month
         x2 (TYPE): target month
         lst (TYPE): list of contract months for this product.
-    
+
     Returns:
         int: ordering
     """
+    x1mth = x1[0]
+    x1yr = int(x1[1:])
+    x2mth = x2[0]
+    x2yr = int(x2[1:])
+
     # case 1: month is a contract month.
-    if x1 in lst:
-        dist = (lst.index(x2) - lst.index(x1)) % len(lst)
-    # case 2: month is NOT a contract month. C1 would be nearest contract month. 
+    if x1mth in lst:
+        reg = (lst.index(x2mth) - lst.index(x1mth)) % len(lst)
+        # case 1.1: difference in years.
+        # example: (Z7, Z9)
+        if x2yr > x1yr and (x1mth == x2mth):
+            yrdiff = x2yr - x1yr
+            dist = len(lst) * yrdiff
+        # example: (K7, Z9)
+        elif (x2yr > x1yr) and (x2mth > x1mth):
+            yrdiff = x2yr - x1yr
+            dist = reg + (len(lst) * yrdiff)
+        # examples: (Z7, H8), (N7, Z7), (Z7, U7)
+        else:
+            return reg
+
+    # case 2: month is NOT a contract month. C1 would be nearest contract
+    # month.
     else:
-        mthvals = [sym_to_month[x] for x in lst]
-        mthvals.append(sym_to_month[x1])
+        # FIXME: rework this.
+        num_fewer = [x for x in lst if x < x1mth]
+        num_more = [x for x in lst if x > x1mth]
+        # example: (V7, Z7)
+        if (x1yr == x2yr) and (x2mth > x1mth):
+            dist = num_more.index(x2mth) + 1
+        # example: (V7, Z8)
+        elif (x2yr > x1yr) and (x2mth > x1mth):
+            yrdiff = x2yr - x2yr
+            dist = yrdiff*len(num_more) + yrdiff*len(num_fewer) + \
+                num_more.index(x2mth)
+        # example: (V7, H9)
+        elif (x2yr > x1yr) and (x2mth < x1mth):
+            yrdiff = x2yr - x1yr
+
+        mthvals = lst.copy()
+        mthvals.append(x1mth)
         mthvals = sorted(mthvals)
-        dist = mthvals.index(x2) - mthvals.index(x1)
+        # recursively call after appending to list.
+        # to account for adding into the lst.
+        dist = find_cdist(x1, x2, mthvals)
+
     return dist
 
-    
+
+def generate_mappings(pricedata):
+    mappings = {}
+    products = pricedata['pdt'].unique()
+    curr_mth = dt.date.today().month
+    for product in products:
+        mths = contract_mths[product]
+    pass
+
+
 def scale_prices(pricedata):
     """Converts price data into returns, by applying log(curr/prev). Treats each underlying security by itself so as to avoid taking the quotient of two different securities.
 
@@ -399,10 +467,13 @@ def get_rollover_dates(pricedata):
                     print('cont: ', cont)
                     print('min: ', min(test))
                     print('product: ', product)
+            else:
+                expdate = df2['expdate'].unique()[0]
+                rollover_dates[product][i] = pd.Timestamp(expdate)
     return rollover_dates
 
 
-def construct_ci_price(pricedata, rollover='opex'):
+def ciprice(pricedata, rollover='opex'):
     """Constructs the CI price.
 
     Args:
@@ -412,58 +483,55 @@ def construct_ci_price(pricedata, rollover='opex'):
     Returns:
         pandas dataframe : prices arranged according to c_i indexing.
     """
-    tmp = None
-    final = None
+    t = time.time()
     if rollover == 'opex':
         ro_dates = get_rollover_dates(pricedata)
-
         products = pricedata['pdt'].unique()
+        # iterate over produts
+        by_product = None
         for product in products:
-            # df = pricedata[pricedata.pdt == product]
-            retDF = None 
+            df = pricedata[pricedata.pdt == product]
             lst = contract_mths[product]
-            ci_num = len(lst)
-            conts = sorted(pricedata['cont'].unique())
-            most_recent = 0
-            # for all underlyings corresponding to this product, in CI order.
-            for cont in conts:
-                df = pricedata[(pricedata.pdt == product) &
-                               (pricedata['cont'] == cont)]
-                rdate = ro_dates[product][cont]
-                # rollover date exists.
-                if rdate != 0:
-                    # select items of relevance
-                    breakpoint = most_recent if most_recent != 0 else min(df[
-                                                                          'value_date'])
-                    df = df[(df['value_date'] < rdate) & (df['value_date'] >= breakpoint)][
-                        ['cont', 'settle_value', 'returns', 'value_date']]
-                    most_recent = rdate
-                # no rollover date.
-                else:
-                    df = df[['cont', 'settle_value', 'returns', 'value_date']]
-                # updating tmp
-                # placeholder indicates a rollover point.
-                placeholder = pd.DataFrame([]).transpose().reset_index(drop=True)
-                tmp = df if tmp is None else pd.concat([tmp, placeholder ,  df])
-            # now that c_1 has been established, shift to find the rest of the c_i for this product.
-            tmp.reset_index(drop=True, inplace=True)
-            for i in range(ci_num):
-                ciseries = tmp[tmp['cont']>=i][['returns', 'value_date']]
-                ciseries.reset_index(drop=True, inplace=True)
-                # ciseries = ciseries.shift(-(ciseries.isnull().sum()))
-                ciseries.columns = [product + '_c' + str(i), 'value_date']
-                retDF = ciseries if retDF is None else pd.concat([retDF, ciseries], axis=1)
-            # names = [product + '_c' + str(i) for i in range(ci_num)]
-            # retDF.names = names 
-            final = retDF if final is None else pd.concat([final, retDF])
-            final.to_csv('debug_final.csv', index = False)
-
+            conts = sorted(df['cont'].unique())
+            most_recent = []
+            by_date = None
+            relevant_dates = ro_dates[product]
+            # iterate over rollover dates for this product.
+            for date in relevant_dates:
+                # print('most_recent: ', most_recent)
+                # print('date: ', date)
+                breakpoint = max(most_recent) if most_recent else min(
+                    df['value_date'])
+                by_cont = None
+                # iterate over all conts for this product. for each cont, grab
+                # entries until first breakpoint, and stack wide.
+                for cont in conts:
+                    df2 = df[df.cont == cont]
+                    tdf = df2[(df2['value_date'] < date) & (df2['value_date'] >= breakpoint)][
+                        ['value_date', 'returns']]
+                    tdf.columns = ['value_date', product + '_c' + str(cont)]
+                    tdf.reset_index(drop=True, inplace=True)
+                    by_cont = tdf if by_cont is None else pd.concat(
+                        [by_cont, tdf], axis=1)
+                # by_date contains entries from all conts until current
+                # rollover date. take and stack this long.
+                by_date = by_cont if by_date is None else pd.concat(
+                    [by_date, by_cont])
+                most_recent.append(date)
+            by_product = by_date if by_product is None else pd.concat(
+                [by_product, by_cont], axis=1)
+        by_product.dropna(inplace=True)
+        by_product = by_product.loc[:, ~by_product.columns.duplicated()]
+        by_product.to_csv('by_product_debug.csv', index=False)
+        final = by_product
     else:
-        return -1
-    return final 
+        final = -1
+    elapsed = time.time() - t
+    print('[CI-PRICE] elapsed: ', elapsed)
+    return final
 
 
-def civols(vdf, pdf,rollover='opex'):
+def civols(vdf, pdf, rollover='opex'):
     """Scales volatility surfaces and associates them with a product and an ordering number (ci).
 
     Args:
@@ -491,60 +559,68 @@ def civols(vdf, pdf,rollover='opex'):
                 if i == 0:
                     dvol = 0
                 else:
-                    prevdate = dates[i-1] 
-                    prev_atm_price = pdf[(pdf['value_date'] == prevdate)]['settle_value'].values[0]
-                    curr_atm_price = pdf[(pdf['value_date'] == date)]['settle_value'].values[0]
+                    prevdate = dates[i-1]
+                    prev_atm_price = pdf[(pdf['value_date'] == prevdate)][
+                        'settle_value'].values[0]
+                    curr_atm_price = pdf[(pdf['value_date'] == date)][
+                        'settle_value'].values[0]
                     # calls
-                    curr_vol_surface = df[(df['value_date'] == date)][['strike','settle_vol']]
+                    curr_vol_surface = df[(df['value_date'] == date)][
+                        ['strike', 'settle_vol']]
                     # print(curr_vol_surface)
-                    if curr_vol_surface.empty:
-                        print('CURR SURF EMPTY')
-                    prev_vol_surface = df[(df['value_date'] == prevdate)][['strike','settle_vol']]
+                    # if curr_vol_surface.empty:
+                    #     print('CURR SURF EMPTY')
+                    prev_vol_surface = df[(df['value_date'] == prevdate)][
+                        ['strike', 'settle_vol']]
                     # print(prev_vol_surface)
-                    if prev_vol_surface.empty:
-                        print('PREV VOL SURF EMPTY')
-                    # round strikes up/down to nearest 10.                
-                    curr_atm_vol = curr_vol_surface.loc[(curr_vol_surface['strike'] == (round(curr_atm_price/10) * 10)), 'settle_vol']
-                    if curr_atm_vol.empty:
-                        print('ATM EMPTY. BREAKING.')
+                    # if prev_vol_surface.empty:
+                    #     print('PREV VOL SURF EMPTY')
+                    # round strikes up/down to nearest 10.
+                    curr_atm_vol = curr_vol_surface.loc[
+                        (curr_vol_surface['strike'] == (round(curr_atm_price/10) * 10)), 'settle_vol']
+                    # if curr_atm_vol.empty:
+                    #     print('ATM EMPTY. BREAKING.')
                     curr_atm_vol = curr_atm_vol.values[0]
-                    if np.isnan(curr_atm_vol):
-                        print('ATM VOL IS NAN')
-                    prev_atm_vol = prev_vol_surface.loc[(prev_vol_surface['strike'] == (round(prev_atm_price/10) * 10)), 'settle_vol']
-                    if prev_atm_vol.empty:
-                        print('PREV SURF EMPTY')
+                    # if np.isnan(curr_atm_vol):
+                    #     print('ATM VOL IS NAN')
+                    prev_atm_vol = prev_vol_surface.loc[
+                        (prev_vol_surface['strike'] == (round(prev_atm_price/10) * 10)), 'settle_vol']
+                    # if prev_atm_vol.empty:
+                    #     print('PREV SURF EMPTY')
                     prev_atm_vol = prev_atm_vol.values[0]
-                    if np.isnan(prev_atm_vol):
-                        print('PREV VOL IS NAN')
+                    # if np.isnan(prev_atm_vol):
+                    #     print('PREV VOL IS NAN')
                     dvol = curr_vol_surface['settle_vol'] - prev_atm_vol
                     # print('Diff: ', diff)
-                retDF.ix[(retDF.label == label) & (retDF['value_date'] == date), 'vol change'] = dvol 
+                retDF.ix[(retDF.label == label) & (
+                    retDF['value_date'] == date), 'vol change'] = dvol
             except (IndexError):
                 print('Label: ', label)
                 print('Index: ', index)
                 print('product: ', product)
                 print('cont: ', cont)
                 print('idens: ', mth)
-        # assign each vol surface to an appropriately named column in a new dataframe.
+        # assign each vol surface to an appropriately named column in a new
+        # dataframe.
         product = label[0]
         call_put_id = label[-1]
-        # FIXME: year-long expiries, i.e. Z6.Z7
-        opmth = label.split('.')[0].split()[1][0]
-        ftmth = label.split('.')[1].split()[0][0]
-        cont =  int(label.split('.')[1].split()[1])
+        # opmth = Z8 or analogous
+        opmth = label.split('.')[0].split()[1]
+        # ftmth = Z8 or analogous
+        ftmth = label.split('.')[1].split()[0]
+        cont = int(label.split('.')[1].split()[1])
         mthlist = contract_mths[product]
         dist = find_cdist(opmth, ftmth, mthlist)
         # column is of the format: product_c(opdist)(cont)_callorput
-        vals = retDF[retDF.label==label][['strike', 'vol change']]
+        vals = retDF[retDF.label == label][['strike', 'vol change']]
         vals.reset_index(drop=True, inplace=True)
-        vals.columns = ['strike' , product + '_c' + str(cont) + '_' + str(dist) +  '_' + call_put_id]
-        ret = vals if ret is None else pd.concat([ret, vals], axis = 1)
-
+        vals.columns = ['strike', product + '_c' +
+                        str(cont) + '_' + str(dist) + '_' + call_put_id]
+        ret = vals if ret is None else pd.concat([ret, vals], axis=1)
 
     elapsed = time.time() - t
-    print('[CIVOLS] Time Elapsed: ', elapsed)
+    print('[CI-VOLS] Time Elapsed: ', elapsed)
     return ret
-
 
 
 if __name__ == '__main__':
