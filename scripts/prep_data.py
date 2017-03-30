@@ -2,15 +2,15 @@
 File Name      : prep_data.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 28/3/2017
+Last Modified  : 30/3/2017
 Python version : 3.5
 Description    : Script contains methods to read-in and format data. These methods are used in simulation.py.
 
 """
 
 # # Imports
-# from . import portfolio
-# from . import classes
+from . import portfolio
+from . import classes
 import pandas as pd
 import calendar
 import datetime as dt
@@ -20,6 +20,7 @@ import traceback
 import numpy as np
 import scipy
 import math
+import time 
 
 '''
 TODO: 1) price/vol series transformation
@@ -283,7 +284,7 @@ def assign_ci(df):
         for mth in lst:
             if mth not in df['contract_mth'].values:
                 continue
-            dist = find_cdist(mth, curr_mth, all_mths)
+            dist = find_cdist(mth, curr_mth, lst)
             df.ix[(df['contract_mth'] == mth) & (df['contract_yr'] == curr_yr % (2000 + decade))
                   & (df['pdt'] == 'C'), 'cont'] = dist
     return df
@@ -447,10 +448,10 @@ def construct_ci_price(pricedata, rollover='opex'):
             # now that c_1 has been established, shift to find the rest of the c_i for this product.
             tmp.reset_index(drop=True, inplace=True)
             for i in range(ci_num):
-                ciseries = tmp[tmp['cont']>=i]['returns']
+                ciseries = tmp[tmp['cont']>=i][['returns', 'value_date']]
                 ciseries.reset_index(drop=True, inplace=True)
                 # ciseries = ciseries.shift(-(ciseries.isnull().sum()))
-                ciseries.name = product + '_c' + str(i)
+                ciseries.columns = [product + '_c' + str(i), 'value_date']
                 retDF = ciseries if retDF is None else pd.concat([retDF, ciseries], axis=1)
             # names = [product + '_c' + str(i) for i in range(ci_num)]
             # retDF.names = names 
@@ -462,13 +463,13 @@ def construct_ci_price(pricedata, rollover='opex'):
     return final 
 
 
-def civols(vdf, pdf,rollover=None):
+def civols(vdf, pdf,rollover='opex'):
     """Scales volatility surfaces and associates them with a product and an ordering number (ci).
 
     Args:
-        pdf (TYPE): Description
-        edf (TYPE): Description
-        rollover (None, optional): Description
+        vdf (TYPE): vol dataframe of same form as the one returned by read_data
+        pdf (TYPE): price dataframe of same form as the one returned by read_data
+        rollover (None, optional): rollover logic; defaults to 'opex' (option expiry.)
 
     Returns:
         TYPE: Description
@@ -478,7 +479,7 @@ def civols(vdf, pdf,rollover=None):
     labels = vdf.label.unique()
     retDF = vdf.copy()
     retDF['vol change'] = ''
-
+    ret = None
     for label in labels:
         df = vdf[vdf.label == label]
         dates = sorted(df['value_date'].unique())
@@ -524,10 +525,25 @@ def civols(vdf, pdf,rollover=None):
                 print('product: ', product)
                 print('cont: ', cont)
                 print('idens: ', mth)
+        # assign each vol surface to an appropriately named column in a new dataframe.
+        product = label[0]
+        call_put_id = label[-1]
+        # FIXME: year-long expiries, i.e. Z6.Z7
+        opmth = label.split('.')[0].split()[1][0]
+        ftmth = label.split('.')[1].split()[0][0]
+        cont =  int(label.split('.')[1].split()[1])
+        mthlist = contract_mths[product]
+        dist = find_cdist(opmth, ftmth, mthlist)
+        # column is of the format: product_c(opdist)(cont)_callorput
+        vals = retDF[retDF.label==label][['strike', 'vol change']]
+        vals.reset_index(drop=True, inplace=True)
+        vals.columns = ['strike' , product + '_c' + str(cont) + '_' + str(dist) +  '_' + call_put_id]
+        ret = vals if ret is None else pd.concat([ret, vals], axis = 1)
+
 
     elapsed = time.time() - t
     print('[CIVOLS] Time Elapsed: ', elapsed)
-    return retDF
+    return ret
 
 
 

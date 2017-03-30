@@ -165,7 +165,7 @@ Data processing steps:
 
 
 29/3
-> vol surface difference transformation              []
+> vol surface difference transformation              [Done]
 	> atm_curr - atm_prev 	                         [Done]
 	> helper to isolate option ordering based on mth [Done]
 > selection rollover logic                           [Done]
@@ -174,25 +174,30 @@ Data processing steps:
 
 
 30/3 [Morning]
-> finish indexing vols ci option indexng             []
-> track rollover in prcice and vol                   []
-> updating future and options object with ordering   []
-> generate data requirements from portfolio object   []
+> finish indexing vols ci option indexng             [Done]
 
 
 
 > selecting vol from vol surface based on delta      [Not required atm]
 
 
-30/3 [At work]
-feed_data                                             []
-handle_options                                        []
+30/3 [At work]. Priority: finish the CI stuff/testing.
+> rollover in price                                  []
+> rollover in vol                                    []
+> updating future and options object with ordering   []
+> generate data requirements from portfolio object   []
+
 2) testing from xtrader                               []
 3) testing for european barrier greeks                []
 4) testing for european barrier pricing.              []
 5) adapt computation for returns and change in vol    []
 6) reading in multiplier list                         []
 
+7) that moneyness error.
+
+31/3:
+feed_data                                             []
+handle_options                                        []
 
 
 >>>>> Simulation Logic: <<<<<<

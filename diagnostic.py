@@ -1,174 +1,190 @@
-char = 'call'
-strike = 300
-tau = 0.89589041
-vol = 0.19142796
-s = 380
-r = 0
-product = 'C'
-payoff = 'euro'
-ki = None
-ko = None
-barrier = None
-direction = None
+"""
+File Name      : prep_data.py
+Author         : Ananth Ravi Kumar
+Date created   : 7/3/2017
+Last Modified  : 28/3/2017
+Python version : 3.5
+Description    : Script contains methods to read-in and format data. These methods are used in simulation.py.
 
-from math import log, exp, pi, sqrt
-from scipy.stats import norm
+"""
 
-multipliers = {
+# # Imports
+from . import portfolio
+from . import classes
+from scripts.prep_data import read_data
+import pandas as pd
+import calendar
+import datetime as dt
+import ast
+import sys
+import traceback
+import numpy as np
+import scipy
+import math
+import time 
 
-    'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
-    'LSU': [1, 50, 0.1, 10, 50],
-    'LCC': [1.2153, 10, 1, 25, 12.153],
-    'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
-    'CC':  [1, 10, 1, 50, 10],
-    'CT':  [22.046, 22.679851, 0.01, 1, 500],
-    'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
-    'W':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'S':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'C':   [0.3936786, 127.00717, 0.25, 10, 50],
-    'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
-    'LC':  [22.046, 18.143881, 0.025, 1, 400],
-    'LRC': [1, 10, 1, 50, 10],
-    'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
-    'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
-    'COM': [1.0604, 50, 0.25, 2.5, 53.02],
-    'OBM': [1.0604, 50, 0.25, 1, 53.02],
-    'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
+'''
+TODO:  2) read in multipliers from csv
+'''
+
+
+# Dictionary mapping month to symbols and vice versa
+month_to_sym = {1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
+                7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'}
+sym_to_month = {'F': 1, 'G': 2, 'H': 3, 'J': 4, 'K': 5,
+                'M': 6, 'N': 7, 'Q': 8, 'U': 9, 'V': 10, 'X': 11, 'Z': 12}
+decade = 10
+
+# specifies the filepath for the read-in file.
+filepath = 'portfolio_specs.txt'
+
+vdf, pdf, edf = read_data(filepath)
+
+# composite label that has product, opmth, cont.
+vdf['label'] = vdf['vol_id'] + ' ' + vdf['cont'].astype(str) + ' ' + vdf.call_put_id
+
+
+# details contract months for each commodity. used in the continuation
+# assignment.
+contract_mths = {
+
+    'LH':  ['G', 'J', 'K', 'M', 'N', 'Q', 'V', 'Z'],
+    'LSU': ['H', 'K', 'Q', 'V', 'Z'],
+    'LCC': ['H', 'K', 'N', 'U', 'Z'],
+    'SB':  ['H', 'K', 'N', 'V'],
+    'CC':  ['H', 'K', 'N', 'U', 'Z'],
+    'CT':  ['H', 'K', 'N', 'Z'],
+    'KC':  ['H', 'K', 'N', 'U', 'Z'],
+    'W':   ['H', 'K', 'N', 'U', 'Z'],
+    'S':   ['F', 'H', 'K', 'N', 'Q', 'U', 'X'],
+    'C':   ['H', 'K', 'N', 'U', 'Z'],
+    'BO':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
+    'LC':  ['G', 'J', 'M', 'Q', 'V' 'Z'],
+    'LRC': ['F', 'H', 'K', 'N', 'U', 'X'],
+    'KW':  ['H', 'K', 'N', 'U', 'Z'],
+    'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
+    'COM': ['G', 'K', 'Q', 'X'],
+    'OBM': ['H', 'K', 'U', 'Z'],
+    'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
 
-def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots, ki=None, ko=None, barrier=None, direction=None):
-    """ Computes the greeks of various option profiles. Currently, american and european greeks and pricing are assumed to be the same.
-
-    Inputs:  1) char   : call or put
-             2) K      : strike
-             3) tau    : time to expiry
-             4) vol    : volatility (sigma)
-             5) s      : price of underlying
-             6) r      : interest
-             7) product: underlying commodity.
-             8) payoff : american or european option.
-             9) lots   : number of lots.
-             10) barrier: american or european barrier.
-
-    Outputs: 1) delta  : dC/dS
-             2) gamma  : d^2C/dS^2
-             3) theta  : dC/dt
-             4) vega   : dC/dvol
-    """
-
-    # european options
-    if tau == 0:
-        print('tau == 0 case')
-        gamma, theta, vega = 0, 0, 0
-        if char == 'call':
-            # in the money
-            delta = 1 if K < s else 0
-        if char == 'put':
-            delta = -1 if K > s else 0
-        return delta, gamma, theta, vega
-    if payoff == 'euro' or payoff == 'amer':
-        # vanilla case
-        if barrier is None:
-            # print('vanilla case')
-            return _euro_vanilla_greeks(
-                char, K, tau, vol, s, r, product, lots)
-        elif barrier == 'amer':
-            # print('amer barrier case')
-            # greeks for european options with american barrier.
-            return _euro_barrier_amer_greeks(char, tau, vol, K, s, r, payoff, direction, product, ki, ko, lots)
-        elif barrier == 'euro':
-            # print('euro barrier case')
-            # greeks for european options with european barrier.
-            return _euro_barrier_euro_greeks(char, tau, vol, K, s, r, payoff, direction, product, ki, ko, lots)
-
-
-def _euro_vanilla_greeks(char, K, tau, vol, s, r, product, lots):
-    """Summary
+# TODO: add in some kind of day counter that syncs up with the prices -> can use to track rollover dates as well.
+def civols(vdf, pdf,rollover='opex'):
+    """Scales volatility surfaces and associates them with a product and an ordering number (ci).
 
     Args:
-        char (TYPE): Description
-        K (TYPE): Description
-        tau (TYPE): Description
-        vol (TYPE): Description
-        s (TYPE): Description
-        r (TYPE): Description
-        product (TYPE): Description
+        vdf (TYPE): vol dataframe of same form as the one returned by read_data
+        pdf (TYPE): price dataframe of same form as the one returned by read_data
+        rollover (None, optional): rollover logic; defaults to 'opex' (option expiry.)
 
     Returns:
         TYPE: Description
     """
-    # addressing degenerate case
-    if vol == 0:
-        gamma, theta, vega = 0, 0, 0
-        if char == 'call':
-            delta = 1 if K >= s else 0
-        if char == 'put':
-            delta = -1 if K >= s else 0
-        return delta, theta, gamma, vega
-    # print('VanInputs: ', char, K, tau, vol, s, r)
-    d1 = (log(s/K) + (r + 0.5 * vol ** 2)*tau) / \
-        (vol * sqrt(tau))
-    d2 = d1 - vol*(sqrt(tau))
+    # label = composite index that displays 1) Product 2) opmth 3) cond number.
+    t = time.time()
+    labels = vdf.label.unique()
+    retDF = vdf.copy()
+    retDF['vol change'] = ''
+    ret = None
+    for label in labels:
+        df = vdf[vdf.label == label]
+        dates = sorted(df['value_date'].unique())
+        # df.reset_index(drop=True, inplace=True)
+        for i in range(len(dates)):
+            # first date in this label-df
+            try:
+                date = dates[i]
+                if i == 0:
+                    dvol = 0
+                else:
+                    prevdate = dates[i-1] 
+                    prev_atm_price = pdf[(pdf['value_date'] == prevdate)]['settle_value'].values[0]
+                    curr_atm_price = pdf[(pdf['value_date'] == date)]['settle_value'].values[0]
+                    # calls
+                    curr_vol_surface = df[(df['value_date'] == date)][['strike','settle_vol']]
+                    # print(curr_vol_surface)
+                    if curr_vol_surface.empty:
+                        print('CURR SURF EMPTY')
+                    prev_vol_surface = df[(df['value_date'] == prevdate)][['strike','settle_vol']]
+                    # print(prev_vol_surface)
+                    if prev_vol_surface.empty:
+                        print('PREV VOL SURF EMPTY')
+                    # round strikes up/down to nearest 10.                
+                    curr_atm_vol = curr_vol_surface.loc[(curr_vol_surface['strike'] == (round(curr_atm_price/10) * 10)), 'settle_vol']
+                    if curr_atm_vol.empty:
+                        print('ATM EMPTY. BREAKING.')
+                    curr_atm_vol = curr_atm_vol.values[0]
+                    if np.isnan(curr_atm_vol):
+                        print('ATM VOL IS NAN')
+                    prev_atm_vol = prev_vol_surface.loc[(prev_vol_surface['strike'] == (round(prev_atm_price/10) * 10)), 'settle_vol']
+                    if prev_atm_vol.empty:
+                        print('PREV SURF EMPTY')
+                    prev_atm_vol = prev_atm_vol.values[0]
+                    if np.isnan(prev_atm_vol):
+                        print('PREV VOL IS NAN')
+                    dvol = curr_vol_surface['settle_vol'] - prev_atm_vol
+                    # print('Diff: ', diff)
+                retDF.ix[(retDF.label == label) & (retDF['value_date'] == date), 'vol change'] = dvol 
+            except (IndexError):
+                print('Label: ', label)
+                print('Index: ', index)
+                print('product: ', product)
+                print('cont: ', cont)
+                print('idens: ', mth)
+        # assign each vol surface to an appropriately named column in a new dataframe.
+        product = label[0]
+        call_put_id = label[-1]
+        # FIXME: year-long expiries, i.e. Z6.Z7
+        opmth = label.split('.')[0].split()[1][0]
+        ftmth = label.split('.')[1].split()[0][0]
+        cont =  int(label.split('.')[1].split()[1])
+        mthlist = contract_mths[product]
+        dist = find_cdist(opmth, ftmth, mthlist)
+        # column is of the format: product_c(opdist)(cont)_callorput
+        vals = retDF[retDF.label==label][['strike', 'vol change']]
+        vals.reset_index(drop=True, inplace=True)
+        vals.columns = ['strike' , product + '_c' + str(cont) + '_' + str(dist) + '_' + call_put_id]
+        ret = vals if ret is None else pd.concat([ret, vals], axis = 1)
 
-    # (1/sqrt(2*pi)) * exp(-(d1**2) / 2) / (s*vol*sqrt(tau))
-    gamma1 = norm.pdf(d1)/(s*vol*sqrt(tau))
-    vega1 = s * exp(r*tau) * norm.pdf(d1) * sqrt(tau)
 
-    if char == 'call':
-        # call option calc for delta and theta
-        delta1 = norm.cdf(d1)
-        theta1 = (-s * norm.pdf(d1)*vol) / (2*sqrt(tau))
-    if char == 'put':
-        # put option calc for delta and theta
-        delta1 = norm.cdf(d1) - 1
-        theta1 = (-s * norm.pdf(d1)*vol) / (2*sqrt(tau))
-
-    delta, gamma, theta, vega = greeks_scaled(
-        delta1, gamma1, theta1, vega1, product, lots)
-    return delta, gamma, theta, vega
+    elapsed = time.time() - t
+    print('[CIVOLS] Time Elapsed: ', elapsed)
+    return ret
 
 
-def greeks_scaled(delta1, gamma1, theta1, vega1, product, lots):
-    return delta1, gamma1, theta1/365, vega1/100
 
+def find_cdist(x1, x2, lst):
+    """Given two symbolic months (e.g. N7 and Z7), identifies the ordering of the month (c1, c2, etc.)
+    
+    Args:
+        x1 (TYPE): current month
+        x2 (TYPE): target month
+        lst (TYPE): list of contract months for this product.
+    
+    Returns:
+        int: ordering
+    """
+    # case 1: month is a contract month.
+    if x1 in lst:
+        dist = (lst.index(x1) - lst.index(x2)) % len(lst)
+    # case 2: month is NOT a contract month. C1 would be nearest contract month. 
+    else:
+        mthvals = [sym_to_month[x] for x in lst]
+        mthvals.append(sym_to_month[x1])
+        mthvals = sorted(mthvals)
+        dist = mthvals.index(x2) - mthvals.index(x1)
+    return dist
 
-def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, lots, rebate=0):
-    """Computes greeks of european options with american barriers. """
-    ticksize = multipliers[product][2]
-    change_spot = 0.1 * ticksize
-    change_vol = 0.0001
-    change_tau = 1/(24*365)
-    # computing delta
-    # char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0
-    del1 = _barrier_amer(char, tau, vol, k, s+change_spot,
-                         r, payoff, direction, ki, ko)
-    del2 = _barrier_amer(char, tau, vol,
-                         k, max(0, s-change_spot),
-                         r, payoff, direction, ki, ko)
-    delta = (del1 - del2)/(2*change_spot)
-
-    # computing gamma
-    del3 = _barrier_amer(
-        char, tau, vol, k, s, r, payoff, direction, ki, ko)
-    gamma = (del1 - 2*del3 + del2)/(change_spot**2) if tau > 0 else 0
-
-    # computing vega
-    v1 = _barrier_amer(char, tau, vol+change_vol, k, s, r,
-                       payoff, direction, ki, ko)
-    tvol = max(0, vol - change_vol)
-
-    v2 = _barrier_amer(char, tau, tvol, k, s, r,
-                       payoff, direction, ki, ko)
-    vega = (v1 - v2)/(2*change_vol) if tau > 0 else 0
-
-    # computing theta
-    t1 = _barrier_amer(char, tau, vol, k, s, r,
-                       payoff, direction, ki, ko)
-    t2 = _barrier_amer(char, tau-change_tau, vol, k, s, r,
-                       payoff, direction, ki, ko)
-    theta = (t2 - t1)/change_tau if tau > 0 else 0
-    # scaling greeks to retrieve dollar value.
-    delta, gamma, theta, vega = greeks_scaled(
-        delta, gamma, theta, vega, product, lots)
-    return delta, gamma, theta, vega
+# label = 'C  N7.Z7 4 C'
+# df = vdf[vdf.label == label]
+# dates = sorted(df.value_date.unique())
+# d1 = dates[0]
+# d2 = dates[1]
+# prev_atm_price = pdf[(pdf['value_date'] == d1)]['settle_value'].values[0]
+# curr_atm_price = pdf[(pdf['value_date'] == d2)]['settle_value'].values[0]
+# curr_vol_surface = df[(df['value_date'] == d2)][['strike','settle_vol']]
+# prev_vol_surface = df[(df['value_date'] == d1)][['strike','settle_vol']]
+# prev_atm_vol = prev_vol_surface.loc[(prev_vol_surface['strike'] == (round(prev_atm_price/10) * 10)), 'settle_vol']
+# prev_atm_vol = prev_atm_vol.values[0]
+# dvol = curr_vol_surface['settle_vol'] - prev_atm_vol

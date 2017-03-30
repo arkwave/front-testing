@@ -37,3 +37,7 @@ def test_get_rollover_dates():
     assert set(ret.keys()) == set(['C'])
     val = pd.to_datetime('2017-02-26 00:00:00')
     assert ret['C'][0] == val
+
+
+def test_get_cdist():
+    pass
