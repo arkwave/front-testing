@@ -19,10 +19,11 @@ import ast
 import sys
 import traceback
 import numpy as np
-import scipy
-import math
+from scipy.stats import norm
+from math import log, sqrt
 import time
-
+import matplotlib.pyplot as plt
+import seaborn as sns
 '''
 TODO:  2) read in multipliers from csv
 '''
@@ -41,8 +42,8 @@ filepath = 'portfolio_specs.txt'
 vdf, pdf, edf = read_data(filepath)
 
 # composite label that has product, opmth, cont.
-vdf['label'] = vdf['vol_id'] + ' ' + \
-    vdf['cont'].astype(str) + ' ' + vdf.call_put_id
+# vdf['label'] = vdf['vol_id'] + ' ' + \
+#     vdf['cont'].astype(str) + ' ' + vdf.call_put_id
 
 
 # details contract months for each commodity. used in the continuation
@@ -70,93 +71,63 @@ contract_mths = {
 }
 
 
-def find_cdist(x1, x2, lst):
-    """Given two symbolic months (e.g. N7 and Z7), identifies the ordering of the month (c1, c2, etc.)
+def compute_delta(x):
+    s = x.settle_value
+    K = x.strike
+    tau = x.tau
+    char = x.call_put_id
+    vol = x.settle_vol
+    r = 0
+    try:
+        d1 = (log(s/K) + (r + 0.5 * vol ** 2)*tau) / \
+            (vol * sqrt(tau))
+    except (ZeroDivisionError):
+        d1 = -np.inf
 
-    Args:
-        x1 (TYPE): current month
-        x2 (TYPE): target month
-        lst (TYPE): list of contract months for this product.
+    if char == 'C':
+        # call option calc for delta and theta
+        delta1 = norm.cdf(d1)
+    if char == 'P':
+        # put option calc for delta and theta
+        delta1 = norm.cdf(d1) - 1
 
-    Returns:
-        int: ordering
-    """
-    x1mth = x1[0]
-    print('x1mth: ', x1mth)
-    x1yr = int(x1[1:])
-    print('x1yr: ', x1yr)
-    x2mth = x2[0]
-    print('x2mth: ', x2mth)
-    x2yr = int(x2[1:])
-    print('x2yr: ', x2yr)
-
-    # case 1: month is a contract month.
-    if x1mth in lst:
-        reg = (lst.index(x2mth) - lst.index(x1mth)) % len(lst)
-        # case 1.1: difference in years.
-        # example: (Z7, Z9)
-        if x2yr > x1yr and (x1mth == x2mth):
-            print('Hit 1st')
-            yrdiff = x2yr - x1yr
-            print('yrdiff: ', yrdiff)
-            dist = len(lst) * yrdiff
-        # example: (K7, Z9)
-        elif (x2yr > x1yr) and (x1mth < x2mth):
-            print('Hit 2nd')
-            yrdiff = x2yr - x1yr
-            dist = reg + (len(lst) * (yrdiff-1)) + 1
-        # example: (X7, H8)
-        # elif (x2yr > x1yr) and (x2mth < x1mth):
-        #     print('Hit third')
-        #     yrdiff = x2yr - x1yr
-        #     num_fewer = len([x for x in lst if x < x1mth])
-        #     print(num_fewer)
-        #     dist = yrdiff*len(lst) - num_fewer
-        # # examples: (Z7, H8), (N7, Z7), (Z7, U7)
-        else:
-            print('Hit last')
-            dist = reg
-
-    # case 2: month is NOT a contract month. C1 would be nearest contract
-    # month.
-    else:
-        yrdiff = x2yr - x1yr
-        mthvals = lst.copy()
-        mthvals.append(x1mth)
-        mthvals = sorted(mthvals)
-        # recursively call after appending to list.
-        # to account for adding into the lst.
-        dist = find_cdist(x1, x2, mthvals) - yrdiff
-
-    return dist
+    return delta1
 
 
-def assign_ci(df):
-    """Identifies the continuation numbers of each underlying.
+def vol_by_delta(voldata, pricedata):
+    relevant_price = pricedata[
+        ['underlying_id', 'value_date', 'settle_value', 'cont']]
+    relevant_vol = voldata[['value_date', 'vol_id', 'strike',
+                            'call_put_id', 'tau', 'settle_vol', 'underlying_id']]
+    merged = pd.merge(relevant_vol, relevant_price,
+                      on=['value_date', 'underlying_id'])
+    # filtering out negative tau values.
+    merged = merged[(merged['tau'] > 0) & (merged['settle_vol'] > 0)]
+    merged['delta'] = merged.apply(compute_delta, axis=1)
+    merged.to_csv('merged.csv')
+    return merged
 
-    Args:
-        df (Pandas Dataframe): Dataframe of price data, in the same format as that returned by read_data.
 
-    Returns:
-        Pandas dataframe     : Dataframe with the CIs populated.
-    """
-    today = dt.date.today()
-    curr_mth_val = today.month
-    curr_mth = month_to_sym[today.month]
-    curr_day = today.day
-    curr_yr = today.year
-    products = df['pdt'].unique()
-    df['cont'] = ''
-    for pdt in products:
-        lst = contract_mths[pdt]
-        df2 = df[df.pdt == pdt]
-        ftmths = df2.ftmth.unique()
-        for ftmth in ftmths:
-            m1 = curr_mth + str(curr_yr % (2000 + decade))
-            dist = find_cdist(m1, ftmth, lst)
-            df.ix[(df.pdt == pdt) & (df.ftmth == ftmth)] = dist
-    return df
+df = vol_by_delta(vdf, pdf)
+d1c = df[(df.value_date == pd.Timestamp('2017-01-01')) & (df.call_put_id == 'C')
+         ][['settle_vol', 'delta', 'strike']]
+d1p = df[(df.value_date == pd.Timestamp('2017-01-01')) & (df.call_put_id == 'P')
+         ][['settle_vol', 'delta', 'strike']]
 
+# filtering
+d1c = d1c[(d1c.delta > 0.05) & (d1c.delta < 0.95)]
+d1p = d1p[(d1p.delta < - 0.05) & (d1p.delta > -0.95)]
+
+plt.figure()
+plt.scatter(d1p.delta, d1p.settle_vol, c='c', alpha=0.7)
+plt.xlabel('delta')
+plt.ylabel('settle vol')
+plt.legend()
+plt.show()
+
+# conc = pd.concat(d1c, d1p)
+# plt.figure()
+# plt.scatter()
 
 # label = 'C  N7.Z7 4 C'
 # df = vdf[vdf.label == label]
@@ -170,94 +141,3 @@ def assign_ci(df):
 # prev_atm_vol = prev_vol_surface.loc[(prev_vol_surface['strike'] == (round(prev_atm_price/10) * 10)), 'settle_vol']
 # prev_atm_vol = prev_atm_vol.values[0]
 # dvol = curr_vol_surface['settle_vol'] - prev_atm_vol
-# TODO: add in some kind of day counter that syncs up with the prices ->
-# can use to track rollover dates as well.
-def civols(vdf, pdf, rollover='opex'):
-    """Scales volatility surfaces and associates them with a product and an ordering number (ci).
-
-    Args:
-        vdf (TYPE): vol dataframe of same form as the one returned by read_data
-        pdf (TYPE): price dataframe of same form as the one returned by read_data
-        rollover (None, optional): rollover logic; defaults to 'opex' (option expiry.)
-
-    Returns:
-        TYPE: Description
-    """
-    # label = composite index that displays 1) Product 2) opmth 3) cond number.
-    t = time.time()
-    labels = vdf.label.unique()
-    retDF = vdf.copy()
-    retDF['vol change'] = ''
-    ret = None
-    for label in labels:
-        df = vdf[vdf.label == label]
-        dates = sorted(df['value_date'].unique())
-        # df.reset_index(drop=True, inplace=True)
-        for i in range(len(dates)):
-            # first date in this label-df
-            try:
-                date = dates[i]
-                if i == 0:
-                    dvol = 0
-                else:
-                    prevdate = dates[i-1]
-                    prev_atm_price = pdf[(pdf['value_date'] == prevdate)][
-                        'settle_value'].values[0]
-                    curr_atm_price = pdf[(pdf['value_date'] == date)][
-                        'settle_value'].values[0]
-                    # calls
-                    curr_vol_surface = df[(df['value_date'] == date)][
-                        ['strike', 'settle_vol']]
-                    # print(curr_vol_surface)
-                    if curr_vol_surface.empty:
-                        print('CURR SURF EMPTY')
-                    prev_vol_surface = df[(df['value_date'] == prevdate)][
-                        ['strike', 'settle_vol']]
-                    # print(prev_vol_surface)
-                    if prev_vol_surface.empty:
-                        print('PREV VOL SURF EMPTY')
-                    # round strikes up/down to nearest 10.
-                    curr_atm_vol = curr_vol_surface.loc[
-                        (curr_vol_surface['strike'] == (round(curr_atm_price/10) * 10)), 'settle_vol']
-                    if curr_atm_vol.empty:
-                        print('ATM EMPTY. BREAKING.')
-                    curr_atm_vol = curr_atm_vol.values[0]
-                    if np.isnan(curr_atm_vol):
-                        print('ATM VOL IS NAN')
-                    prev_atm_vol = prev_vol_surface.loc[
-                        (prev_vol_surface['strike'] == (round(prev_atm_price/10) * 10)), 'settle_vol']
-                    if prev_atm_vol.empty:
-                        print('PREV SURF EMPTY')
-                    prev_atm_vol = prev_atm_vol.values[0]
-                    if np.isnan(prev_atm_vol):
-                        print('PREV VOL IS NAN')
-                    dvol = curr_vol_surface['settle_vol'] - prev_atm_vol
-                    # print('Diff: ', diff)
-                retDF.ix[(retDF.label == label) & (
-                    retDF['value_date'] == date), 'vol change'] = dvol
-            except (IndexError):
-                print('Label: ', label)
-                print('Index: ', index)
-                print('product: ', product)
-                print('cont: ', cont)
-                print('idens: ', mth)
-        # assign each vol surface to an appropriately named column in a new
-        # dataframe.
-        product = label[0]
-        call_put_id = label[-1]
-        # FIXME: year-long expiries, i.e. Z6.Z7
-        opmth = label.split('.')[0].split()[1][0]
-        ftmth = label.split('.')[1].split()[0][0]
-        cont = int(label.split('.')[1].split()[1])
-        mthlist = contract_mths[product]
-        dist = find_cdist(opmth, ftmth, mthlist)
-        # column is of the format: product_c(opdist)(cont)_callorput
-        vals = retDF[retDF.label == label][['strike', 'vol change']]
-        vals.reset_index(drop=True, inplace=True)
-        vals.columns = ['strike', product + '_c' +
-                        str(cont) + '_' + str(dist) + '_' + call_put_id]
-        ret = vals if ret is None else pd.concat([ret, vals], axis=1)
-
-    elapsed = time.time() - t
-    print('[CIVOLS] Time Elapsed: ', elapsed)
-    return ret

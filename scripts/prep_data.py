@@ -11,7 +11,6 @@ Description    : Script contains methods to read-in and format data. These metho
 # # Imports
 # from . import portfolio
 # from . import classes
-
 import pandas as pd
 import calendar
 import datetime as dt
@@ -24,10 +23,8 @@ import math
 import time
 
 '''
-TODO: 1) price/vol series transformation
-      2) read in multipliers from csv
+TODO   read in multipliers from csv
 '''
-
 
 # setting pandas warning levels
 pd.options.mode.chained_assignment = None
@@ -330,44 +327,55 @@ def find_cdist(x1, x2, lst):
 
     # case 1: month is a contract month.
     if x1mth in lst:
+        # print('if case')
         reg = (lst.index(x2mth) - lst.index(x1mth)) % len(lst)
         # case 1.1: difference in years.
         # example: (Z7, Z9)
         if x2yr > x1yr and (x1mth == x2mth):
+            # print('case 1')
             yrdiff = x2yr - x1yr
             dist = len(lst) * yrdiff
         # example: (K7, Z9)
         elif (x2yr > x1yr) and (x2mth > x1mth):
+            # print('case 2')
             yrdiff = x2yr - x1yr
             dist = reg + (len(lst) * yrdiff)
         # examples: (Z7, H8), (N7, Z7), (Z7, U7)
         else:
+            # print('case 3')
             return reg
 
     # case 2: month is NOT a contract month. C1 would be nearest contract
     # month.
     else:
-        # FIXME: rework this.
+        # print('else case')
         num_fewer = [x for x in lst if x < x1mth]
+        # print('num fewer: ', num_fewer)
         num_more = [x for x in lst if x > x1mth]
+        # print('num more: ', num_more)
         # example: (V7, Z7)
         if (x1yr == x2yr) and (x2mth > x1mth):
+            # print('case 1')
             dist = num_more.index(x2mth) + 1
         # example: (V7, Z8)
         elif (x2yr > x1yr) and (x2mth > x1mth):
-            yrdiff = x2yr - x2yr
+            # print('case 2')
+            yrdiff = x2yr - x1yr
+            # print(len(num_fewer))
+            # print(len(num_more))
+            # print(num_more.index(x2mth) + 1)
             dist = yrdiff*len(num_more) + yrdiff*len(num_fewer) + \
-                num_more.index(x2mth)
+                (num_more.index(x2mth) + 1)
         # example: (V7, H9)
         elif (x2yr > x1yr) and (x2mth < x1mth):
+            # print('case 3')
             yrdiff = x2yr - x1yr
-
-        mthvals = lst.copy()
-        mthvals.append(x1mth)
-        mthvals = sorted(mthvals)
+            dist = yrdiff * len(num_more) + (yrdiff-1) * \
+                len(num_fewer) + (num_fewer.index(x2mth) + 1)
         # recursively call after appending to list.
         # to account for adding into the lst.
-        dist = find_cdist(x1, x2, mthvals)
+        else:
+            dist = None
 
     return dist
 
@@ -474,7 +482,7 @@ def get_rollover_dates(pricedata):
 
 
 def ciprice(pricedata, rollover='opex'):
-    """Constructs the CI price.
+    """Constructs the CI price series.
 
     Args:
         pricedata (TYPE): price data frame of same format as read_data
@@ -567,31 +575,17 @@ def civols(vdf, pdf, rollover='opex'):
                     # calls
                     curr_vol_surface = df[(df['value_date'] == date)][
                         ['strike', 'settle_vol']]
-                    # print(curr_vol_surface)
-                    # if curr_vol_surface.empty:
-                    #     print('CURR SURF EMPTY')
                     prev_vol_surface = df[(df['value_date'] == prevdate)][
                         ['strike', 'settle_vol']]
-                    # print(prev_vol_surface)
-                    # if prev_vol_surface.empty:
-                    #     print('PREV VOL SURF EMPTY')
+
                     # round strikes up/down to nearest 10.
                     curr_atm_vol = curr_vol_surface.loc[
                         (curr_vol_surface['strike'] == (round(curr_atm_price/10) * 10)), 'settle_vol']
-                    # if curr_atm_vol.empty:
-                    #     print('ATM EMPTY. BREAKING.')
                     curr_atm_vol = curr_atm_vol.values[0]
-                    # if np.isnan(curr_atm_vol):
-                    #     print('ATM VOL IS NAN')
                     prev_atm_vol = prev_vol_surface.loc[
                         (prev_vol_surface['strike'] == (round(prev_atm_price/10) * 10)), 'settle_vol']
-                    # if prev_atm_vol.empty:
-                    #     print('PREV SURF EMPTY')
                     prev_atm_vol = prev_atm_vol.values[0]
-                    # if np.isnan(prev_atm_vol):
-                    #     print('PREV VOL IS NAN')
                     dvol = curr_vol_surface['settle_vol'] - prev_atm_vol
-                    # print('Diff: ', diff)
                 retDF.ix[(retDF.label == label) & (
                     retDF['value_date'] == date), 'vol change'] = dvol
             except (IndexError):
@@ -623,12 +617,12 @@ def civols(vdf, pdf, rollover='opex'):
     return ret
 
 
-if __name__ == '__main__':
-    # compute simulation start day; earliest day in dataframe.
-    voldata, pricedata, edf = read_data(filepath)
+# if __name__ == '__main__':
+    # # compute simulation start day; earliest day in dataframe.
+    # voldata, pricedata, edf = read_data(filepath)
 
-    # just a sanity check, these two should be the same.
-    sim_start = min(min(voldata['value_date']), min(pricedata['value_date']))
-    assert (sim_start == min(voldata['value_date']))
-    assert (sim_start == min(pricedata['value_date']))
-    # pf = prep_portfolio(voldata, pricedata, sim_start)
+    # # just a sanity check, these two should be the same.
+    # sim_start = min(min(voldata['value_date']), min(pricedata['value_date']))
+    # assert (sim_start == min(voldata['value_date']))
+    # assert (sim_start == min(pricedata['value_date']))
+    # # pf = prep_portfolio(voldata, pricedata, sim_start)

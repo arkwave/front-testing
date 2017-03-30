@@ -2,7 +2,7 @@
 File Name      : calc.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 23/3/2017
+Last Modified  : 30/3/2017
 Python version : 3.5
 
 Description:
