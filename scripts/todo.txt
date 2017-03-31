@@ -184,18 +184,29 @@ Data processing steps:
 
 30/3 [At work]. Priority: finish the CI stuff/testing.
 > rollover in price                                  [Done]
-	> testing                                        []
-> fix find_dist and assign ci to take into account 
+	> testing                                        [Done]
+> fix find_dist and assign ci to take into account   
 multiple years.                                      [Done]
 	> testing                                        [Done]
 
-> New task: delta interpolation dataframe.           []
+
+31/3
+> New task: delta interpolation dataframe.           [Done]
+2) testing from xtrader                              [Done]
+3) testing for european barrier greeks               []
+
+
+
 > mapping between CIs and symbols.                   []
+5) adapt computation for returns and change in vol   []
+7) that moneyness error.                             []
+6) reading in multiplier list                        []
 
 
 
 
-31/3:
+
+1/4:
 feed_data                                             []
 handle_options                                        []
 > updating future and options object with ordering   []
@@ -203,13 +214,7 @@ handle_options                                        []
 
 
 
-2) testing from xtrader                               []
-3) testing for european barrier greeks                []
-4) testing for european barrier pricing.              []
-5) adapt computation for returns and change in vol    []
-6) reading in multiplier list                         []
 
-7) that moneyness error.
 
 
 >>>>> Simulation Logic: <<<<<<

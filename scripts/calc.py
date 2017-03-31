@@ -608,7 +608,7 @@ def _euro_vanilla_greeks(char, K, tau, vol, s, r, product, lots):
         if char == 'put':
             delta = -1 if K >= s else 0
         return delta, theta, gamma, vega
-    d1 = (log(s/K) + (r + 0.5 * vol ** 2)*tau) / \
+    d1 = (log(s/K) + (r + 0.5 * (vol ** 2))*tau) / \
         (vol * sqrt(tau))
     d2 = d1 - vol*(sqrt(tau))
     gamma1 = norm.pdf(d1)/(s*vol*sqrt(tau))
@@ -710,7 +710,7 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction, produc
     return delta, gamma, theta, vega
 
 
-def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, lots, rebate=0):
+def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, lots, rebate=0, bvol=None):
     """Computes greeks of european options with american barriers. 
 
     Args:
@@ -735,7 +735,8 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction, produc
     call_put_id = 'C' if char == 'call' else 'P'
     barlevel = ki if ki else ko
     ticksize = multipliers[product][2]
-    bvol = get_barrier_vol(voldf, product, tau, call_put_id, barlevel)
+    if bvol is None:
+        bvol = get_barrier_vol(voldf, product, tau, call_put_id, barlevel)
     if ki:
         calc_lots = (k - ki)/ticksize
     if ko:
