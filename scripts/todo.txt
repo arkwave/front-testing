@@ -156,82 +156,41 @@ Data processing steps:
 
 28/3:
 
-> Not all options in expiry list; N7.Z7 for ex.      [Done]
-> Debug all prep functions                           [Done]
-> follow up with kishor about expiries               [Done]
-> price returns transformations                      [Done]
+> Not all options in expiry list; N7.Z7 for ex.   [Done]
+> Debug all prep functions                        [Done]
+> follow up with kishor about expiries            [Done]
+> price returns transformations                   [Done]
 	> log(curr - prev) taking rollover into acct
-> price transformation                               [Done]
+> price transformation                            [Done]
 
 
 29/3
-> vol surface difference transformation              [Done]
-	> atm_curr - atm_prev 	                         [Done]
-	> helper to isolate option ordering based on mth [Done]
-> selection rollover logic                           [Done]
-> selecting vol from vol surface based on strike     [Done]
+> vol surface difference transformation           [Done]
+	> atm_curr - atm_prev 	                      [Done]
+	> helper to isolate option ordering mth       [Done]
+> selection rollover logic                        [Done]
+> selecting vol from vol surface based on strike  [Done]
 
 
 
 30/3 [Morning]
-> finish indexing vols ci option indexng             [Done]
-> testing find_cdist                                 [Done]
+> finish indexing vols ci option indexng          [Done]
+> testing find_cdist                              [Done]
 
-
-
-> selecting vol from vol surface based on delta      [Not required atm]
 
 
 30/3 [At work]. Priority: finish the CI stuff/testing.
-> rollover in price                                  [Done]
-	> testing                                        [Done]
+> rollover in price                               [Done]
+	> testing                                     [Done]
 > fix find_dist and assign ci to take into account   
-multiple years.                                      [Done]
-	> testing                                        [Done]
+multiple years.                                   [Done]
+	> testing                                     [Done]
 
 
 31/3
-> New task: delta interpolation dataframe.           [Done]
-2) testing from xtrader                              [Done]
-3) testing for european barrier greeks               []
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+> New task: delta interpolation dataframe.        [Done]
+2) testing from xtrader                           [Done]
+3) testing for european barrier greeks            []
 
 
 
@@ -240,89 +199,54 @@ multiple years.                                      [Done]
 
 1/4 (Saturday):
 
-1) think about how mapping CI and symbols is gonna   []
+Outstanding: vol/price dumps. gaining access to these mandatory.
+
+
+1) think about how mapping CI and symbols is gonna  [Half]
 happen in options/futures objects, implement 
 accordingly.
+	2_ use same logic from ciprice to construct     [Done]
+	ci vols from vol by delta	            
 
-2) moneyness error.                                  [Done]
+2) moneyness error.                                 [Done]
+	> was a problem with self.active/self.knockedout
+	 interaction in options class during 
+	 self.moneyness and self.check_active calls.
 
-3) start working on simulation logic given changes to 
+
+
+
+
+2/4 (Sunday):
+
+Conceptualize ordering in options/futures.          []
+	> testing
+
+feed_data                                           []
+handle_options                                      []
+> updating future and options object with ordering  []
+> generate data requirements from portfolio object  []
+
+> mapping between CIs and symbols.                  []
+> reading in multiplier list                        []
+
+start working on simulation logic given changes to 
 datasets:
-	> feed_data                                      []
-	> delta/vega/gamma hedging.                      []
-
-5) adapt computation for returns and change in vol   []
+	> feed_data                                     []
+	> delta/vega/gamma hedging.                     []
 
 
+adapt computation for returns and change in vol     []
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-2/4:
-feed_data                                             []
-handle_options                                        []
-> updating future and options object with ordering   []
-> generate data requirements from portfolio object   []
-
-
-> mapping between CIs and symbols.                   []
-7) that moneyness error.                             []
-6) reading in multiplier list                        []
 
 
 
 
 
 >>>>> Simulation Logic: <<<<<<
-1) Handle_options                                     []
-2) PnL                                                []
-3) Clean up feed_data once data format finalized      []
+1) Handle_options                                    []
+2) PnL                                               []
+3) Clean up feed_data once data format finalized     []
 
 
 

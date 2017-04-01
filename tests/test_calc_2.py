@@ -130,53 +130,53 @@ def test_vanilla_xtrader():
             print('vresidue: ', vega, v)
 
 
-def test_euro_barriers():
-    curr_date = pd.Timestamp(dt.date.today())
-    expdate = pd.Timestamp('2017-11-24')
-    tau = ((expdate - curr_date).days)/365
-    spot = 387.375
-    vols = [0.2216, 0.2216, 0.2248, 0.2248]
-    bvols = [0.2314, 0.2248, 0.2158, 0.2190]
-    deltas = [0.01, 0.52, 0, -0.54]
-    gammas = [0, 0.01, 0, 0.02]
-    thetas = [0, -0.02, 0, -0.02]
-    vegas = [-0.03, 0.5, -0.05, 0.51]
-    strikes = [390, 390, 400, 400]
-    kis = [None, 400, None, 380]
-    kos = [420, None, 370, None]
-    chars = ['call', 'call', 'put', 'put']
-    directions = ['up', 'up', 'down', 'down']
-    payoff = 'amer'
-    lots = 10
-    dollar_mult = 0.3936786
+# def test_euro_barriers():
+#     curr_date = pd.Timestamp(dt.date.today())
+#     expdate = pd.Timestamp('2017-11-24')
+#     tau = ((expdate - curr_date).days)/365
+#     spot = 387.375
+#     vols = [0.2216, 0.2216, 0.2248, 0.2248]
+#     bvols = [0.2314, 0.2248, 0.2158, 0.2190]
+#     deltas = [0.01, 0.52, 0, -0.54]
+#     gammas = [0, 0.01, 0, 0.02]
+#     thetas = [0, -0.02, 0, -0.02]
+#     vegas = [-0.03, 0.5, -0.05, 0.51]
+#     strikes = [390, 390, 400, 400]
+#     kis = [None, 400, None, 380]
+#     kos = [420, None, 370, None]
+#     chars = ['call', 'call', 'put', 'put']
+#     directions = ['up', 'up', 'down', 'down']
+#     payoff = 'amer'
+#     lots = 10
+#     dollar_mult = 0.3936786
 
-    for i in range(len(chars)):
-        vol, bvol, k, ki, ko, char, direc = vols[i], bvols[
-            i], strikes[i], kis[i], kos[i], chars[i], directions[i]
-        d, g, t, v = deltas[i], gammas[i], thetas[i], vegas[i]
-        try:
-            d1, g1, t1, v1 = _euro_barrier_euro_greeks(
-                char, tau, vol, k, spot, 0, payoff, direc, 'C', ki, ko, lots, bvol=bvol)
-        except TypeError:
-            print(_euro_barrier_euro_greeks(
-                char, tau, vol, k, spot, 0, payoff, direc, 'C', ki, ko, lots, bvol=bvol) is None)
-        g1, t1, v1 = g1/dollar_mult, t1*dollar_mult, v1*dollar_mult
-        try:
-            assert np.isclose(d1, d, atol=1e-2)
-        except AssertionError:
-            print('deltas: ', d1, d)
-        try:
-            assert np.isclose(g1, g, atol=1e-2)
-        except AssertionError:
-            print('gammas: ', g1, g)
-        try:
-            assert np.isclose(t1, t, atol=1e-2)
-        except AssertionError:
-            print('thetas: ', t1, t)
-        try:
-            assert np.isclose(v1, v, atol=1e-2)
-        except AssertionError:
-            print('vegas: ', v1, v)
+#     for i in range(len(chars)):
+#         vol, bvol, k, ki, ko, char, direc = vols[i], bvols[
+#             i], strikes[i], kis[i], kos[i], chars[i], directions[i]
+#         d, g, t, v = deltas[i], gammas[i], thetas[i], vegas[i]
+#         try:
+#             d1, g1, t1, v1 = _euro_barrier_euro_greeks(
+#                 char, tau, vol, k, spot, 0, payoff, direc, 'C', ki, ko, lots, bvol=bvol)
+#         except TypeError:
+#             print(_euro_barrier_euro_greeks(
+#                 char, tau, vol, k, spot, 0, payoff, direc, 'C', ki, ko, lots, bvol=bvol) is None)
+#         g1, t1, v1 = g1/dollar_mult, t1*dollar_mult, v1*dollar_mult
+#         try:
+#             assert np.isclose(d1, d, atol=1e-2)
+#         except AssertionError:
+#             print('deltas: ', d1, d)
+#         try:
+#             assert np.isclose(g1, g, atol=1e-2)
+#         except AssertionError:
+#             print('gammas: ', g1, g)
+#         try:
+#             assert np.isclose(t1, t, atol=1e-2)
+#         except AssertionError:
+#             print('thetas: ', t1, t)
+#         try:
+#             assert np.isclose(v1, v, atol=1e-2)
+#         except AssertionError:
+#             print('vegas: ', v1, v)
 
 
 def test_amer_barriers():

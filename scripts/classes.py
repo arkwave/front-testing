@@ -99,8 +99,8 @@ class Option:
         self.shorted = shorted
         self.ordering = ordering
 
-    def set_ordering(string):
-        self.ordering = string
+    def set_ordering(val):
+        self.ordering = val
 
     def get_ordering(string):
         return self.ordering

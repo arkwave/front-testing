@@ -59,10 +59,14 @@ def test_get_rollover_dates():
     ret = pr.get_rollover_dates(pricedata)
     assert len(ret) == 1
     assert set(ret.keys()) == set(['C'])
-    val = pd.to_datetime('2017-02-26 00:00:00')
-    assert ret['C'][0] == val
+    val = pd.to_datetime('2017-04-21 00:00:00')
+    try:
+        assert ret['C'][0] == val
+    except AssertionError:
+        print('found: ', ret['C'][0])
+        print('val: ', val)
     ret = ret['C']
-    actuals = [pd.Timestamp('2017-02-26 00:00:00'),
+    actuals = [
                pd.Timestamp('2017-04-21 00:00:00'),
                pd.Timestamp('2017-06-23 00:00:00'),
                pd.Timestamp('2017-08-25 00:00:00'),
