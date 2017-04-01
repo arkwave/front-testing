@@ -130,13 +130,13 @@ def test_check_active_ko_euro():
     # test 2: up and out at 20, spot at 30
     op = Option(strike, tau, 'call', vol, ft, payoff, False, 'Z7',
                 direc=direc, barrier=barrier, bullet=False, ko=200)
-    assert op.check_active() == False
+    assert op.check_active() == True 
     assert op.knockedout == True
 
     # devil's advocate: up and out at 20, spot falls from 30 to 10. Option is
-    # still knocked out.
+    # still knocked out, but still active since not expired.
     ft.update_price(100)
-    assert op.check_active() == False
+    assert op.check_active() == True 
     assert op.knockedout == True
 
     # testing down and out.
@@ -335,6 +335,7 @@ def test_moneyness_euro():
     assert op.moneyness() == -1
     # hit barrier; knocked out.
     ft.update_price(500)
+    # remains active since it's a european barrier option. self.knockedout = True.
     assert op.check_active() == True
     assert op.knockedout == True
     assert op.moneyness() is None
@@ -358,8 +359,11 @@ def test_moneyness_euro():
     try:
         assert op2.moneyness() is None
     except AssertionError:
-        print('KO status: ', op2.knockedout)
-        print('moneyness: ', op2.moneyness())
+        print('activity  : ', op2.active)
+        print('KO status : ', op2.knockedout)
+        print('activity2 : ', op2.active)
+        print('moneyness : ', op2.moneyness())
+        print('activity3 : ', op2.active)
         if op2.moneyness() is None:
             print("TRUE")
 

@@ -123,12 +123,22 @@ class Option:
         # expired case
         if not cond:
             return False
+
         # base cases: if already knocked in or knocked out, return
         # appropriately.
         if self.knockedin:
             return True
         if self.knockedout:
-            return False
+            # first case: check for expiry.
+            if self.tau == 0:
+                return False 
+            # second: american barrier. ko = deactivate.
+            elif self.barrier == 'amer':
+                return False 
+            # final case: Euro barrier. active till exp.
+            else:
+                return True 
+            
         # barrier cases
         if self.ki:
             # all knockin options contribute greeks/have value until expiry.
@@ -281,6 +291,9 @@ class Option:
             int: returns 1, 0, -1 for ITM, ATM and OTM options respectively. 
         """
         active = self.check_active()
+        # degenerate case: knocked out.
+        if self.knockedout:
+            return None 
         self.active = active
         if active:
             s = self.underlying.get_price()

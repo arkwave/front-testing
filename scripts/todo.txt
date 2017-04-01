@@ -197,21 +197,123 @@ multiple years.                                      [Done]
 
 
 
-> mapping between CIs and symbols.                   []
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+1/4 (Saturday):
+
+1) think about how mapping CI and symbols is gonna   []
+happen in options/futures objects, implement 
+accordingly.
+
+2) moneyness error.                                  [Done]
+
+3) start working on simulation logic given changes to 
+datasets:
+	> feed_data                                      []
+	> delta/vega/gamma hedging.                      []
+
 5) adapt computation for returns and change in vol   []
-7) that moneyness error.                             []
-6) reading in multiplier list                        []
 
 
 
 
 
-1/4:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+2/4:
 feed_data                                             []
 handle_options                                        []
 > updating future and options object with ordering   []
 > generate data requirements from portfolio object   []
 
+
+> mapping between CIs and symbols.                   []
+7) that moneyness error.                             []
+6) reading in multiplier list                        []
 
 
 
