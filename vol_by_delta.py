@@ -1,17 +1,9 @@
 from scripts.prep_data import read_data
 import pandas as pd
-import calendar
-import datetime as dt
-import ast
-import sys
-import traceback
 import numpy as np
 from scipy.stats import norm
 from math import log, sqrt
-import time
-import matplotlib.pyplot as plt
-import seaborn as sns
-from scipy.interpolate import PchipInterpolator, interp1d, pchip_interpolate
+from scipy.interpolate import PchipInterpolator
 
 seed = 7
 np.random.seed(seed)
@@ -109,7 +101,7 @@ def vol_by_delta(voldata, pricedata):
     # getting labels for deltas
     delta_vals = np.arange(0.05, 1, 0.05)
     delta_labels = [str(int(100*x)) + 'd' for x in delta_vals]
-    all_cols = ['underlying_id', 'tau', 'vol_id'].extend(delta_labels)
+    # all_cols = ['underlying_id', 'tau', 'vol_id'].extend(delta_labels)
 
     print('preallocating')
     # preallocating dataframes

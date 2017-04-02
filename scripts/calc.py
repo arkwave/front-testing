@@ -35,7 +35,7 @@ Notes:
 from math import log, sqrt, exp, pi
 from scipy.stats import norm
 import numpy as np
-import pandas as pd
+# import pandas as pd
 from . import prep_data
 
 
@@ -151,7 +151,7 @@ def _amer_option(option, tau, vol, K, s, r):
 
     Output: 1) Price      : price of option according to CRR Binomial Tree
     """
-    return _CRRbinomial('price', 'amer', option, s, k, tau, r, r, vol)
+    return _CRRbinomial('price', 'amer', option, s, K, tau, r, r, vol)
 
 
 ###########################################################################
@@ -272,7 +272,6 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, r
                 p2 = call_put_spread(
                     s, ko + ticksize, ko, r, bvol, bvol, tau, 'putspread', payoff)
                 return p1 - calc_lots*p2
-    return price
 
 
 def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0):
@@ -610,7 +609,7 @@ def _euro_vanilla_greeks(char, K, tau, vol, s, r, product, lots):
         return delta, theta, gamma, vega
     d1 = (log(s/K) + (r + 0.5 * (vol ** 2))*tau) / \
         (vol * sqrt(tau))
-    d2 = d1 - vol*(sqrt(tau))
+    # d2 = d1 - vol*(sqrt(tau))
     gamma1 = norm.pdf(d1)/(s*vol*sqrt(tau))
     vega1 = s * exp(r*tau) * norm.pdf(d1) * sqrt(tau)
 
@@ -869,7 +868,7 @@ def newton_raphson(option, s, k, c, tau, r, num_iter=100):
             print('guess: ', guess)
             print('diff: ', diff)
             print('tau: ', tau)
-            print('vol: ', vol)
+            # print('vol: ', vol)
     if np.isnan(guess):
         guess = 0
     return guess
@@ -905,23 +904,21 @@ def american_iv(option, s, k, c, tau, r, product, num_iter=100):
     Outputs: Implied volatility of this VANILLA AMERICAN option.
     """
     precision = 1e-5
-    guess = 0.5
+    sigma = 0.5
     for i in range(num_iter):
         try:
-            d1 = (log(s/K) + (r + 0.5 * guess ** 2)*tau) / \
-                (guess * sqrt(tau))
-            option_price = _amer_option(option, tau, guess, K, s, r, product)
-            vega = _num_vega('amer', option, s, k, tau, r, r, guess)
-            price = option_price
+
+            option_price = _amer_option(option, tau, sigma, k, s, r, product)
+            vega = _num_vega('amer', option, s, k, tau, r, r, sigma)
             diff = c - option_price
             if abs(diff) < precision:
                 return sigma
             sigma = sigma + diff/vega
         except RuntimeWarning:
-            print('guess: ', guess)
+            print('sigma: ', sigma)
             print('diff: ', diff)
             print('tau: ', tau)
-            print('vol: ', vol)
+            # print('vol: ', vol)
     return sigma
 
 
@@ -932,7 +929,6 @@ def _CRRbinomial(output_flag, payoff, option_type, s, k, tau, r, vol, product, n
 
     Inputs:
         output_flag   : 'greeks' or 'price'
-        payoff        : 'amer' or 'euro'
         option_type   : 'call' or 'put'
         s             : price of underlying
         k             : strike price
@@ -1022,14 +1018,15 @@ def _num_vega(payoff, option_type, s, k, tau, r,  vol, b=0):
         vega = (upper - lower)/(2*delta_v)
     # european case. use analytic formulation for vega.
     elif payoff == 'euro':
+        d1 = (log(s/k) + (r + 0.5 * vol ** 2)*tau) / \
+                (vol * sqrt(tau))
         vega = s*(1/sqrt(2*pi)) * exp(-(d1**2) / 2) * sqrt(tau)
 
-    # vega multiplier
-    lots = lots
-    lm = multipliers[product][1]
-    dm = multipliers[product][0]
-    vega = vega1*lots*lm*dm/100
-
+    # # vega multiplier
+    # lots = lots
+    # lm = multipliers[product][1]
+    # dm = multipliers[product][0]
+    # vega = vega1*lots*lm*dm/100
     return vega
 
 

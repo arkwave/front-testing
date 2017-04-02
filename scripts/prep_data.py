@@ -9,17 +9,14 @@ Description    : Script contains methods to read-in and format data. These metho
 """
 
 # # Imports
-# from . import portfolio
-# from . import classes
+from . import portfolio
+from . import classes
 import pandas as pd
-import calendar
 import datetime as dt
-import ast
-import sys
-import traceback
 import numpy as np
-import scipy
-import math
+from scipy.interpolate import PchipInterpolator
+from scipy.stats import norm
+from math import log, sqrt 
 import time
 seed = 7
 np.random.seed(seed)
@@ -151,8 +148,9 @@ def prep_portfolio(voldata, pricedata, sim_start):
 
                     # handle underlying construction
                     f_mth = volid.split()[1].split('.')[1]
-                    ordering = find_cdist(curr_sym, f_mth)
                     f_name = volid.split()[0]
+                    mths = contract_mths[f_name]                
+                    ordering = find_cdist(curr_sym, f_mth, mths)
                     u_name = volid.split('.')[0]
                     f_price = pricedata[(pricedata['value_date'] == sim_start) &
                                         (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
@@ -301,9 +299,7 @@ def assign_ci(df):
         Pandas dataframe     : Dataframe with the CIs populated.
     """
     today = dt.date.today()
-    curr_mth_val = today.month
     curr_mth = month_to_sym[today.month]
-    curr_day = today.day
     curr_yr = today.year
     products = df['pdt'].unique()
     df['cont'] = ''
@@ -497,7 +493,7 @@ def ciprice(pricedata, rollover='opex'):
         by_product = None
         for product in products:
             df = pricedata[pricedata.pdt == product]
-            lst = contract_mths[product]
+            # lst = contract_mths[product]
             conts = sorted(df['cont'].unique())
             most_recent = []
             by_date = None
@@ -597,7 +593,7 @@ def vol_by_delta(voldata, pricedata):
     # getting labels for deltas
     delta_vals = np.arange(0.05, 1, 0.05)
     delta_labels = [str(int(100*x)) + 'd' for x in delta_vals]
-    all_cols = ['underlying_id', 'tau', 'vol_id'].extend(delta_labels)
+    # all_cols = ['underlying_id', 'tau', 'vol_id'].extend(delta_labels)
 
     print('preallocating')
     # preallocating dataframes
@@ -697,7 +693,7 @@ def civols(vdf, pdf, rollover='opex'):
         by_product = None
         for product in products:
             df = vdf[vdf.pdt == product]
-            lst = contract_mths[product]
+            # lst = contract_mths[product]
             conts = sorted(df['cont'].unique())
             most_recent = []
             by_date = None

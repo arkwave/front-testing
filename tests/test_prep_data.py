@@ -8,7 +8,7 @@ Description    : File contains tests for the methods in prep_data.py
 
 """
 import scripts.prep_data as pr
-import os
+# import os
 import pandas as pd
 import numpy as np
 
@@ -45,7 +45,7 @@ def test_prep_portfolio():
 
     assert pmin == vmin
 
-    sim_start = pmin
+    # sim_start = pmin
     pf = pr.prep_portfolio(vdata, pdata, pmin)
 
     otc = pf.OTC
@@ -96,7 +96,7 @@ def test_find_cdist():
         print('x1: ', m1)
         print('x2: ', m2)
         print('all_mths: ', all_mths)
-        print('cdist: ', pr.find_cdist(x1, x2, all_mths))
+        # print('cdist: ', pr.find_cdist(x1, x2, all_mths))
 
     # next product
     pdt = 'LH'

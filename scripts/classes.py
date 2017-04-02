@@ -99,16 +99,16 @@ class Option:
         self.shorted = shorted
         self.ordering = ordering
 
-    def set_ordering(val):
+    def set_ordering(self, val):
         self.ordering = val
 
-    def get_ordering(string):
+    def get_ordering(self, string):
         return self.ordering
 
-    def decrement_ordering(i):
+    def decrement_ordering(self, i):
         self.ordering -= i
 
-    def get_month():
+    def get_op_month(self):
         return self.month
 
     def check_active(self):
@@ -240,7 +240,7 @@ class Option:
         self.update_greeks()
         return self.delta, self.gamma, self.theta, self.vega
 
-    def compute_vol(underlying, price, strike, tau, r):
+    def compute_vol(self, underlying, price, strike, tau, r):
         # computes implied vol from market price data. only holds for vanilla
         # options.
         product = self.get_product()
@@ -334,7 +334,8 @@ class Future:
     3) desc      :  string description of the object
     4) lots      :  number of lots represented by each future contract.
     5) product   :  the commodity of this future.
-    6) shorted   :  bool indicating whether this future is being shorted or longed
+    6) shorted   :  bool indicating whether this future is being shorted or \
+    longed
 
     Instance Methods:
     1) get_desc       : returns 'future'

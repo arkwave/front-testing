@@ -13,17 +13,10 @@ Description    : Script containing problematic code to be debugged.
 # from . import classes
 from scripts.prep_data import read_data
 import pandas as pd
-import calendar
-import datetime as dt
-import ast
-import sys
-import traceback
 import numpy as np
 from scipy.stats import norm
 from math import log, sqrt
 import time
-import matplotlib.pyplot as plt
-import seaborn as sns
 from scipy.interpolate import PchipInterpolator
 
 '''
@@ -129,7 +122,7 @@ def vol_by_delta(voldata, pricedata):
     # getting labels for deltas
     delta_vals = np.arange(0.05, 1, 0.05)
     delta_labels = [str(int(100*x)) + 'd' for x in delta_vals]
-    all_cols = ['underlying_id', 'tau', 'vol_id'].extend(delta_labels)
+    # all_cols = ['underlying_id', 'tau', 'vol_id'].extend(delta_labels)
 
     print('preallocating')
     # preallocating dataframes
@@ -230,7 +223,7 @@ def civols(vdf, pdf, rollover='opex'):
         by_product = None
         for product in products:
             df = vdf[vdf.pdt == product]
-            lst = contract_mths[product]
+            # lst = contract_mths[product]
             conts = sorted(df['cont'].unique())
             most_recent = []
             by_date = None
@@ -332,7 +325,7 @@ def ciprice(pricedata, rollover='opex'):
         by_product = None
         for product in products:
             df = pricedata[pricedata.pdt == product]
-            lst = contract_mths[product]
+            # lst = contract_mths[product]
             conts = sorted(df['cont'].unique())
             most_recent = []
             by_date = None
