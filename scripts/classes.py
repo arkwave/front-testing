@@ -345,9 +345,9 @@ class Future:
     7) get_product    : returns the name of this contract (i.e. the commodity)
     '''
 
-    def __init__(self, month, price, product, shorted=None, lots=lots):
+    def __init__(self, month, price, product, shorted=None, lots=lots, ordering=None):
         self.product = product
-        self.first_notice = None
+        self.ordering = ordering
         self.lots = lots
         self.desc = 'future'
         self.month = month

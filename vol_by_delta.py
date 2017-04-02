@@ -26,9 +26,6 @@ sym_to_month = {'F': 1, 'G': 2, 'H': 3, 'J': 4, 'K': 5,
 decade = 10
 
 # specifies the filepath for the read-in file.
-filepath = 'portfolio_specs.txt'
-
-vdf, pdf, edf = read_data(filepath)
 
 # composite label that has product, opmth, cont.
 # vdf['label'] = vdf['vol_id'] + ' ' + \
@@ -105,7 +102,7 @@ def vol_by_delta(voldata, pricedata):
 
     print('computing deltas')
     merged['delta'] = merged.apply(compute_delta, axis=1)
-    merged.to_csv('merged.csv')
+    # merged.to_csv('merged.csv')
     merged['pdt'] = merged['underlying_id'].str.split().str[0]
 
     print('getting labels')
@@ -143,7 +140,7 @@ def vol_by_delta(voldata, pricedata):
     # iterate first over products, thenn dates for that product, followed by vol_ids in that product/date
     for pdt in products:
         tmp = merged[merged.pdt == pdt]
-        tmp.to_csv('test.csv')
+        # tmp.to_csv('test.csv')
         dates = tmp.value_date.unique()
         vids = tmp.vol_id.unique()
         for date in dates:
@@ -185,15 +182,26 @@ def vol_by_delta(voldata, pricedata):
                            delta_labels] = put_deltas
                 except ValueError:
                     print('target: ', call_df.loc[(call_df.vol_id == vid) & (call_df.value_date == date), delta_labels])
-                    print('values: ', call_deltas)               
+                    print('values: ', call_deltas)
 
+    # changing call_df.tau and put_df.tau to days to expiry.
+    call_df.tau = call_df.tau * 365
+    put_df.tau = put_df.tau * 365
     print('Done. writing to csv...')
-    call_df.to_csv('call_deltas.csv', index=False)
-    put_df.to_csv('put_deltas.csv', index=False)    
+    # call_df.to_csv('call_deltas.csv', index=False)
+    # put_df.to_csv('put_deltas.csv', index=False)    
 
     # resetting indices
     call_df.reset_index(drop=True, inplace=True)
     put_df.reset_index(drop=True, inplace=True)
     return call_df, put_df
 
+
+
+if __name__ == '__main__':
+    filepath = 'portfolio_specs.txt'
+    vdf, pdf, edf = read_data(filepath)
+    vbd_c, vbd_p = vol_by_delta(vdf, pdf)
+    vbd_c.to_csv('vols_by_delta_c.csv')
+    vbd_p.to_csv('vols_by_delta_p.csv')
 

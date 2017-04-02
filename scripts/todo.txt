@@ -217,17 +217,40 @@ accordingly.
 
 
 
+
+
 2/4 (Sunday):
 
-Conceptualize ordering in options/futures.          []
+Conceptualize ordering in options/futures.          [Done]
 	> testing
+	Notes:
+		1_ ordering in futures: taken care of during read-in, based on current month and the number of contract months between target and current month.
+		2_ ordering in options: for each given C-i price series, bucket overlying options based on time to expiry (i.e. tau < x = bucket 1, x <= tau <= y = bucket 2, etc.)
+		> implication: logic to check for which price/vol series to read in should be done in simulation.py, not in any of the classes.
+		> todo: isolate c_i from readin, which is already being done by read_data. once access to vol/price dump is given, implement get_all_underlying in portfolio to specify the data that is required.
+		   - done.
+		> during simulation:
+			1) for each product, keep track of rollover dates.
+			2) if value_date == rollover date, update orderings (i.e. decrement ordering for options and futures, discard those options that correspond to ordering 0)
+
+			> related TODOs: 
+			1) generate and store rollover dates in sim.py
+			2) new active condition (i.e. if cond == 0, inactive, regardless).
+			3) question: barrier option expiries?
+
+ 
+> isolate distances using get_cdist, pass that into underlying.ordering. [Done]
+> updating future and options object with ordering  [Done]
+
+
+
+
+3/4 (Monday) :
 
 feed_data                                           []
 handle_options                                      []
-> updating future and options object with ordering  []
-> generate data requirements from portfolio object  []
 
-> mapping between CIs and symbols.                  []
+
 > reading in multiplier list                        []
 
 start working on simulation logic given changes to 
@@ -235,8 +258,11 @@ datasets:
 	> feed_data                                     []
 	> delta/vega/gamma hedging.                     []
 
+> generate data requirements from portfolio object  [] -> use get_all_futures.
 
 adapt computation for returns and change in vol     []
+
+
 
 
 

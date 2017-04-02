@@ -122,7 +122,7 @@ def vol_by_delta(voldata, pricedata):
 
     print('computing deltas')
     merged['delta'] = merged.apply(compute_delta, axis=1)
-    merged.to_csv('merged.csv')
+    # merged.to_csv('merged.csv')
     merged['pdt'] = merged['underlying_id'].str.split().str[0]
 
     print('getting labels')
@@ -157,7 +157,7 @@ def vol_by_delta(voldata, pricedata):
 
     for pdt in products:
         tmp = merged[merged.pdt == pdt]
-        tmp.to_csv('test.csv')
+        # tmp.to_csv('test.csv')
         dates = tmp.value_date.unique()
         vids = tmp.vol_id.unique()
         for date in dates:
@@ -202,8 +202,8 @@ def vol_by_delta(voldata, pricedata):
                     print('values: ', call_deltas)               
 
     print('Done. writing to csv...')
-    call_df.to_csv('call_deltas_test.csv', index=False)
-    put_df.to_csv('put_deltas_test.csv', index=False)    
+    # call_df.to_csv('call_deltas_test.csv', index=False)
+    # put_df.to_csv('put_deltas_test.csv', index=False)    
 
     # resetting indices
     call_df.reset_index(drop=True, inplace=True)
@@ -268,7 +268,7 @@ def civols(vdf, pdf, rollover='opex'):
                 [by_product, by_cont])
         by_product.dropna(inplace=True)
         # by_product = by_product.loc[:, ~by_product.columns.duplicated()]
-        by_product.to_csv('by_product_debug.csv', index=False)
+        # by_product.to_csv('by_product_debug.csv', index=False)
         final = by_product
     else:
         final = -1
@@ -371,83 +371,6 @@ def ciprice(pricedata, rollover='opex'):
     print('[CI-PRICE] elapsed: ', elapsed)
     return final
 
-
-# def civols(vdf, pdf, rollover='opex'):
-#     """Scales volatility surfaces and associates them with a product and an ordering number (ci).
-
-#     Args:
-#         vdf (TYPE): vol dataframe of same form as the one returned by read_data
-#         pdf (TYPE): price dataframe of same form as the one returned by read_data
-#         rollover (None, optional): rollover logic; defaults to 'opex' (option expiry.)
-
-#     Returns:
-#         TYPE: Description
-#     """
-#     # label = composite index that displays 1) Product 2) vol_id 3) cond number.
-#     t = time.time()
-#     labels = vdf.label.unique()
-#     retDF = vdf.copy()
-#     retDF['vol change'] = ''
-#     ret = None
-#     for label in labels:
-#         df = vdf[vdf.label == label]
-#         dates = sorted(df['value_date'].unique())
-#         # df.reset_index(drop=True, inplace=True)
-#         for i in range(len(dates)):
-#             # first date in this label-df
-#             try:
-#                 date = dates[i]
-#                 if i == 0:
-#                     dvol = 0
-#                 else:
-#                     prevdate = dates[i-1]
-#                     prev_atm_price = pdf[(pdf['value_date'] == prevdate)][
-#                         'settle_value'].values[0]
-#                     curr_atm_price = pdf[(pdf['value_date'] == date)][
-#                         'settle_value'].values[0]
-#                     # calls
-#                     curr_vol_surface = df[(df['value_date'] == date)][
-#                         ['strike', 'settle_vol']]
-#                     prev_vol_surface = df[(df['value_date'] == prevdate)][
-#                         ['strike', 'settle_vol']]
-
-#                     # round strikes up/down to nearest 10.
-#                     curr_atm_vol = curr_vol_surface.loc[
-#                         (curr_vol_surface['strike'] == (round(curr_atm_price/10) * 10)), 'settle_vol']
-#                     curr_atm_vol = curr_atm_vol.values[0]
-#                     prev_atm_vol = prev_vol_surface.loc[
-#                         (prev_vol_surface['strike'] == (round(prev_atm_price/10) * 10)), 'settle_vol']
-#                     prev_atm_vol = prev_atm_vol.values[0]
-#                     dvol = curr_vol_surface['settle_vol'] - prev_atm_vol
-#                 retDF.ix[(retDF.label == label) & (
-#                     retDF['value_date'] == date), 'vol change'] = dvol
-#             except (IndexError):
-#                 print('Label: ', label)
-#                 print('Index: ', index)
-#                 print('product: ', product)
-#                 print('cont: ', cont)
-#                 print('idens: ', mth)
-#         # assign each vol surface to an appropriately named column in a new
-#         # dataframe.
-#         product = label[0]
-#         call_put_id = label[-1]
-#         # opmth = Z8 or analogous
-#         opmth = label.split('.')[0].split()[1]
-#         # ftmth = Z8 or analogous
-#         ftmth = label.split('.')[1].split()[0]
-#         cont = int(label.split('.')[1].split()[1])
-#         mthlist = contract_mths[product]
-#         dist = find_cdist(opmth, ftmth, mthlist)
-#         # column is of the format: product_c(opdist)(cont)_callorput
-#         vals = retDF[retDF.label == label][['value_date', 'strike', 'vol change']]
-#         vals.reset_index(drop=True, inplace=True)
-#         vals.columns = ['value_date', 'strike', product + '_c' +
-#                         str(cont) + '_' + str(dist) + '_' + call_put_id]
-#         ret = vals if ret is None else pd.concat([ret, vals], axis=1)
-
-#     elapsed = time.time() - t
-#     print('[CI-VOLS] Time Elapsed: ', elapsed)
-#     return ret
 
 #######################################################################################
 #######################################################################################

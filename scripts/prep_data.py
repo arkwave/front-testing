@@ -110,6 +110,10 @@ def prep_portfolio(voldata, pricedata, sim_start):
     """
     t = time.time()
     pf = portfolio.Portfolio()
+    curr_mth = dt.date.today().month
+    curr_mth_sym = month_to_sym[curr_mth]
+    curr_yr = dt.date.today().year % 2000 + decade
+    curr_sym = curr_mth_sym + str(curr_yr)
     with open(filepath) as f:
         for line in f:
             if "%%" in line or line in ['\n', '\r\n']:
@@ -147,29 +151,32 @@ def prep_portfolio(voldata, pricedata, sim_start):
 
                     # handle underlying construction
                     f_mth = volid.split()[1].split('.')[1]
+                    ordering = find_cdist(curr_sym, f_mth)
                     f_name = volid.split()[0]
                     u_name = volid.split('.')[0]
                     f_price = pricedata[(pricedata['value_date'] == sim_start) &
                                         (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
-
-                    underlying = classes.Future(f_mth, f_price, f_name)
+                    underlying = classes.Future(f_mth, f_price, f_name, ordering=ordering)
                     opt = classes.Option(strike, tau, char, vol, underlying,
                                          payoff, shorted=shorted, month=opmth, direc=direc, barrier=barriertype,
-                                         bullet=bullet, ki=ki, ko=ko)
+                                         bullet=bullet, ki=ki, ko=ko, ordering=ordering)
                     pf.add_security(opt, flag)
 
                 # input specifies a future
                 elif inputs[0] == 'Future':
+
                     full = inputs[1].split()
                     product = full[0]
                     mth = full[1]
+                    ordering = find_cdist(curr_sym, mth)
                     price = pricedata[(pricedata['underlying_id'] == inputs[1]) &
                                       (pricedata['value_date'] == sim_start)]['settle_value'].values[0]
                     flag = inputs[4].strip('\n')
                     shorted = True if inputs[4] == 'short' else False
+                    ft = classes.Future(mth, price, product, shorted=shorted, ordering=ordering)
 
-                    ft = classes.Future(mth, price, product, shorted=shorted)
                     pf.add_security(ft, flag)
+                    
     elapsed = time.time() - t
     print('[PREP_PORTFOLIO] elapsed: ', elapsed)
     return pf
