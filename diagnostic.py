@@ -9,8 +9,6 @@ Description    : Script containing problematic code to be debugged.
 """
 
 # # Imports
-# from . import portfolio
-# from . import classes
 from scripts.prep_data import read_data
 import pandas as pd
 import numpy as np
@@ -245,8 +243,8 @@ def civols(vdf, pdf, rollover='opex'):
                     df2 = df[df.order == ordering]
                     tdf = df2[(df2['value_date'] < date) & (df2['value_date'] >= breakpoint)][
                         ['pdt', 'order', 'value_date', 'underlying_id', 'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']]
-                    print('breakpoint, date, ordering, underlying, empty: ',
-                          breakpoint, date, ordering, tdf.underlying_id.unique(), tdf.empty)
+                    # print('breakpoint, date, ordering, underlying, empty: ',
+                    #       breakpoint, date, ordering, tdf.underlying_id.unique(), tdf.empty)
                     # # deriving additional columns
                     # tdf['op_id'] = tdf.vol_id.str.split().str[
                     #     1].str.split('.').str[0]
@@ -261,15 +259,15 @@ def civols(vdf, pdf, rollover='opex'):
                 # rollover date. take and stack this long.
                 by_date = by_order_num if by_date is None else pd.concat(
                     [by_date, by_order_num])
-                print('by_date:', by_date[
-                      by_date.order == 1].underlying_id.unique())
+                # print('by_date:', by_date[
+                #       by_date.order == 1].underlying_id.unique())
                 most_recent.append(date)
                 df.order -= 1
 
             by_product = by_date if by_product is None else pd.concat(
                 [by_product, by_date])
-            print('by_product: ', by_product[
-                  by_product.order == 1].underlying_id.unique())
+            # print('by_product: ', by_product[
+            #       by_product.order == 1].underlying_id.unique())
         # by_product.dropna(inplace=True)
         final = by_product
     else:

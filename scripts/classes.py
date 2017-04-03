@@ -2,15 +2,11 @@
 File Name      : classes.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 23/3/2017
+Last Modified  : 3/4/2017
 Python version : 3.5
 Description    : Script contains implementation of the Option and Futures classes, as well as helper methods that set/store/manipulate instance variables. This class is used in simulation.py.
 
 """
-
-
-# File containing all the classes required by the simulation.
-from . import calc
 
 lots = 10
 
@@ -131,14 +127,14 @@ class Option:
         if self.knockedout:
             # first case: check for expiry.
             if self.tau == 0:
-                return False 
+                return False
             # second: american barrier. ko = deactivate.
             elif self.barrier == 'amer':
-                return False 
+                return False
             # final case: Euro barrier. active till exp.
             else:
-                return True 
-            
+                return True
+
         # barrier cases
         if self.ki:
             # all knockin options contribute greeks/have value until expiry.
@@ -182,6 +178,7 @@ class Option:
         return self.desc
 
     def init_greeks(self):
+        from .calc import _compute_greeks
         # initializes relevant greeks. only used once, when initializing Option
         # object.
 
@@ -190,7 +187,7 @@ class Option:
         s = self.underlying.get_price()
         # print(s)
         try:
-            delta, gamma, theta, vega = calc._compute_greeks(
+            delta, gamma, theta, vega = _compute_greeks(
                 self.char, self.K,  self.tau, self.vol, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc)
         except TypeError:
             print('char: ', self.char)
@@ -205,7 +202,7 @@ class Option:
             print('ko: ', self.ko)
             print('barrier: ', self.barrier)
             print('direction: ', self.direc)
-            # print(calc._compute_greeks(self.char, self.K,  self.tau, self.vol, s, self.r, product,
+            # print(calc.clc._compute_greeks(self.char, self.K,  self.tau, self.vol, s, self.r, product,
             # self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc))
         # print(delta, gamma, theta, vega)
         self.delta = delta
@@ -215,6 +212,7 @@ class Option:
         # return delta, gamma, theta, vega
 
     def update_greeks(self, vol=None):
+        from .calc import _compute_greeks
         # method that updates greeks given new values of s, vol and tau, and subsequently updates value.
         # used in passage of time step.
 
@@ -227,7 +225,7 @@ class Option:
                 sigma = vol
             product = self.get_product()
             s = self.underlying.get_price()
-            self.delta, self.gamma, self.theta, self.vega = calc._compute_greeks(
+            self.delta, self.gamma, self.theta, self.vega = _compute_greeks(
                 self.char, self.K, self.tau, sigma, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc)
             self.vol = sigma
             self.price = self.compute_price()
@@ -243,15 +241,17 @@ class Option:
     def compute_vol(self, underlying, price, strike, tau, r):
         # computes implied vol from market price data. only holds for vanilla
         # options.
+        from .calc import _compute_iv
         product = self.get_product()
         if self.barrier is None:
-            return calc._compute_iv(underlying, price, strike, tau, r, product)
+            return _compute_iv(underlying, price, strike, tau, r, product)
 
     def compute_price(self):
+        from .calc import _compute_value
         # computes the value of this structure from relevant information.
         s = self.underlying.get_price()
         product = self.underlying.get_product()
-        return calc._compute_value(self.char, self.tau, self.vol, self.K, s, self.r, self.payoff, ki=self.ki, ko=self.ko, barrier=self.barrier, d=self.direc, product=product)
+        return _compute_value(self.char, self.tau, self.vol, self.K, s, self.r, self.payoff, ki=self.ki, ko=self.ko, barrier=self.barrier, d=self.direc, product=product)
 
     def get_price(self):
         # check for expiry case
@@ -293,7 +293,7 @@ class Option:
         active = self.check_active()
         # degenerate case: knocked out.
         if self.knockedout:
-            return None 
+            return None
         self.active = active
         if active:
             s = self.underlying.get_price()

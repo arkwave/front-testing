@@ -2,7 +2,7 @@
 File Name      : calc.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 30/3/2017
+Last Modified  : 3/4/2017
 Python version : 3.5
 
 Description:
@@ -36,7 +36,7 @@ from math import log, sqrt, exp, pi
 from scipy.stats import norm
 import numpy as np
 # import pandas as pd
-from . import prep_data
+from .prep_data import read_data
 
 
 # Dictionary of multipliers for greeks/pnl calculation.
@@ -72,7 +72,7 @@ multipliers = {
 # spreads.
 filepath = 'portfolio_specs.txt'
 
-voldf, pricedf, edf = prep_data.read_data(filepath)
+voldf, pricedf, edf = read_data(filepath)
 
 
 #####################################################################
@@ -1019,7 +1019,7 @@ def _num_vega(payoff, option_type, s, k, tau, r,  vol, b=0):
     # european case. use analytic formulation for vega.
     elif payoff == 'euro':
         d1 = (log(s/k) + (r + 0.5 * vol ** 2)*tau) / \
-                (vol * sqrt(tau))
+            (vol * sqrt(tau))
         vega = s*(1/sqrt(2*pi)) * exp(-(d1**2) / 2) * sqrt(tau)
 
     # # vega multiplier

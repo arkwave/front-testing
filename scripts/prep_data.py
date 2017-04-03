@@ -13,8 +13,8 @@ Description    : Script contains methods to read-in and format data. These metho
 ###########################################################
 
 
-from . import portfolio
-from . import classes
+from .portfolio import Portfolio
+from .classes import Option, Future
 import pandas as pd
 import datetime as dt
 import numpy as np
@@ -114,14 +114,14 @@ def prep_portfolio(voldata, pricedata, sim_start):
         pf (Portfolio)              : a portfolio object.
     """
     t = time.time()
-    pf = portfolio.Portfolio()
-    # curr_mth = dt.date.today().month
-    # curr_mth_sym = month_to_sym[curr_mth]
-    # curr_yr = dt.date.today().year % 2000 + decade
-    # curr_sym = curr_mth_sym + str(curr_yr)
-    sim_start = pd.Timestamp('2017-01-01')
-    curr_sym = month_to_sym[sim_start.month] + \
-        str(sim_start.year % (2000 + decade))
+    pf = Portfolio()
+    curr_mth = dt.date.today().month
+    curr_mth_sym = month_to_sym[curr_mth]
+    curr_yr = dt.date.today().year % 2000 + decade
+    curr_sym = curr_mth_sym + str(curr_yr)
+    # sim_start = pd.Timestamp('2017-01-01')
+    # curr_sym = month_to_sym[sim_start.month] + \
+    #     str(sim_start.year % (2000 + decade))
     print('x1: ', curr_sym)
     with open(filepath) as f:
         for line in f:
@@ -166,11 +166,11 @@ def prep_portfolio(voldata, pricedata, sim_start):
                     u_name = volid.split('.')[0]
                     f_price = pricedata[(pricedata['value_date'] == sim_start) &
                                         (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
-                    underlying = classes.Future(
+                    underlying = Future(
                         f_mth, f_price, f_name, ordering=ordering)
-                    opt = classes.Option(strike, tau, char, vol, underlying,
-                                         payoff, shorted=shorted, month=opmth, direc=direc, barrier=barriertype,
-                                         bullet=bullet, ki=ki, ko=ko, ordering=ordering)
+                    opt = Option(strike, tau, char, vol, underlying,
+                                 payoff, shorted=shorted, month=opmth, direc=direc, barrier=barriertype,
+                                 bullet=bullet, ki=ki, ko=ko, ordering=ordering)
                     pf.add_security(opt, flag)
 
                 # input specifies a future
@@ -184,8 +184,8 @@ def prep_portfolio(voldata, pricedata, sim_start):
                                       (pricedata['value_date'] == sim_start)]['settle_value'].values[0]
                     flag = inputs[4].strip('\n')
                     shorted = True if inputs[4] == 'short' else False
-                    ft = classes.Future(mth, price, product,
-                                        shorted=shorted, ordering=ordering)
+                    ft = Future(mth, price, product,
+                                shorted=shorted, ordering=ordering)
 
                     pf.add_security(ft, flag)
 
