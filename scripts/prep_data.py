@@ -68,8 +68,16 @@ contract_mths = {
 
 
 def read_data(filepath=filepath):
-    """
-    Summary: Reads in the relevant data files specified in portfolio_specs.txt, which is specified by filepath.
+    """Wrapper method that handles all read-in and preprocessing. This function does the following:
+    1) reads in path to volatility, price and expiry tables from portfolio_specs.txt 
+    2) reads in dataframes from said paths 
+    3) cleans that data in different ways, depending on the flag passed in. Exact information can be found in clean_data function. 
+
+    Args:
+        filepath (string, optional): the relative filepath to portfolio_specs.txt 
+
+    Returns:
+        pandas dataframes x 3: volatility data, price data, expiry data. 
     """
     t = time.time()
     with open(filepath) as f:
@@ -108,7 +116,7 @@ def prep_portfolio(voldata, pricedata, filepath):
     Args:
         voldata (pandas dataframe)  : dataframe containing the volatility surface (i.e. strike-wise volatilities)
         pricedata (pandas dataframe): dataframe containing the daily price of underlying.
-        sim_start (pandas dataframe): start date of the simulation. defaults to the earliest date in the dataframes.
+        filepath (string)           : path to portfolio_specs.txt 
 
     Returns:
         pf (Portfolio)              : a portfolio object.
@@ -126,6 +134,7 @@ def prep_portfolio(voldata, pricedata, filepath):
     # print('x1: ', curr_sym)
     with open(filepath) as f:
         for line in f:
+            # ignore lines with %% or blank lines.
             if "%%" in line or line in ['\n', '\r\n']:
                 continue
             else:
@@ -147,16 +156,22 @@ def prep_portfolio(voldata, pricedata, filepath):
                                   (voldata['call_put_id'] == volflag) &
                                   (voldata['value_date'] == sim_start) &
                                   (voldata['strike'] == strike)]['settle_vol'].values[0]
-
+                    # american vs european payoff
                     payoff = str(inputs[4])
-
+                    # american or european barrier.
                     barriertype = None if inputs[
                         5] == 'None' else str(inputs[5])
+                    # direction of barrier.
                     direc = None if inputs[6] == 'None' else str(inputs[6])
+                    # knock-in. is not None iff this is a knock-in option.
                     ki = None if inputs[7] == 'None' else int(inputs[7])
+                    # knock-out. is not None iff this is a knock-out option.
                     ko = None if inputs[8] == 'None' else int(inputs[8])
+                    # bullet vs daily pay-out. defaults to False.
                     bullet = True if inputs[9] == 'True' else False
+                    # hedge or OTC
                     flag = str(inputs[11]).strip('\n')
+                    # short or long position on this option.
                     shorted = True if inputs[10] == 'short' else False
 
                     # handle underlying construction
@@ -200,52 +215,62 @@ def prep_portfolio(voldata, pricedata, filepath):
 ####################################################################
 
 def clean_data(df, flag, edf=None):
-    """Function that cleans the dataframes passed into it by:
-    1) dropping NaN entries
-    2) converting dates to datetime objects
-    3) In the case of the vol dataframe, reads in the vol_id and computes the time to expiry.
+    """Function that cleans the dataframes passed into it according to the flag passed in. 
+    1) flag == 'exp':
+        > datatype conversion to pd.Timestamp 
+        > filters for data > 2010. 
+        > converts formatting; i.e. C H17 --> C H7 
+    2) flag == 'vol':
+        > convert date strings to pd.Timestamp
+        > calculate time to maturity from vol_id (i.e. C Z7.Z7 --> TTM in years)
+        > appends expiry date
+        > generates additional fields from existing ones. 
+        > assigns preliminary ordering (i.e. c1, c2 months from current month). This step involves another function civols (line 479)
+        > computes all-purpose label comprising of vol_id, order, and call_put_id 
+            - example: C Z7.Z7 4 C --> Corn Z7.Z7 call option with ordering 4
+            - example: C Z7.Z7 4 P --> Corn Z7.Z7 put option with ordering 4.
+    3) flag == 'price':
+        > expiry date and ordering like in vol. 
+        > date strings to pd.Timestamp 
+        > calculates returns; log(S_curr/S_prev)
+        > calculates orderings with rollover, using function ciprice 
     Args:
         df (pandas dataframe)   : the dataframe to be cleaned.
         flag (pandas dataframe) : determines which dataframe is being processed.
         edf (pandas dataframe)  : dataframe containing the expiries of options.
 
+
     Returns:
-        TYPE: Description
+        TYPE: the cleaned dataframe, with the appropriate data transformations made. 
     """
     # cleaning expiry data
     if flag == 'exp':
-        # cleaning expiry data
+        # cleaning expiry data, handling datatypes
         df['expiry_date'] = pd.to_datetime(df['expiry_date'])
         df = df[(df['year'] > 10)]
         s = df['opmth'].copy()
-        # df['opmth'] = ''
+        # taking years mod 10, i.e. S17 --> S7.
         df.ix[:, 'opmth'] = s.str[0] + \
             (pd.to_numeric(s.str[1:]) % 10).astype(str)
 
     # cleaning volatility data
     elif flag == 'vol':
+        # handling data types
         df['value_date'] = pd.to_datetime(df['value_date'])
         df = df.dropna()
-        # calculating time to expiry
+        # calculating time to expiry from vol_id
         df = ttm(df, df['vol_id'], edf)
         df = df[df.tau > 0].dropna()
-
         # generating additional identifying fields.
         df['underlying_id'] = df[
             'vol_id'].str.split().str[0] + '  ' + df['vol_id'].str.split('.').str[1]
-
         df['pdt'] = df['underlying_id'].str.split().str[0]
-
-        # df['contract_mth'] = df['underlying_id'].str.split().str[1].str[0]
-        # df['contract_yr'] = pd.to_numeric(
-        # df['underlying_id'].str.split().str[1].str[1])
-
         df['ftmth'] = df['underlying_id'].str.split().str[1]
         df['op_id'] = df['op_id'] = df.vol_id.str.split().str[
             1].str.split('.').str[0]
+
         # transformative functions
         df = assign_ci(df)
-        # df.to_csv('debug_assignment_ci.csv')
         try:
             df['label'] = df['vol_id'] + ' ' + \
                 df['order'].astype(str) + ' ' + df.call_put_id
@@ -256,14 +281,10 @@ def clean_data(df, flag, edf=None):
 
     # cleaning price data
     elif flag == 'price':
-
+        # dealing with datatypes and generating new fields from existing ones.
         df['value_date'] = pd.to_datetime(df['value_date'])
-
         df['pdt'] = df['underlying_id'].str.split().str[0]
         df['ftmth'] = df['underlying_id'].str.split().str[1]
-        # df['contract_mth'] = df['underlying_id'].str.split().str[1].str[0]
-        # df['contract_yr'] = pd.to_numeric(
-        #     df['underlying_id'].str.split().str[1].str[1])
         # transformative functions.
         df = get_expiry(df, edf)
         df = assign_ci(df)
@@ -286,7 +307,8 @@ def ciprice(pricedata, rollover='opex'):
         rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
 
     Returns:
-        pandas dataframe : prices arranged according to c_i indexing.
+        pandas dataframe : Dataframe with the following columns:
+            Product | date | underlying | order | settle_value | returns | expiry date
     """
     t = time.time()
     if rollover == 'opex':
@@ -342,15 +364,16 @@ def ciprice(pricedata, rollover='opex'):
 
 
 def vol_by_delta(voldata, pricedata):
-    """takes in a dataframe of vols and prices (same format as those returned by read_data),
-     and generates delta-wise vol organized hierarchically by date, underlying and vol_id
+    """Takes in a dataframe of vols and prices (same format as those returned by read_data),
+     and generates delta-wise vol organized hierarchically by date, underlying and vol_id. Uses piecewise-cubic Hermite Interpolation to interpolate delta-vol curve. 
 
     Args:
         voldata (TYPE): dataframe of vols
         pricedata (TYPE): dataframe of prices
 
     Returns:
-        pandas dataframe: delta-wise vol of each option.
+        pandas dataframe: dataframe with following columns:
+            Product| Date | underlying | TTM | vol_id | order | 5D | ... | 95D 
     """
     t = time.time()
     relevant_price = pricedata[
@@ -378,9 +401,9 @@ def vol_by_delta(voldata, pricedata):
     print('preallocating')
     # preallocating dataframes
     call_df = merged[merged.call_put_id == 'C'][
-        ['value_date', 'underlying_id', 'tau', 'vol_id', 'order', 'pdt']].drop_duplicates()
+        ['pdt', 'value_date', 'underlying_id', 'tau', 'vol_id', 'order']].drop_duplicates()
     put_df = merged[merged.call_put_id == 'P'][
-        ['value_date', 'underlying_id', 'tau', 'vol_id', 'order', 'pdt']].drop_duplicates()
+        ['pdt', 'value_date', 'underlying_id', 'tau', 'vol_id', 'order']].drop_duplicates()
 
     # adding option month as a column
     c_pdt = call_df.vol_id.str.split().str[0]
@@ -462,13 +485,15 @@ def vol_by_delta(voldata, pricedata):
 
 
 def civols(vdf, pdf, rollover='opex'):
-    """Constructs the CI price series.
+    """Constructs the CI vol series.
     Args:
         vdf (TYPE): price data frame of same format as read_data
         rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
 
     Returns:
-        pandas dataframe : prices arranged according to c_i indexing.
+        pandas dataframe : dataframe with the following columns:
+        pdt|order|value_date|underlying_id|vol_id|op_id|call_put_id|tau|strike|settle_vol
+
     """
     t = time.time()
     if rollover == 'opex':
@@ -528,7 +553,13 @@ def civols(vdf, pdf, rollover='opex'):
 
 
 def ttm(df, s, edf):
-    """Takes in a vol_id (for example C Z7.Z7) and outputs the time to expiry for the option in years """
+    """Takes in a vol_id (for example C Z7.Z7) and outputs the time to expiry for the option in years 
+
+    Args:
+        df (dataframe): dataframe containing option description.
+        s (Series): Series of vol_ids
+        edf (dataframe): dataframe of expiries. 
+    """
     s = s.unique()
     df['tau'] = ''
     df['expdate'] = ''
@@ -682,12 +713,12 @@ def scale_prices(pricedata):
 
 
 def get_expiry(pricedata, edf, rollover=None):
-    """Summary
+    """Appends expiry dates to price data. 
 
     Args:
-        pricedata (TYPE): Description
-        edf (TYPE): Description
-        rollover (None, optional): Description
+        pricedata (TYPE): Dataframe of prices.
+        edf (TYPE): Dataframe of expiries
+        rollover (None, optional): rollover criterion. defaults to None. 
 
     Returns:
         TYPE: Description

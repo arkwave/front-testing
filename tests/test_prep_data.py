@@ -46,7 +46,7 @@ def test_prep_portfolio():
     assert pmin == vmin
 
     # sim_start = pmin
-    pf = pr.prep_portfolio(vdata, pdata, pmin)
+    pf = pr.prep_portfolio(vdata, pdata, filepath)
 
     otc = pf.OTC
     hedge = pf.hedges
@@ -67,10 +67,10 @@ def test_get_rollover_dates():
         print('val: ', val)
     ret = ret['C']
     actuals = [
-               pd.Timestamp('2017-04-21 00:00:00'),
-               pd.Timestamp('2017-06-23 00:00:00'),
-               pd.Timestamp('2017-08-25 00:00:00'),
-               pd.Timestamp('2017-11-24 00:00:00')]
+        pd.Timestamp('2017-04-21 00:00:00'),
+        pd.Timestamp('2017-06-23 00:00:00'),
+        pd.Timestamp('2017-08-25 00:00:00'),
+        pd.Timestamp('2017-11-24 00:00:00')]
     try:
         assert np.array_equal(ret, actuals)
     except AssertionError:
