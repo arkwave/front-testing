@@ -75,16 +75,18 @@ def compute_delta(x):
 def vol_by_delta(voldata, pricedata):
     """takes in a dataframe of vols and prices (same format as those returned by read_data),
      and generates delta-wise vol organized hierarchically by date, underlying and vol_id
-    
+
     Args:
         voldata (TYPE): dataframe of vols
         pricedata (TYPE): dataframe of prices
-    
+
     Returns:
         pandas dataframe: delta-wise vol of each option.
     """
-    relevant_price = pricedata[['underlying_id', 'value_date', 'settle_value', 'cont']]
-    relevant_vol = voldata[['value_date', 'vol_id', 'strike','call_put_id', 'tau', 'settle_vol', 'underlying_id']]
+    relevant_price = pricedata[
+        ['underlying_id', 'value_date', 'settle_value', 'cont']]
+    relevant_vol = voldata[['value_date', 'vol_id', 'strike',
+                            'call_put_id', 'tau', 'settle_vol', 'underlying_id']]
 
     print('merging')
     merged = pd.merge(relevant_vol, relevant_price,
@@ -119,17 +121,15 @@ def vol_by_delta(voldata, pricedata):
     p_opmth = put_df.vol_id.str.split().str[1].str.split('.').str[0]
     p_fin = p_pdt + ' ' + p_opmth
     put_df['op_id'] = p_fin
-    
 
     # appending rest of delta labels as columns.
     call_df = pd.concat([call_df, pd.DataFrame(columns=delta_labels)], axis=1)
     put_df = pd.concat([put_df, pd.DataFrame(columns=delta_labels)], axis=1)
     products = merged.pdt.unique()
-    
-
 
     print('beginning iteration:')
-    # iterate first over products, thenn dates for that product, followed by vol_ids in that product/date
+    # iterate first over products, thenn dates for that product, followed by
+    # vol_ids in that product/date
     for pdt in products:
         tmp = merged[merged.pdt == pdt]
         # tmp.to_csv('test.csv')
@@ -143,7 +143,8 @@ def vol_by_delta(voldata, pricedata):
                 puts = df[df.call_put_id == 'P']
                 # setting absolute value.
                 puts.delta = np.abs(puts.delta)
-                # sorting in ascending order of delta for interpolation purposes
+                # sorting in ascending order of delta for interpolation
+                # purposes
                 calls = calls.sort_values(by='delta')
                 puts = puts.sort_values(by='delta')
                 # reshaping data for interpolation.
@@ -152,7 +153,8 @@ def vol_by_delta(voldata, pricedata):
                 cvols = calls.settle_vol.values
                 pdeltas = puts.delta.values
                 pvols = puts.settle_vol.values
-                # interpolating delta using Piecewise Cubic Hermite Interpolation (Pchip)
+                # interpolating delta using Piecewise Cubic Hermite
+                # Interpolation (Pchip)
                 try:
                     f1 = PchipInterpolator(cdeltas, cvols, axis=1)
                     f2 = PchipInterpolator(pdeltas, pvols, axis=1)
@@ -166,14 +168,16 @@ def vol_by_delta(voldata, pricedata):
                     call_df.loc[(call_df.vol_id == vid) & (call_df.value_date == date),
                                 delta_labels] = call_deltas
                 except ValueError:
-                    print('target: ', call_df.loc[(call_df.vol_id == vid) & (call_df.value_date == date), delta_labels])
+                    print('target: ', call_df.loc[(call_df.vol_id == vid) & (
+                        call_df.value_date == date), delta_labels])
                     print('values: ', call_deltas)
 
                 try:
-                    put_df.loc[(put_df.vol_id == vid) & (put_df.value_date == date), 
-                           delta_labels] = put_deltas
+                    put_df.loc[(put_df.vol_id == vid) & (put_df.value_date == date),
+                               delta_labels] = put_deltas
                 except ValueError:
-                    print('target: ', call_df.loc[(call_df.vol_id == vid) & (call_df.value_date == date), delta_labels])
+                    print('target: ', call_df.loc[(call_df.vol_id == vid) & (
+                        call_df.value_date == date), delta_labels])
                     print('values: ', call_deltas)
 
     # changing call_df.tau and put_df.tau to days to expiry.
@@ -181,13 +185,12 @@ def vol_by_delta(voldata, pricedata):
     put_df.tau = put_df.tau * 365
     print('Done. writing to csv...')
     # call_df.to_csv('call_deltas.csv', index=False)
-    # put_df.to_csv('put_deltas.csv', index=False)    
+    # put_df.to_csv('put_deltas.csv', index=False)
 
     # resetting indices
     call_df.reset_index(drop=True, inplace=True)
     put_df.reset_index(drop=True, inplace=True)
     return call_df, put_df
-
 
 
 if __name__ == '__main__':
@@ -196,4 +199,3 @@ if __name__ == '__main__':
     vbd_c, vbd_p = vol_by_delta(vdf, pdf)
     vbd_c.to_csv('vols_by_delta_c.csv')
     vbd_p.to_csv('vols_by_delta_p.csv')
-
