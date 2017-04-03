@@ -7,17 +7,15 @@ Python version : 3.5
 Description    : Overall script that runs the simulation
 
 """
-
-from scripts.classes import Option, Future
-from scripts.portfolio import Portfolio
-from scripts import calc as clc
-from scripts import prep_data as dat
-from math import ceil, floor
-import pandas as pd
 import numpy as np
+import pandas as pd
+from scripts.classes import Option, Future
+from scripts.prep_data import read_data, prep_portfolio
 
 """
 TODO:
+> step 1:    : feed_data
+> Step 2:    : delta/gamma/vega hedging
 > Step 3     : handle_options
 > Step 4     : pnl accumulation
 > Step 5     : rebalancing - delta hedging.
@@ -37,19 +35,21 @@ lots = 10
 timestep = 1/365
 
 
-def run_simulation(df, pf, hedges):
+def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
     """Each run of the simulation consists of 6 steps:
 
     1) Feed data into the portfolio.
     2) Compute:
             > change in greeks from price and vol update
             > change in overall value of portfolio from price and vol update.
+
     3) Handle the options component:
             > Check if option is bullet or daily.
             > Check for expiry/exercise. Expiry can be due to barriers or tau = 0. Record changes to:
                     - futures bought/sold as the result of exercise. [PnL]
                     - changes in monthly greeks from options expiring. [PnL]
                     - total number of securities in the portfolio; remove expired options.
+
     4) PnL calculation. Components include:
             > PnL contribution from changes in price/vols.
             > PnL Contribution from Options
@@ -74,44 +74,49 @@ def run_simulation(df, pf, hedges):
     3) Various summary statistics.
 
     """
+
     pnl = 0
+    start = min(min(voldata.value_date), min(pricedata.value_date))
+    end = min(max(voldata.value_date), max(pricedata.value_date))
+    date_range = pd.bdate_range(start, end)
     # Step 1 & 2
-    for i in list(df.Index):
+    for date in date_range:
+        # isolate data relevant for this day.
+        vdf = voldata[voldata.value_date == date]
+        pdf = pricedata[pricedata.value_date == date]
         # getting data pertinent to that day.
-        data = df.iloc[[i]]
         # raw_change to be the difference between old and new value per
         # iteration.
-        raw_change, pf = feed_data(data, pf)
+        raw_change, pf = feed_data(vdf, pdf, pf)
         pnl += raw_change
     # Step 3
         cost, pf = handle_options(pf)
         pnl += cost
     # Step 4
-        cost, pf = rebalance(data, pf, hedges)
+        cost, pf = rebalance(vdf, pdf, pf, hedges)
         pnl += cost
     # Step 6: Plotting results/data viz
 
 
-def feed_data(data, pf):
+def feed_data(voldf, pdf, pf):
     """
     This function does the following:
             0) Store old value of the portfolio.
-            1) given a one-row dataframe, feed the relevant entries into each security within the portfolio, where the string associated with sec.underlying() is the same as title of column in dataframe.
-            2) update the value of the portfolio according to the info fed in. 
-    Inputs: 
-            1) data : the data being fed into the portfolio.
-            2) pf   : an object of type Portfolio. Refer to scripts\classes.py for class documentation.
-    Outputs:
-            1) raw_diff: the change in the portfolio's value solely due to new price/vols.
-            2) pf      : the updated portfolio object.
+
+    Args:
+        voldf (pandas dataframe): dataframe of volatilities, same format as that returned by read_data
+        pdf (pandas dataframe)  : dataframe of prices, same format as that returned by read_data
+        pf (portfolio object)   : Portfolio object specified by portfolio_specs.txt
     """
+
     raw_diff = 0
     # initial value of the portfolio before updates.
     prev_val = pf.compute_value()
-    time_passed = 1/365
     # decrement tau
-    pf.timestep(time_passed)
+
+    pf.timestep(timestep)
     # update prices of futures, underlying & portfolio alike.
+
     for future in pf.get_all_futures:
         name = future.get_name()
         # TODO: Figure out specifics of names after knowing dataset.
@@ -125,7 +130,7 @@ def feed_data(data, pf):
         name = option.get_product()
         volname = name + '_' + 'vol'
         volvalue = df[volname]
-        option.update_greeks(vol)
+        option.update_greeks(volvalue)
 
     # computing new value
     new_val = pf.compute_value()
@@ -144,7 +149,7 @@ def handle_options(pf):
     pass
 
 
-def rebalance(data, pf, hedges):
+def rebalance(vdf, pdf, pf, hedges):
     # compute the gamma and vega of atm straddles; one call + one put.
     # compute how many such deals are required. add to appropriate pos.
     # return both the portfolio, as well as the gain/loss from short/long pos
@@ -154,9 +159,9 @@ def rebalance(data, pf, hedges):
     for product in dic:
         for month in dic[product]:
             net = dic[product][month]
-            cost, pf = hedge_gamma_vega(hedges, data, net, month)
+            cost, pf = hedge_gamma_vega(hedges, vdf, pdf, net, month)
             expenditure += cost
-            cost, pf = hedge_delta(hedges['delta'], data, net, month)
+            cost, pf = hedge_delta(hedges['delta'], vdf, pdf, net, month)
             expenditure += cost
     return expenditure, pf
 
@@ -254,6 +259,16 @@ def hedge_delta(cond, data, greeks, month, pf):
 
 
 if __name__ == '__main__':
-    pf = dat.read_portfolio()
-    df = dat.prep_data()
-    run_simulation(df, pf)
+    filepath = 'portfolio_specs.txt'
+    vdf, pdf, edf = read_data(filepath)
+
+    # check sanity of data
+    vdates = pd.to_datetime(vdf.value_date.unique())
+    pdates = pd.to_datetime(pdf.value_date.unique())
+    if not np.array_equal(vdates, pdates):
+        raise ValueError(
+            'Invalid data sets passed in; vol and price data must have the same date range.')
+    # generate portfolio
+    pf = prep_portfolio(vdf, pdf, filepath)
+    # proceed to run simulation
+    run_simulation(vdf, pdf, edf, pf)

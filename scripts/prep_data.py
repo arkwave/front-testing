@@ -67,7 +67,7 @@ contract_mths = {
 ###############################################################
 
 
-def read_data(filepath):
+def read_data(filepath=filepath):
     """
     Summary: Reads in the relevant data files specified in portfolio_specs.txt, which is specified by filepath.
     """
@@ -101,7 +101,7 @@ def read_data(filepath):
     return final_vol, final_price, edf
 
 
-def prep_portfolio(voldata, pricedata, sim_start):
+def prep_portfolio(voldata, pricedata, filepath):
     """
     Reads in portfolio specifications from portfolio_specs.txt and constructs a portfolio object. The paths to the dataframes are specified in the first 3 lines of portfolio_specs.txt, while the remaining securities to be added into this portfolio are stored in the remaining lines. By design, all empty lines or lines beginning with %% are ignored.
 
@@ -113,6 +113,7 @@ def prep_portfolio(voldata, pricedata, sim_start):
     Returns:
         pf (Portfolio)              : a portfolio object.
     """
+    sim_start = min(min(voldata.value_date), min(pricedata.value_date))
     t = time.time()
     pf = Portfolio()
     curr_mth = dt.date.today().month
@@ -122,7 +123,7 @@ def prep_portfolio(voldata, pricedata, sim_start):
     # sim_start = pd.Timestamp('2017-01-01')
     # curr_sym = month_to_sym[sim_start.month] + \
     #     str(sim_start.year % (2000 + decade))
-    print('x1: ', curr_sym)
+    # print('x1: ', curr_sym)
     with open(filepath) as f:
         for line in f:
             if "%%" in line or line in ['\n', '\r\n']:

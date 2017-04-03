@@ -223,6 +223,7 @@ accordingly.
 
 Conceptualize ordering in options/futures.          [Done]
 	> testing
+
 	Notes:
 		1_ ordering in futures: taken care of during read-in, based on current month and the number of contract months between target and current month.
 		2_ ordering in options: for each given C-i price series, bucket overlying options based on time to expiry (i.e. tau < x = bucket 1, x <= tau <= y = bucket 2, etc.)
@@ -239,7 +240,8 @@ Conceptualize ordering in options/futures.          [Done]
 			3) question: barrier option expiries?
 
  
-> isolate distances using get_cdist, pass that into underlying.ordering. [Done]
+> isolate distances using get_cdist, pass that into [Done]
+underlying.ordering.                                
 > updating future and options object with ordering  [Done]
 
 
