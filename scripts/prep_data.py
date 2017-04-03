@@ -2,13 +2,13 @@
 File Name      : prep_data.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 30/3/2017
+Last Modified  : 3/4/2017
 Python version : 3.5
 Description    : Script contains methods to read-in and format data. These methods are used in simulation.py.
 
 """
 
-# # Imports
+############### Imports/Global Variables ##################
 from . import portfolio
 from . import classes
 import pandas as pd
@@ -16,13 +16,10 @@ import datetime as dt
 import numpy as np
 from scipy.interpolate import PchipInterpolator
 from scipy.stats import norm
-from math import log, sqrt 
+from math import log, sqrt
 import time
 seed = 7
 np.random.seed(seed)
-'''
-TODO   read in multipliers from csv
-'''
 
 # setting pandas warning levels
 pd.options.mode.chained_assignment = None
@@ -61,6 +58,10 @@ contract_mths = {
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
+###############################################################
+################## Data Read-in Functions #####################
+###############################################################
+
 
 def read_data(filepath):
     """
@@ -81,6 +82,9 @@ def read_data(filepath):
             edf = clean_data(edf, 'exp')
             volDF = clean_data(volDF, 'vol', edf=edf)
             priceDF = clean_data(priceDF, 'price', edf=edf)
+            # final preprocessing steps
+            final_price = ciprice(priceDF)
+            final_vol = civols(volDF, priceDF)
 
         except FileNotFoundError:
             print(volpath)
@@ -90,7 +94,7 @@ def read_data(filepath):
             print(os.getcwd())
     elapsed = time.time() - t
     print('[READ_DATA] elapsed: ', elapsed)
-    return volDF, priceDF, edf
+    return final_vol, final_price, edf
 
 
 def prep_portfolio(voldata, pricedata, sim_start):
@@ -107,10 +111,14 @@ def prep_portfolio(voldata, pricedata, sim_start):
     """
     t = time.time()
     pf = portfolio.Portfolio()
-    curr_mth = dt.date.today().month
-    curr_mth_sym = month_to_sym[curr_mth]
-    curr_yr = dt.date.today().year % 2000 + decade
-    curr_sym = curr_mth_sym + str(curr_yr)
+    # curr_mth = dt.date.today().month
+    # curr_mth_sym = month_to_sym[curr_mth]
+    # curr_yr = dt.date.today().year % 2000 + decade
+    # curr_sym = curr_mth_sym + str(curr_yr)
+    sim_start = pd.Timestamp('2017-01-01')
+    curr_sym = month_to_sym[sim_start.month] + \
+        str(sim_start.year % (2000 + decade))
+    print('x1: ', curr_sym)
     with open(filepath) as f:
         for line in f:
             if "%%" in line or line in ['\n', '\r\n']:
@@ -149,12 +157,13 @@ def prep_portfolio(voldata, pricedata, sim_start):
                     # handle underlying construction
                     f_mth = volid.split()[1].split('.')[1]
                     f_name = volid.split()[0]
-                    mths = contract_mths[f_name]                
+                    mths = contract_mths[f_name]
                     ordering = find_cdist(curr_sym, f_mth, mths)
                     u_name = volid.split('.')[0]
                     f_price = pricedata[(pricedata['value_date'] == sim_start) &
                                         (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
-                    underlying = classes.Future(f_mth, f_price, f_name, ordering=ordering)
+                    underlying = classes.Future(
+                        f_mth, f_price, f_name, ordering=ordering)
                     opt = classes.Option(strike, tau, char, vol, underlying,
                                          payoff, shorted=shorted, month=opmth, direc=direc, barrier=barriertype,
                                          bullet=bullet, ki=ki, ko=ko, ordering=ordering)
@@ -171,15 +180,19 @@ def prep_portfolio(voldata, pricedata, sim_start):
                                       (pricedata['value_date'] == sim_start)]['settle_value'].values[0]
                     flag = inputs[4].strip('\n')
                     shorted = True if inputs[4] == 'short' else False
-                    ft = classes.Future(mth, price, product, shorted=shorted, ordering=ordering)
+                    ft = classes.Future(mth, price, product,
+                                        shorted=shorted, ordering=ordering)
 
                     pf.add_security(ft, flag)
-                    
+
     elapsed = time.time() - t
     print('[PREP_PORTFOLIO] elapsed: ', elapsed)
     return pf
 
 
+####################################################################
+################### Data Cleaning Functions ########################
+####################################################################
 
 def clean_data(df, flag, edf=None):
     """Function that cleans the dataframes passed into it by:
@@ -210,6 +223,7 @@ def clean_data(df, flag, edf=None):
         df = df.dropna()
         # calculating time to expiry
         df = ttm(df, df['vol_id'], edf)
+        df = df[df.tau > 0].dropna()
 
         # generating additional identifying fields.
         df['underlying_id'] = df[
@@ -222,20 +236,24 @@ def clean_data(df, flag, edf=None):
         # df['underlying_id'].str.split().str[1].str[1])
 
         df['ftmth'] = df['underlying_id'].str.split().str[1]
+        df['op_id'] = df['op_id'] = df.vol_id.str.split().str[
+            1].str.split('.').str[0]
         # transformative functions
         df = assign_ci(df)
         # df.to_csv('debug_assignment_ci.csv')
         try:
             df['label'] = df['vol_id'] + ' ' + \
-                df['cont'].astype(str) + ' ' + df.call_put_id
+                df['order'].astype(str) + ' ' + df.call_put_id
         except TypeError:
             print(df.vol_id[0])
             print('vol_id type: ', type(df.vol_id[0]))
-            print('cont type: ', type(df.cont[0]))
+            print('order type: ', type(df.order[0]))
 
     # cleaning price data
     elif flag == 'price':
+
         df['value_date'] = pd.to_datetime(df['value_date'])
+
         df['pdt'] = df['underlying_id'].str.split().str[0]
         df['ftmth'] = df['underlying_id'].str.split().str[1]
         # df['contract_mth'] = df['underlying_id'].str.split().str[1].str[0]
@@ -245,12 +263,263 @@ def clean_data(df, flag, edf=None):
         df = get_expiry(df, edf)
         df = assign_ci(df)
         df = scale_prices(df)
+        df.expdate = pd.to_datetime(df.expdate)
+        df = df[df.value_date <= df.expdate]
 
     df.reset_index(drop=True, inplace=True)
     df = df.dropna()
     df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
 
     return df
+
+
+def ciprice(pricedata, rollover='opex'):
+    """Constructs the CI price series.
+
+    Args:
+        pricedata (TYPE): price data frame of same format as read_data
+        rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
+
+    Returns:
+        pandas dataframe : prices arranged according to c_i indexing.
+    """
+    t = time.time()
+    if rollover == 'opex':
+        ro_dates = get_rollover_dates(pricedata)
+        products = pricedata['pdt'].unique()
+        # iterate over produts
+        by_product = None
+        for product in products:
+            df = pricedata[pricedata.pdt == product]
+            # lst = contract_mths[product]
+            most_recent = []
+            by_date = None
+            relevant_dates = ro_dates[product]
+            # iterate over rollover dates for this product.
+            for date in relevant_dates:
+                df = df[df.order > 0]
+                order_nums = sorted(df.order.unique())
+                breakpoint = max(most_recent) if most_recent else min(
+                    df['value_date'])
+                # print('breakpoint, date: ', breakpoint, date)
+                by_order_num = None
+                # iterate over all order_nums for this product. for each cont, grab
+                # entries until first breakpoint, and stack wide.
+                for ordering in order_nums:
+                    # print('breakpoint, end, cont: ', breakpoint, date, cont)
+                    df2 = df[df.order == ordering]
+                    tdf = df2[(df2['value_date'] < date) & (df2['value_date'] >= breakpoint)][
+                        ['pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']]
+                    # print(tdf.empty)
+                    tdf.columns = [
+                        'pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']
+                    tdf.reset_index(drop=True, inplace=True)
+                    by_order_num = tdf if by_order_num is None else pd.concat(
+                        [by_order_num, tdf])
+
+                # by_date contains entries from all order_nums until current
+                # rollover date. take and stack this long.
+                by_date = by_order_num if by_date is None else pd.concat(
+                    [by_date, by_order_num])
+                most_recent.append(date)
+                df.order -= 1
+
+            by_product = by_date if by_product is None else pd.concat(
+                [by_product, by_order_num])
+        final = by_product
+
+    else:
+        final = -1
+    elapsed = time.time() - t
+    print('[CI-PRICE] elapsed: ', elapsed)
+    # final.to_csv('ci_price_final.csv', index=False)
+    return final
+
+
+def vol_by_delta(voldata, pricedata):
+    """takes in a dataframe of vols and prices (same format as those returned by read_data),
+     and generates delta-wise vol organized hierarchically by date, underlying and vol_id
+
+    Args:
+        voldata (TYPE): dataframe of vols
+        pricedata (TYPE): dataframe of prices
+
+    Returns:
+        pandas dataframe: delta-wise vol of each option.
+    """
+    t = time.time()
+    relevant_price = pricedata[
+        ['underlying_id', 'value_date', 'settle_value', 'order']]
+    relevant_vol = voldata[['value_date', 'vol_id', 'strike',
+                            'call_put_id', 'tau', 'settle_vol', 'underlying_id']]
+
+    print('merging')
+    merged = pd.merge(relevant_vol, relevant_price,
+                      on=['value_date', 'underlying_id'])
+    # filtering out negative tau values.
+    merged = merged[(merged['tau'] > 0) & (merged['settle_vol'] > 0)]
+
+    print('computing deltas')
+    merged['delta'] = merged.apply(compute_delta, axis=1)
+    # merged.to_csv('merged.csv')
+    merged['pdt'] = merged['underlying_id'].str.split().str[0]
+
+    print('getting labels')
+    # getting labels for deltas
+    delta_vals = np.arange(0.05, 1, 0.05)
+    delta_labels = [str(int(100*x)) + 'd' for x in delta_vals]
+    # all_cols = ['underlying_id', 'tau', 'vol_id'].extend(delta_labels)
+
+    print('preallocating')
+    # preallocating dataframes
+    call_df = merged[merged.call_put_id == 'C'][
+        ['value_date', 'underlying_id', 'tau', 'vol_id', 'order', 'pdt']].drop_duplicates()
+    put_df = merged[merged.call_put_id == 'P'][
+        ['value_date', 'underlying_id', 'tau', 'vol_id', 'order', 'pdt']].drop_duplicates()
+
+    # adding option month as a column
+    c_pdt = call_df.vol_id.str.split().str[0]
+    c_opmth = call_df.vol_id.str.split().str[1].str.split('.').str[0]
+    c_fin = c_pdt + ' ' + c_opmth
+    call_df['op_id'] = c_fin
+    p_pdt = put_df.vol_id.str.split().str[0]
+    p_opmth = put_df.vol_id.str.split().str[1].str.split('.').str[0]
+    p_fin = p_pdt + ' ' + p_opmth
+    put_df['op_id'] = p_fin
+
+    # appending rest of delta labels as columns.
+    call_df = pd.concat([call_df, pd.DataFrame(columns=delta_labels)], axis=1)
+    put_df = pd.concat([put_df, pd.DataFrame(columns=delta_labels)], axis=1)
+    products = merged.pdt.unique()
+
+    print('beginning iteration:')
+
+    for pdt in products:
+        tmp = merged[merged.pdt == pdt]
+        # tmp.to_csv('test.csv')
+        dates = tmp.value_date.unique()
+        vids = tmp.vol_id.unique()
+        for date in dates:
+            for vid in vids:
+                # filter by vol_id and by day.
+                df = tmp[(tmp.value_date == date) & (tmp.vol_id == vid)]
+                calls = df[df.call_put_id == 'C']
+                puts = df[df.call_put_id == 'P']
+                # setting absolute value.
+                puts.delta = np.abs(puts.delta)
+                # sorting in ascending order of delta for interpolation
+                # purposes
+                calls = calls.sort_values(by='delta')
+                puts = puts.sort_values(by='delta')
+                # reshaping data for interpolation.
+                drange = np.arange(0.05, 1, 0.05)
+                cdeltas = calls.delta.values
+                cvols = calls.settle_vol.values
+                pdeltas = puts.delta.values
+                pvols = puts.settle_vol.values
+                # interpolating delta using Piecewise Cubic Hermite
+                # Interpolation (Pchip)
+                try:
+                    f1 = PchipInterpolator(cdeltas, cvols, axis=1)
+                    f2 = PchipInterpolator(pdeltas, pvols, axis=1)
+                except IndexError:
+                    continue
+                # grabbing delta-wise vols based on interpolation.
+                call_deltas = f1(drange)
+                put_deltas = f2(drange)
+
+                try:
+                    call_df.loc[(call_df.vol_id == vid) & (call_df.value_date == date),
+                                delta_labels] = call_deltas
+                except ValueError:
+                    print('target: ', call_df.loc[(call_df.vol_id == vid) & (
+                        call_df.value_date == date), delta_labels])
+                    print('values: ', call_deltas)
+
+                try:
+                    put_df.loc[(put_df.vol_id == vid) & (put_df.value_date == date),
+                               delta_labels] = put_deltas
+                except ValueError:
+                    print('target: ', call_df.loc[(call_df.vol_id == vid) & (
+                        call_df.value_date == date), delta_labels])
+                    print('values: ', call_deltas)
+
+    print('Done. writing to csv...')
+    # call_df.to_csv('call_deltas.csv', index=False)
+    # put_df.to_csv('put_deltas.csv', index=False)
+
+    # resetting indices
+    call_df.reset_index(drop=True, inplace=True)
+    put_df.reset_index(drop=True, inplace=True)
+    elapsed = time.time() - t
+    print('[vol_by_delta] elapsed: ', elapsed)
+    return call_df, put_df
+
+
+def civols(vdf, pdf, rollover='opex'):
+    """Constructs the CI price series.
+    Args:
+        vdf (TYPE): price data frame of same format as read_data
+        rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
+
+    Returns:
+        pandas dataframe : prices arranged according to c_i indexing.
+    """
+    t = time.time()
+    if rollover == 'opex':
+        ro_dates = get_rollover_dates(pdf)
+        products = vdf['pdt'].unique()
+        # iterate over produts
+        by_product = None
+        for product in products:
+            df = vdf[vdf.pdt == product]
+            most_recent = []
+            by_date = None
+            relevant_dates = ro_dates[product]
+            # iterate over rollover dates for this product.
+            for date in relevant_dates:
+                # filter order > 0 to get rid of C_i that have been dealt with.
+                df = df[df.order > 0]
+                # sort orderings.
+                order_nums = sorted(df.order.unique())
+                breakpoint = max(most_recent) if most_recent else min(
+                    df['value_date'])
+                by_order_num = None
+                # iterate over all order_nums for this product. for each cont, grab
+                # entries until first breakpoint, and stack wide.
+                for ordering in order_nums:
+
+                    df2 = df[df.order == ordering]
+                    tdf = df2[(df2['value_date'] < date) & (df2['value_date'] >= breakpoint)][
+                        ['pdt', 'order', 'value_date', 'underlying_id', 'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']]
+                    # renaming columns
+                    tdf.columns = ['pdt', 'order', 'value_date', 'underlying_id',
+                                   'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
+                    # tdf.reset_index(drop=True, inplace=True)
+                    by_order_num = tdf if by_order_num is None else pd.concat(
+                        [by_order_num, tdf])
+
+                # by_date contains entries from all order_nums until current
+                # rollover date. take and stack this long.
+                by_date = by_order_num if by_date is None else pd.concat(
+                    [by_date, by_order_num])
+                most_recent.append(date)
+                df.order -= 1
+
+            by_product = by_date if by_product is None else pd.concat(
+                [by_product, by_date])
+
+        final = by_product
+    else:
+        final = -1
+    elapsed = time.time() - t
+    print('[CI-VOLS] elapsed: ', elapsed)
+    return final
+
+
+#####################################################
+################ Helper Functions ###################
+#####################################################
 
 
 def ttm(df, s, edf):
@@ -299,10 +568,11 @@ def assign_ci(df):
         Pandas dataframe     : Dataframe with the CIs populated.
     """
     today = dt.date.today()
+    # today = pd.Timestamp('2017-01-01')
     curr_mth = month_to_sym[today.month]
     curr_yr = today.year
     products = df['pdt'].unique()
-    df['cont'] = ''
+    df['order'] = ''
     for pdt in products:
         lst = contract_mths[pdt]
         df2 = df[df.pdt == pdt]
@@ -310,7 +580,7 @@ def assign_ci(df):
         for ftmth in ftmths:
             m1 = curr_mth + str(curr_yr % (2000 + decade))
             dist = find_cdist(m1, ftmth, lst)
-            df.ix[(df.pdt == pdt) & (df.ftmth == ftmth), 'cont'] = dist
+            df.ix[(df.pdt == pdt) & (df.ftmth == ftmth), 'order'] = dist
     return df
 
 
@@ -374,13 +644,13 @@ def find_cdist(x1, x2, lst):
     return dist
 
 
-def generate_mappings(pricedata):
-    mappings = {}
-    products = pricedata['pdt'].unique()
-    curr_mth = dt.date.today().month
-    for product in products:
-        mths = contract_mths[product]
-    pass
+# def generate_mappings(pricedata):
+#     mappings = {}
+#     products = pricedata['pdt'].unique()
+#     curr_mth = dt.date.today().month
+#     for product in products:
+#         mths = contract_mths[product]
+#     pass
 
 
 def scale_prices(pricedata):
@@ -455,18 +725,18 @@ def get_rollover_dates(pricedata):
     for product in products:
         # filter by product.
         df = pricedata[pricedata.pdt == product]
-        conts = sorted(pricedata['cont'].unique())
-        rollover_dates[product] = [0] * len(conts)
-        for i in range(len(conts)):
-            cont = conts[i]
-            df2 = df[df['cont'] == cont]
+        order_nums = sorted(pricedata['order'].unique())
+        rollover_dates[product] = [0] * len(order_nums)
+        for i in range(len(order_nums)):
+            order = order_nums[i]
+            df2 = df[df['order'] == order]
             test = df2[df2['value_date'] > df2['expdate']]['value_date']
             if not test.empty:
                 try:
                     rollover_dates[product][i] = min(test)
                 except (ValueError, TypeError):
                     print('i: ', i)
-                    print('cont: ', cont)
+                    print('cont: ', order)
                     print('min: ', min(test))
                     print('product: ', product)
             else:
@@ -475,70 +745,12 @@ def get_rollover_dates(pricedata):
     return rollover_dates
 
 
-def ciprice(pricedata, rollover='opex'):
-    """Constructs the CI price series.
-
-    Args:
-        pricedata (TYPE): price data frame of same format as read_data
-        rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
-
-    Returns:
-        pandas dataframe : prices arranged according to c_i indexing.
-    """
-    t = time.time()
-    if rollover == 'opex':
-        ro_dates = get_rollover_dates(pricedata)
-        products = pricedata['pdt'].unique()
-        # iterate over produts
-        by_product = None
-        for product in products:
-            df = pricedata[pricedata.pdt == product]
-            # lst = contract_mths[product]
-            conts = sorted(df['cont'].unique())
-            most_recent = []
-            by_date = None
-            relevant_dates = ro_dates[product]
-            # iterate over rollover dates for this product.
-            for date in relevant_dates:
-                # print('most_recent: ', most_recent)
-                # print('date: ', date)
-                breakpoint = max(most_recent) if most_recent else min(
-                    df['value_date'])
-                by_cont = None
-                # iterate over all conts for this product. for each cont, grab
-                # entries until first breakpoint, and stack wide.
-                for cont in conts:
-                    df2 = df[df.cont == cont]
-                    tdf = df2[(df2['value_date'] < date) & (df2['value_date'] >= breakpoint)][
-                        ['value_date', 'returns']]
-                    tdf.columns = ['value_date', product + '_c' + str(cont)]
-                    tdf.reset_index(drop=True, inplace=True)
-                    by_cont = tdf if by_cont is None else pd.concat(
-                        [by_cont, tdf], axis=1)
-                # by_date contains entries from all conts until current
-                # rollover date. take and stack this long.
-                by_date = by_cont if by_date is None else pd.concat(
-                    [by_date, by_cont])
-                most_recent.append(date)
-            by_product = by_date if by_product is None else pd.concat(
-                [by_product, by_cont], axis=1)
-        by_product.dropna(inplace=True)
-        by_product = by_product.loc[:, ~by_product.columns.duplicated()]
-        # by_product.to_csv('by_product_debug.csv', index=False)
-        final = by_product
-    else:
-        final = -1
-    elapsed = time.time() - t
-    print('[CI-PRICE] elapsed: ', elapsed)
-    return final
-
-
 def compute_delta(x):
     """Helper function to aid with vol_by_delta, rendered in this format to make use of pd.apply
-    
+
     Args:
         x (pandas dataframe): dataframe of vols.
-    
+
     Returns:
         double: value of delta
     """
@@ -562,196 +774,3 @@ def compute_delta(x):
         delta1 = norm.cdf(d1) - 1
 
     return delta1
-
-
-def vol_by_delta(voldata, pricedata):
-    """takes in a dataframe of vols and prices (same format as those returned by read_data),
-     and generates delta-wise vol organized hierarchically by date, underlying and vol_id
-    
-    Args:
-        voldata (TYPE): dataframe of vols
-        pricedata (TYPE): dataframe of prices
-    
-    Returns:
-        pandas dataframe: delta-wise vol of each option.
-    """
-    relevant_price = pricedata[['underlying_id', 'value_date', 'settle_value', 'cont']]
-    relevant_vol = voldata[['value_date', 'vol_id', 'strike','call_put_id', 'tau', 'settle_vol', 'underlying_id']]
-
-    print('merging')
-    merged = pd.merge(relevant_vol, relevant_price,
-                      on=['value_date', 'underlying_id'])
-    # filtering out negative tau values.
-    merged = merged[(merged['tau'] > 0) & (merged['settle_vol'] > 0)]
-
-    print('computing deltas')
-    merged['delta'] = merged.apply(compute_delta, axis=1)
-    merged.to_csv('merged.csv')
-    merged['pdt'] = merged['underlying_id'].str.split().str[0]
-
-    print('getting labels')
-    # getting labels for deltas
-    delta_vals = np.arange(0.05, 1, 0.05)
-    delta_labels = [str(int(100*x)) + 'd' for x in delta_vals]
-    # all_cols = ['underlying_id', 'tau', 'vol_id'].extend(delta_labels)
-
-    print('preallocating')
-    # preallocating dataframes
-    call_df = merged[merged.call_put_id == 'C'][
-        ['value_date', 'underlying_id', 'tau', 'vol_id', 'cont', 'pdt']].drop_duplicates()
-    put_df = merged[merged.call_put_id == 'P'][
-        ['value_date', 'underlying_id', 'tau', 'vol_id', 'cont', 'pdt']].drop_duplicates()
-
-    # adding option month as a column
-    c_pdt = call_df.vol_id.str.split().str[0]
-    c_opmth = call_df.vol_id.str.split().str[1].str.split('.').str[0]
-    c_fin = c_pdt + ' ' + c_opmth
-    call_df['op_id'] = c_fin
-    p_pdt = put_df.vol_id.str.split().str[0]
-    p_opmth = put_df.vol_id.str.split().str[1].str.split('.').str[0]
-    p_fin = p_pdt + ' ' + p_opmth
-    put_df['op_id'] = p_fin
-    
-    # appending rest of delta labels as columns.
-    call_df = pd.concat([call_df, pd.DataFrame(columns=delta_labels)], axis=1)
-    put_df = pd.concat([put_df, pd.DataFrame(columns=delta_labels)], axis=1)
-    products = merged.pdt.unique()
-    
-    print('beginning iteration:')
-
-    for pdt in products:
-        tmp = merged[merged.pdt == pdt]
-        tmp.to_csv('test.csv')
-        dates = tmp.value_date.unique()
-        vids = tmp.vol_id.unique()
-        for date in dates:
-            for vid in vids:
-                # filter by vol_id and by day.
-                df = tmp[(tmp.value_date == date) & (tmp.vol_id == vid)]
-                calls = df[df.call_put_id == 'C']
-                puts = df[df.call_put_id == 'P']
-                # setting absolute value.
-                puts.delta = np.abs(puts.delta)
-                # sorting in ascending order of delta for interpolation purposes
-                calls = calls.sort_values(by='delta')
-                puts = puts.sort_values(by='delta')
-                # reshaping data for interpolation.
-                drange = np.arange(0.05, 1, 0.05)
-                cdeltas = calls.delta.values
-                cvols = calls.settle_vol.values
-                pdeltas = puts.delta.values
-                pvols = puts.settle_vol.values
-                # interpolating delta using Piecewise Cubic Hermite Interpolation (Pchip)
-                try:
-                    f1 = PchipInterpolator(cdeltas, cvols, axis=1)
-                    f2 = PchipInterpolator(pdeltas, pvols, axis=1)
-                except IndexError:
-                    continue
-                # grabbing delta-wise vols based on interpolation.
-                call_deltas = f1(drange)
-                put_deltas = f2(drange)
-
-                try:
-                    call_df.loc[(call_df.vol_id == vid) & (call_df.value_date == date),
-                                delta_labels] = call_deltas
-                except ValueError:
-                    print('target: ', call_df.loc[(call_df.vol_id == vid) & (call_df.value_date == date), delta_labels])
-                    print('values: ', call_deltas)
-
-                try:
-                    put_df.loc[(put_df.vol_id == vid) & (put_df.value_date == date), 
-                           delta_labels] = put_deltas
-                except ValueError:
-                    print('target: ', call_df.loc[(call_df.vol_id == vid) & (call_df.value_date == date), delta_labels])
-                    print('values: ', call_deltas)               
-
-    print('Done. writing to csv...')
-    # call_df.to_csv('call_deltas.csv', index=False)
-    # put_df.to_csv('put_deltas.csv', index=False)    
-
-    # resetting indices
-    call_df.reset_index(drop=True, inplace=True)
-    put_df.reset_index(drop=True, inplace=True)
-    return call_df, put_df
-
-
-def civols(vdf, pdf, rollover='opex'):
-    """Constructs the CI price series.
-
-    Args:
-        vdf (TYPE): price data frame of same format as read_data
-        rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
-
-    Returns:
-        pandas dataframe : prices arranged according to c_i indexing.
-    """
-    t = time.time()
-    if rollover == 'opex':
-        ro_dates = get_rollover_dates(pdf)
-        products = vdf['pdt'].unique()
-        # iterate over produts
-        by_product = None
-        for product in products:
-            df = vdf[vdf.pdt == product]
-            # lst = contract_mths[product]
-            conts = sorted(df['cont'].unique())
-            most_recent = []
-            by_date = None
-            relevant_dates = ro_dates[product]
-            print('rollover dates: ', relevant_dates)
-            # iterate over rollover dates for this product.
-            for date in relevant_dates:
-                # print('most_recent: ', most_recent)
-                # print('date: ', date)
-                breakpoint = max(most_recent) if most_recent else min(
-                    df['value_date'])
-                by_cont = None
-                # iterate over all conts for this product. for each cont, grab
-                # entries until first breakpoint, and stack wide.
-                for cont in conts:
-                    print('cont: ', cont)
-                    df2 = df[df.cont == cont]
-                    tdf = df2[(df2['value_date'] < date) & (df2['value_date'] >= breakpoint)][['value_date', 'tau' , 'vol_id','underlying_id','call_put_id', 'strike', 'settle_vol']]
-                    print('vol_ids: ', tdf.vol_id.unique())
-                    # deriving additional columns
-                    tdf['cont'] = cont 
-                    tdf['pdt'] = product
-                    tdf['op_id'] = tdf.vol_id.str.split().str[1].str.split('.').str[0]
-                    # renaming columns
-                    tdf.columns = ['value_date', 'tau','vol_id', 'underlying_id', 'call_put_id', 'strike', 'settle_vol', 'cont', 'pdt', 'op_id']
-                    # tdf.reset_index(drop=True, inplace=True)
-                    by_cont = tdf if by_cont is None else pd.concat(
-                        [by_cont, tdf])
-                # by_date contains entries from all conts until current
-                # rollover date. take and stack this long.
-                by_date = by_cont if by_date is None else pd.concat(
-                    [by_date, by_cont])
-                most_recent.append(date)
-            by_product = by_date if by_product is None else pd.concat(
-                [by_product, by_cont])
-        by_product.dropna(inplace=True)
-        # by_product = by_product.loc[:, ~by_product.columns.duplicated()]
-        by_product.to_csv('by_product_debug.csv', index=False)
-        final = by_product
-    else:
-        final = -1
-    elapsed = time.time() - t
-    print('[CI-TEST] elapsed: ', elapsed)
-    return final
-
-
-if __name__ == '__main__':
-    # compute simulation start day; earliest day in dataframe.
-    voldata, pricedata, edf = read_data(filepath)
-
-    # just a sanity check, these two should be the same.
-    sim_start = min(min(voldata['value_date']), min(pricedata['value_date']))
-    assert (sim_start == min(voldata['value_date']))
-    assert (sim_start == min(pricedata['value_date']))
-
-    final_price = ciprice(pricedata)
-    final_vols = civols(voldata, pricedata)
-    call_vols, put_vols = vol_by_delta(final_vols, pricedata)
-
-    # writing to csvs
-    

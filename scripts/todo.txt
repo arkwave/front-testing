@@ -247,24 +247,32 @@ Conceptualize ordering in options/futures.          [Done]
 
 3/4 (Monday) :
 
-feed_data                                           []
-handle_options                                      []
+# Notes:
+	> use the regular ci_vols_final dataset to actually update the portfolio. vol_by_delta is purely for database purposes, can later be adapted to portfolio if so desired.
+	> currently using Piecewise continuous hermite interpolation (pchip) to interpolate deltas. ensures function and derivative match at those points.
 
+Debugging ci_price                                  [Done]
+debugging ci_vol                                    [Done]
 
-> reading in multiplier list                        []
 
 start working on simulation logic given changes to 
 datasets:
 	> feed_data                                     []
 	> delta/vega/gamma hedging.                     []
-
-> generate data requirements from portfolio object  [] -> use get_all_futures.
-
+> reading in multiplier list                        []
 adapt computation for returns and change in vol     []
 
 
 
+TODO once dumps are ready:
+> generate data requirements from portfolio object  [] -> use get_all_futures.
 
+
+
+4/4 (Wed):
+
+# Notes:
+	> discussion with Evert on structure of the code.
 
 
 
@@ -272,7 +280,6 @@ adapt computation for returns and change in vol     []
 >>>>> Simulation Logic: <<<<<<
 1) Handle_options                                    []
 2) PnL                                               []
-3) Clean up feed_data once data format finalized     []
 
 
 
