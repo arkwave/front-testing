@@ -255,14 +255,19 @@ underlying.ordering.
 
 Debugging ci_price                                  [Done]
 debugging ci_vol                                    [Done]
-resolving imports                                   []
+resolving imports                                   [Done]
+updating documentation in prep_data                 [Done]
 
-start working on simulation logic given changes to 
-datasets:
-	> feed_data                                     []
-	> delta/vega/gamma hedging.                     []
-> reading in multiplier list                        []
-adapt computation for returns and change in vol     []
+
+### Simulation TODOs: ####
+figure out how to check for rollover.               []
+main simulation loop                                []
+feed_data                                           []
+delta/vega/gamma hedging.                           []
+reading in multiplier list                          []
+adapt computation for returns/vol change, 
+understand why                                      []
+
 
 
 
@@ -280,8 +285,8 @@ TODO once dumps are ready:
 
 
 >>>>> Simulation Logic: <<<<<<
-1) Handle_options                                    []
-2) PnL                                               []
+1) Handle_options                                   []
+2) PnL                                              []
 
 
 
