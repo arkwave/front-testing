@@ -225,14 +225,23 @@ Conceptualize ordering in options/futures.          [Done]
 	> testing
 
 	Notes:
-		1_ ordering in futures: taken care of during read-in, based on current month and the number of contract months between target and current month.
-		2_ ordering in options: for each given C-i price series, bucket overlying options based on time to expiry (i.e. tau < x = bucket 1, x <= tau <= y = bucket 2, etc.)
-		> implication: logic to check for which price/vol series to read in should be done in simulation.py, not in any of the classes.
-		> todo: isolate c_i from readin, which is already being done by read_data. once access to vol/price dump is given, implement get_all_underlying in portfolio to specify the data that is required.
+		
+		1_ ordering in futures: taken care of during read-in, 
+		based on current month and the number of contract months between target and current month.
+		
+		2_ ordering in options: for each given C-i price series, 
+		bucket overlying options based on time to expiry (i.e. tau < x = bucket 1, x <= tau <= y = bucket 2, etc.)
+		
+		> implication: logic to check for which price/vol series 
+		to read in should be done in simulation.py, not in any of the classes.
+		
+		> todo: isolate c_i from readin, which is already being done by read_data. 
+		once access to vol/price dump is given, implement get_all_underlying in portfolio to specify the data that is required.
 		   - done.
 		> during simulation:
 			1) for each product, keep track of rollover dates.
-			2) if value_date == rollover date, update orderings (i.e. decrement ordering for options and futures, discard those options that correspond to ordering 0)
+			2) if value_date == rollover date, update orderings 
+			(i.e. decrement ordering for options and futures, discard those options that correspond to ordering 0)
 
 			> related TODOs: 
 			1) generate and store rollover dates in sim.py
@@ -250,8 +259,10 @@ underlying.ordering.
 3/4 (Monday) :
 
 # Notes:
-	> use the regular ci_vols_final dataset to actually update the portfolio. vol_by_delta is purely for database purposes, can later be adapted to portfolio if so desired.
-	> currently using Piecewise continuous hermite interpolation (pchip) to interpolate deltas. ensures function and derivative match at those points.
+	> use the regular ci_vols_final dataset to actually update the portfolio. 
+	vol_by_delta is purely for database purposes, can later be adapted to portfolio if so desired.
+	> currently using Piecewise continuous hermite interpolation (pchip) 
+	to interpolate deltas. ensures function and derivative match at those points.
 
 Debugging ci_price                                  [Done]
 debugging ci_vol                                    [Done]
@@ -260,8 +271,12 @@ updating documentation in prep_data                 [Done]
 
 
 ### Simulation TODOs: ####
-figure out how to check for rollover.               []
-main simulation loop                                []
+figure out how to check for rollover.               [Done] -> in feed_data
+main simulation loop                                [Done] -> notes written.
+conceptualize viz.                                  []
+Pnl calculations.                                   []
+
+
 feed_data                                           []
 delta/vega/gamma hedging.                           []
 reading in multiplier list                          []
@@ -269,24 +284,33 @@ adapt computation for returns/vol change,
 understand why                                      []
 
 
+Simulation logic notes:
+
+1) Timestep --> immediately handle expiries/rollovers.
+2) Feed in price and vol data:
+	> price --> knockouts/knockins that changes activity status.
+	> price --> change in value of futures and options. 
+	> vol --> change in value of option
+3) Handle options:
+	> daily vs bullet payoff? might not actually be necessary.
+4) store changes from above 4 steps, figure out how the hell brokerage/lots/multipliers etc factor into PnL calculation.
+5) store PnL against run_number --> plot a histogram, and summary statistics. 
+
+
+
 
 
 TODO once dumps are ready:
 > generate data requirements from portfolio object  [] -> use get_all_futures.
+> finalize database updating stuff. 
+> batch script to run the file every day. 
 
 
 
 4/4 (Wed):
-
 # Notes:
 	> discussion with Evert on structure of the code.
 
-
-
-
->>>>> Simulation Logic: <<<<<<
-1) Handle_options                                   []
-2) PnL                                              []
 
 
 
