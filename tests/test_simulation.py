@@ -26,3 +26,11 @@ def test_feed_data_rollover():
 
 def test_feed_data_updates():
     pass
+
+
+def test_hedge_gamma_vega():
+    pass
+
+
+def test_delta_hedging():
+    pass
