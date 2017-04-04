@@ -13,6 +13,7 @@ import pandas as pd
 from scripts.classes import Option, Future
 from scripts.prep_data import read_data, prep_portfolio, get_rollover_dates
 from math import ceil
+import copy
 
 """
 TODO:
@@ -102,7 +103,6 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
     # Step 6: Plotting results/data viz
 
 
-# TODO: Finish implementation.
 def feed_data(voldf, pdf, pf, dic):
     """This function does the following:
     1) Computes current value of portfolio. 
@@ -123,12 +123,10 @@ def feed_data(voldf, pdf, pf, dic):
         tuple: change in value and updated portfolio object. 
     """
     raw_diff = 0
-    date = pdf.value_date.unique()[0]
     # 1) initial value of the portfolio before updates.
     prev_val = pf.compute_value()
     # decrement tau
     pf.timestep(timestep)
-
     # 2) Check for rollovers and expiries
     # rollovers
     for product in dic:
@@ -200,19 +198,22 @@ def rebalance(vdf, pdf, pf, hedges):
     # return both the portfolio, as well as the gain/loss from short/long pos
     expenditure = 0
     # hedging delta, gamma, vega.
-    dic = pf.get_net_greeks()
+    dic = copy.deepcopy(pf.get_net_greeks())
     for product in dic:
         for month in dic[product]:
-            net = dic[product][month]
-            cost, pf = hedge_gamma_vega(hedges, vdf, pdf, net, month, pf)
+            ordering = pf.compute_ordering(product, month)
+            cost, pf = hedge_gamma_vega(
+                hedges, vdf, pdf, month, pf, product, ordering)
             expenditure += cost
-            cost, pf = hedge_delta(hedges['delta'], vdf, pdf, net, month, pf)
+            delta_cond = hedges['delta']
+            cost, pf = hedge_delta(delta_cond, vdf, pdf,
+                                   month, pf, product, ordering)
             expenditure += cost
     return expenditure, pf
 
 
 # TODO: update this with new objects in mind.
-def hedge_gamma_vega(hedges, vdf, pdf, greeks, month, pf):
+def hedge_gamma_vega(hedges, vdf, pdf, month, pf, product, ordering):
     """Helper function that deals with vega/gamma hedging   
 
     Args:
@@ -228,6 +229,8 @@ def hedge_gamma_vega(hedges, vdf, pdf, greeks, month, pf):
 
     """
     expenditure = 0
+    net_greeks = pf.get_net_greeks()
+    greeks = net_greeks[product][month]
     # naming variables for clarity.
     delta = greeks[0]
     gamma = greeks[1]
@@ -235,22 +238,26 @@ def hedge_gamma_vega(hedges, vdf, pdf, greeks, month, pf):
     vega = greeks[3]
 
     gamma_bound = hedges['gamma']
-    delta_cond = hedges['delta']
     vega_bound = hedges['vega']
 
     # relevant data for constructing Option and Future objects.
-    price = data[price_name]       # placeholder
-    vol = data[vol_name]           # placeholder
-    tau = calc_tau()               # placeholder.
-    product = get_product          # placeholder
+    price = pdf[(pdf.pdt == product) & (
+        pdf.order == ordering)].settle_value.values[0]
+    straddle_strike = round(price/10) * 10
+    cvol = vdf[(vdf.pdt == product) & (
+        vdf.call_put_id == 'C') & (vdf.order == ordering) & (vdf.strike == straddle_strike)].settle_vol.values[0]
+    pvol = vdf[(vdf.pdt == product) & (
+        vdf.call_put_id == 'P') & (vdf.order == ordering) & (vdf.strike == straddle_strike)].settle_vol.values[0]
+    tau = vdf[(vdf.pdt == product) & (
+        vdf.call_put_id == 'P') & (vdf.order == ordering) & (vdf.strike == straddle_strike)].tau.values[0]
     underlying = Future(month, price, product)
 
     # check to see if gamma and vega are being hedged.
     if 'gamma' and 'vega' in hedges:
         # creating straddle components.
-        callop = Option(price, tau, 'call', vol, underlying, 'euro')
-        putop = Option(price, tau, 'put', vol, underlying, 'euro')
-        straddle_val = callop.get_value() + putop.get_value()
+        callop = Option(price, tau, 'call', cvol, underlying, 'euro')
+        putop = Option(price, tau, 'put', pvol, underlying, 'euro')
+        straddle_val = callop.compute_price() + putop.compute_price()
 
     # gamma and vega hedging.
     cdelta, cgamma, ctheta, cvega = callop.greeks()
@@ -263,16 +270,18 @@ def hedge_gamma_vega(hedges, vdf, pdf, greeks, month, pf):
         # gamma hedging logic.
         if gamma < lower:
             # need to buy straddles. expenditure is positive.
-            flag = 'long'
+            callop.shorted = False
+            putop.shorted = False
             num_required = ceil((lower-gamma)/(pgamma + cgamma))
         elif gamma > upper:
             # need to short straddles. expenditure is negative.
-            flag = 'short'
+            callop.shorted = True
+            putop.shorted = True
             num_required = ceil((upper-gamma)/(pgamma + cgamma))
         expenditure += num_required * straddle_val
         for i in range(num_required):
-            pf.add_security(callop, flag)
-            pf.add_security(putop, flag)
+            pf.add_security(callop, 'hedge')
+            pf.add_security(putop, 'hedge')
 
     if vega not in range(*vega_bound):
         lower = vega_bound[0]
@@ -280,16 +289,20 @@ def hedge_gamma_vega(hedges, vdf, pdf, greeks, month, pf):
         # gamma hedging logic.
         if vega < lower:
             # need to buy straddles. expenditure is positive.
-            flag = 'long'
+            # flag = 'long'
+            callop.shorted = False
+            putop.shorted = False
             num_required = ceil((lower-vega)/(pvega + cvega))
         elif vega > upper:
             # need to short straddles. expenditure is negative.
-            flag = 'short'
             num_required = ceil((upper-vega)/(pvega + cvega))
+            callop.shorted = True
+            putop.shorted = True
+
         expenditure += num_required * straddle_val
         for i in range(num_required):
-            pf.add_security(callop, flag)
-            pf.add_security(putop, flag)
+            pf.add_security(callop, 'hedge')
+            pf.add_security(putop, 'hedge')
 
     return expenditure, pf
 
@@ -336,17 +349,16 @@ def hedge_delta(cond, vdf, pdf, net, month, pf):
     return expenditure, pf
 
 
-# if __name__ == '__main__':
-#     filepath = 'portfolio_specs.txt'
-#     vdf, pdf, edf = read_data(filepath)
-
-#     # check sanity of data
-#     vdates = pd.to_datetime(vdf.value_date.unique())
-#     pdates = pd.to_datetime(pdf.value_date.unique())
-#     if not np.array_equal(vdates, pdates):
-#         raise ValueError(
-#             'Invalid data sets passed in; vol and price data must have the same date range.')
-#     # generate portfolio
-#     pf = prep_portfolio(vdf, pdf, filepath)
-#     # proceed to run simulation
-#     run_simulation(vdf, pdf, edf, pf)
+if __name__ == '__main__':
+    filepath = 'portfolio_specs.txt'
+    vdf, pdf, edf = read_data(filepath)
+    # check sanity of data
+    vdates = pd.to_datetime(vdf.value_date.unique())
+    pdates = pd.to_datetime(pdf.value_date.unique())
+    if not np.array_equal(vdates, pdates):
+        raise ValueError(
+            'Invalid data sets passed in; vol and price data must have the same date range.')
+    # generate portfolio
+    pf = prep_portfolio(vdf, pdf, filepath)
+    # proceed to run simulation
+    run_simulation(vdf, pdf, edf, pf)

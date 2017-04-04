@@ -239,19 +239,38 @@ Conceptualize ordering in options/futures.          [Done]
 		once access to vol/price dump is given, implement get_all_underlying in portfolio to specify the data that is required.
 		   - done.
 		> during simulation:
-			1) for each product, keep track of rollover dates.
-			2) if value_date == rollover date, update orderings 
-			(i.e. decrement ordering for options and futures, discard those options that correspond to ordering 0)
+			1) for each product, keep track of rollover dates.                  [Done]
+			2) if value_date == rollover date, update orderings                 [Done]
+			(i.e. decrement ordering for options and futures, discard those        
+			options that correspond to ordering 0)
 
 			> related TODOs: 
-			1) generate and store rollover dates in sim.py
-			2) new active condition (i.e. if cond == 0, inactive, regardless).
-			3) question: barrier option expiries?
+			1) generate and store rollover dates in sim.py                      [Done]
+			2) new active condition (i.e. if cond == 0, inactive, regardless).  [Done]
+			3) question: barrier option expiries?                             
 
  
 > isolate distances using get_cdist, pass that into [Done]
 underlying.ordering.                                
 > updating future and options object with ordering  [Done]
+
+
+
+
+Simulation logic notes:
+
+1) Timestep --> immediately handle expiries/rollovers
+2) Feed in price and vol data:
+	> price --> knockouts/knockins that changes activity status.
+	> price --> change in value of futures and options. 
+	> vol --> change in value of option
+3) Handle options:
+	> daily vs bullet payoff? might not actually be necessary.
+4) delta/vega/gamma hedging. 
+5) store changes from above 4 steps, figure out how the hell brokerage/lots/multipliers etc factor into PnL calculation.
+6) store PnL against run_number --> plot a histogram, and summary statistics. 
+
+
 
 
 
@@ -275,8 +294,6 @@ updating documentation in prep_data                 [Done]
 ### Simulation TODOs: ####
 figure out how to check for rollover.               [Done] -> in feed_data
 main simulation loop                                [Done] -> notes written.
-conceptualize viz.                                  []
-Pnl calculations.                                   []
 
 
 
@@ -287,48 +304,42 @@ feed_data
 	> rollovers                                     [Done]
 	> price --> knockouts/knockins that              
 				changes activity status.            [Done]
-
 	
 	> price --> change in value of futures          [Done]
 	                          and options.          [Done]
 	> vol --> change in value of option             [Done]
 
-
-
 >> Check: if greeks updated when new price/vols 
 	passed in                                       [Done]
+
 >> check if expiry zeros out greeks of options      [Done]
 
+>> check if decrementing ordering has the 
+   desired effect                                   [Done] 
 
 >> understand readin process and how tau is 
    computed, in relation to simulation logic  
-   as a whole.                                      []
+   as a whole.                                      [Done]
+
+>> vega/gamma hedging                               [Done]
+
+
+
+
+5/4 (Wednesday):
+# Notes:
+> discussion with Evert on structure of the code.   []
+> prep notes, send out tomorrow morning.            []
 
 >> testing: feed_data.                              []
+>> testing: gamma/vega hedging                      [] 
 
+Delta Hedging.                                      []
 
+reading in multiplier list                          
+adapt computation for returns/vol change,           []
 
-delta/vega/gamma hedging.                           []
-
-reading in multiplier list                          []
-adapt computation for returns/vol change, 
-understand why                                      []
-
-
-
-
-Simulation logic notes:
-
-1) Timestep --> immediately handle expiries/rollovers
-2) Feed in price and vol data:
-	> price --> knockouts/knockins that changes activity status.
-	> price --> change in value of futures and options. 
-	> vol --> change in value of option
-3) Handle options:
-	> daily vs bullet payoff? might not actually be necessary.
-4) delta/vega/gamma hedging. 
-5) store changes from above 4 steps, figure out how the hell brokerage/lots/multipliers etc factor into PnL calculation.
-6) store PnL against run_number --> plot a histogram, and summary statistics. 
+Pnl calculations.                                   []
 
 
 
@@ -339,10 +350,6 @@ TODO once dumps are ready:
 
 
 
-5/4 (Wed):
-# Notes:
-	> discussion with Evert on structure of the code.
-	> prep notes, send out today.
 
 
 

@@ -495,3 +495,19 @@ class Portfolio:
         for ft in futures:
             if ft.get_product() == product:
                 ft.decrement_ordering(i)
+
+    def compute_ordering(self, product, month):
+        if product in self.OTC:
+            if month in self.OTC[product]:
+                dic = self.OTC
+        elif product in self.hedges:
+            if month in self.hedges[product]:
+                dic = self.hedges
+        data = dic[product][month]
+        if data[0]:
+            s = next(iter(data[0]))
+            order = s.get_ordering()
+        elif data[1]:
+            s = next(iter(data[1]))
+            order = s.get_ordering()
+        return order

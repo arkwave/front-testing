@@ -16,10 +16,10 @@ class Option:
     """
     Definitions for the option class.
     Instance variables:
-        1)  ki         =   knock-in value.
-        2)  ko         =   knock-out value
+        1)  ki         =   knock-in value. Defaults to None if not used.
+        2)  ko         =   knock-out value Defaults to None if not used. 
         3)  K          =   strike price
-        4)  price      =   price quoted for the option.
+        4)  price      =   price according to BSM 
         5)  tau        =   time to expiry in years (as per black-scholes)
         6)  char       =   call or put option.
         7)  vol        =   current implied volatility
@@ -37,7 +37,7 @@ class Option:
         20) expired    =   boolean indicating if the option has expired.
         21) rebate     =   value paid to holder of option if option is knocked out.
         22) ordering   =   indicating if this option is c1, c2, ... c8. For vol/price purposes.
-        23) month      =   indicates the month of expiry of this option. i.e. K7, H7. First two letters of the vol_id; i.e. if the vol_id is K7.Z7, this field would be K7 while the underlying future's corresponding field would be Z7.
+
 
         Notes: 
         1_ ki, ko, bullet, direc and barrier default to None and must be expressly overridden if an exotic option is desired.

@@ -13,6 +13,8 @@ from scripts.classes import Option, Future
 from scripts.portfolio import Portfolio
 from scripts.prep_data import read_data
 
+vdf, pdf, edf = read_data()
+
 
 def test_feed_data_expiry():
     pass
