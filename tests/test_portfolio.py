@@ -16,11 +16,11 @@ import numpy as np
 def generate_portfolio():
     """Generate portfolio for testing purposes. """
     # Underlying Futures
-    ft1 = Future('march', 30, 'C')
-    ft2 = Future('may', 25, 'C')
-    ft3 = Future('april', 32, 'BO')
-    ft4 = Future('april', 33, 'LH')
-    ft5 = Future('april', 24, 'LH')
+    ft1 = Future('H7', 30, 'C')
+    ft2 = Future('K7', 25, 'C')
+    ft3 = Future('J7', 32, 'BO')
+    ft4 = Future('J7', 33, 'LH')
+    ft5 = Future('J7', 24, 'LH')
 
     # options
     op1 = Option(
@@ -35,10 +35,10 @@ def generate_portfolio():
         32, 0.010975090692443346, 'put', 0.8281728247909962, ft5, 'amer', True, 'Z7')
 
     # Portfolio Futures
-    ft6 = Future('may', 37, 'C', shorted=False)
-    ft7 = Future('march', 29, 'BO', shorted=False)
-    ft8 = Future('april', 32, 'C', shorted=True)
-    ft9 = Future('april', 32, 'BO', shorted=True)
+    ft6 = Future('K7', 37, 'C', shorted=False)
+    ft7 = Future('H7', 29, 'BO', shorted=False)
+    ft8 = Future('J7', 32, 'C', shorted=True)
+    ft9 = Future('J7', 32, 'BO', shorted=True)
 
     OTCs, hedges = [op1, op2, ft7, op4, ft6], [op5, op3, ft8, ft9]
 
@@ -71,7 +71,7 @@ def test_add_multiple():
     pf = generate_portfolio()
     assert len(pf.OTC) == 3
     assert len(pf.OTC_options) == 3
-    ft = Future('march', 30, 'C')
+    ft = Future('H7', 30, 'C')
     op = Option(
         35, 0.05106521860205984, 'call', 0.4245569263291844, ft, 'amer', True, 'Z7')
     pf.add_security(op, 'OTC')
@@ -81,7 +81,7 @@ def test_add_multiple():
 
 def test_remove_dne():
     pf = generate_portfolio()
-    ft = Future('july', 50, 'D')
+    ft = Future('N7', 50, 'D')
     assert pf.remove_security(ft, 'OTC') == -1
     assert pf.remove_security(ft, 'hedge') == -1
 
@@ -92,11 +92,11 @@ def test_OTC_pos():
     assert set(dic.keys()) == set(['C', 'LH', 'BO'])
     # sub-dictionaries.
     dic_c = dic['C']
-    assert set(dic_c.keys()) == set(['march', 'may'])
+    assert set(dic_c.keys()) == set(['H7', 'K7'])
     dic_bo = dic['BO']
-    assert set(dic_bo.keys()) == set(['march'])
+    assert set(dic_bo.keys()) == set(['H7'])
     dic_lh = dic['LH']
-    assert set(dic_lh.keys()) == set(['april'])
+    assert set(dic_lh.keys()) == set(['J7'])
 
 
 def test_hedge_pos():
@@ -105,16 +105,16 @@ def test_hedge_pos():
     assert set(dic.keys()) == set(['C', 'LH', 'BO'])
     # sub dictionaries
     dic_c = dic['C']
-    assert set(dic_c.keys()) == set(['april'])
+    assert set(dic_c.keys()) == set(['J7'])
     dic_lh = dic['LH']
-    assert set(dic_lh.keys()) == set(['april'])
+    assert set(dic_lh.keys()) == set(['J7'])
     dic_bo = dic['BO']
-    assert set(dic_bo.keys()) == set(['april'])
+    assert set(dic_bo.keys()) == set(['J7'])
 
 
 def test_remove_security_futures():
     pf = generate_portfolio()
-    ft_test = Future('aug', 50, 'C')
+    ft_test = Future('Q7', 50, 'C')
     pf2 = copy.deepcopy(pf)
     prev_net = pf2.get_net_greeks()
     prev_OTCs = pf2.get_securities_monthly('OTC')
@@ -122,7 +122,7 @@ def test_remove_security_futures():
     # basic checks
     assert len(prev_OTCs) == 3
     assert len(prev_OTCs['C']) == 2
-    assert set(prev_OTCs['C'].keys()) == set(['march', 'may'])
+    assert set(prev_OTCs['C'].keys()) == set(['H7', 'K7'])
     assert len(pf.OTC_futures) == 2
     assert ft_test.get_product() == 'C'
 
@@ -132,7 +132,7 @@ def test_remove_security_futures():
     pf.add_security(ft_test, 'OTC')
     try:
         assert set(pf.get_net_greeks()['C'].keys()) == set(
-            ['march', 'may'])
+            ['H7', 'K7'])
     except AssertionError:
         print(pf.get_net_greeks()['C'].keys())
 
@@ -140,7 +140,7 @@ def test_remove_security_futures():
     curr_OTCs = pf.get_securities_monthly('OTC')
     cprod = curr_OTCs['C']
     assert len(cprod) == 3
-    assert set(cprod) == set(['march', 'may', 'aug'])
+    assert set(cprod) == set(['H7', 'K7', 'Q7'])
     assert len(curr_OTCs) == 3
     assert len(pf.OTC_futures) == 3
 
@@ -154,7 +154,7 @@ def test_remove_security_futures():
     # now remove the same security
     pf.remove_security(ft_test, 'OTC')
     assert set(pf.get_net_greeks()['C'].keys()) == set(
-        ['march', 'may'])
+        ['H7', 'K7'])
 
     # data structures should reset
     rem_OTCs = pf.get_securities_monthly('OTC')
@@ -162,7 +162,7 @@ def test_remove_security_futures():
     assert set(rem_OTCs.keys()) == set(['C', 'LH', 'BO'])
 
     rprod = rem_OTCs['C']
-    assert set(rprod.keys()) == set(['march', 'may'])
+    assert set(rprod.keys()) == set(['H7', 'K7'])
 
     rem_net = pf.get_net_greeks()
     assert len(pf.OTC_futures) == 2
@@ -178,12 +178,12 @@ def test_remove_security_futures():
     try:
         assert rem_OTCs == prev_OTCs
     except AssertionError:
-        mar_option1 = list(rem_OTCs['C']['march'][0])[0]
-        mar_option2 = list(prev_OTCs['C']['march'][0])[0]
-        may_option1 = list(rem_OTCs['C']['may'][0])[0]
-        may_option2 = list(prev_OTCs['C']['may'][0])[0]
-        may_future1 = list(rem_OTCs['C']['may'][1])[0]
-        may_option2 = list(prev_OTCs['C']['may'][1])[0]
+        mar_option1 = list(rem_OTCs['C']['H7'][0])[0]
+        mar_option2 = list(prev_OTCs['C']['H7'][0])[0]
+        may_option1 = list(rem_OTCs['C']['K7'][0])[0]
+        may_option2 = list(prev_OTCs['C']['K7'][0])[0]
+        may_future1 = list(rem_OTCs['C']['K7'][1])[0]
+        may_option2 = list(prev_OTCs['C']['K7'][1])[0]
         # checking equality of options
         assert mar_option1.underlying.get_price(
         ) == mar_option2.underlying.get_price()
@@ -196,7 +196,7 @@ def test_remove_security_futures():
 
 def test_remove_security_options():
     pf = generate_portfolio()
-    ft_test = Future('aug', 50, 'C')
+    ft_test = Future('Q7', 50, 'C')
     op_test = Option(35, 0.02, 'call', 0.8, ft_test, 'amer', False, 'Z7')
     prev_net = copy.deepcopy(pf.get_net_greeks())
     prev_OTCs = copy.deepcopy(pf.get_securities_monthly('OTC'))
@@ -236,12 +236,12 @@ def test_remove_security_options():
         assert rem_OTCs == prev_OTCs
     # memory location errors
     except AssertionError:
-        mar_option1 = list(rem_OTCs['C']['march'][0])[0]
-        mar_option2 = list(prev_OTCs['C']['march'][0])[0]
-        may_option1 = list(rem_OTCs['C']['may'][0])[0]
-        may_option2 = list(prev_OTCs['C']['may'][0])[0]
-        may_future1 = list(rem_OTCs['C']['may'][1])[0]
-        may_option2 = list(prev_OTCs['C']['may'][1])[0]
+        mar_option1 = list(rem_OTCs['C']['H7'][0])[0]
+        mar_option2 = list(prev_OTCs['C']['H7'][0])[0]
+        may_option1 = list(rem_OTCs['C']['K7'][0])[0]
+        may_option2 = list(prev_OTCs['C']['K7'][0])[0]
+        may_future1 = list(rem_OTCs['C']['K7'][1])[0]
+        may_option2 = list(prev_OTCs['C']['K7'][1])[0]
 
         # checking equality of options
         assert mar_option1.underlying.get_price(
@@ -253,9 +253,9 @@ def test_remove_security_options():
         assert mar_option1.get_product() == mar_option2.get_product()
 
 
-def test_remove_expired():
+def test_remove_expired_1():
     pf = generate_portfolio()
-    ft = Future('june', 50, 'C')
+    ft = Future('M7', 50, 'C')
     init_net = copy.deepcopy(pf.get_net_greeks())
     op1 = Option(
         35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'Z7')
@@ -272,14 +272,61 @@ def test_remove_expired():
     except AssertionError:
         print(curr_net)
         print(prev_net)
-    assert 'june' not in pf.OTC['C']
+    assert 'M7' not in pf.OTC['C']
     assert len(pf.OTC_options) == 3
+
+
+def test_remove_expired_2():
+    ft = Future('H7', 30, 'C')
+    op = Option(
+        35, 0.05, 'call', 0.4245569263291844, ft, 'amer', False, 'Z7')
+    pf = Portfolio()
+    pf.add_security(op, 'OTC')
+    net = pf.get_net_greeks()['C']['H7']
+    net = np.array(net)
+    # print('net: ', net)
+    try:
+        assert net.all() != 0
+    except AssertionError:
+        print('pre-exp: ', net)
+    # decrement tau, expiring option.
+    pf.timestep(0.05)
+    assert op.check_expired() == True
+    pf.remove_expired()
+    net = pf.get_net_greeks()
+    try:
+        assert len(net['C']) == 0
+    except (AssertionError, IndexError):
+        print('post-exp: ', net)
+
+
+def test_ordering():
+    ft = Future('H7', 30, 'C')
+    op = Option(
+        35, 0.05, 'call', 0.4245569263291844, ft, 'amer', True, 'Z7', ordering=2)
+    pf = Portfolio()
+    pf.add_security(op, 'OTC')
+    init_ord = op.get_ordering()
+    assert init_ord == 2
+    pf.decrement_ordering('C', 1)
+    new_ord = op.get_ordering()
+    assert new_ord == 1
+    pf.decrement_ordering('C', 1)
+    fin_ord = op.get_ordering()
+    assert fin_ord == 0
+    assert op.check_expired() == True
+    pf.remove_expired()
+    dic = pf.OTC
+    try:
+        assert len(dic['C']) == 0
+    except:
+        print(dic)
 
 
 def test_compute_value():
     pf = generate_portfolio()
     init_val = pf.compute_value()
-    ft = Future('june', 50, 'C')
+    ft = Future('M7', 50, 'C')
     op1 = Option(
         35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'Z7')
     opval = op1.get_price()
@@ -306,7 +353,7 @@ def test_exercise_option():
     init_greeks = copy.deepcopy(pf.get_net_greeks())
 
     # add option
-    ft = Future('june', 50, 'C')
+    ft = Future('M7', 50, 'C')
     op1 = Option(
         35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'Z7')
     pf.add_security(op1, 'OTC')
@@ -321,3 +368,26 @@ def test_exercise_option():
     assert len(pf.OTC_futures) == 3
     ex_greeks = copy.deepcopy(pf.get_net_greeks())
     assert ex_greeks == init_greeks
+
+
+def test_price_vol_change():
+    ft = Future('M7', 30, 'C')
+    op1 = Option(
+        35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'Z7')
+    pf = Portfolio()
+    pf.add_security(op1, 'OTC')
+    init_net = copy.deepcopy(pf.get_net_greeks())
+    vol = 0.6
+    price = 55
+    ft.update_price(price)
+    op1.update_greeks(vol=vol)
+    pf.update_sec_by_month(None, 'OTC', update=True)
+    pf.update_sec_by_month(None, 'hedge', update=True)
+    new_net = copy.deepcopy(pf.get_net_greeks())
+    print('new: ', new_net)
+    print('old: ', init_net)
+    try:
+        assert new_net != init_net
+    except:
+        print('new_net: ', new_net)
+        print('init_net: ', init_net)

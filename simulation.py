@@ -123,29 +123,44 @@ def feed_data(voldf, pdf, pf, dic):
         tuple: change in value and updated portfolio object. 
     """
     raw_diff = 0
+    date = pdf.value_date.unique()[0]
     # 1) initial value of the portfolio before updates.
     prev_val = pf.compute_value()
     # decrement tau
     pf.timestep(timestep)
 
     # 2) Check for rollovers and expiries
-    # TODO
+    # rollovers
+    for product in dic:
+        ro_dates = dic[product]
+        # rollover date for this particular product
+        if date in ro_dates:
+            pf.decrement_ordering(product, 1)
+    # expiries; also removes options for which ordering = 0
+    pf.remove_expired()
 
     # 3)  update prices of futures, underlying & portfolio alike.
-    for future in pf.get_all_futures:
-        name = future.get_name()
-        # TODO: Figure out specifics of names after knowing dataset.
-        pricename = name + '_' + 'price'
-        val = pdf[pricename]       # placeholder
-        future.update_price(val)
+    for ft in pf.get_all_futures():
+        pdt, ordering = ft.get_product(), ft.get_ordering()
+        val = pdf[(pdf.pdt == pdt) & (
+            pdf.order == ordering)].settle_val.values[0]
+        ft.update_price(val)
 
     # update option attributes by feeding in vol.
-    all_options = pf.get_securities()[0]
-    for option in all_options:
-        name = option.get_product()
-        volname = name + '_' + 'vol'
-        volvalue = vdf[volname]    # placeholder
-        option.update_greeks(volvalue)
+    all_options = pf.get_all_options()
+    for op in all_options:
+        # info reqd: strike, order, product.
+        strike, order, product = op.K, op.ordering, op.product
+        cpi = 'C' if op.char == 'call' else 'P'
+        # interpolate or round? currently rounding, interpolation easy.
+        strike = round(strike/10) * 10
+        val = voldf[(voldf.pdt == product) & (voldf.strike == strike) & (
+            voldf.order == order) & (voldf.call_put_id == cpi)]
+        op.update_greeks(val)
+
+    # updating portfolio after modifying underlying objects
+    pf.update_sec_by_month(None, 'OTC', update=True)
+    pf.update_sec_by_month(None, 'hedge', update=True)
 
     # 5) computing new value
     new_val = pf.compute_value()
@@ -321,17 +336,17 @@ def hedge_delta(cond, vdf, pdf, net, month, pf):
     return expenditure, pf
 
 
-if __name__ == '__main__':
-    filepath = 'portfolio_specs.txt'
-    vdf, pdf, edf = read_data(filepath)
+# if __name__ == '__main__':
+#     filepath = 'portfolio_specs.txt'
+#     vdf, pdf, edf = read_data(filepath)
 
-    # check sanity of data
-    vdates = pd.to_datetime(vdf.value_date.unique())
-    pdates = pd.to_datetime(pdf.value_date.unique())
-    if not np.array_equal(vdates, pdates):
-        raise ValueError(
-            'Invalid data sets passed in; vol and price data must have the same date range.')
-    # generate portfolio
-    pf = prep_portfolio(vdf, pdf, filepath)
-    # proceed to run simulation
-    run_simulation(vdf, pdf, edf, pf)
+#     # check sanity of data
+#     vdates = pd.to_datetime(vdf.value_date.unique())
+#     pdates = pd.to_datetime(pdf.value_date.unique())
+#     if not np.array_equal(vdates, pdates):
+#         raise ValueError(
+#             'Invalid data sets passed in; vol and price data must have the same date range.')
+#     # generate portfolio
+#     pf = prep_portfolio(vdf, pdf, filepath)
+#     # proceed to run simulation
+#     run_simulation(vdf, pdf, edf, pf)

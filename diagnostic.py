@@ -274,7 +274,7 @@ def civols(vdf, pdf, rollover='opex'):
         final = -1
     elapsed = time.time() - t
     print('[CI-VOLS] elapsed: ', elapsed)
-    final.to_csv('ci_vol_final.csv', index=False)
+    # final.to_csv('ci_vol_final.csv', index=False)
     return final
 
 
@@ -371,7 +371,7 @@ def ciprice(pricedata, rollover='opex'):
         final = -1
     elapsed = time.time() - t
     print('[CI-PRICE] elapsed: ', elapsed)
-    final.to_csv('ci_price_final.csv', index=False)
+    # final.to_csv('ci_price_final.csv', index=False)
     return final
 
 

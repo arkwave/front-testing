@@ -235,7 +235,7 @@ class Portfolio:
                 if sec.knockedout:
                     self.remove_security(sec, 'OTC')
             # vanilla/knockin case
-            if sec.tau == 0:
+            if sec.check_expired():
                 self.remove_security(sec, 'OTC')
         for sec in self.hedge_options:
             # handling barrier case.
@@ -243,10 +243,18 @@ class Portfolio:
                 if sec.knockedout:
                     self.remove_security(sec, 'hedge')
             # vanilla/knockin case
-            if sec.tau == 0:
+            elif sec.check_expired():
                 self.remove_security(sec, 'hedge')
+        # handle rollover futures.
+        for ft in self.OTC_futures:
+            if ft.check_expired():
+                self.remove_security(ft, 'OTC')
 
-    def update_sec_by_month(self, added, flag, price=None, vol=None):
+        for ft in self.hedge_futures:
+            if ft.check_expired():
+                self.remove_security(ft, 'hedge')
+
+    def update_sec_by_month(self, added, flag, update=None):
         '''
         Helper method that updates the sec_by_month dictionary.
 
@@ -269,7 +277,7 @@ class Portfolio:
             op = self.hedge_options
             ft = self.hedge_futures
         # adding/removing security to portfolio
-        if price is None and vol is None:
+        if update is None:
             # adding
             if added:
                 target = self.newly_added.copy()
@@ -293,6 +301,7 @@ class Portfolio:
                             dic[product][month][1].add(sec)
                     self.update_greeks_by_month(
                         product, month, sec, added, flag)
+
             # removing
             else:
                 target = self.toberemoved.copy()
@@ -320,16 +329,12 @@ class Portfolio:
 
         # updating greeks per month when feeding in new prices/vols
         else:
-            # updating greeks based on new price and vol data
-            for sec in op:
-                sec.underlying.update_price(price)
-                sec.update_greeks(vol)
             # updating cumulative greeks on a month-by-month basis.
             for sec in op:
                 product = sec.get_product()
                 month = sec.get_month()
                 # reset all greeks
-                dic[product][month][2:] = [0, 0, 0]
+                dic[product][month][2:] = [0, 0, 0, 0]
                 # update from scratch. treated as fresh add of all existing
                 # securities.
                 self.update_greeks_by_month(product, month, sec, True, flag)
@@ -445,6 +450,9 @@ class Portfolio:
         lst2 = ft.copy()
         return (lst1, lst2)
 
+    def get_all_options(self):
+        return self.OTC_options + self.hedge_options
+
     def get_underlying(self):
         u_set = set()
         all_options = self.OTC_options + self.hedge_options
@@ -475,3 +483,13 @@ class Portfolio:
         all_futures = self.get_all_futures()
         names = [ft.get_product() for ft in all_futures]
         return set(names)
+
+    def decrement_ordering(self, product, i):
+        options = self.OTC_options + self.hedge_options
+        futures = self.OTC_futures + self.hedge_futures
+        for op in options:
+            if op.get_product() == product:
+                op.decrement_ordering(i)
+        for ft in futures:
+            if ft.get_product() == product:
+                ft.decrement_ordering(i)

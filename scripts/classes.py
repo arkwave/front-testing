@@ -2,7 +2,7 @@
 File Name      : classes.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 3/4/2017
+Last Modified  : 4/4/2017
 Python version : 3.5
 Description    : Script contains implementation of the Option and Futures classes, as well as helper methods that set/store/manipulate instance variables. This class is used in simulation.py.
 
@@ -88,21 +88,23 @@ class Option:
         self.r = 0
         self.price = self.compute_price()
         self.init_greeks()
+        self.ordering = ordering
         self.active = self.check_active()
         self.expired = False  # defaults to false.
         self.rebate = rebate
         self.product = self.get_product()
         self.shorted = shorted
-        self.ordering = ordering
 
     def set_ordering(self, val):
         self.ordering = val
 
-    def get_ordering(self, string):
+    def get_ordering(self):
         return self.ordering
 
     def decrement_ordering(self, i):
         self.ordering -= i
+        # check expiration
+        self.expired = self.check_expired()
 
     def get_op_month(self):
         return self.month
@@ -115,11 +117,10 @@ class Option:
         4) Vanilla options are always active until expiry.
          """
         s = self.underlying.get_price()
-        cond = (self.tau > 0)
+        expired = self.check_expired()
         # expired case
-        if not cond:
+        if expired:
             return False
-
         # base cases: if already knocked in or knocked out, return
         # appropriately.
         if self.knockedin:
@@ -138,7 +139,7 @@ class Option:
         # barrier cases
         if self.ki:
             # all knockin options contribute greeks/have value until expiry.
-            active = True if cond else False
+            active = True if not expired else False
             if self.direc == 'up':
                 self.knockedin = True if (s >= self.ki) else False
             if self.direc == 'down':
@@ -155,7 +156,7 @@ class Option:
                     self.knockedout = not active
             # european knockout are active until expiry.
             elif self.barrier == 'euro':
-                active = True if cond else False
+                active = True if not expired else False
                 # european up and out
                 if self.direc == 'up':
                     # print('Euro Up Out Hit')
@@ -165,7 +166,7 @@ class Option:
                     self.knockedout = True if (s <= self.ko) else False
         else:
             # vanilla case. true till expiry
-            active = True if cond else False
+            active = True if not expired else False
         return active
 
     def get_underlying(self):
@@ -322,7 +323,9 @@ class Option:
         self.delta, self.gamma, self.theta, self.vega = 0, 0, 0, 0
 
     def check_expired(self):
-        return True if self.tau == 0 else False
+        ret = True if (self.tau == 0 or self.ordering == 0) else False
+        self.expired = ret
+        return ret
 
 
 class Future:
@@ -357,6 +360,16 @@ class Future:
             self.price = price
         else:
             raise ValueError("Price cannot be negative")
+        self.expired = self.check_expired()
+
+    def get_ordering(self):
+        return self.ordering
+
+    def set_ordering(self, i):
+        self.ordering = i
+
+    def decrement_ordering(self, i):
+        self.ordering -= i
 
     def get_price(self):
         return self.price
@@ -376,3 +389,8 @@ class Future:
 
     def get_product(self):
         return self.product
+
+    def check_expired(self):
+        ret = True if self.ordering == 0 else False
+        self.expired = ret
+        return ret

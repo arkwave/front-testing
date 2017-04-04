@@ -907,7 +907,6 @@ def american_iv(option, s, k, c, tau, r, product, num_iter=100):
     sigma = 0.5
     for i in range(num_iter):
         try:
-
             option_price = _amer_option(option, tau, sigma, k, s, r, product)
             vega = _num_vega('amer', option, s, k, tau, r, r, sigma)
             diff = c - option_price

@@ -21,7 +21,7 @@ decade = 10
 
 # composite label that has product, opmth, cont.
 # vdf['label'] = vdf['vol_id'] + ' ' + \
-#     vdf['cont'].astype(str) + ' ' + vdf.call_put_id
+#     vdf['order'].astype(str) + ' ' + vdf.call_put_id
 
 
 # details contract months for each commodity. used in the continuation
@@ -84,7 +84,7 @@ def vol_by_delta(voldata, pricedata):
         pandas dataframe: delta-wise vol of each option.
     """
     relevant_price = pricedata[
-        ['underlying_id', 'value_date', 'settle_value', 'cont']]
+        ['underlying_id', 'value_date', 'settle_value', 'order']]
     relevant_vol = voldata[['value_date', 'vol_id', 'strike',
                             'call_put_id', 'tau', 'settle_vol', 'underlying_id']]
 
@@ -108,9 +108,9 @@ def vol_by_delta(voldata, pricedata):
     print('preallocating')
     # preallocating dataframes
     call_df = merged[merged.call_put_id == 'C'][
-        ['value_date', 'underlying_id', 'tau', 'vol_id', 'cont', 'pdt']].drop_duplicates()
+        ['value_date', 'underlying_id', 'tau', 'vol_id', 'order', 'pdt']].drop_duplicates()
     put_df = merged[merged.call_put_id == 'P'][
-        ['value_date', 'underlying_id', 'tau', 'vol_id', 'cont', 'pdt']].drop_duplicates()
+        ['value_date', 'underlying_id', 'tau', 'vol_id', 'order', 'pdt']].drop_duplicates()
 
     # adding option month as a column
     c_pdt = call_df.vol_id.str.split().str[0]
@@ -197,5 +197,5 @@ if __name__ == '__main__':
     filepath = 'portfolio_specs.txt'
     vdf, pdf, edf = read_data(filepath)
     vbd_c, vbd_p = vol_by_delta(vdf, pdf)
-    vbd_c.to_csv('vols_by_delta_c.csv')
-    vbd_p.to_csv('vols_by_delta_p.csv')
+    # vbd_c.to_csv('vols_by_delta_c.csv')
+    # vbd_p.to_csv('vols_by_delta_p.csv')
