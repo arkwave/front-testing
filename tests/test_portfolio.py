@@ -134,7 +134,7 @@ def test_remove_security_futures():
         assert set(pf.get_net_greeks()['C'].keys()) == set(
             ['H7', 'K7'])
     except AssertionError:
-        print(pf.get_net_greeks()['C'].keys())
+        print('remove_sec_ft 1: ', pf.get_net_greeks()['C'].keys())
 
     # checking addition
     curr_OTCs = pf.get_securities_monthly('OTC')
@@ -171,8 +171,8 @@ def test_remove_security_futures():
     try:
         assert rem_net == prev_net
     except AssertionError:
-        print(rem_net['C'].keys())
-        print(prev_net['C'].keys())
+        print('remove_sec_ft 2: ', rem_net['C'].keys())
+        print('remove_sec_ft 3: ', prev_net['C'].keys())
 
     # failing
     try:
@@ -270,8 +270,8 @@ def test_remove_expired_1():
         assert curr_net != prev_net
         assert curr_net == init_net
     except AssertionError:
-        print(curr_net)
-        print(prev_net)
+        print('rem_exp_1 curr: ', curr_net)
+        print('rem_exp_1 prev: ', prev_net)
     assert 'M7' not in pf.OTC['C']
     assert len(pf.OTC_options) == 3
 
@@ -295,8 +295,8 @@ def test_remove_expired_2():
     pf.remove_expired()
     net = pf.get_net_greeks()
     try:
-        assert len(net['C']) == 0
-    except (AssertionError, IndexError):
+        assert len(net) == 0
+    except (AssertionError, IndexError, KeyError):
         print('post-exp: ', net)
 
 
@@ -318,9 +318,9 @@ def test_ordering():
     pf.remove_expired()
     dic = pf.OTC
     try:
-        assert len(dic['C']) == 0
+        assert len(dic) == 0
     except:
-        print(dic)
+        print('test_ordering: ', dic)
 
 
 def test_compute_value():
@@ -384,8 +384,8 @@ def test_price_vol_change():
     pf.update_sec_by_month(None, 'OTC', update=True)
     pf.update_sec_by_month(None, 'hedge', update=True)
     new_net = copy.deepcopy(pf.get_net_greeks())
-    print('new: ', new_net)
-    print('old: ', init_net)
+    # print('new: ', new_net)
+    # print('old: ', init_net)
     try:
         assert new_net != init_net
     except:

@@ -322,6 +322,8 @@ class Portfolio:
                     # securities associated to this product-month
                     if not(data[0]) and not(data[1]):
                         dic[product].pop(month)
+                        if len(dic[product]) == 0:
+                            dic.pop(product)
                         return self.compute_net_greeks()
                     else:
                         self.update_greeks_by_month(
