@@ -325,23 +325,30 @@ feed_data
 
 
 
-
 5/4 (Wednesday):
-# Notes:
+> prep notes, send out tomorrow morning.            [Done]
+
+]# Notes:
 > discussion with Evert on structure of the code.   []
-> prep notes, send out tomorrow morning.            []
 
 >> testing: feed_data.                              []
 >> testing: gamma/vega hedging                      [] 
 
 Delta Hedging.                                      []
+Pnl calculations.                                   []
 
 reading in multiplier list                          
 adapt computation for returns/vol change,           []
 
-Pnl calculations.                                   []
 
 
+
+
+
+
+6/4 - EOW:
+Data related concerns.
+Visualization
 
 TODO once dumps are ready:
 > generate data requirements from portfolio object  [] -> use get_all_futures.
