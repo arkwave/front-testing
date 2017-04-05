@@ -45,7 +45,6 @@ from .prep_data import read_data
 
 # TODO: read this in during prep_data
 multipliers = {
-
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
     'LSU': [1, 50, 0.1, 10, 50],
     'LCC': [1.2153, 10, 1, 25, 12.153],
@@ -55,7 +54,7 @@ multipliers = {
     'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
     'W':   [0.3674333, 136.07911, 0.25, 10, 50],
     'S':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'C':   [0.3936786, 127.00717, 0.25, 10, 50],
+    'C':   [0.393678571428571, 127.007166832986, 0.25, 10, 50],
     'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
     'LC':  [22.046, 18.143881, 0.025, 1, 400],
     'LRC': [1, 10, 1, 50, 10],
@@ -191,7 +190,7 @@ def get_barrier_vol(df, product, tau, call_put_id, barlevel):
     return bvol
 
 
-def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, rebate=0):
+def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, rebate=0, barvol=None):
     # from .prep_data import read_data
     # voldf, pricedf, edf = read_data(filepath)
     """ Pricing model for options with European barriers.
@@ -215,10 +214,11 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, r
     """
     barlevel = ki if ki else ko
     call_put_id = 'C' if char == 'call' else 'P'
-    bvol = get_barrier_vol(voldf, product, tau, call_put_id, barlevel)
+    bvol = get_barrier_vol(voldf, product, tau, call_put_id,
+                           barlevel) if barvol is None else barvol
     # case when barrier vol is not in vol surface; raise error.
-    if bvol is None:
-        raise ValueError('Improper Data: Barrier vol not on vol surface.')
+    # if bvol is None:
+    #     raise ValueError('Improper Data: Barrier vol not on vol surface.')
     ticksize = multipliers[product][2]
     if ki:
         calc_lots = (k - ki)/ticksize
@@ -878,16 +878,16 @@ def greeks_scaled(delta1, gamma1, theta1, vega1, product, lots):
     """Summary: Scaling method to bring greeks into reportable units.
     """
 
-    # lots = lots
-    # lm = multipliers[product][1]
-    # dm = multipliers[product][0]
-    # delta = delta1 * lots
-    # gamma = gamma1*lots*lm/dm
-    # vega = vega1*lots*lm*dm/100
-    # theta = theta1*lots*lm*dm/365
+    lots = lots
+    lm = multipliers[product][1]
+    dm = multipliers[product][0]
+    delta = delta1 * lots
+    gamma = gamma1*lots*lm/dm
+    vega = vega1*lots*lm*dm/100
+    theta = theta1*lots*lm*dm/365
 
-    return delta1, gamma1, theta1/365, vega1/100
-    # return delta, gamma, theta, vega
+    # return delta1, gamma1, theta1/365, vega1/100
+    return delta, gamma, theta, vega
 
 
 # NIU: not currently being used.

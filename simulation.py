@@ -17,23 +17,39 @@ import copy
 
 """
 TODO:
-> step 0     : conceptualize every step. 
-> step 1     : feed_data
-> Step 2     : delta/gamma/vega hedging
 > Step 3     : handle_options
 > Step 4     : pnl accumulation
-> Step 5     : rebalancing - delta hedging.
-
 """
 
-# TODO: Figure out how to pass in lots efficiently.
+multipliers = {
+
+    'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
+    'LSU': [1, 50, 0.1, 10, 50],
+    'LCC': [1.2153, 10, 1, 25, 12.153],
+    'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
+    'CC':  [1, 10, 1, 50, 10],
+    'CT':  [22.046, 22.679851, 0.01, 1, 500],
+    'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
+    'W':   [0.3674333, 136.07911, 0.25, 10, 50],
+    'S':   [0.3674333, 136.07911, 0.25, 10, 50],
+    'C':   [0.3936786, 127.00717, 0.25, 10, 50],
+    'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
+    'LC':  [22.046, 18.143881, 0.025, 1, 400],
+    'LRC': [1, 10, 1, 50, 10],
+    'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
+    'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
+    'COM': [1.0604, 50, 0.25, 2.5, 53.02],
+    'OBM': [1.0604, 50, 0.25, 1, 53.02],
+    'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
+}
+
 
 # list of hedging conditions.
 hedges = {'delta': 'zero', 'gamma': (-5000, 5000), 'vega': (-5000, 5000)}
 
 # slippage/brokerage
 slippage = 1
-lots = 10
+brokerage = 1
 
 # passage of time
 timestep = 1/365
@@ -122,6 +138,7 @@ def feed_data(voldf, pdf, pf, dic):
     Returns:
         tuple: change in value and updated portfolio object. 
     """
+    date = voldf.value_date.unique()[0]
     raw_diff = 0
     # 1) initial value of the portfolio before updates.
     prev_val = pf.compute_value()
@@ -180,7 +197,7 @@ def handle_options(pf):
 def rebalance(vdf, pdf, pf, hedges):
     """ Function that handles EOD greek hedging. Calls hedge_delta and hedge_gamma_vega. 
     Notes:
-    1) hedging gamma and vega done by buying/selling ATM straddles. No liquidity constraints      assumed. 
+    1) hedging gamma and vega done by buying/selling ATM straddles. No liquidity constraints assumed. 
     2) hedging delta done by shorting/buying -delta * lots futures. 
     3) 
 
@@ -205,10 +222,10 @@ def rebalance(vdf, pdf, pf, hedges):
             cost, pf = hedge_gamma_vega(
                 hedges, vdf, pdf, month, pf, product, ordering)
             expenditure += cost
-            delta_cond = hedges['delta']
-            cost, pf = hedge_delta(delta_cond, vdf, pdf,
+            cost, pf = hedge_delta(hedges['delta'], vdf, pdf,
                                    month, pf, product, ordering)
             expenditure += cost
+
     return expenditure, pf
 
 
@@ -232,9 +249,7 @@ def hedge_gamma_vega(hedges, vdf, pdf, month, pf, product, ordering):
     net_greeks = pf.get_net_greeks()
     greeks = net_greeks[product][month]
     # naming variables for clarity.
-    delta = greeks[0]
     gamma = greeks[1]
-    theta = greeks[2]
     vega = greeks[3]
 
     gamma_bound = hedges['gamma']
@@ -308,8 +323,8 @@ def hedge_gamma_vega(hedges, vdf, pdf, month, pf, product, ordering):
 
 
 # TODO: delta hedging
-def hedge_delta(cond, vdf, pdf, net, month, pf):
-    """Helper function that implements delta hedging. General idea is to zero out delta at the end of the day by buying/selling -delta * lots futures. 
+def hedge_delta(cond, vdf, pdf, month, pf, product, ordering):
+    """Helper function that implements delta hedging. General idea is to zero out delta at the end of the day by buying/selling -delta * lots futures. Returns expenditure (which is negative if shorting and postive if purchasing delta) and the updated portfolio object.
 
     Args:
         cond (string): condition for delta hedging
@@ -320,32 +335,28 @@ def hedge_delta(cond, vdf, pdf, net, month, pf):
         pf (portfolio): portfolio object specified by portfolio_specs.txt 
 
     Returns:
-        TYPE: Description
+        tuple: hedging costs and final portfolio with hedges added. 
 
-    Deleted Parameters:
-        data (TYPE): Description
-        greeks (TYPE): Description
     """
-    future_price = data[price]  # placeholder
+    future_price = pdf[(pdf.pdt == product) & (
+        pdf.order == ordering)].settle_value.values[0]
     expenditure = 0
+    net_greeks = pf.get_net_greeks()
     if cond == 'zero':
         # flag that indicates delta hedging.
-        for product in greeks:
-            for month in greeks[product]:
-                vals = greeks[product][month]
+        for product in net_greeks:
+            for month in net_greeks[product]:
+                vals = net_greeks[product][month]
                 delta = vals[0]
-                flag = 'short' if delta > 0 else 'long'
-                # long delta; need to short futures.
-                # TODO: math.ceil isn't the right thing. figure out how
-                # lots play into price.
                 num_lots_needed = delta * 100
                 num_futures = ceil(num_lots_needed / lots)
-                for i in range(len(num_futures)):
-                    pf.add_security(ft, flag)
-                    if flag == 'short':
-                        expenditure -= future_price
-                    else:
-                        expenditure += future_price
+                shorted = True if delta > 0 else False
+                ft = Future(month, future_price, product,
+                            shorted=shorted, ordering=ordering)
+                for i in range(num_futures):
+                    pf.add_security(ft, 'hedge')
+                expenditure = (expenditure - num_futures*future_price) if shorted else (
+                    expenditure + num_futures*future_price)
     return expenditure, pf
 
 

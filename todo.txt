@@ -288,9 +288,6 @@ debugging ci_vol                                    [Done]
 resolving imports                                   [Done]
 updating documentation in prep_data                 [Done]
 
-
-
-
 ### Simulation TODOs: ####
 figure out how to check for rollover.               [Done] -> in feed_data
 main simulation loop                                [Done] -> notes written.
@@ -308,39 +305,59 @@ feed_data
 	> price --> change in value of futures          [Done]
 	                          and options.          [Done]
 	> vol --> change in value of option             [Done]
-
 >> Check: if greeks updated when new price/vols 
 	passed in                                       [Done]
-
 >> check if expiry zeros out greeks of options      [Done]
-
 >> check if decrementing ordering has the 
    desired effect                                   [Done] 
-
 >> understand readin process and how tau is 
    computed, in relation to simulation logic  
    as a whole.                                      [Done]
-
 >> vega/gamma hedging                               [Done]
+
 
 
 
 5/4 (Wednesday):
 > prep notes, send out tomorrow morning.            [Done]
 
-]# Notes:
-> discussion with Evert on structure of the code.   []
+# Notes:
+> discussion with Evert on structure of the code.   [Done]
+>> testing: feed_data.                              [Done]
+	> tested all constituent components           
+		- rollovers                                 [Done]
+		- expiries                                  [Done]
+		- change in val upon price/vol              [Done]
+	> test compute_ordering                         [Done]
+> Delta Hedging.                                    [Done]
 
->> testing: feed_data.                              []
+
+
+
+
+
+6/4 (Thursday):
+
+calc-related work:
+> rework calc testing. use exclusively xtrader.     []
+
+> debug euro barrier pricing.                       []
+> american and euro barrier greeks                  []
+
+> rework compute value & testing                    []
+
+
 >> testing: gamma/vega hedging                      [] 
+>> testing: delta hedging                           []
 
-Delta Hedging.                                      []
+
+Data familiarization: 
+> read in relevant data from dump.                  []
+
+
 Pnl calculations.                                   []
-
-reading in multiplier list                          
-adapt computation for returns/vol change,           []
-
-
+> bid ask spread for options
+> fully understand what is expected.
 
 
 
@@ -350,6 +367,12 @@ adapt computation for returns/vol change,           []
 Data related concerns.
 Visualization
 
+
+reading in multiplier list                          []
+adapt computation for returns/vol change,           []
+
+
+
 TODO once dumps are ready:
 > generate data requirements from portfolio object  [] -> use get_all_futures.
 > finalize database updating stuff. 
@@ -357,11 +380,19 @@ TODO once dumps are ready:
 
 
 
+Notes from meeting:
 
+XML instead of text files, read using beautiful soup.
 
+vanna/volga methods for vols. 
+high/low prices for barriers
+correlation surfaces as inputs
+flexible hedging strategies.
+accounting for gap risk.
 
+MC Pricing for Barriers:
+1) Brownian bridge-based methods.
 
-
-
-
+MC Generation of Price and Vol series:
+No idea yet man.
 

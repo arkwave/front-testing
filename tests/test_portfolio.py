@@ -391,3 +391,71 @@ def test_price_vol_change():
     except:
         print('new_net: ', new_net)
         print('init_net: ', init_net)
+
+
+def test_decrement_ordering():
+    # assume current month is H. Contract mths are H K N U Z.
+    ft = Future('N7', 30, 'C')
+    # H7.M7 option
+    op1 = Option(
+        35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'H7', ordering=2)
+    ft2 = Future('K7', 30, 'C')
+    # H7.K7 option
+    op2 = Option(25, 0.01, 'put', 0.25, ft2, 'amer', False, 'H7', ordering=1)
+    # initial checks
+    assert op1.get_ordering() == 2
+    assert op2.get_ordering() == 1
+    assert op1.check_expired() == False
+    assert op2.check_expired() == False
+
+    pf = Portfolio()
+    pf.add_security(op1, 'OTC')
+    pf.add_security(op2, 'OTC')
+
+    # op1greeks = list(op1.greeks())
+    # check basic portfolio functionality.
+    otc = pf.OTC['C']
+    assert len(otc) == 2
+    assert otc.keys() == set(['K7', 'N7'])
+
+    netgreeks = pf.get_net_greeks()['C']
+    assert len(netgreeks) == 2
+
+    pf.decrement_ordering('C', 1)
+    assert op2.expired == True
+    assert op2.ordering == 0
+    assert op1.expired == False
+    assert op1.ordering == 1
+
+    # before removal; len should be the same.
+    assert len(netgreeks) == 2
+    # print(netgreeks['K7'])
+
+    pf.remove_expired()
+    fingreeks = pf.get_net_greeks()['C']
+    assert len(fingreeks) == 1
+
+    finotc = pf.OTC['C']
+    assert len(finotc) == 1
+
+
+def test_compute_ordering():
+    # assume current month is H. Contract mths are H K N U Z.
+    ft = Future('N7', 30, 'C')
+    # H7.M7 option
+    op1 = Option(
+        35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'H7', ordering=2)
+    ft2 = Future('K7', 30, 'C')
+    # H7.K7 option
+    op2 = Option(25, 0.01, 'put', 0.25, ft2, 'amer', False, 'H7', ordering=1)
+    pf = Portfolio()
+    pf.add_security(op1, 'OTC')
+    pf.add_security(op2, 'OTC')
+
+    assert pf.compute_ordering('C', 'N7') == 2
+    assert pf.compute_ordering('C', 'K7') == 1
+
+    pf.decrement_ordering('C', 1)
+
+    assert pf.compute_ordering('C', 'N7') == 1
+    assert pf.compute_ordering('C', 'K7') == 0

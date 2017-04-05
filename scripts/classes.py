@@ -8,7 +8,7 @@ Description    : Script contains implementation of the Option and Futures classe
 
 """
 
-lots = 10
+# lots = 10
 
 
 class Option:
@@ -66,7 +66,7 @@ class Option:
     20) get_month      : returns the month associated with this option.
     """
 
-    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=lots, bullet=None, ki=None, ko=None, rebate=0, ordering=None):
+    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=10, bullet=None, ki=None, ko=None, rebate=0, ordering=None):
         self.month = month
         self.barrier = barrier
         self.payoff = payoff
@@ -86,6 +86,7 @@ class Option:
         self.char = char
         self.vol = vol
         self.r = 0
+        self.shorted = shorted
         self.price = self.compute_price()
         self.init_greeks()
         self.ordering = ordering
@@ -93,7 +94,6 @@ class Option:
         self.expired = False  # defaults to false.
         self.rebate = rebate
         self.product = self.get_product()
-        self.shorted = shorted
 
     def set_ordering(self, val):
         self.ordering = val
@@ -252,7 +252,10 @@ class Option:
         # computes the value of this structure from relevant information.
         s = self.underlying.get_price()
         product = self.underlying.get_product()
-        return _compute_value(self.char, self.tau, self.vol, self.K, s, self.r, self.payoff, ki=self.ki, ko=self.ko, barrier=self.barrier, d=self.direc, product=product)
+        mult = -1 if self.shorted else 1
+        val = _compute_value(self.char, self.tau, self.vol, self.K, s, self.r, self.payoff,
+                             ki=self.ki, ko=self.ko, barrier=self.barrier, d=self.direc, product=product)
+        return val  # *self.lots*mult
 
     def get_price(self):
         # check for expiry case
@@ -349,7 +352,7 @@ class Future:
     7) get_product    : returns the name of this contract (i.e. the commodity)
     '''
 
-    def __init__(self, month, price, product, shorted=None, lots=lots, ordering=None):
+    def __init__(self, month, price, product, shorted=None, lots=10, ordering=None):
         self.product = product
         self.ordering = ordering
         self.lots = lots

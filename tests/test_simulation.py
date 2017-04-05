@@ -16,14 +16,6 @@ from scripts.prep_data import read_data
 vdf, pdf, edf = read_data()
 
 
-def test_feed_data_expiry():
-    pass
-
-
-def test_feed_data_rollover():
-    pass
-
-
 def test_feed_data_updates():
     pass
 

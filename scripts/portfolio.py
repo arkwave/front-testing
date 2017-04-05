@@ -423,7 +423,7 @@ class Portfolio:
                 self.remove_security(option, flag)
                 self.add_security(underlying, flag)
 
- ### getter/utility methods ###
+############### getter/utility methods #################
 
     def get_securities_monthly(self, flag):
         """Returns the position dictionary based on the flag passed in.
