@@ -190,6 +190,8 @@ def get_barrier_vol(df, product, tau, call_put_id, barlevel):
     return bvol
 
 
+# NOTE: Currently follows implementation taken from PnP Excel source code,
+# and so only accounts for ECUI, ECUO, EPDI, EPDO options.
 def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, rebate=0, barvol=None):
     # from .prep_data import read_data
     # voldf, pricedf, edf = read_data(filepath)
@@ -216,62 +218,24 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, r
     call_put_id = 'C' if char == 'call' else 'P'
     bvol = get_barrier_vol(voldf, product, tau, call_put_id,
                            barlevel) if barvol is None else barvol
+
     # case when barrier vol is not in vol surface; raise error.
     # if bvol is None:
     #     raise ValueError('Improper Data: Barrier vol not on vol surface.')
     ticksize = multipliers[product][2]
-    if ki:
-        calc_lots = (k - ki)/ticksize
+    dpo = abs(k - barlevel)/ticksize
     if ko:
-        calc_lots = (k - ko)/ticksize
-    if char == 'call':
-        if direction == 'up':
-            if ki:
-                # call up in
-                return _compute_value(char, tau, vol, k, s, r, payoff)
-            if ko:
-                # call up out
-                p1 = call_put_spread(
-                    s, ko, k, r, bvol, vol, tau, 'callspread', payoff)
-                p2 = call_put_spread(
-                    s, ko, ko-ticksize, r, bvol, bvol, tau, 'callspread', payoff)
-                return p1 - calc_lots*p2
-        if direction == 'down':
-            if ki:
-                # call down in
-                p1 = call_put_spread(s, ki, k, r, bvol, vol, tau,
-                                     'callspread', payoff)
-                p2 = call_put_spread(
-                    s, ki + ticksize, ki, r, bvol, bvol, tau, 'callspread', payoff)
-                return p1 - calc_lots * p2
-
-            if ko:
-                # call down out
-                return _compute_value(char, tau, vol, k, s, r, payoff)
-
-    if char == 'put':
-        if direction == 'up':
-            if ki:
-                # put up in
-                p1 = call_put_spread(
-                    s, k, ki, r, vol, bvol, tau, 'putspread', payoff)
-                p2 = call_put_spread(
-                    s, ki, ki-ticksize, r, bvol, bvol, tau, 'putspread', payoff)
-                return p1 - calc_lots*p2
-            if ko:
-                return _compute_value(char, tau, vol, k, s, r, payoff)
-        if direction == 'down':
-            if ki:
-                # put down in
-                return _compute_value(char, tau, vol, k, s, r, payoff)
-
-            if ko:
-                # put down out
-                p1 = call_put_spread(
-                    s, k, ko, r, vol, bvol, tau, 'putspread', payoff)
-                p2 = call_put_spread(
-                    s, ko + ticksize, ko, r, bvol, bvol, tau, 'putspread', payoff)
-                return p1 - calc_lots*p2
+        c1 = _compute_value(char, tau, vol, k, s, r, payoff)
+        c2 = _compute_value(char, tau, bvol, barlevel, s, r, payoff)
+        c3 = digital_option(char, tau, bvol, barlevel,
+                            s, r, payoff, product) * dpo
+        val = c1 - c2 - c3
+    elif ki:
+        c1 = _compute_value(char, tau, bvol, barlevel, s, r, payoff)
+        c2 = dpo * digital_option(char, tau, bvol,
+                                  barlevel, s, r, payoff, product)
+        val = c1 + c2
+    return val
 
 
 def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0):
