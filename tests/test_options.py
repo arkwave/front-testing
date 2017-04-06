@@ -452,7 +452,7 @@ def test_barrier_options():
     l1 = [d1, g1, t1, v1]
     l2 = [d2, g2, t2, v2]
     try:
-        assert np.allclose(l1, l2, atol=1e-4)
+        assert np.allclose(l1, l2)
     except AssertionError:
         print('testoptions barr_op1: vanilla: ', l1)
         print('testoptions barr_op1: barrier: ', l2)

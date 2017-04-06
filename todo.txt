@@ -355,9 +355,7 @@ calc-related work:
 	> theta [Done]
 	> vega  [Done]
 
-> rework compute value & testing                    []
-
-
+> rework compute value & testing                    [Done]
 
 
 >> testing: gamma/vega hedging                      [] 
@@ -369,9 +367,11 @@ calc-related work:
 Data familiarization: 
 > read in relevant data from dump.                  []
 
+
 Pnl calculations.                                   []
 > bid ask spread for options
 > fully understand what is expected.
+
 
 
 
