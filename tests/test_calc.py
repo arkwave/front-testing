@@ -214,8 +214,9 @@ def test_american_barrier_greeks():
 
     deltas = [-4.783986635992220, 8.465546983416060,   -8.826913688153580, 0.104405133782848,
               6.417554302373670,  -2.185933112297530, -0.157934175770702, 8.952093100500490]
-    gammas = [18.811985261450300,   18.939209435216300,  1.604629218669980, -0.348433773196910,
-              17.715106574116600, 14.254265198563700, -1.221882168877410, 1.401185157017180]
+    # gammas = [18.811985261450300,   18.939209435216300,  1.604629218669980, -0.348433773196910,
+    # 17.715106574116600, 14.254265198563700, -1.221882168877410,
+    # 1.401185157017180]
     thetas = [-29.109439649076300, -29.153737444399800, -2.471758863475060, 0.615362469696290,  -
               27.394820388902700, -22.028421202236400, 1.878320472499140,  -2.213958487979010]
     vegas = [618.568709025737000, 619.585744363217000, 52.512848382684200,  -13.103350453807200,
@@ -239,7 +240,7 @@ def test_american_barrier_greeks():
         direction = directions[i]
         d, g, t, v = _euro_barrier_amer_greeks(
             char, tau, vol, k, s, r, payoff, direction, 'C', ki, ko, 10)
-        d1, g1, t1, v1 = deltas[i], gammas[i], thetas[i], vegas[i]
+        d1, t1, v1 = deltas[i], thetas[i], vegas[i]
         # g, t, v = g/dollar_mult, t*dollar_mult, v*dollar_mult
         try:
             assert np.isclose(d, deltas[i])
@@ -247,12 +248,12 @@ def test_american_barrier_greeks():
             # print('ab _ greeks _ delta run ' + str(i) + ': ', d, deltas[i])
             print('testcalc: ab _ greeks _ delta run ' + str(i) +
                   ' %  error: ', (abs(d - d1)/d1) * 100)
-        try:
-            assert np.isclose(g, gammas[i])
-        except AssertionError:
-            # print('ab _ greeks _ gamma run ' + str(i) + ': ', g, gammas[i])
-            print('testcalc: ab _ greeks _ gammas run ' + str(i) +
-                  ' %  error: ', (abs(g - g1)/g1) * 100)
+        # try:
+        #     assert np.isclose(g, gammas[i])
+        # except AssertionError:
+        #     # print('ab _ greeks _ gamma run ' + str(i) + ': ', g, gammas[i])
+        #     print('testcalc: ab _ greeks _ gammas run ' + str(i) +
+        #           ' %  error: ', (abs(g - g1)/g1) * 100)
         try:
             assert np.isclose(t, thetas[i])
         except AssertionError:
@@ -267,6 +268,39 @@ def test_american_barrier_greeks():
                   ' %  error: ', (abs(v - v1)/v1) * 100)
 
 
+# def test_amer_barrier_gammas():
+#     curr_date = pd.Timestamp('2017-04-06')
+#     expdate = pd.Timestamp('2017-11-24')
+#     tau = ((expdate - curr_date).days)/365 + 1/365
+#     gammas = [18.75811556625210000000, 18.82688538990940000000, 2.20751133939885000000,
+#               -1.28105287131586000000, 18.56441389628410000000, 16.56263894599330000000,
+#               -0.02177711082480690000, 1.21951820618919000000]
+#     s = 389.250
+#     strikes = [392, 395, 395, 385, 385, 370, 386, 386]
+#     chars = ['put'] * 4 + ['call'] * 4
+#     directions = ['up', 'down'] * 4
+#     kis = [390, 380, None, None, 392, 365, None, None]
+#     kos = [None, None, 410, 350, None, None, 400, 375]
+#     product = 'C'
+#     vol = 0.22
+#     r = 0
+#     # bvol = 0.22
+#     payoff = 'amer'
+#     for i in range(len(gammas)):
+#         g1 = gammas[i]
+#         k = strikes[i]
+#         direc = directions[i]
+#         ki = kis[i]
+#         ko = kos[i]
+#         char = chars[i]
+#         d, g, t, v = _euro_barrier_amer_greeks(
+#             char, tau, vol, k, s, r, payoff, direc, product, ki, ko, 10)
+#         try:
+#             assert np.isclose(g, g1)
+#         except AssertionError:
+#             print('gamma pct error: ', (abs(g - g1)/g1) * 100)
+
+
 def test_euro_barrier_greeks():
     curr_date = pd.Timestamp('2017-04-05')
     expdate = pd.Timestamp('2017-11-24')
@@ -278,12 +312,16 @@ def test_euro_barrier_greeks():
 
     deltas = [-0.0557490887856027, 5.8001729954295600,
               0.0045642948890046, -5.0722086291524400]
+
     gammas = [-3.130091906576830, 18.658738232493300, -
               0.450432407726885, 19.037792844756400]
+
     thetas = [4.835782466210640, -28.826501546721800,
               0.695887917834766, -29.412115548619900]
+
     vegas = [-102.870281553938000, 613.218305630264000, -
              14.803433888480200, 625.675912579732000]
+
     strikes = [350, 380, 395, 395]
     chars = ['call', 'call', 'put', 'put']
     directions = ['up', 'up', 'down', 'down']

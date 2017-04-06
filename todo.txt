@@ -339,51 +339,44 @@ dd
 6/4 (Thursday):
 
 calc-related work:
-> rework calc testing. use exclusively xtrader.     []
-
+> rework calc testing. use exclusively xtrader.     [Done]
 > debug euro barrier pricing.                       [Done]
 > euro barrier greeks                               [Done]
-
 	> delta [Done]
 	> gamma [Done]
 	> theta [Done]
 	> vega  [Done]
-
-> american barrier greeks                           []
+> american barrier greeks                           [all but gamma]
 	> delta [Done]
-	> gamma []
 	> theta [Done]
 	> vega  [Done]
-
 > rework compute value & testing                    [Done]
 
 
+7/4:
 >> testing: gamma/vega hedging                      [] 
 >> testing: delta hedging                           []
 
+Pnl calculations.                                    
+> bid ask spread for options                        []
+> fully understand what is expected.                []
+> brokerage in hedging steps                        [Done]
+> lots for delta hedging.                           []
+> pnl mult                                          []
+
+Handle options: 
+> bullet vs daily payoff                            []
+> exercise                                          [Done]
 
 
 
-Data familiarization: 
-> read in relevant data from dump.                  []
 
 
-Pnl calculations.                                   []
-> bid ask spread for options
-> fully understand what is expected.
-
-
-
-
-
-
-6/4 - EOW:
-Data related concerns.
-Visualization
-
-
-reading in multiplier list                          []
+Debug gamma calculations                            []
 adapt computation for returns/vol change,           []
+reading in multiplier list                          []
+
+
 
 
 
@@ -391,6 +384,14 @@ TODO once dumps are ready:
 > generate data requirements from portfolio object  [] -> use get_all_futures.
 > finalize database updating stuff. 
 > batch script to run the file every day. 
+
+
+
+
+
+
+
+
 
 
 

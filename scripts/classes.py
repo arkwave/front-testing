@@ -255,10 +255,10 @@ class Option:
         # computes the value of this structure from relevant information.
         s = self.underlying.get_price()
         product = self.underlying.get_product()
-        mult = -1 if self.shorted else 1
-        val = _compute_value(self.char, self.tau, self.vol, self.K, s, self.r, self.payoff,
-                             ki=self.ki, ko=self.ko, barrier=self.barrier, d=self.direc, product=product)
-        return val  # *self.lots*mult
+        val = _compute_value(self.char, self.tau, self.vol, self.K, s, self.r,
+                             self.payoff, ki=self.ki, ko=self.ko, barrier=self.barrier,
+                             d=self.direc, product=product)
+        return val
 
     def get_price(self):
         # check for expiry case

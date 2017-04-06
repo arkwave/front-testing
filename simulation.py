@@ -121,12 +121,12 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
 
 def feed_data(voldf, pdf, pf, dic):
     """This function does the following:
-    1) Computes current value of portfolio. 
-    2) Checks for rollovers and expiries. 
-    3) Feeds relevant information into the portfolio. 
+    1) Computes current value of portfolio.
+    2) Checks for rollovers and expiries.
+    3) Feeds relevant information into the portfolio.
     4) Asseses knockin/knockouts.
-    5) Computes new value of portfolio. 
-    6) returns change in value, as well as updated portfolio. 
+    5) Computes new value of portfolio.
+    6) returns change in value, as well as updated portfolio.
 
     Args:
         voldf (pandas dataframe): dataframe of vols in same format as returned by read_data
@@ -136,7 +136,7 @@ def feed_data(voldf, pdf, pf, dic):
                 {product_i: [c_1 rollover, c_2 rollover, ... c_n rollover]}
 
     Returns:
-        tuple: change in value and updated portfolio object. 
+        tuple: change in value and updated portfolio object.
     """
     date = voldf.value_date.unique()[0]
     raw_diff = 0
@@ -185,21 +185,35 @@ def feed_data(voldf, pdf, pf, dic):
 
 
 def handle_options(pf):
-    """
-    Inputs:
-    1) pf      : portfolio object.
+    """ Handles option exercise, as well as bullet vs daily payoff.
+    Args:
+        pf (Portfolio object) : the portfolio being run through the simulator.
 
-    Outputs: None.
+    Returns:
+        tuple: the combined PnL from exercising (if appropriate) and daily/bullet payoffs, as well as the updated portfolio.
+
     """
-    pass
+    expenditure = 0
+    tol = 2/365
+    # handle options exercise
+    all_ops = pf.get_all_options()
+    for op in all_ops:
+        if op.tau <= tol and op.exercise():
+            op.update_tau(op.tau)
+            # once for exercise, another for selling/buying to cover the
+            # future obtained.
+            expenditure += (op.lots * op.get_price()) - 2*brokerage
+
+    # handle daily vs bullet payoffs
+    # TODO
 
 
 def rebalance(vdf, pdf, pf, hedges):
-    """ Function that handles EOD greek hedging. Calls hedge_delta and hedge_gamma_vega. 
+    """ Function that handles EOD greek hedging. Calls hedge_delta and hedge_gamma_vega.
     Notes:
-    1) hedging gamma and vega done by buying/selling ATM straddles. No liquidity constraints assumed. 
-    2) hedging delta done by shorting/buying -delta * lots futures. 
-    3) 
+    1) hedging gamma and vega done by buying/selling ATM straddles. No liquidity constraints assumed.
+    2) hedging delta done by shorting/buying -delta * lots futures.
+    3)
 
     Args:
         vdf (TYPE): Description
@@ -231,18 +245,18 @@ def rebalance(vdf, pdf, pf, hedges):
 
 # TODO: update this with new objects in mind.
 def hedge_gamma_vega(hedges, vdf, pdf, month, pf, product, ordering):
-    """Helper function that deals with vega/gamma hedging   
+    """Helper function that deals with vega/gamma hedging
 
     Args:
         hedges (dictionary): dictionary that contains hedging requirements for the different greeks
         vdf (pandas dataframe): dataframe of volatilities
         pdf (pandas dataframe): dataframe of prices
-        greeks (list): list of greeks corresponding to this month and product. 
-        month (string): the month of the option's underlying. 
-        pf (portfolio): portfolio specified by portfolio_specs.txt 
+        greeks (list): list of greeks corresponding to this month and product.
+        month (string): the month of the option's underlying.
+        pf (portfolio): portfolio specified by portfolio_specs.txt
 
     Returns:
-        tuple: expenditure on this hedge, and updated portfolio object. 
+        tuple: expenditure on this hedge, and updated portfolio object.
 
     """
     expenditure = 0
@@ -293,7 +307,7 @@ def hedge_gamma_vega(hedges, vdf, pdf, month, pf, product, ordering):
             callop.shorted = True
             putop.shorted = True
             num_required = ceil((upper-gamma)/(pgamma + cgamma))
-        expenditure += num_required * straddle_val
+        expenditure += num_required * (straddle_val + brokerage)
         for i in range(num_required):
             pf.add_security(callop, 'hedge')
             pf.add_security(putop, 'hedge')
@@ -314,7 +328,7 @@ def hedge_gamma_vega(hedges, vdf, pdf, month, pf, product, ordering):
             callop.shorted = True
             putop.shorted = True
 
-        expenditure += num_required * straddle_val
+        expenditure += num_required * (straddle_val + brokerage)
         for i in range(num_required):
             pf.add_security(callop, 'hedge')
             pf.add_security(putop, 'hedge')
@@ -322,20 +336,20 @@ def hedge_gamma_vega(hedges, vdf, pdf, month, pf, product, ordering):
     return expenditure, pf
 
 
-# TODO: delta hedging
+# TODO: Note: assuming that futures are 10 lots each.
 def hedge_delta(cond, vdf, pdf, month, pf, product, ordering):
     """Helper function that implements delta hedging. General idea is to zero out delta at the end of the day by buying/selling -delta * lots futures. Returns expenditure (which is negative if shorting and postive if purchasing delta) and the updated portfolio object.
 
     Args:
         cond (string): condition for delta hedging
         vdf (dataframe): Dataframe of volatilities
-        pdf (dataframe): Dataframe of prices 
+        pdf (dataframe): Dataframe of prices
         net (list): greeks associated with net_greeks[product][month]
-        month (str): month of underlying future. 
-        pf (portfolio): portfolio object specified by portfolio_specs.txt 
+        month (str): month of underlying future.
+        pf (portfolio): portfolio object specified by portfolio_specs.txt
 
     Returns:
-        tuple: hedging costs and final portfolio with hedges added. 
+        tuple: hedging costs and final portfolio with hedges added.
 
     """
     future_price = pdf[(pdf.pdt == product) & (
@@ -349,14 +363,15 @@ def hedge_delta(cond, vdf, pdf, month, pf, product, ordering):
                 vals = net_greeks[product][month]
                 delta = vals[0]
                 num_lots_needed = delta * 100
-                num_futures = ceil(num_lots_needed / lots)
+                num_futures = ceil(num_lots_needed / 10)
                 shorted = True if delta > 0 else False
                 ft = Future(month, future_price, product,
                             shorted=shorted, ordering=ordering)
                 for i in range(num_futures):
                     pf.add_security(ft, 'hedge')
-                expenditure = (expenditure - num_futures*future_price) if shorted else (
-                    expenditure + num_futures*future_price)
+                cost = num_futures * (future_price + brokerage)
+                expenditure = (expenditure - cost) if shorted else (
+                    expenditure + cost)
     return expenditure, pf
 
 
@@ -373,3 +388,4 @@ if __name__ == '__main__':
     pf = prep_portfolio(vdf, pdf, filepath)
     # proceed to run simulation
     run_simulation(vdf, pdf, edf, pf)
+ pf)

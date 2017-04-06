@@ -90,6 +90,9 @@ def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None, barrier=No
 
     Outputs: Price of the option
     '''
+    # expiry case
+    if tau == 0:
+        return max(s-K, 0) if char == 'call' else max(K-s, 0)
     # vanilla option case
     if barrier is None:
         # currently american == european since it's never optimal to exercise
@@ -693,7 +696,7 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction, produc
         delta, gamma, theta, vega : greeks of this instrument.
     """
     # ticksize = multipliers[product][2]
-    change_spot = 0.0001
+    change_spot = 0.001
     # change_spot = 0.01*ticksize
     change_vol = 0.01
     # change_vol = 0.0001
@@ -709,16 +712,18 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction, produc
     delta = (del1 - del2)/(2*change_spot)
 
     # computing gamma
+    del3 = _barrier_amer(char, tau, vol, k, s,
+                         r, payoff, direction, ki, ko)
+    gamma = (del1 - 2*del3 + del2) / ((change_spot**2))
+
     # g1 = _barrier_amer(char, tau, vol, k, s+change_spot,
     #                    r, payoff, direction, ki, ko)
     # g2 = _barrier_amer(char, tau, vol, k, s, r, payoff, direction, ki, ko)
     # g3 = _barrier_amer(char, tau, vol, k, s - change_spot,
     #                    r, payoff, direction, ki, ko)
-
-    del3 = _barrier_amer(char, tau, vol, k, s,
-                         r, payoff, direction, ki, ko)
-    gamma = (del1 - 2*del3 + del2) / ((change_spot**2))
-    # gamma = (g1 - 2*g2 + g3)/(change_spot**2) if tau > 0 else 0
+    # delta1, delta2 = (g1 - g2)/change_spot, (g2-g3)/change_spot
+    # h = change_spot
+    # gamma = (delta1 - delta2)/h
 
     # computing vega
     v1 = _barrier_amer(char, tau, vol+change_vol, k, s, r,
