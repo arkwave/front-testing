@@ -331,8 +331,8 @@ feed_data
 	> test compute_ordering                         [Done]
 > Delta Hedging.                                    [Done]
 
-
-
+FFDSDdfsd
+dd
 
 
 
@@ -341,19 +341,33 @@ feed_data
 calc-related work:
 > rework calc testing. use exclusively xtrader.     []
 
-> debug euro barrier pricing.                       []
-> american and euro barrier greeks                  []
+> debug euro barrier pricing.                       [Done]
+> euro barrier greeks                               [Done]
+
+	> delta [Done]
+	> gamma [Done]
+	> theta [Done]
+	> vega  [Done]
+
+> american barrier greeks                           []
+	> delta [Done]
+	> gamma []
+	> theta [Done]
+	> vega  [Done]
 
 > rework compute value & testing                    []
+
+
 
 
 >> testing: gamma/vega hedging                      [] 
 >> testing: delta hedging                           []
 
 
+
+
 Data familiarization: 
 > read in relevant data from dump.                  []
-
 
 Pnl calculations.                                   []
 > bid ask spread for options

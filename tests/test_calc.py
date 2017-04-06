@@ -3,7 +3,7 @@ import numpy as np
 from scripts.classes import Option, Future
 from operator import sub
 from scripts.calc import _bsm_euro, _euro_vanilla_greeks, _euro_barrier_euro_greeks, _euro_barrier_amer_greeks, _barrier_amer, _barrier_euro
-import datetime as dt
+# import datetime as dt
 df = pd.read_csv('tests/testing_vanilla.csv')
 
 
@@ -181,180 +181,178 @@ def test_vanilla_greeks():
         try:
             assert np.isclose(d, d1)
         except AssertionError:
-            # print('vanilla _ greeks _ delta : ', d, d1)
-            # print('vanilla _ greeks _ delta %  error: ', (abs(d - d1)/d1) * 100)
             assert (abs(d - d1)/d1) * 100 < 2e-3
         try:
             assert np.isclose(g, g1)
         except AssertionError:
-            # print('vanilla _ greeks _ gamma: ', g, g1)
-            # print('vanilla _ greeks _ gamma %  error: ', (abs(g - g1)/g1) * 100)
             assert (abs(g - g1)/g1) * 100 < 2e-3
         try:
             assert np.isclose(t, t1)
         except AssertionError:
-            # print('vanilla _ greeks _ theta: ', t, t1)
-            # print('vanilla _ greeks _ theta %  error: ', (abs(t - t1)/t1) * 100)
             assert (abs(t - t1)/t1) * 100 < 2e-3
         try:
             assert np.isclose(v, v1)
         except AssertionError:
-            # print('vanilla _ greeks _ vega: ', v, v1)
-            # print('vanilla _ greeks _ vega  %  error: ',
-            #       (abs(v - v1)/v1) * 100)
             assert (abs(v - v1)/v1) * 100 < 2e-3
 
 
 # FIXME: Still not working properly.
-# def test_american_barrier_greeks():
-#     curr_date = pd.Timestamp('2017-04-05')
-#     expdate = pd.Timestamp('2017-11-24')
-#     tau = ((expdate - curr_date).days)/365 + 1/365
-#     chars = ['put'] * 4 + ['call'] * 4
-#     dollar_mult = 0.393678571428571
-#     s = 387.750
-#     strikes = [390, 450, 400, 400, 370, 380, 380, 380]
-#     kis = [380, 400, None, None, 390, 360, None, None]
-#     kos = [None, None, 410, 370, None, None, 420, 370]
-#     vol = 0.22
-#     r = 0
-#     payoffs = ['amer']*8
-#     directions = ['down', 'up', 'up', 'down', 'up', 'down', 'up', 'down']
-    # deltas = [-0.4783986635992220000, 0.8465546983416060000, -0.8826913688153580000,
-    #           0.0104405133782848000, 0.6417554302373670000, -0.2185933112297530000,
-    #           -0.0157934175770702000, 0.8952093100500490000]
-    # gammas = [0.0148117509669262000, 0.0149119218288849000, 0.0012634162769570900,
-    #           -0.0002743418201392530, 0.0139481156976062000, 0.0112231975202691000,
-    #           -0.0009620576533954030, 0.0011032331418428800]
-    # thetas = [-0.022919525232269200, -0.022954403417829900, -0.001946156996577540,
-    #           0.000484510035961586, -0.021569507510491100, -0.017344234779446500,
-    #           0.001478909040597000, -0.001743176029499470]
-    # vegas = [0.4870344913993350, 0.4878352614368390, 0.0413463662658806,
-    #          -0.0103170165751655, 0.4583493259497660, 0.3686025830023920,
-    #          -0.0314700179927724, 0.0370352359909882]
+def test_american_barrier_greeks():
+    curr_date = pd.Timestamp('2017-04-05')
+    expdate = pd.Timestamp('2017-11-24')
+    tau = ((expdate - curr_date).days)/365 + 1/365
+    chars = ['put'] * 4 + ['call'] * 4
 
-#     deltas = [-4.783986635992220, 8.465546983416060,   -8.826913688153580, 0.104405133782848,
-#               6.417554302373670,  -2.185933112297530, -0.157934175770702, 8.952093100500490]
-#     gammas = [18.811985261450300,   18.939209435216300,  1.604629218669980, -0.348433773196910,
-#               17.715106574116600, 14.254265198563700, -1.221882168877410, 1.401185157017180]
-#     thetas = [-29.109439649076300, -29.153737444399800, -2.471758863475060, 0.615362469696290,  -
-#               27.394820388902700, -22.028421202236400, 1.878320472499140,  -2.213958487979010]
-#     vegas = [618.568709025737000, 619.585744363217000, 52.512848382684200,  -13.103350453807200,
-#              582.136493086884000, 468.151697544542000, -39.969178254451000,
-#              47.037403962064200]
+    s = 387.750
+    strikes = [390, 450, 400, 400, 370, 380, 380, 380]
+    kis = [380, 400, None, None, 390, 360, None, None]
+    kos = [None, None, 410, 370, None, None, 420, 370]
+    vol = 0.22
+    r = 0
+    payoffs = ['amer']*8
+    directions = ['down', 'up', 'up', 'down', 'up', 'down', 'up', 'down']
 
-#     for i in range(len(chars)):
-#         char = chars[i]
-#         k = strikes[i]
-#         ki = kis[i]
-#         ko = kos[i]
-#         payoff = payoffs[i]
-#         direction = directions[i]
-#         d, g, t, v = _euro_barrier_amer_greeks(
-#             char, tau, vol, k, s, r, payoff, direction, 'C', ki, ko, 10)
-#         g, t, v = g/dollar_mult, t*dollar_mult, v*dollar_mult
-#         try:
-#             assert np.isclose(d, deltas[i], atol=1e-4)
-#         except AssertionError:
-#             print('ab _ greeks _ run ' + str(i) + ' delta: ', d, deltas[i])
-#         try:
-#             assert np.isclose(g, gammas[i], atol=1e-4)
-#         except AssertionError:
-#             print('ab _ greeks _ run ' + str(i) + ' gamma: ', g, gammas[i])
-#         try:
-#             assert np.isclose(t, thetas[i], atol=1e-4)
-#         except AssertionError:
-#             print('ab _ greeks _ run ' + str(i) + ' theta: ', t, thetas[i])
-#         try:
-#             assert np.isclose(v, vegas[i], atol=1e-4)
-#         except AssertionError:
-#             print('ab _ greeks _ run ' + str(i) + ' vega: ', v, vegas[i])
+    deltas = [-4.783986635992220, 8.465546983416060,   -8.826913688153580, 0.104405133782848,
+              6.417554302373670,  -2.185933112297530, -0.157934175770702, 8.952093100500490]
+    gammas = [18.811985261450300,   18.939209435216300,  1.604629218669980, -0.348433773196910,
+              17.715106574116600, 14.254265198563700, -1.221882168877410, 1.401185157017180]
+    thetas = [-29.109439649076300, -29.153737444399800, -2.471758863475060, 0.615362469696290,  -
+              27.394820388902700, -22.028421202236400, 1.878320472499140,  -2.213958487979010]
+    vegas = [618.568709025737000, 619.585744363217000, 52.512848382684200,  -13.103350453807200,
+             582.136493086884000, 468.151697544542000, -39.969178254451000,
+             47.037403962064200]
 
+    # dollar_mult = 0.393678571428571
+    # lot_mult = 127.007166832986
+    # lots = 10
+    # deltas = [x / lots for x in deltas]
+    # gammas = [x * dollar_mult / (lots * lot_mult) for x in gammas]
+    # thetas = [x / (lots * dollar_mult * lot_mult) for x in thetas]
+    # vegas = [x / (lots * lot_mult * dollar_mult) for x in vegas]
 
-# FIXME: Still not working.
-# def test_euro_barrier_greeks():
-#     curr_date = pd.Timestamp('2017-04-05')
-#     expdate = pd.Timestamp('2017-11-24')
-#     tau = ((expdate - curr_date).days)/365 + 1/365
-#     dollar_mult = 0.393678571428571
-#     s = 387.750
-#     vol = 0.22
-#     bvol = 0.22
-
-#     deltas = [-0.0557490887856027, 5.8001729954295600,
-#               0.0045642948890046, -5.0722086291524400]
-#     gammas = [-3.130091906576830, 18.658738232493300, -
-#               0.450432407726885, 19.037792844756400]
-#     thetas = [4.835782466210640, -28.826501546721800,
-#               0.695887917834766, -29.412115548619900]
-#     vegas = [-102.870281553938000, 613.218305630264000, -
-#              14.803433888480200, 625.675912579732000]
-#     strikes = [350, 380, 395, 395]
-#     chars = ['call', 'call', 'put', 'put']
-#     directions = ['up', 'up', 'down', 'down']
-#     kis = [None, 390, None, 385]
-#     kos = [390, None, 380, None]
-#     payoff = 'amer'
-#     lots = 10
-#     dollar_mult = 0.3936786
-
-#     for i in range(len(chars)):
-#         k, ki, ko, char, direc = strikes[i], kis[
-#             i], kos[i], chars[i], directions[i]
-#         d, g, t, v = deltas[i], gammas[i], thetas[i], vegas[i]
-#         try:
-#             d1, g1, t1, v1 = _euro_barrier_euro_greeks(
-#                 char, tau, vol, k, s, 0, payoff, direc, 'C', ki, ko, lots, bvol=bvol)
-#         except TypeError:
-#             print(_euro_barrier_euro_greeks(
-#                 char, tau, vol, k, s, 0, payoff, direc, 'C', ki, ko, lots, bvol=bvol) is None)
-#         g1, t1, v1 = g1/dollar_mult, t1*dollar_mult, v1*dollar_mult
-#         try:
-#             assert np.isclose(d1, d, atol=1e-2)
-#         except AssertionError:
-#             print('eb _ greeks _ delta run ' + str(i) + ': ', d1, d)
-#         try:
-#             assert np.isclose(g1, g, atol=1e-2)
-#         except AssertionError:
-#             print('eb _ greeks _ gamma run ' + str(i) + ': ', g1, g)
-#         try:
-#             assert np.isclose(t1, t, atol=1e-2)
-#         except AssertionError:
-#             print('eb _ greeks _ theta run ' + str(i) + ': ', t1, t)
-#         try:
-#             assert np.isclose(v1, v, atol=1e-2)
-#         except AssertionError:
-#            print('eb _ greeks _ vega run ' + str(i) + ': ', v1, v)
+    for i in range(len(chars)):
+        char = chars[i]
+        k = strikes[i]
+        ki = kis[i]
+        ko = kos[i]
+        payoff = payoffs[i]
+        direction = directions[i]
+        d, g, t, v = _euro_barrier_amer_greeks(
+            char, tau, vol, k, s, r, payoff, direction, 'C', ki, ko, 10)
+        d1, g1, t1, v1 = deltas[i], gammas[i], thetas[i], vegas[i]
+        # g, t, v = g/dollar_mult, t*dollar_mult, v*dollar_mult
+        try:
+            assert np.isclose(d, deltas[i])
+        except AssertionError:
+            # print('ab _ greeks _ delta run ' + str(i) + ': ', d, deltas[i])
+            print('ab _ greeks _ delta run ' + str(i) +
+                  ' %  error: ', (abs(d - d1)/d1) * 100)
+        try:
+            assert np.isclose(g, gammas[i])
+        except AssertionError:
+            # print('ab _ greeks _ gamma run ' + str(i) + ': ', g, gammas[i])
+            print('ab _ greeks _ gammas run ' + str(i) +
+                  ' %  error: ', (abs(g - g1)/g1) * 100)
+        try:
+            assert np.isclose(t, thetas[i])
+        except AssertionError:
+            # print('ab _ greeks _ theta run ' + str(i) + ': ', t, thetas[i])
+            print('ab _ greeks _ thetas run ' + str(i) +
+                  ' %  error: ', (abs(t - t1)/t1) * 100)
+        try:
+            assert np.isclose(v, vegas[i])
+        except AssertionError:
+            # print('ab _ greeks _ vega run ' + str(i) + ': ', v, vegas[i])
+            print('ab _ greeks _ vega run ' + str(i) +
+                  ' %  error: ', (abs(v - v1)/v1) * 100)
 
 
-# FIXME: Not working yet.
-# def test_euro_barrier_pricing():
-#     curr_date = pd.Timestamp('2017-04-05')
-#     expdate = pd.Timestamp('2017-11-24')
-#     tau = ((expdate - curr_date).days)/365 + 1/365
-#     s = 387.750
-#     chars = ['call'] * 2 + ['put']*2
-#     directions = ['up']*2 + ['down']*2
-#     kis = [None, 390, None, 370]
-#     kos = [400, None, 350, None]
-#     vol = 0.22
-#     strikes = [350, 360, 390, 400]
-#     product = 'C'
-#     actuals = [7.242409174727800, 39.760087685635000,
-#                4.713297229131670, 31.552517740371500]
-#     for i in range(len(actuals)):
-#         actual = actuals[i]
-#         char = chars[i]
-#         k = strikes[i]
-#         ki = kis[i]
-#         ko = kos[i]
-#         direction = directions[i]
-#         payoff = 'amer'
-#         val = _barrier_euro(char, tau, vol, k, s, 0,
-#                             payoff, direction, ki, ko, product, barvol=vol)
-#         try:
-#             assert np.isclose(val, actual)
-#         except AssertionError:
-#             # print('euro _ pricing _ %% error: ',
-#             #       (abs(val-actual)/actual) * 100)
-#             print('euro _ pricing : ', val, actual)
+def test_euro_barrier_greeks():
+    curr_date = pd.Timestamp('2017-04-05')
+    expdate = pd.Timestamp('2017-11-24')
+    tau = ((expdate - curr_date).days)/365 + 1/365
+    # dollar_mult = 0.393678571428571
+    s = 387.750
+    vol = 0.22
+    bvol = 0.22
+
+    deltas = [-0.0557490887856027, 5.8001729954295600,
+              0.0045642948890046, -5.0722086291524400]
+    gammas = [-3.130091906576830, 18.658738232493300, -
+              0.450432407726885, 19.037792844756400]
+    thetas = [4.835782466210640, -28.826501546721800,
+              0.695887917834766, -29.412115548619900]
+    vegas = [-102.870281553938000, 613.218305630264000, -
+             14.803433888480200, 625.675912579732000]
+    strikes = [350, 380, 395, 395]
+    chars = ['call', 'call', 'put', 'put']
+    directions = ['up', 'up', 'down', 'down']
+    kis = [None, 390, None, 385]
+    kos = [390, None, 380, None]
+    payoff = 'amer'
+    lots = 10
+    # dollar_mult = 0.3936786
+
+    for i in range(len(chars)):
+        k, ki, ko, char, direc = strikes[i], kis[
+            i], kos[i], chars[i], directions[i]
+        d1, g1, t1, v1 = deltas[i], gammas[i], thetas[i], vegas[i]
+        try:
+            d, g, t, v = _euro_barrier_euro_greeks(
+                char, tau, vol, k, s, 0, payoff, direc, 'C', ki, ko, lots, barvol=bvol)
+        except TypeError:
+            print(_euro_barrier_euro_greeks(
+                char, tau, vol, k, s, 0, payoff, direc, 'C', ki, ko, lots, barvol=bvol) is None)
+        # g1, t1, v1 = g1/dollar_mult, t1*dollar_mult, v1*dollar_mult
+        try:
+            assert np.isclose(d1, d)
+        except AssertionError:
+            # print('eb _ greeks _ delta run ' + str(i) + ': ', d1, d)
+            assert (abs(d - d1)/d1) * 100 < 1e-4
+        try:
+            assert np.isclose(g1, g)
+        except AssertionError:
+            # print('eb _ greeks _ gamma run ' + str(i) + ': ', g1, g)
+            assert (abs(d - d1)/d1) * 100 < 1e-4
+        try:
+            assert np.isclose(t1, t)
+        except AssertionError:
+            # print('eb _ greeks _ theta run ' + str(i) + ': ', t1, t)
+            assert (abs(d - d1)/d1) * 100 < 1e-4
+        try:
+            assert np.isclose(v1, v)
+        except AssertionError:
+            # print('eb _ greeks _ vega run ' + str(i) + ': ', v1, v)
+            assert (abs(d - d1)/d1) * 100 < 1e-4
+
+
+def test_euro_barrier_pricing():
+    curr_date = pd.Timestamp('2017-04-05')
+    expdate = pd.Timestamp('2017-11-24')
+    tau = ((expdate - curr_date).days)/365 + 1/365
+    s = 387.750
+    chars = ['call'] * 2 + ['put']*2
+    directions = ['up']*2 + ['down']*2
+    kis = [None, 390, None, 370]
+    kos = [400, None, 350, None]
+    vol = 0.22
+    strikes = [350, 360, 390, 400]
+    product = 'C'
+    actuals = [7.242409174727800, 39.760087685635000,
+               4.713297229131670, 31.552517740371500]
+    for i in range(len(actuals)):
+        actual = actuals[i]
+        char = chars[i]
+        k = strikes[i]
+        ki = kis[i]
+        ko = kos[i]
+        direction = directions[i]
+        payoff = 'amer'
+        val = _barrier_euro(char, tau, vol, k, s, 0,
+                            payoff, direction, ki, ko, product, barvol=vol)
+        try:
+            assert np.isclose(val, actual)
+        except AssertionError:
+            # print('euro _ pricing _ %% error: ',
+            #       (abs(val-actual)/actual) * 100)
+            print('euro _ pricing : ', val, actual)
