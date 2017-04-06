@@ -64,11 +64,11 @@ def test_vanilla_pricing_settle():
     try:
         assert np.allclose(prices, actuals, atol=0.1354)
     except AssertionError:
-        print('Passed ' + str(passed) + ' tests.')
-        print('OptionPrice, Actual : ', str((op.get_price(), price)))
+        print('testcalc: Passed ' + str(passed) + ' tests.')
+        print('testcalc: OptionPrice, Actual : ', str((op.get_price(), price)))
         resid = list(map(sub, actuals, prices))
-        print('Residuals: ', resid)
-        print('Max residual: ', max(resid))
+        print('testcalc: Residuals: ', resid)
+        print('testcalc: Max residual: ', max(resid))
 
 
 def test_vanilla_pricing():
@@ -245,25 +245,25 @@ def test_american_barrier_greeks():
             assert np.isclose(d, deltas[i])
         except AssertionError:
             # print('ab _ greeks _ delta run ' + str(i) + ': ', d, deltas[i])
-            print('ab _ greeks _ delta run ' + str(i) +
+            print('testcalc: ab _ greeks _ delta run ' + str(i) +
                   ' %  error: ', (abs(d - d1)/d1) * 100)
         try:
             assert np.isclose(g, gammas[i])
         except AssertionError:
             # print('ab _ greeks _ gamma run ' + str(i) + ': ', g, gammas[i])
-            print('ab _ greeks _ gammas run ' + str(i) +
+            print('testcalc: ab _ greeks _ gammas run ' + str(i) +
                   ' %  error: ', (abs(g - g1)/g1) * 100)
         try:
             assert np.isclose(t, thetas[i])
         except AssertionError:
             # print('ab _ greeks _ theta run ' + str(i) + ': ', t, thetas[i])
-            print('ab _ greeks _ thetas run ' + str(i) +
+            print('testcalc: ab _ greeks _ thetas run ' + str(i) +
                   ' %  error: ', (abs(t - t1)/t1) * 100)
         try:
             assert np.isclose(v, vegas[i])
         except AssertionError:
             # print('ab _ greeks _ vega run ' + str(i) + ': ', v, vegas[i])
-            print('ab _ greeks _ vega run ' + str(i) +
+            print('testcalc: ab _ greeks _ vega run ' + str(i) +
                   ' %  error: ', (abs(v - v1)/v1) * 100)
 
 
@@ -305,25 +305,21 @@ def test_euro_barrier_greeks():
                 char, tau, vol, k, s, 0, payoff, direc, 'C', ki, ko, lots, barvol=bvol) is None)
         # g1, t1, v1 = g1/dollar_mult, t1*dollar_mult, v1*dollar_mult
         try:
-            assert np.isclose(d1, d)
+            assert np.isclose(d, d1)
         except AssertionError:
-            # print('eb _ greeks _ delta run ' + str(i) + ': ', d1, d)
-            assert (abs(d - d1)/d1) * 100 < 1e-4
+            assert (abs(d - d1)/d1) * 100 < 2e-3
         try:
-            assert np.isclose(g1, g)
+            assert np.isclose(g, g1)
         except AssertionError:
-            # print('eb _ greeks _ gamma run ' + str(i) + ': ', g1, g)
-            assert (abs(d - d1)/d1) * 100 < 1e-4
+            assert (abs(g - g1)/g1) * 100 < 2e-3
         try:
-            assert np.isclose(t1, t)
+            assert np.isclose(t, t1)
         except AssertionError:
-            # print('eb _ greeks _ theta run ' + str(i) + ': ', t1, t)
-            assert (abs(d - d1)/d1) * 100 < 1e-4
+            assert (abs(t - t1)/t1) * 100 < 2e-3
         try:
-            assert np.isclose(v1, v)
+            assert np.isclose(v, v1)
         except AssertionError:
-            # print('eb _ greeks _ vega run ' + str(i) + ': ', v1, v)
-            assert (abs(d - d1)/d1) * 100 < 1e-4
+            assert (abs(v - v1)/v1) * 100 < 2e-3
 
 
 def test_euro_barrier_pricing():
@@ -353,6 +349,4 @@ def test_euro_barrier_pricing():
         try:
             assert np.isclose(val, actual)
         except AssertionError:
-            # print('euro _ pricing _ %% error: ',
-            #       (abs(val-actual)/actual) * 100)
-            print('euro _ pricing : ', val, actual)
+            print('testcalc: euro _ pricing : ', val, actual)

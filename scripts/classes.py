@@ -144,6 +144,8 @@ class Option:
                 self.knockedin = True if (s >= self.ki) else False
             if self.direc == 'down':
                 self.knockedin = True if (s <= self.ki) else False
+            if self.knockedin:
+                self.ki, self.ko, self.barrier, self.direc = None, None, None, None
         if self.ko:
             if self.barrier == 'amer':
                 # american up and out
@@ -226,6 +228,7 @@ class Option:
                 sigma = vol
             product = self.get_product()
             s = self.underlying.get_price()
+
             self.delta, self.gamma, self.theta, self.vega = _compute_greeks(
                 self.char, self.K, self.tau, sigma, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc)
             self.vol = sigma

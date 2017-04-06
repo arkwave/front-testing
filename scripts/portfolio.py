@@ -392,14 +392,26 @@ class Portfolio:
         val = 0
         # try:
         for sec in self.OTC_options:
-            val += sec.get_price()
+            if sec.shorted:
+                val -= sec.lots * sec.get_price()
+            else:
+                val += sec.lots * sec.get_price()
         for sec in self.hedge_options:
-            val -= sec.get_price()
+            if sec.shorted:
+                val -= sec.lots * sec.get_price()
+            else:
+                val += sec.lots * sec.get_price()
         for sec in self.OTC_futures:
-            val += sec.get_price()
+            if sec.shorted:
+                val -= sec.lots * sec.price
+            else:
+                val += sec.lots * sec.price
         for sec in self.hedge_futures:
-            val -= sec.get_price()
-        # except
+            if sec.shorted:
+                val -= sec.lots * sec.price
+            else:
+                val += sec.lots * sec.price
+
         return val
 
     def exercise_option(self, sec, flag):

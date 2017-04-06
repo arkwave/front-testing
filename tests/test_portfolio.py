@@ -334,15 +334,28 @@ def test_compute_value():
     pf.add_security(op1, 'OTC')
     addval = pf.compute_value()
     try:
-        assert (addval - init_val) == opval
+        assert (addval - init_val) == opval * 10
     except AssertionError:
         assert np.isclose(addval-init_val, opval)
         print('residue: ', addval - init_val - opval)
     # testing hedge pos
     pf.remove_security(op1, 'OTC')
-    pf.add_security(op1, 'hedge')
-    hedgeval = pf.compute_value()
-    assert init_val - hedgeval == opval
+
+    try:
+        assert pf.compute_value() == init_val
+    except AssertionError:
+        print('testport compute_val remove: ', pf.compute_value(), init_val)
+
+    op2 = Option(
+        35, 0.01, 'call', 0.4245569263291844, ft, 'amer', True, 'Z7')
+    pf.add_security(op2, 'hedge')
+    shorted = pf.compute_value()
+
+    try:
+        assert np.isclose(init_val - shorted, op2.lots * op2.get_price())
+    except AssertionError:
+        print('shorted: ',  op2.lots * op2.get_price())
+        print('testport compute_val short: ', init_val, shorted)
 
 
 def test_exercise_option():
