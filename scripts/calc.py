@@ -876,8 +876,8 @@ def greeks_scaled(delta1, gamma1, theta1, vega1, product, lots):
     dm = multipliers[product][0]
     delta = delta1 * lots
     gamma = gamma1*lots*lm/dm
-    vega = vega1*lots*lm*dm/100
-    theta = theta1*lots*lm*dm/365
+    vega = (vega1*lots*lm*dm)/100
+    theta = (theta1*lots*lm*dm)/365
 
     # return delta1, gamma1, theta1/365, vega1/100
     return delta, gamma, theta, vega

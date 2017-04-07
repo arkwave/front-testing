@@ -334,7 +334,7 @@ def test_compute_value():
     pf.add_security(op1, 'OTC')
     addval = pf.compute_value()
     try:
-        assert (addval - init_val) == opval * 10
+        assert (addval - init_val) == opval * op1.lots
     except AssertionError:
         assert np.isclose(addval-init_val, opval)
         print('residue: ', addval - init_val - opval)

@@ -8,7 +8,7 @@ Description    : Script contains implementation of the Portfolio class, as well 
 
 """
 
-from operator import sub
+from operator import sub, add
 
 
 class Portfolio:
@@ -149,7 +149,8 @@ class Portfolio:
             for month in common_months:
                 OTC_greeks = OTCdata[month][2:]
                 hedge_greeks = hedgedata[month][2:]
-                net = list(map(sub, OTC_greeks, hedge_greeks))
+                # net = list(map(sub, OTC_greeks, hedge_greeks))
+                net = list(map(add, OTC_greeks, hedge_greeks))
                 final_dic[product][month] = net
             # dealing with non overlapping months
             for month in OTC_unique_mths:
@@ -261,8 +262,7 @@ class Portfolio:
         Inputs:
         1) added  : boolean flag that indicates if securities are being added or removed. Valid inputs: True, False.
         2) flag   : string flag that indicates if the securities to be manipulated are hedge or OTC. Valid inputs: 'hedge', 'OTC'
-        3) price  : new price of underlying. If explicitly passed in, the method assumes that new price/vol data is being fed into the portfolio, and acts accordingly. defaults to None.
-        4) vol    : new vol. If explicitly passed in, the method assumes that new price/vol data is being fed into the portfolio, and acts accordingly. defaults to None.
+        3) update : use update=True if the portfolio is being updated with new prices and vols
 
         Outputs : Updates OTC, hedges and net_greeks dictionaries.
 
@@ -366,16 +366,12 @@ class Portfolio:
 
         if sec.get_desc() == 'option':
             delta, gamma, theta, vega = sec.greeks()
-
-            if (added and not sec.shorted) or (not added and sec.shorted):
-                # adding a long option or removing a short option.
+            if added:
                 data[2] += delta
                 data[3] += gamma
                 data[4] += theta
                 data[5] += vega
-
-            elif (added and sec.shorted) or (not added and not sec.shorted):
-                # adding a short option or removing a long option.
+            else:
                 data[2] -= delta
                 data[3] -= gamma
                 data[4] -= theta

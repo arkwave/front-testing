@@ -1,480 +1,238 @@
-"""
-File Name      : prep_data.py
-Author         : Ananth Ravi Kumar
-Date created   : 7/3/2017
-Last Modified  : 30/3/2017
-Python version : 3.5
-Description    : Script containing problematic code to be debugged.
-
-"""
-
-# # Imports
-from scripts.prep_data import read_data
+from scripts.classes import Option, Future
+import copy
 import pandas as pd
-import numpy as np
-from scipy.stats import norm
-from math import log, sqrt
-import time
-from scipy.interpolate import PchipInterpolator
-
-'''
-TODO:  2) read in multipliers from csv
-'''
+from scripts.portfolio import Portfolio
+from math import ceil
+brokerage = 1
 
 
-# initializing variables
-# setting pandas warning level.
-pd.options.mode.chained_assignment = None
-# Dictionary mapping month to symbols and vice versa
-month_to_sym = {1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
-                7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'}
-sym_to_month = {'F': 1, 'G': 2, 'H': 3, 'J': 4, 'K': 5,
-                'M': 6, 'N': 7, 'Q': 8, 'U': 9, 'V': 10, 'X': 11, 'Z': 12}
-decade = 10
-# specifies the filepath for the read-in file.
-
-# vdf, pdf, edf = read_data(filepath)
-# composite label that has product, opmth, cont.
-seed = 7
-np.random.seed(seed)
-
-
-# details contract months for each commodity. used in the continuation
-# assignment.
-contract_mths = {
-
-    'LH':  ['G', 'J', 'K', 'M', 'N', 'Q', 'V', 'Z'],
-    'LSU': ['H', 'K', 'Q', 'V', 'Z'],
-    'LCC': ['H', 'K', 'N', 'U', 'Z'],
-    'SB':  ['H', 'K', 'N', 'V'],
-    'CC':  ['H', 'K', 'N', 'U', 'Z'],
-    'CT':  ['H', 'K', 'N', 'Z'],
-    'KC':  ['H', 'K', 'N', 'U', 'Z'],
-    'W':   ['H', 'K', 'N', 'U', 'Z'],
-    'S':   ['F', 'H', 'K', 'N', 'Q', 'U', 'X'],
-    'C':   ['H', 'K', 'N', 'U', 'Z'],
-    'BO':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
-    'LC':  ['G', 'J', 'M', 'Q', 'V' 'Z'],
-    'LRC': ['F', 'H', 'K', 'N', 'U', 'X'],
-    'KW':  ['H', 'K', 'N', 'U', 'Z'],
-    'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
-    'COM': ['G', 'K', 'Q', 'X'],
-    'OBM': ['H', 'K', 'U', 'Z'],
-    'MW':  ['H', 'K', 'N', 'U', 'Z']
-}
-
-
-########################################################################
-############################# Functions ################################
-########################################################################
-
-def compute_delta(x):
-    s = x.settle_value
-    K = x.strike
-    tau = x.tau
-    char = x.call_put_id
-    vol = x.settle_vol
-    r = 0
-    try:
-        d1 = (log(s/K) + (r + 0.5 * vol ** 2)*tau) / \
-            (vol * sqrt(tau))
-    except (ZeroDivisionError):
-        d1 = -np.inf
-
-    if char == 'C':
-        # call option calc for delta and theta
-        delta1 = norm.cdf(d1)
-    if char == 'P':
-        # put option calc for delta and theta
-        delta1 = norm.cdf(d1) - 1
-
-    return delta1
-
-
-def vol_by_delta(voldata, pricedata):
-    """takes in a dataframe of vols and prices (same format as those returned by read_data),
-     and generates delta-wise vol organized hierarchically by date, underlying and vol_id
+def rebalance(vdf, pdf, pf, hedges):
+    """ Function that handles EOD greek hedging. Calls hedge_delta and hedge_gamma_vega.
+    Notes:
+    1) hedging gamma and vega done by buying/selling ATM straddles. No liquidity constraints assumed.
+    2) hedging delta done by shorting/buying -delta * lots futures.
+    3)
 
     Args:
-        voldata (TYPE): dataframe of vols
-        pricedata (TYPE): dataframe of prices
+        vdf (TYPE): Description
+        pdf (TYPE): Description
+        pf (TYPE): Description
+        hedges (TYPE): Description
 
     Returns:
-        pandas dataframe: delta-wise vol of each option.
+        TYPE: Description
     """
-    relevant_price = pricedata[
-        ['pdt', 'underlying_id', 'value_date', 'settle_value', 'order']]
-    relevant_vol = voldata[['pdt', 'value_date', 'vol_id', 'strike',
-                            'call_put_id', 'tau', 'settle_vol', 'underlying_id']]
-
-    print('merging')
-    merged = pd.merge(relevant_vol, relevant_price,
-                      on=['pdt', 'value_date', 'underlying_id'])
-    # filtering out negative tau values.
-    merged = merged[(merged['tau'] > 0) & (merged['settle_vol'] > 0)]
-
-    print('computing deltas')
-    merged['delta'] = merged.apply(compute_delta, axis=1)
-    # merged.to_csv('merged.csv')
-
-    print('getting labels')
-    # getting labels for deltas
-    delta_vals = np.arange(0.05, 1, 0.05)
-    delta_labels = [str(int(100*x)) + 'd' for x in delta_vals]
-    # all_cols = ['underlying_id', 'tau', 'vol_id'].extend(delta_labels)
-
-    print('preallocating')
-    # preallocating dataframes
-    call_df = merged[merged.call_put_id == 'C'][
-        ['pdt', 'value_date', 'underlying_id', 'order', 'tau', 'vol_id']].drop_duplicates()
-    put_df = merged[merged.call_put_id == 'P'][
-        ['pdt', 'value_date', 'underlying_id', 'order', 'tau', 'vol_id']].drop_duplicates()
-
-    # adding option month as a column
-    c_pdt = call_df.vol_id.str.split().str[0]
-    c_opmth = call_df.vol_id.str.split().str[1].str.split('.').str[0]
-    c_fin = c_pdt + ' ' + c_opmth
-    call_df['op_id'] = c_fin
-    p_pdt = put_df.vol_id.str.split().str[0]
-    p_opmth = put_df.vol_id.str.split().str[1].str.split('.').str[0]
-    p_fin = p_pdt + ' ' + p_opmth
-    put_df['op_id'] = p_fin
-
-    # appending rest of delta labels as columns.
-    call_df = pd.concat([call_df, pd.DataFrame(columns=delta_labels)], axis=1)
-    put_df = pd.concat([put_df, pd.DataFrame(columns=delta_labels)], axis=1)
-    products = merged.pdt.unique()
-
-    print('beginning iteration:')
-
-    for pdt in products:
-        tmp = merged[merged.pdt == pdt]
-        # tmp.to_csv('test.csv')
-        dates = tmp.value_date.unique()
-        vids = tmp.vol_id.unique()
-        for date in dates:
-            for vid in vids:
-                # filter by vol_id and by day.
-                df = tmp[(tmp.value_date == date) & (tmp.vol_id == vid)]
-                calls = df[df.call_put_id == 'C']
-                puts = df[df.call_put_id == 'P']
-                # setting absolute value.
-                puts.delta = np.abs(puts.delta)
-                # sorting in ascending order of delta for interpolation
-                # purposes
-                calls = calls.sort_values(by='delta')
-                puts = puts.sort_values(by='delta')
-                # reshaping data for interpolation.
-                drange = np.arange(0.05, 1, 0.05)
-                cdeltas = calls.delta.values
-                cvols = calls.settle_vol.values
-                pdeltas = puts.delta.values
-                pvols = puts.settle_vol.values
-                # interpolating delta using Piecewise Cubic Hermite
-                # Interpolation (Pchip)
-                try:
-                    f1 = PchipInterpolator(cdeltas, cvols, axis=1)
-                    f2 = PchipInterpolator(pdeltas, pvols, axis=1)
-                except IndexError:
-                    continue
-                # grabbing delta-wise vols based on interpolation.
-                call_deltas = f1(drange)
-                put_deltas = f2(drange)
-
-                try:
-                    call_df.loc[(call_df.vol_id == vid) & (call_df.value_date == date),
-                                delta_labels] = call_deltas
-                except ValueError:
-                    print('target: ', call_df.loc[(call_df.vol_id == vid) & (
-                        call_df.value_date == date), delta_labels])
-                    print('values: ', call_deltas)
-
-                try:
-                    put_df.loc[(put_df.vol_id == vid) & (put_df.value_date == date),
-                               delta_labels] = put_deltas
-                except ValueError:
-                    print('target: ', call_df.loc[(call_df.vol_id == vid) & (
-                        call_df.value_date == date), delta_labels])
-                    print('values: ', call_deltas)
-
-    print('Done. writing to csv...')
-    # call_df.to_csv('call_deltas_test.csv', index=False)
-    # put_df.to_csv('put_deltas_test.csv', index=False)
-
-    # resetting indices
-    call_df.reset_index(drop=True, inplace=True)
-    put_df.reset_index(drop=True, inplace=True)
-    return call_df, put_df
+    # compute the gamma and vega of atm straddles; one call + one put.
+    # compute how many such deals are required. add to appropriate pos.
+    # return both the portfolio, as well as the gain/loss from short/long pos
+    expenditure = 0
+    # hedging delta, gamma, vega.
+    dic = copy.deepcopy(pf.get_net_greeks())
+    for product in dic:
+        for month in dic[product]:
+            ordering = pf.compute_ordering(product, month)
+            ginputs = gen_hedge_inputs(
+                hedges, vdf, pdf, month, pf, product, ordering, 'gamma')
+            vinputs = gen_hedge_inputs(
+                hedges, vdf, pdf, month, pf, product, ordering, 'vega')
+            cost, pf = hedge(pf, ginputs, product, month)
+            expenditure += cost
+            cost, pf = hedge(pf, vinputs, product, month)
+            expenditure += cost
+            cost, pf = hedge_delta(hedges['delta'], vdf, pdf,
+                                   month, pf, product, ordering)
+            expenditure += cost
+    return expenditure, pf
 
 
-def civols(vdf, pdf, rollover='opex'):
-    """Constructs the CI price series.
+# TODO: update this with new objects in mind.
+def gen_hedge_inputs(hedges, vdf, pdf, month, pf, product, ordering, flag):
+    """Helper function that generates the inputs required to construct atm 
+    straddles for hedging, based on the flag. 
+
     Args:
-        vdf (TYPE): price data frame of same format as read_data
-        rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
+        hedges (TYPE): hedging rules.
+        vdf (TYPE): volatility dataframe
+        pdf (TYPE): price dataframe
+        month (TYPE): month being hedged
+        pf (TYPE): portfolio being hedged
+        product (TYPE): product being hedged
+        ordering (TYPE): ordering corresponding to month being hedged
+        flag (TYPE): gamma or vega
 
     Returns:
-        pandas dataframe : prices arranged according to c_i indexing.
+        list : inputs required to construct atm straddles. 
     """
-    t = time.time()
-    if rollover == 'opex':
-        ro_dates = get_rollover_dates(pdf)
-        products = vdf['pdt'].unique()
-        # iterate over produts
-        by_product = None
-        for product in products:
-            df = vdf[vdf.pdt == product]
-            most_recent = []
-            by_date = None
-            relevant_dates = ro_dates[product]
-            # iterate over rollover dates for this product.
-            for date in relevant_dates:
-                # filter order > 0 to get rid of C_i that have been dealt with.
-                df = df[df.order > 0]
-                # sort orderings.
-                order_nums = sorted(df.order.unique())
-                breakpoint = max(most_recent) if most_recent else min(
-                    df['value_date'])
-                by_order_num = None
-                # iterate over all order_nums for this product. for each cont, grab
-                # entries until first breakpoint, and stack wide.
-                for ordering in order_nums:
+    net_greeks = pf.get_net_greeks()
+    greeks = net_greeks[product][month]
+    # naming variables for clarity.
+    gamma = greeks[1]
+    vega = greeks[3]
+    greek = gamma if flag == 'gamma' else vega
+    gamma_bound = hedges['gamma']
+    vega_bound = hedges['vega']
+    bound = gamma_bound if flag == 'gamma' else vega_bound
 
-                    df2 = df[df.order == ordering]
-                    tdf = df2[(df2['value_date'] < date) & (df2['value_date'] >= breakpoint)][
-                        ['pdt', 'order', 'value_date', 'underlying_id', 'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']]
-                    # print('breakpoint, date, ordering, underlying, empty: ',
-                    #       breakpoint, date, ordering, tdf.underlying_id.unique(), tdf.empty)
-                    # # deriving additional columns
-                    # tdf['op_id'] = tdf.vol_id.str.split().str[
-                    #     1].str.split('.').str[0]
-                    # renaming columns
-                    tdf.columns = ['pdt', 'order', 'value_date', 'underlying_id',
-                                   'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
-                    # tdf.reset_index(drop=True, inplace=True)
-                    by_order_num = tdf if by_order_num is None else pd.concat(
-                        [by_order_num, tdf])
+    # relevant data for constructing Option and Future objects.
+    price = pdf[(pdf.pdt == product) & (
+        pdf.order == ordering)].settle_value.values[0]
+    k = round(price/10) * 10
+    cvol = vdf[(vdf.pdt == product) & (
+        vdf.call_put_id == 'C') & (vdf.order == ordering) & (vdf.strike == k)].settle_vol.values[0]
+    pvol = vdf[(vdf.pdt == product) & (
+        vdf.call_put_id == 'P') & (vdf.order == ordering) & (vdf.strike == k)].settle_vol.values[0]
+    tau = vdf[(vdf.pdt == product) & (
+        vdf.call_put_id == 'P') & (vdf.order == ordering) & (vdf.strike == k)].tau.values[0]
+    underlying = Future(month, price, product)
 
-                # by_date contains entries from all order_nums until current
-                # rollover date. take and stack this long.
-                by_date = by_order_num if by_date is None else pd.concat(
-                    [by_date, by_order_num])
-                # print('by_date:', by_date[
-                #       by_date.order == 1].underlying_id.unique())
-                most_recent.append(date)
-                df.order -= 1
+    return [price, k, cvol, pvol, tau, underlying, greek, bound, ordering]
 
-            by_product = by_date if by_product is None else pd.concat(
-                [by_product, by_date])
-            # print('by_product: ', by_product[
-            #       by_product.order == 1].underlying_id.unique())
-        # by_product.dropna(inplace=True)
-        final = by_product
+
+def hedge(pf, inputs, product, month, flag):
+    """This function does the following:
+    1) constructs atm straddles with the inputs from _inputs_
+    2) hedges the greek in question (specified by flag) with the straddles.
+
+    Args:
+        pf (TYPE): portfolio object
+        inputs (TYPE): list of inputs reqd to construct straddle objects
+        product (TYPE): the product being hedged
+        month (TYPE): month being hedged
+
+    Returns:
+        tuple: cost of the hedge, and the updated portfolio 
+    """
+
+    expenditure = 0
+    price, k, cvol, pvol, tau, underlying, greek, bound, ordering = inputs
+
+    # creating straddle components.
+    callop = Option(price, tau, 'call', cvol, underlying,
+                    'euro', ordering=ordering, shorted=None)
+    putop = Option(price, tau, 'put', pvol, underlying,
+                   'euro', ordering=ordering, shorted=None)
+    straddle_val = callop.compute_price() + putop.compute_price()
+
+    # gamma and vega hedging.
+    cdelta, cgamma, ctheta, cvega = callop.greeks()
+    pdelta, pgamma, ptheta, pvega = putop.greeks()
+
+    if flag == 'gamma':
+        pgreek, cgreek = pgamma, cgamma
     else:
-        final = -1
-    elapsed = time.time() - t
-    print('[CI-VOLS] elapsed: ', elapsed)
-    # final.to_csv('ci_vol_final.csv', index=False)
-    return final
+        pgreek, cgreek = pvega, cvega
+
+    # checking if gamma exceeds bounds
+    if greek not in range(*bound):
+        lower = bound[0]
+        upper = bound[1]
+        # gamma hedging logic.
+        if greek < lower:
+            # need to buy straddles. expenditure is positive.
+            callop.shorted = False
+            putop.shorted = False
+            num_required = ceil((lower-greek)/(pgreek + cgreek))
+        elif greek > upper:
+            # need to short straddles. expenditure is negative.
+            callop.shorted = True
+            putop.shorted = True
+            num_required = ceil((upper-greek)/(pgreek + cgreek))
+        expenditure += num_required * (straddle_val + brokerage)
+        for i in range(num_required):
+            pf.add_security(callop, 'hedge')
+            pf.add_security(putop, 'hedge')
+
+    return expenditure, pf
 
 
-def get_rollover_dates(pricedata):
-    """Generates dictionary of form {product: [c1 rollover, c2 rollover, ...]}. If ci rollover is 0, then no rollover happens.
-
-    Args:
-        pricedata (TYPE): Dataframe of prices, same format as that returned by read_data
-
-    Returns:
-        rollover_dates: dictionary of rollover dates, organized by product.
-    """
-    products = pricedata['pdt'].unique()
-    rollover_dates = {}
-    for product in products:
-        # filter by product.
-        df = pricedata[pricedata.pdt == product]
-        order_nums = sorted(pricedata['order'].unique())
-        rollover_dates[product] = [0] * len(order_nums)
-        for i in range(len(order_nums)):
-            ordering = order_nums[i]
-            df2 = df[df['order'] == ordering]
-            test = df2[df2['value_date'] > df2['expdate']]['value_date']
-            if not test.empty:
-                try:
-                    rollover_dates[product][i] = min(test)
-                except (ValueError, TypeError):
-                    print('i: ', i)
-                    print('cont: ', ordering)
-                    print('min: ', min(test))
-                    print('product: ', product)
-            else:
-                expdate = df2['expdate'].unique()[0]
-                rollover_dates[product][i] = pd.Timestamp(expdate)
-    return rollover_dates
-
-
-def ciprice(pricedata, rollover='opex'):
-    """Constructs the CI price series.
+# TODO: Note: assuming that futures are 10 lots each.
+def hedge_delta(cond, vdf, pdf, month, pf, product, ordering):
+    """Helper function that implements delta hedging. General idea is to zero out delta at the end of the day by buying/selling -delta * lots futures. Returns expenditure (which is negative if shorting and postive if purchasing delta) and the updated portfolio object.
 
     Args:
-        pricedata (TYPE): price data frame of same format as read_data
-        rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
+        cond (string): condition for delta hedging
+        vdf (dataframe): Dataframe of volatilities
+        pdf (dataframe): Dataframe of prices
+        net (list): greeks associated with net_greeks[product][month]
+        month (str): month of underlying future.
+        pf (portfolio): portfolio object specified by portfolio_specs.txt
 
     Returns:
-        pandas dataframe : prices arranged according to c_i indexing.
+        tuple: hedging costs and final portfolio with hedges added.
+
     """
-    t = time.time()
-    if rollover == 'opex':
-        ro_dates = get_rollover_dates(pricedata)
-        products = pricedata['pdt'].unique()
-        # iterate over produts
-        by_product = None
-        for product in products:
-            df = pricedata[pricedata.pdt == product]
-            # lst = contract_mths[product]
-            most_recent = []
-            by_date = None
-            relevant_dates = ro_dates[product]
-            # iterate over rollover dates for this product.
-            for date in relevant_dates:
-                df = df[df.order > 0]
-                order_nums = sorted(df.order.unique())
-                breakpoint = max(most_recent) if most_recent else min(
-                    df['value_date'])
-                # print('breakpoint, date: ', breakpoint, date)
-                by_order_num = None
-                # iterate over all order_nums for this product. for each cont, grab
-                # entries until first breakpoint, and stack wide.
-                for ordering in order_nums:
-                    # print('breakpoint, end, cont: ', breakpoint, date, cont)
-                    df2 = df[df.order == ordering]
-                    tdf = df2[(df2['value_date'] < date) & (df2['value_date'] >= breakpoint)][
-                        ['pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns']]
-                    # print(tdf.empty)
-                    tdf.columns = [
-                        'pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns']
-                    tdf.reset_index(drop=True, inplace=True)
-                    by_order_num = tdf if by_order_num is None else pd.concat(
-                        [by_order_num, tdf])
-
-                # by_date contains entries from all order_nums until current
-                # rollover date. take and stack this long.
-                by_date = by_order_num if by_date is None else pd.concat(
-                    [by_date, by_order_num])
-                most_recent.append(date)
-                df.order -= 1
-
-            by_product = by_date if by_product is None else pd.concat(
-                [by_product, by_order_num])
-        final = by_product
-
-    else:
-        final = -1
-    elapsed = time.time() - t
-    print('[CI-PRICE] elapsed: ', elapsed)
-    # final.to_csv('ci_price_final.csv', index=False)
-    return final
+    future_price = pdf[(pdf.pdt == product) & (
+        pdf.order == ordering)].settle_value.values[0]
+    expenditure = 0
+    net_greeks = pf.get_net_greeks()
+    if cond == 'zero':
+        # flag that indicates delta hedging.
+        for product in net_greeks:
+            for month in net_greeks[product]:
+                vals = net_greeks[product][month]
+                delta = vals[0]
+                num_lots_needed = delta * 100
+                num_futures = ceil(num_lots_needed / 10)
+                shorted = True if delta > 0 else False
+                ft = Future(month, future_price, product,
+                            shorted=shorted, ordering=ordering)
+                for i in range(num_futures):
+                    pf.add_security(ft, 'hedge')
+                cost = num_futures * (future_price + brokerage)
+                expenditure = (expenditure - cost) if shorted else (
+                    expenditure + cost)
+    return expenditure, pf
 
 
-##########################################################################
-##########################################################################
+def generate_portfolio(flag):
+    """Generate portfolio for testing purposes. """
+    # Underlying Futures
+    ft1 = Future('K7', 300, 'C')
+    ft2 = Future('K7', 250, 'C')
+    ft3 = Future('N7', 320, 'C')
+    ft4 = Future('N7', 330, 'C')
+    ft5 = Future('N7', 240, 'C')
 
-if __name__ == '__main__':
-    # compute simulation start day; earliest day in dataframe.
-    filepath = 'portfolio_specs.txt'
-    voldata, pricedata, edf = read_data(filepath)
+    short = False if flag == 'long' else True
+    # options
 
-    # just a sanity check, these two should be the same.
-    sim_start = min(min(voldata['value_date']), min(pricedata['value_date']))
-    assert (sim_start == min(voldata['value_date']))
-    assert (sim_start == min(pricedata['value_date']))
+    op1 = Option(
+        350, 0.301369863013698, 'call', 0.4245569263291844, ft1, 'amer', short, 'K7', ordering=1)
 
-    final_price = ciprice(pricedata)
-    final_vols = civols(voldata, pricedata)
-    call_vols, put_vols = vol_by_delta(final_vols, pricedata)
+    op2 = Option(
+        290, 0.301369863013698, 'call', 0.45176132048500206, ft2, 'amer', short, 'K7', ordering=1)
 
-    # final_vols.to_csv()
-    # final_price.to_csv('ci_price_final.csv', index=False)
-    call_vols.to_csv('call_vols_by_delta.csv', index=False)
-    put_vols.to_csv('put_vols_by_delta.csv', index=False)
+    op3 = Option(300, 0.473972602739726, 'call', 0.14464169782291536,
+                 ft3, 'amer', short, 'N7',  direc='up', barrier='amer', bullet=False,
+                 ko=350, ordering=2)
+
+    op4 = Option(330, 0.473972602739726, 'put', 0.18282926924909026,
+                 ft4, 'amer', short, 'N7', direc='down', barrier='amer', bullet=False,
+                 ki=280, ordering=2)
+    op5 = Option(
+        320, 0.473972602739726, 'put', 0.8281728247909962, ft5, 'amer', short, 'N7', ordering=2)
+
+    # Portfolio Futures
+    # ft6 = Future('K7', 370, 'C', shorted=False, ordering=1)
+    # ft7 = Future('N7', 290, 'C', shorted=False, ordering=2)
+    # ft8 = Future('Z7', 320, 'C', shorted=True, ordering=4)
+    # ft9 = Future('Z7', 320, 'C', shorted=True, ordering=4)
+
+    OTCs, hedges = [op1, op2, op3], [op4, op5]
+
+    # creating portfolio
+    pf = Portfolio()
+    for sec in hedges:
+        pf.add_security(sec, 'OTC')
+
+    for sec in OTCs:
+        pf.add_security(sec, 'OTC')
+
+    return pf
 
 
-######################## Code Dump ###############################
+pf1 = generate_portfolio('long')
+g1 = pf1.net_greeks['C']['K7']
 
-
-# def civols(vdf, pdf, rollover='opex'):
-#     """Scales volatility surfaces and associates them with a product and an ordering number (ci).
-
-#     Args:
-#         vdf (TYPE): vol dataframe of same form as the one returned by read_data
-#         pdf (TYPE): price dataframe of same form as the one returned by read_data
-# rollover (None, optional): rollover logic; defaults to 'opex' (option
-# expiry.)
-
-#     Returns:
-#         TYPE: Description
-#     """
-#     # label = composite index that displays 1) Product 2) vol_id 3) cond number.
-#     t = time.time()
-#     labels = vdf.label.unique()
-#     retDF = vdf.copy()
-#     retDF['vol change'] = ''
-#     ret = None
-#     for label in labels:
-#         df = vdf[vdf.label == label]
-#         dates = sorted(df['value_date'].unique())
-#         # df.reset_index(drop=True, inplace=True)
-#         for i in range(len(dates)):
-#             # first date in this label-df
-#             try:
-#                 date = dates[i]
-#                 if i == 0:
-#                     dvol = 0
-#                 else:
-#                     prevdate = dates[i-1]
-#                     prev_atm_price = pdf[(pdf['value_date'] == prevdate)][
-#                         'settle_value'].values[0]
-#                     curr_atm_price = pdf[(pdf['value_date'] == date)][
-#                         'settle_value'].values[0]
-#                     # calls
-#                     curr_vol_surface = df[(df['value_date'] == date)][
-#                         ['strike', 'settle_vol']]
-#                     prev_vol_surface = df[(df['value_date'] == prevdate)][
-#                         ['strike', 'settle_vol']]
-
-#                     # round strikes up/down to nearest 10.
-#                     curr_atm_vol = curr_vol_surface.loc[
-#                         (curr_vol_surface['strike'] == (round(curr_atm_price/10) * 10)), 'settle_vol']
-#                     curr_atm_vol = curr_atm_vol.values[0]
-#                     prev_atm_vol = prev_vol_surface.loc[
-#                         (prev_vol_surface['strike'] == (round(prev_atm_price/10) * 10)), 'settle_vol']
-#                     prev_atm_vol = prev_atm_vol.values[0]
-#                     dvol = curr_vol_surface['settle_vol'] - prev_atm_vol
-#                 retDF.ix[(retDF.label == label) & (
-#                     retDF['value_date'] == date), 'vol change'] = dvol
-#             except (IndexError):
-#                 print('Label: ', label)
-#                 print('Index: ', index)
-#                 print('product: ', product)
-#                 print('cont: ', cont)
-#                 print('idens: ', mth)
-#         # assign each vol surface to an appropriately named column in a new
-#         # dataframe.
-#         product = label[0]
-#         call_put_id = label[-1]
-#         # opmth = Z8 or analogous
-#         opmth = label.split('.')[0].split()[1]
-#         # ftmth = Z8 or analogous
-#         ftmth = label.split('.')[1].split()[0]
-#         ordering = int(label.split('.')[1].split()[1])
-#         mthlist = contract_mths[product]
-#         dist = find_cdist(opmth, ftmth, mthlist)
-#         # column is of the format: product_c(opdist)(cont)_callorput
-#         vals = retDF[retDF.label == label][['value_date', 'strike', 'vol change']]
-#         vals.reset_index(drop=True, inplace=True)
-#         vals.columns = ['value_date', 'strike', product + '_c' +
-#                         str(cont) + '_' + str(dist) + '_' + call_put_id]
-#         ret = vals if ret is None else pd.concat([ret, vals], axis=1)
-
-#     elapsed = time.time() - t
-#     print('[CI-VOLS] Time Elapsed: ', elapsed)
-#     return ret
+pf2 = generate_portfolio('short')
+g2 = pf2.net_greeks['C']['K7']

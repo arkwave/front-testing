@@ -20,6 +20,9 @@ TODO:
 > Step 3     : handle_options
 > Step 4     : pnl accumulation
 """
+# Dictionary of multipliers for greeks/pnl calculation.
+# format  =  'product' : [dollar_mult, lot_mult, futures_tick,
+# options_tick, pnl_mult]
 
 multipliers = {
 
@@ -242,7 +245,7 @@ def rebalance(vdf, pdf, pf, hedges):
             cost, pf = hedge(pf, vinputs, product, month)
             expenditure += cost
             cost, pf = hedge_delta(hedges['delta'], vdf, pdf,
-                                   month, pf, product, ordering)
+                                   pf, month, product, ordering)
             expenditure += cost
     return expenditure, pf
 
@@ -310,10 +313,19 @@ def hedge(pf, inputs, product, month, flag):
 
     # creating straddle components.
     callop = Option(price, tau, 'call', cvol, underlying,
-                    'euro', ordering=ordering, shorted=None)
+                    'euro', month=month, ordering=ordering, shorted=None)
     putop = Option(price, tau, 'put', pvol, underlying,
-                   'euro', ordering=ordering, shorted=None)
+                   'euro', month=month, ordering=ordering, shorted=None)
     straddle_val = callop.compute_price() + putop.compute_price()
+    lm, dm = multipliers[product][1], multipliers[product][0]
+
+    if flag == 'gamma':
+        greek_c = (list(callop.greeks())[1] * dm) / (callop.lots * lm)
+        greek_p = (list(putop.greeks())[1] * dm) / (putop.lots * lm)
+
+    else:
+        greek_c = list(callop.greeks())[3] * 100 / (callop.lots * lm * dm)
+        greek_p = list(putop.greeks())[3] * 100 / (putop.lots * lm * dm)
 
     # gamma and vega hedging.
     cdelta, cgamma, ctheta, cvega = callop.greeks()
@@ -321,25 +333,50 @@ def hedge(pf, inputs, product, month, flag):
 
     if flag == 'gamma':
         pgreek, cgreek = pgamma, cgamma
+        # print('gamma hedging straddle: ', pgamma, cgamma)
     else:
         pgreek, cgreek = pvega, cvega
 
     # checking if gamma exceeds bounds
-    if greek not in range(*bound):
-        lower = bound[0]
-        upper = bound[1]
+    upper = bound[1]
+    lower = bound[0]
+    if greek > upper or greek < lower:
         # gamma hedging logic.
+
         if greek < lower:
+            # print('lower!')
             # need to buy straddles. expenditure is positive.
             callop.shorted = False
             putop.shorted = False
-            num_required = ceil((lower-gamma)/(pgreek + cgreek))
+            # print('greek_c: ', greek_c)
+            # print('greek_p: ', greek_p)
+            if flag == 'gamma':
+                lots_req = round((abs(greek) * dm)/((greek_c + greek_p) * lm))
+            elif flag == 'vega':
+                lots_req = round((abs(greek) * 100) /
+                                 ((greek_c + greek_p) * lm * dm))
+            callop.lots, putop.lots = lots_req, lots_req
+            # print('lots req: ', lots_req)
+            num_required = ceil(abs(greek)/(pgreek + cgreek))
+            # print('num_req: ', num_required)
+
         elif greek > upper:
             # need to short straddles. expenditure is negative.
+            # print('upper')
             callop.shorted = True
             putop.shorted = True
-            num_required = ceil((upper-gamma)/(pgreek + cgreek))
+            if flag == 'gamma':
+                lots_req = round((greek * dm)/((greek_c + greek_p) * lm))
+            elif flag == 'vega':
+                # print('vega')
+                lots_req = round((greek * 100)/((greek_c + greek_p) * lm * dm))
+            # print('lots req: ', lots_req)
+            callop.lots, putop.lots = lots_req, lots_req
+            num_required = ceil((greek)/(pgreek + cgreek))
+            # print('num_required: ', num_required)
+
         expenditure += num_required * (straddle_val + brokerage)
+
         for i in range(num_required):
             pf.add_security(callop, 'hedge')
             pf.add_security(putop, 'hedge')
@@ -347,8 +384,9 @@ def hedge(pf, inputs, product, month, flag):
     return expenditure, pf
 
 
-# TODO: Note: assuming that futures are 10 lots each.
-def hedge_delta(cond, vdf, pdf, month, pf, product, ordering):
+# NOTE: assuming that future can be found with the exact number of
+# lots to delta hedge.
+def hedge_delta(cond, vdf, pdf, pf, month, product, ordering):
     """Helper function that implements delta hedging. General idea is to zero out delta at the end of the day by buying/selling -delta * lots futures. Returns expenditure (which is negative if shorting and postive if purchasing delta) and the updated portfolio object.
 
     Args:
@@ -369,34 +407,29 @@ def hedge_delta(cond, vdf, pdf, month, pf, product, ordering):
     net_greeks = pf.get_net_greeks()
     if cond == 'zero':
         # flag that indicates delta hedging.
-        for product in net_greeks:
-            for month in net_greeks[product]:
-                vals = net_greeks[product][month]
-                delta = vals[0]
-                num_lots_needed = delta * 100
-                num_futures = ceil(num_lots_needed / 10)
-                shorted = True if delta > 0 else False
-                ft = Future(month, future_price, product,
-                            shorted=shorted, ordering=ordering)
-                for i in range(num_futures):
-                    pf.add_security(ft, 'hedge')
-                cost = num_futures * (future_price + brokerage)
-                expenditure = (expenditure - cost) if shorted else (
-                    expenditure + cost)
-    return expenditure, pf
+        vals = net_greeks[product][month]
+        delta = vals[0]
+        num_lots_needed = round(delta)
+        # num_futures = round(num_lots_needed / 1000)
+        shorted = True if delta > 0 else False
+        ft = Future(month, future_price, product,
+                    shorted=shorted, ordering=ordering, lots=num_lots_needed)
+        pf.add_security(ft, 'hedge')
+        cost = (future_price + brokerage)
+        expenditure = (expenditure - cost) if shorted else (expenditure + cost)
+    return expenditure, pf, ft
 
 
-if __name__ == '__main__':
-    filepath = 'portfolio_specs.txt'
-    vdf, pdf, edf = read_data(filepath)
-    # check sanity of data
-    vdates = pd.to_datetime(vdf.value_date.unique())
-    pdates = pd.to_datetime(pdf.value_date.unique())
-    if not np.array_equal(vdates, pdates):
-        raise ValueError(
-            'Invalid data sets passed in; vol and price data must have the same date range.')
-    # generate portfolio
-    pf = prep_portfolio(vdf, pdf, filepath)
-    # proceed to run simulation
-    run_simulation(vdf, pdf, edf, pf)
- pf)
+# if __name__ == '__main__':
+#     filepath = 'portfolio_specs.txt'
+#     vdf, pdf, edf = read_data(filepath)
+#     # check sanity of data
+#     vdates = pd.to_datetime(vdf.value_date.unique())
+#     pdates = pd.to_datetime(pdf.value_date.unique())
+#     if not np.array_equal(vdates, pdates):
+#         raise ValueError(
+#             'Invalid data sets passed in; vol and price data must have the same date range.')
+#     # generate portfolio
+#     pf = prep_portfolio(vdf, pdf, filepath)
+#     # proceed to run simulation
+#     run_simulation(vdf, pdf, edf, pf)

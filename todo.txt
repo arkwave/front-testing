@@ -354,8 +354,15 @@ calc-related work:
 
 
 7/4:
->> testing: gamma/vega hedging                      [] 
->> testing: delta hedging                           []
+>> testing: gamma hedging                           [Done]
+>> testing: vega hedging                            [Done]
+
+>> testing: joint vega/gamma                        [Done]
+	- issue is with shorting and greeks             [Done]
+>> testing: delta hedging                           [Done]
+
+
+
 
 Pnl calculations.                                    
 > bid ask spread for options                        []
@@ -364,11 +371,12 @@ Pnl calculations.
 > lots for delta hedging.                           []
 > pnl mult                                          []
 
+
+
+
 Handle options: 
 > bullet vs daily payoff                            []
 > exercise                                          [Done]
-
-
 
 
 
@@ -384,6 +392,7 @@ TODO once dumps are ready:
 > generate data requirements from portfolio object  [] -> use get_all_futures.
 > finalize database updating stuff. 
 > batch script to run the file every day. 
+
 
 
 
