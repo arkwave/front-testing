@@ -351,11 +351,16 @@ calc-related work:
 	> theta [Done]
 	> vega  [Done]
 > rework compute value & testing                    [Done]
+> reset ki, barrier etc to none once knockin        [Done]
+
 
 
 7/4:
 >> testing: gamma/vega hedging                      [] 
 >> testing: delta hedging                           []
+	- should delta actually get reset to 0?
+
+
 
 Pnl calculations.                                    
 > bid ask spread for options                        []
@@ -364,9 +369,13 @@ Pnl calculations.
 > lots for delta hedging.                           []
 > pnl mult                                          []
 
+
+
+
 Handle options: 
 > bullet vs daily payoff                            []
 > exercise                                          [Done]
+
 
 
 

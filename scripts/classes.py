@@ -277,6 +277,8 @@ class Option:
                 price = self.compute_price()
                 self.price = price
                 return self.price
+            else:
+                return 0
 
     def update_tau(self, diff):
         self.tau -= diff
