@@ -66,7 +66,7 @@ class Option:
     20) get_month      : returns the month associated with this option.
     """
 
-    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=10, bullet=None, ki=None, ko=None, rebate=0, ordering=None):
+    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=1000, bullet=None, ki=None, ko=None, rebate=0, ordering=None):
         self.month = month
         self.barrier = barrier
         self.payoff = payoff
@@ -184,7 +184,6 @@ class Option:
         from .calc import _compute_greeks
         # initializes relevant greeks. only used once, when initializing Option
         # object.
-
         product = self.get_product()
         # print(product)
         s = self.underlying.get_price()
@@ -205,9 +204,11 @@ class Option:
             print('ko: ', self.ko)
             print('barrier: ', self.barrier)
             print('direction: ', self.direc)
-            # print(calc.clc._compute_greeks(self.char, self.K,  self.tau, self.vol, s, self.r, product,
-            # self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc))
-        # print(delta, gamma, theta, vega)
+
+        if self.shorted:
+            # print('shorted!')
+            delta, gamma, theta, vega = -delta, -gamma, -theta, -vega
+
         self.delta = delta
         self.gamma = gamma
         self.theta = theta
@@ -228,10 +229,16 @@ class Option:
                 sigma = vol
             product = self.get_product()
             s = self.underlying.get_price()
-
-            self.delta, self.gamma, self.theta, self.vega = _compute_greeks(
+            delta, gamma, theta, vega = _compute_greeks(
                 self.char, self.K, self.tau, sigma, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc)
+            # account for shorting
+            if self.shorted:
+                delta, gamma, theta, vega = -delta, -gamma, -theta, -vega
+
+            self.delta, self.gamma, self.theta, self.vega = delta, gamma, theta, vega
+
             self.vol = sigma
+
             self.price = self.compute_price()
         else:
             self.zero_option()
@@ -357,7 +364,7 @@ class Future:
     7) get_product    : returns the name of this contract (i.e. the commodity)
     '''
 
-    def __init__(self, month, price, product, shorted=None, lots=10, ordering=None):
+    def __init__(self, month, price, product, shorted=None, lots=1000, ordering=None):
         self.product = product
         self.ordering = ordering
         self.lots = lots

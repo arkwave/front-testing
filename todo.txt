@@ -356,9 +356,14 @@ calc-related work:
 
 
 7/4:
->> testing: gamma/vega hedging                      [] 
->> testing: delta hedging                           []
-	- should delta actually get reset to 0?
+
+>> testing: gamma hedging                           [Done]
+>> testing: vega hedging                            [Done]
+
+>> testing: joint vega/gamma                        [Done]
+	- issue is with shorting and greeks             [Done]
+>> testing: delta hedging                           [Done]
+
 
 
 
@@ -379,8 +384,6 @@ Handle options:
 
 
 
-
-
 Debug gamma calculations                            []
 adapt computation for returns/vol change,           []
 reading in multiplier list                          []
@@ -393,6 +396,7 @@ TODO once dumps are ready:
 > generate data requirements from portfolio object  [] -> use get_all_futures.
 > finalize database updating stuff. 
 > batch script to run the file every day. 
+
 
 
 
