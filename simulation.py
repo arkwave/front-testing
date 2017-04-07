@@ -117,8 +117,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
         cost, pf = handle_options(pf)
         pnl += cost
     # Step 4
-        cost, pf = rebalance(vdf, pdf, pf, hedges)
-        pnl += cost
+        pf, hedges = rebalance(vdf, pdf, pf, hedges)
     # Step 6: Plotting results/data viz
 
 
@@ -230,7 +229,6 @@ def rebalance(vdf, pdf, pf, hedges):
     # compute the gamma and vega of atm straddles; one call + one put.
     # compute how many such deals are required. add to appropriate pos.
     # return both the portfolio, as well as the gain/loss from short/long pos
-    expenditure = 0
     # hedging delta, gamma, vega.
     dic = copy.deepcopy(pf.get_net_greeks())
     for product in dic:
@@ -240,14 +238,11 @@ def rebalance(vdf, pdf, pf, hedges):
                 hedges, vdf, pdf, month, pf, product, ordering, 'gamma')
             vinputs = gen_hedge_inputs(
                 hedges, vdf, pdf, month, pf, product, ordering, 'vega')
-            cost, pf = hedge(pf, ginputs, product, month)
-            expenditure += cost
-            cost, pf = hedge(pf, vinputs, product, month)
-            expenditure += cost
-            cost, pf = hedge_delta(hedges['delta'], vdf, pdf,
-                                   pf, month, product, ordering)
-            expenditure += cost
-    return expenditure, pf
+            pf, ghedges = hedge(pf, ginputs, product, month, 'gamma')
+            pf, vhedges = hedge(pf, vinputs, product, month, 'vega')
+            pf, dhedges = hedge_delta(hedges['delta'], vdf, pdf,
+                                      pf, month, product, ordering)
+    return pf
 
 
 # TODO: update this with new objects in mind.
@@ -308,7 +303,6 @@ def hedge(pf, inputs, product, month, flag):
         tuple: cost of the hedge, and the updated portfolio
     """
 
-    expenditure = 0
     price, k, cvol, pvol, tau, underlying, greek, bound, ordering = inputs
 
     # creating straddle components.
@@ -316,7 +310,7 @@ def hedge(pf, inputs, product, month, flag):
                     'euro', month=month, ordering=ordering, shorted=None)
     putop = Option(price, tau, 'put', pvol, underlying,
                    'euro', month=month, ordering=ordering, shorted=None)
-    straddle_val = callop.compute_price() + putop.compute_price()
+    # straddle_val = callop.compute_price() + putop.compute_price()
     lm, dm = multipliers[product][1], multipliers[product][0]
 
     if flag == 'gamma':
@@ -375,13 +369,11 @@ def hedge(pf, inputs, product, month, flag):
             num_required = ceil((greek)/(pgreek + cgreek))
             # print('num_required: ', num_required)
 
-        expenditure += num_required * (straddle_val + brokerage)
-
         for i in range(num_required):
             pf.add_security(callop, 'hedge')
             pf.add_security(putop, 'hedge')
 
-    return expenditure, pf
+    return pf  # , [callop, putop]
 
 
 # NOTE: assuming that future can be found with the exact number of
@@ -417,7 +409,7 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering):
         pf.add_security(ft, 'hedge')
         cost = (future_price + brokerage)
         expenditure = (expenditure - cost) if shorted else (expenditure + cost)
-    return expenditure, pf, ft
+    return pf, ft
 
 
 # if __name__ == '__main__':

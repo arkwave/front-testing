@@ -177,7 +177,7 @@ def test_hedge_gamma_long():
     init_gamma = net['C']['K7'][1]
     assert init_gamma not in range(*hedges['gamma'])
     assert init_gamma == greek
-    expenditure, pf = hedge(pf, inputs, product, month, 'gamma')
+    pf = hedge(pf, inputs, product, month, 'gamma')
     # print('gamma long hedging expenditure: ', expenditure)
     end_gamma = pf.net_greeks['C']['K7'][1]
     # print('end long gamma: ', end_gamma)
@@ -210,7 +210,7 @@ def test_hedge_gamma_short():
     init_gamma = net['C']['K7'][1]
     assert init_gamma not in range(*hedges['gamma'])
     assert init_gamma == greek
-    expenditure, pf2 = hedge(pf, inputs, product, month, 'gamma')
+    pf2 = hedge(pf, inputs, product, month, 'gamma')
     # print('gamma short hedging expenditure: ', expenditure)
     end_gamma = pf2.net_greeks['C']['K7'][1]
     # print('end short gamma: ', end_gamma)
@@ -241,7 +241,7 @@ def test_hedge_vega_short():
     init_vega = net['C']['K7'][3]
     assert init_vega not in range(*hedges['vega'])
     assert init_vega == greek
-    expenditure, pf2 = hedge(pf, inputs, product, month, 'vega')
+    pf2 = hedge(pf, inputs, product, month, 'vega')
     # print('vega hedging expenditure: ', expenditure)
     end_vega = pf2.net_greeks['C']['K7'][3]
     # print('end short vega: ', end_vega)
@@ -272,7 +272,7 @@ def test_hedge_vega_long():
     init_vega = net['C']['K7'][3]
     assert init_vega not in range(*hedges['vega'])
     assert init_vega == greek
-    expenditure, pf2 = hedge(pf, inputs, product, month, 'vega')
+    pf2 = hedge(pf, inputs, product, month, 'vega')
     # print('vega hedging expenditure: ', expenditure)
     end_vega = pf2.net_greeks['C']['K7'][3]
 
@@ -311,7 +311,7 @@ def test_joint_vega_gamma():
     # assert init_vega == greek2
     assert init_gamma == greek1
 
-    expenditure2, pf = hedge(pf, g_inputs, product, month, 'gamma')
+    pf = hedge(pf, g_inputs, product, month, 'gamma')
     # print('####################################################')
     # print('gamma after gamma hedging: ', pf.net_greeks['C']['K7'][1])
     # print('vega after gamma hedging: ', pf.net_greeks['C']['K7'][3])
@@ -329,7 +329,7 @@ def test_joint_vega_gamma():
     mid_vega = pf.net_greeks['C']['K7'][3]
     assert greek2 == mid_vega
 
-    expenditure, pf = hedge(pf, v_inputs, product, month, 'vega')
+    pf = hedge(pf, v_inputs, product, month, 'vega')
 
     # print('vega after vega hedging: ', pf.net_greeks['C']['K7'][3])
     # print('gamma after vega hedging: ', pf.net_greeks['C']['K7'][1])
@@ -364,7 +364,7 @@ def test_delta_hedging_long():
     month = 'K7'
     assert len(pf.hedge_futures) == 0
     ordering = pf.compute_ordering(product, month)
-    expenditure, pf, hedge = hedge_delta(
+    pf, hedge = hedge_delta(
         cond, vdf1, pdf1, pf, month, product, ordering)
     assert hedge.shorted == True
     assert hedge.lots == round(pf.net_greeks['C']['K7'][0])
@@ -381,7 +381,7 @@ def test_delta_hedging_short():
     month = 'K7'
     assert len(pf.hedge_futures) == 0
     ordering = pf.compute_ordering(product, month)
-    expenditure, pf, hedge = hedge_delta(
+    pf, hedge = hedge_delta(
         cond, vdf1, pdf1, pf, month, product, ordering)
     assert hedge.shorted == False
     assert hedge.lots == round(pf.net_greeks['C']['K7'][0])

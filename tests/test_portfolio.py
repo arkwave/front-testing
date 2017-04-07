@@ -324,6 +324,7 @@ def test_ordering():
 
 
 def test_compute_value():
+    pnlmult = 50
     pf = generate_portfolio()
     init_val = pf.compute_value()
     ft = Future('M7', 50, 'C')
@@ -334,10 +335,11 @@ def test_compute_value():
     pf.add_security(op1, 'OTC')
     addval = pf.compute_value()
     try:
-        assert (addval - init_val) == opval * op1.lots
+        assert (addval - init_val) == opval * op1.lots * pnlmult
     except AssertionError:
-        assert np.isclose(addval-init_val, opval)
-        print('residue: ', addval - init_val - opval)
+        assert np.isclose(addval-init_val, opval*50*op1.lots)
+        assert (addval - init_val - (opval * op1.lots * pnlmult) < 2e-9)
+        # print('residue: ', addval - init_val - (opval * op1.lots * pnlmult))
     # testing hedge pos
     pf.remove_security(op1, 'OTC')
 
@@ -352,7 +354,8 @@ def test_compute_value():
     shorted = pf.compute_value()
 
     try:
-        assert np.isclose(init_val - shorted, op2.lots * op2.get_price())
+        assert np.isclose(init_val - shorted, op2.lots *
+                          op2.get_price() * pnlmult)
     except AssertionError:
         print('shorted: ',  op2.lots * op2.get_price())
         print('testport compute_val short: ', init_val, shorted)

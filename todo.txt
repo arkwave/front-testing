@@ -351,42 +351,38 @@ calc-related work:
 	> theta [Done]
 	> vega  [Done]
 > rework compute value & testing                    [Done]
-> reset ki, barrier etc to none once knockin        [Done]
-
 
 
 7/4:
-
 >> testing: gamma hedging                           [Done]
 >> testing: vega hedging                            [Done]
-
 >> testing: joint vega/gamma                        [Done]
 	- issue is with shorting and greeks             [Done]
 >> testing: delta hedging                           [Done]
 
 
-
+PnL:
+> brokerage in hedging steps                        [Done]
+> lots for delta hedging.                           [Done]
 
 Pnl calculations.                                    
-> bid ask spread for options                        []
-> fully understand what is expected.                []
-> brokerage in hedging steps                        [Done]
-> lots for delta hedging.                           []
-> pnl mult                                          []
-
-
+> fully understand what is expected.                [Done]
+> pnl mult                                          [Done]
 
 
 Handle options: 
-> bullet vs daily payoff                            []
+> bullet vs daily payoff                            [] -- > convert daily into ttm = 1 day payoff options. 
 > exercise                                          [Done]
-
 
 
 
 Debug gamma calculations                            []
 adapt computation for returns/vol change,           []
 reading in multiplier list                          []
+
+
+
+
 
 
 
