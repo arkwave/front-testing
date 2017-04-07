@@ -233,101 +233,112 @@ def rebalance(vdf, pdf, pf, hedges):
     for product in dic:
         for month in dic[product]:
             ordering = pf.compute_ordering(product, month)
-            cost, pf = hedge_gamma_vega(
-                hedges, vdf, pdf, month, pf, product, ordering)
+            ginputs = gen_hedge_inputs(
+                hedges, vdf, pdf, month, pf, product, ordering, 'gamma')
+            vinputs = gen_hedge_inputs(
+                hedges, vdf, pdf, month, pf, product, ordering, 'vega')
+            cost, pf = hedge(pf, ginputs, product, month)
+            expenditure += cost
+            cost, pf = hedge(pf, vinputs, product, month)
             expenditure += cost
             cost, pf = hedge_delta(hedges['delta'], vdf, pdf,
                                    month, pf, product, ordering)
             expenditure += cost
-
     return expenditure, pf
 
 
 # TODO: update this with new objects in mind.
-def hedge_gamma_vega(hedges, vdf, pdf, month, pf, product, ordering):
-    """Helper function that deals with vega/gamma hedging
+def gen_hedge_inputs(hedges, vdf, pdf, month, pf, product, ordering, flag):
+    """Helper function that generates the inputs required to construct atm
+    straddles for hedging, based on the flag.
 
     Args:
-        hedges (dictionary): dictionary that contains hedging requirements for the different greeks
-        vdf (pandas dataframe): dataframe of volatilities
-        pdf (pandas dataframe): dataframe of prices
-        greeks (list): list of greeks corresponding to this month and product.
-        month (string): the month of the option's underlying.
-        pf (portfolio): portfolio specified by portfolio_specs.txt
+        hedges (TYPE): hedging rules.
+        vdf (TYPE): volatility dataframe
+        pdf (TYPE): price dataframe
+        month (TYPE): month being hedged
+        pf (TYPE): portfolio being hedged
+        product (TYPE): product being hedged
+        ordering (TYPE): ordering corresponding to month being hedged
+        flag (TYPE): gamma or vega
 
     Returns:
-        tuple: expenditure on this hedge, and updated portfolio object.
-
+        list : inputs required to construct atm straddles.
     """
-    expenditure = 0
     net_greeks = pf.get_net_greeks()
     greeks = net_greeks[product][month]
     # naming variables for clarity.
     gamma = greeks[1]
     vega = greeks[3]
-
+    greek = gamma if flag == 'gamma' else vega
     gamma_bound = hedges['gamma']
     vega_bound = hedges['vega']
+    bound = gamma_bound if flag == 'gamma' else vega_bound
 
     # relevant data for constructing Option and Future objects.
     price = pdf[(pdf.pdt == product) & (
         pdf.order == ordering)].settle_value.values[0]
-    straddle_strike = round(price/10) * 10
+    k = round(price/10) * 10
     cvol = vdf[(vdf.pdt == product) & (
-        vdf.call_put_id == 'C') & (vdf.order == ordering) & (vdf.strike == straddle_strike)].settle_vol.values[0]
+        vdf.call_put_id == 'C') & (vdf.order == ordering) & (vdf.strike == k)].settle_vol.values[0]
     pvol = vdf[(vdf.pdt == product) & (
-        vdf.call_put_id == 'P') & (vdf.order == ordering) & (vdf.strike == straddle_strike)].settle_vol.values[0]
+        vdf.call_put_id == 'P') & (vdf.order == ordering) & (vdf.strike == k)].settle_vol.values[0]
     tau = vdf[(vdf.pdt == product) & (
-        vdf.call_put_id == 'P') & (vdf.order == ordering) & (vdf.strike == straddle_strike)].tau.values[0]
+        vdf.call_put_id == 'P') & (vdf.order == ordering) & (vdf.strike == k)].tau.values[0]
     underlying = Future(month, price, product)
 
-    # check to see if gamma and vega are being hedged.
-    if 'gamma' and 'vega' in hedges:
-        # creating straddle components.
-        callop = Option(price, tau, 'call', cvol, underlying, 'euro')
-        putop = Option(price, tau, 'put', pvol, underlying, 'euro')
-        straddle_val = callop.compute_price() + putop.compute_price()
+    return [price, k, cvol, pvol, tau, underlying, greek, bound, ordering]
+
+
+def hedge(pf, inputs, product, month, flag):
+    """This function does the following:
+    1) constructs atm straddles with the inputs from _inputs_
+    2) hedges the greek in question (specified by flag) with the straddles.
+
+    Args:
+        pf (TYPE): portfolio object
+        inputs (TYPE): list of inputs reqd to construct straddle objects
+        product (TYPE): the product being hedged
+        month (TYPE): month being hedged
+
+    Returns:
+        tuple: cost of the hedge, and the updated portfolio
+    """
+
+    expenditure = 0
+    price, k, cvol, pvol, tau, underlying, greek, bound, ordering = inputs
+
+    # creating straddle components.
+    callop = Option(price, tau, 'call', cvol, underlying,
+                    'euro', ordering=ordering, shorted=None)
+    putop = Option(price, tau, 'put', pvol, underlying,
+                   'euro', ordering=ordering, shorted=None)
+    straddle_val = callop.compute_price() + putop.compute_price()
 
     # gamma and vega hedging.
     cdelta, cgamma, ctheta, cvega = callop.greeks()
     pdelta, pgamma, ptheta, pvega = putop.greeks()
 
+    if flag == 'gamma':
+        pgreek, cgreek = pgamma, cgamma
+    else:
+        pgreek, cgreek = pvega, cvega
+
     # checking if gamma exceeds bounds
-    if gamma not in range(*gamma_bound):
-        lower = gamma_bound[0]
-        upper = gamma_bound[1]
+    if greek not in range(*bound):
+        lower = bound[0]
+        upper = bound[1]
         # gamma hedging logic.
-        if gamma < lower:
+        if greek < lower:
             # need to buy straddles. expenditure is positive.
             callop.shorted = False
             putop.shorted = False
-            num_required = ceil((lower-gamma)/(pgamma + cgamma))
-        elif gamma > upper:
+            num_required = ceil((lower-gamma)/(pgreek + cgreek))
+        elif greek > upper:
             # need to short straddles. expenditure is negative.
             callop.shorted = True
             putop.shorted = True
-            num_required = ceil((upper-gamma)/(pgamma + cgamma))
-        expenditure += num_required * (straddle_val + brokerage)
-        for i in range(num_required):
-            pf.add_security(callop, 'hedge')
-            pf.add_security(putop, 'hedge')
-
-    if vega not in range(*vega_bound):
-        lower = vega_bound[0]
-        upper = vega_bound[1]
-        # gamma hedging logic.
-        if vega < lower:
-            # need to buy straddles. expenditure is positive.
-            # flag = 'long'
-            callop.shorted = False
-            putop.shorted = False
-            num_required = ceil((lower-vega)/(pvega + cvega))
-        elif vega > upper:
-            # need to short straddles. expenditure is negative.
-            num_required = ceil((upper-vega)/(pvega + cvega))
-            callop.shorted = True
-            putop.shorted = True
-
+            num_required = ceil((upper-gamma)/(pgreek + cgreek))
         expenditure += num_required * (straddle_val + brokerage)
         for i in range(num_required):
             pf.add_security(callop, 'hedge')
