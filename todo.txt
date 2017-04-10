@@ -378,10 +378,6 @@ is being handled correctly.                         [Done]
 
 > isolate zero div errors                           [Done]
 
-> Debug gamma calculations                          []
-
-> adapt feed_data to check for high/low for ki/ko   []
-
 
 
 
@@ -394,6 +390,8 @@ is being handled correctly.                         [Done]
 hedging lots                                  []
 > adapt computation for returns/vol change,         []
 
+> Debug gamma calculations                          []
+> adapt feed_data to check for high/low for ki/ko   []
 
 
 
