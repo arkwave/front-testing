@@ -214,11 +214,6 @@ accordingly.
 	 self.moneyness and self.check_active calls.
 
 
-
-
-
-
-
 2/4 (Sunday):
 
 Conceptualize ordering in options/futures.          [Done]
@@ -269,7 +264,6 @@ Simulation logic notes:
 4) delta/vega/gamma hedging. 
 5) store changes from above 4 steps, figure out how the hell brokerage/lots/multipliers etc factor into PnL calculation.
 6) store PnL against run_number --> plot a histogram, and summary statistics. 
-
 
 
 
@@ -382,23 +376,29 @@ is being handled correctly.                         [Done]
 	>> convert daily into 1 dtm payoff options      [Done]
 	>> testing daily to bullet conversion.          [Done]
 
-
-> go over PnL once more to make sure it's right.    []
->> Handle exercise                  []
->> feed_data                        []
+> isolate zero div errors                           [Done]
 
 > Debug gamma calculations                          []
-
 > adapt feed_data to check for high/low for ki/ko   []
 
-> settle any and all question regarding 
-hedging lots                                        []
 
 
 
 
-TODO once dumps are ready:> finalize database updating stuff. 
-> batch script to run the file every day. 
+> go over PnL once more to make sure it's right.    []
+>> Handle exercise                            []
+>> feed_data                                  []
+>> settle any and all question regarding 
+hedging lots                                  []
+> adapt computation for returns/vol change,         []
+
+
+
+
+
+
+
+
 
 
 
@@ -406,8 +406,10 @@ TODO once dumps are ready:> finalize database updating stuff.
 Aux Concerns:
 > reading in multiplier list                          []
 > generate data requirements from portfolio object    [] -> use get_all_futures.
-> adapt computation for returns/vol change,           []
+> speedups needed quite badly. 
 
+TODO once dumps are ready:> finalize database updating stuff. 
+> batch script to run the file every day. 
 
 
 =====================

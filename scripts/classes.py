@@ -120,6 +120,7 @@ class Option:
                 string += 'DO'
             string += ' ' + str(self.ko)
         string += ' S' if self.shorted else ' L'
+        string += ' ' + str(self.lots)
         return string
 
     def set_ordering(self, val):
@@ -418,6 +419,7 @@ class Future:
         string = self.product + ' ' + self.month + ' '
         string += str(self.price)
         string += ' S' if self.shorted else ' L'
+        string += ' ' + str(self.lots)
         return string
 
     def get_ordering(self):

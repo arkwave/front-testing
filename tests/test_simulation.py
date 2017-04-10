@@ -386,5 +386,5 @@ def test_delta_hedging_short():
     pf, hedge = hedge_delta(
         cond, vdf1, pdf1, pf, month, product, ordering)
     assert hedge.shorted == False
-    assert hedge.lots == round(pf.net_greeks['C']['K7'][0])
+    assert hedge.lots == abs(round(pf.net_greeks['C']['K7'][0]))
     assert len(pf.hedge_futures) == 1

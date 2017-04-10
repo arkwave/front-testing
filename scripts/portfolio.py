@@ -105,9 +105,9 @@ class Portfolio:
     def __str__(self):
         # custom print representation for this class.
         otcops = [op.__str__() for op in self.OTC_options]
-        otcft = [op.___str__() for op in self.OTC_futures]
-        hedgeops = [op.___str__() for op in self.hedge_futures]
-        hedgeft = [op.___str__() for op in self.hedge_futures]
+        otcft = [op.__str__() for op in self.OTC_futures]
+        hedgeops = [op.__str__() for op in self.hedge_options]
+        hedgeft = [op.__str__() for op in self.hedge_futures]
         nets = self.net_greeks
 
         r_dict = {'OTC Options': otcops,
