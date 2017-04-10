@@ -36,6 +36,7 @@ multipliers = {
 
 
 from operator import sub, add
+import pprint
 
 
 class Portfolio:
@@ -100,6 +101,22 @@ class Portfolio:
         self.init_sec_by_month('hedge')
         self.compute_net_greeks()
         self.value = self.compute_value()
+
+    def __str__(self):
+        # custom print representation for this class.
+        otcops = [op.__str__() for op in self.OTC_options]
+        otcft = [op.___str__() for op in self.OTC_futures]
+        hedgeops = [op.___str__() for op in self.hedge_futures]
+        hedgeft = [op.___str__() for op in self.hedge_futures]
+        nets = self.net_greeks
+
+        r_dict = {'OTC Options': otcops,
+                  'OTC Futures': otcft,
+                  'Hedge Options': hedgeops,
+                  'Hedge Futures': hedgeft,
+                  'Net Greeks': nets}
+
+        return str(pprint.pformat(r_dict))
 
     def set_pnl(self, pnl):
         self.pnl = pnl

@@ -109,9 +109,9 @@ class Option:
         string += 'C' if self.char == 'call' else 'P'
         if self.ki:
             if self.direc == 'up':
-                string += 'UI'
+                string += 'UI '
             if self.direc == 'down':
-                string += 'DI'
+                string += 'DI '
             string += str(self.ki)
         if self.ko:
             if self.direc == 'up':
