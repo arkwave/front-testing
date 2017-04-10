@@ -700,7 +700,7 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction, produc
         delta, gamma, theta, vega : greeks of this instrument.
     """
     # ticksize = multipliers[product][2]
-    change_spot = 0.001
+    change_spot = 0.0005
     # change_spot = 0.01*ticksize
     change_vol = 0.01
     # change_vol = 0.0001
@@ -716,18 +716,21 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction, produc
     delta = (del1 - del2)/(2*change_spot)
 
     # computing gamma
-    del3 = _barrier_amer(char, tau, vol, k, s,
-                         r, payoff, direction, ki, ko)
-    gamma = (del1 - 2*del3 + del2) / ((change_spot**2))
+    # del3 = _barrier_amer(char, tau, vol, k, s,
+    #                      r, payoff, direction, ki, ko)
+    # gamma = (del1 - 2*del3 + del2) / ((change_spot**2))
 
-    # g1 = _barrier_amer(char, tau, vol, k, s+change_spot,
-    #                    r, payoff, direction, ki, ko)
-    # g2 = _barrier_amer(char, tau, vol, k, s, r, payoff, direction, ki, ko)
-    # g3 = _barrier_amer(char, tau, vol, k, s - change_spot,
-    #                    r, payoff, direction, ki, ko)
-    # delta1, delta2 = (g1 - g2)/change_spot, (g2-g3)/change_spot
-    # h = change_spot
-    # gamma = (delta1 - delta2)/h
+    g1 = _barrier_amer(char, tau, vol, k, s+(change_spot),
+                       r, payoff, direction, ki, ko)
+    g2 = _barrier_amer(char, tau, vol, k, max(0, s - change_spot),
+                       r, payoff, direction, ki, ko)
+    g3 = _barrier_amer(char, tau, vol, k, s,
+                       r, payoff, direction, ki, ko)
+    g4 = _barrier_amer(char, tau, vol, k, s + 2*change_spot,
+                       r, payoff, direction, ki, ko)
+    g5 = _barrier_amer(char, tau, vol, k, max(0, s - 2*change_spot),
+                       r, payoff, direction, ki, ko)
+    gamma = (-g5 + 16*g2 - 30*g3 + 16*g1 - g4)/(12*(change_spot**2))
 
     # computing vega
     v1 = _barrier_amer(char, tau, vol+change_vol, k, s, r,
@@ -879,10 +882,11 @@ def greeks_scaled(delta1, gamma1, theta1, vega1, product, lots):
     lots = lots
     lm = multipliers[product][1]
     dm = multipliers[product][0]
+    pnl_mult = multipliers[product][-1]
     delta = delta1 * lots
-    gamma = gamma1*lots*lm/dm
-    vega = (vega1*lots*lm*dm)/100
-    theta = (theta1*lots*lm*dm)/365
+    gamma = (gamma1*lots*lm)/(dm)
+    vega = (vega1*lots*pnl_mult)/100
+    theta = (theta1*lots*pnl_mult)/365
 
     # return delta1, gamma1, theta1/365, vega1/100
     return delta, gamma, theta, vega

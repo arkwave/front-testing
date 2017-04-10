@@ -6,6 +6,27 @@ from scripts.calc import _bsm_euro, _euro_vanilla_greeks, _euro_barrier_euro_gre
 # import datetime as dt
 df = pd.read_csv('tests/testing_vanilla.csv')
 
+multipliers = {
+    'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
+    'LSU': [1, 50, 0.1, 10, 50],
+    'LCC': [1.2153, 10, 1, 25, 12.153],
+    'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
+    'CC':  [1, 10, 1, 50, 10],
+    'CT':  [22.046, 22.679851, 0.01, 1, 500],
+    'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
+    'W':   [0.3674333, 136.07911, 0.25, 10, 50],
+    'S':   [0.3674333, 136.07911, 0.25, 10, 50],
+    'C':   [0.393678571428571, 127.007166832986, 0.25, 10, 50],
+    'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
+    'LC':  [22.046, 18.143881, 0.025, 1, 400],
+    'LRC': [1, 10, 1, 50, 10],
+    'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
+    'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
+    'COM': [1.0604, 50, 0.25, 2.5, 53.02],
+    'OBM': [1.0604, 50, 0.25, 1, 53.02],
+    'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
+}
+
 
 def ttm(df, s, edf):
     """Takes in a vol_id (for example C Z7.Z7) and outputs the time to expiry for the option in years """
@@ -196,7 +217,6 @@ def test_vanilla_greeks():
             assert (abs(v - v1)/v1) * 100 < 2e-3
 
 
-# FIXME: Still not working properly.
 def test_american_barrier_greeks():
     curr_date = pd.Timestamp('2017-04-05')
     expdate = pd.Timestamp('2017-11-24')
@@ -268,37 +288,41 @@ def test_american_barrier_greeks():
                   ' %  error: ', (abs(v - v1)/v1) * 100)
 
 
-# def test_amer_barrier_gammas():
-#     curr_date = pd.Timestamp('2017-04-06')
-#     expdate = pd.Timestamp('2017-11-24')
-#     tau = ((expdate - curr_date).days)/365 + 1/365
-#     gammas = [18.75811556625210000000, 18.82688538990940000000, 2.20751133939885000000,
-#               -1.28105287131586000000, 18.56441389628410000000, 16.56263894599330000000,
-#               -0.02177711082480690000, 1.21951820618919000000]
-#     s = 389.250
-#     strikes = [392, 395, 395, 385, 385, 370, 386, 386]
-#     chars = ['put'] * 4 + ['call'] * 4
-#     directions = ['up', 'down'] * 4
-#     kis = [390, 380, None, None, 392, 365, None, None]
-#     kos = [None, None, 410, 350, None, None, 400, 375]
-#     product = 'C'
-#     vol = 0.22
-#     r = 0
-#     # bvol = 0.22
-#     payoff = 'amer'
-#     for i in range(len(gammas)):
-#         g1 = gammas[i]
-#         k = strikes[i]
-#         direc = directions[i]
-#         ki = kis[i]
-#         ko = kos[i]
-#         char = chars[i]
-#         d, g, t, v = _euro_barrier_amer_greeks(
-#             char, tau, vol, k, s, r, payoff, direc, product, ki, ko, 10)
-#         try:
-#             assert np.isclose(g, g1)
-#         except AssertionError:
-#             print('gamma pct error: ', (abs(g - g1)/g1) * 100)
+def test_amer_barrier_gammas():
+    curr_date = pd.Timestamp('2017-04-06')
+    expdate = pd.Timestamp('2017-11-24')
+    tau = ((expdate - curr_date).days)/365 + 1/365
+    gammas = [18.75811556625210000000, 18.82688538990940000000, 2.20751133939885000000,
+              -1.28105287131586000000, 18.56441389628410000000, 16.56263894599330000000,
+              -0.02177711082480690000, 1.21951820618919000000]
+    s = 389.250
+    strikes = [392, 395, 395, 385, 385, 370, 386, 386]
+    chars = ['put'] * 4 + ['call'] * 4
+    directions = ['up', 'down'] * 4
+    kis = [390, 380, None, None, 392, 365, None, None]
+    kos = [None, None, 410, 350, None, None, 400, 375]
+    product = 'C'
+    vol = 0.22
+    r = 0
+    dollar_mult = multipliers['C'][0]
+    lot_mult = multipliers['C'][1]
+    lots = 10
+    # gammas = [x * dollar_mult / (lots * lot_mult) for x in gammas]
+    # bvol = 0.22
+    payoff = 'amer'
+    for i in range(len(gammas)):
+        g1 = gammas[i]
+        k = strikes[i]
+        direc = directions[i]
+        ki = kis[i]
+        ko = kos[i]
+        char = chars[i]
+        d, g, t, v = _euro_barrier_amer_greeks(
+            char, tau, vol, k, s, r, payoff, direc, product, ki, ko, 10)
+        try:
+            assert np.isclose(g, g1)
+        except AssertionError:
+            print('gamma pct error: ', (abs(g - g1)/g1) * 100)
 
 
 def test_euro_barrier_greeks():

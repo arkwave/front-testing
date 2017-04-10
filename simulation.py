@@ -440,35 +440,32 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering):
         tuple: hedging costs and final portfolio with hedges added.
 
     """
+
     future_price = pdf[(pdf.pdt == product) & (
         pdf.order == ordering)].settle_value.values[0]
-    # expenditure = 0
     net_greeks = pf.get_net_greeks()
     if cond == 'zero':
         # flag that indicates delta hedging.
         vals = net_greeks[product][month]
         delta = vals[0]
         num_lots_needed = abs(round(delta))
-        # num_futures = round(num_lots_needed / 1000)
         shorted = True if delta > 0 else False
         ft = Future(month, future_price, product,
                     shorted=shorted, ordering=ordering, lots=num_lots_needed)
         pf.add_security([ft], 'hedge')
-        # cost = (future_price + brokerage)
-        # expenditure = (expenditure - cost) if shorted else (expenditure + cost)
     return pf, ft
 
 
-if __name__ == '__main__':
-    filepath = 'portfolio_specs.txt'
-    vdf, pdf, edf = read_data(filepath)
-    # check sanity of data
-    vdates = pd.to_datetime(vdf.value_date.unique())
-    pdates = pd.to_datetime(pdf.value_date.unique())
-    if not np.array_equal(vdates, pdates):
-        raise ValueError(
-            'Invalid data sets passed in; vol and price data must have the same date range.')
-    # generate portfolio
-    pf = prep_portfolio(vdf, pdf, filepath)
-    # proceed to run simulation
-    run_simulation(vdf, pdf, edf, pf)
+# if __name__ == '__main__':
+#     filepath = 'portfolio_specs.txt'
+#     vdf, pdf, edf = read_data(filepath)
+#     # check sanity of data
+#     vdates = pd.to_datetime(vdf.value_date.unique())
+#     pdates = pd.to_datetime(pdf.value_date.unique())
+#     if not np.array_equal(vdates, pdates):
+#         raise ValueError(
+#             'Invalid data sets passed in; vol and price data must have the same date range.')
+#     # generate portfolio
+#     pf = prep_portfolio(vdf, pdf, filepath)
+#     # proceed to run simulation
+#     run_simulation(vdf, pdf, edf, pf)
