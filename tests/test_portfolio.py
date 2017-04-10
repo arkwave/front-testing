@@ -44,11 +44,13 @@ def generate_portfolio():
 
     # creating portfolio
     pf = Portfolio()
-    for sec in hedges:
-        pf.add_security(sec, 'hedge')
+    pf.add_security(hedges, 'hedge')
+    pf.add_security(OTCs, 'OTC')
+    # for sec in hedges:
+    #     pf.add_security(sec, 'hedge')
 
-    for sec in OTCs:
-        pf.add_security(sec, 'OTC')
+    # for sec in OTCs:
+    #     pf.add_security(sec, 'OTC')
 
     return pf
 
@@ -74,16 +76,16 @@ def test_add_multiple():
     ft = Future('H7', 30, 'C')
     op = Option(
         35, 0.05106521860205984, 'call', 0.4245569263291844, ft, 'amer', True, 'Z7')
-    pf.add_security(op, 'OTC')
-    pf.add_security(op, 'OTC')
+    pf.add_security([op], 'OTC')
+    pf.add_security([op], 'OTC')
     assert len(pf.OTC_options) == 5
 
 
 def test_remove_dne():
     pf = generate_portfolio()
     ft = Future('N7', 50, 'D')
-    assert pf.remove_security(ft, 'OTC') == -1
-    assert pf.remove_security(ft, 'hedge') == -1
+    assert pf.remove_security([ft], 'OTC') == -1
+    assert pf.remove_security([ft], 'hedge') == -1
 
 
 def test_OTC_pos():
@@ -129,7 +131,7 @@ def test_remove_security_futures():
     # adding future into portfolio; should not change greeks and lengths of
     # relevant data structures. additionally, net greeks should not have
     # futures.
-    pf.add_security(ft_test, 'OTC')
+    pf.add_security([ft_test], 'OTC')
     try:
         assert set(pf.get_net_greeks()['C'].keys()) == set(
             ['H7', 'K7'])
@@ -152,7 +154,7 @@ def test_remove_security_futures():
     assert curr_OTCs != prev_OTCs
 
     # now remove the same security
-    pf.remove_security(ft_test, 'OTC')
+    pf.remove_security([ft_test], 'OTC')
     assert set(pf.get_net_greeks()['C'].keys()) == set(
         ['H7', 'K7'])
 
@@ -205,7 +207,7 @@ def test_remove_security_options():
 
     # adding security into portfolio; should change greeks and lengths of
     # relevant data structures.
-    pf.add_security(op_test, 'OTC')
+    pf.add_security([op_test], 'OTC')
     assert len(pf.get_securities_monthly('OTC')) == 3
     assert len(pf.OTC_options) == 4
     curr_net = pf.get_net_greeks()
@@ -216,7 +218,7 @@ def test_remove_security_options():
     assert curr_OTCs != prev_OTCs
 
     # now remove the same security
-    pf.remove_security(op_test, 'OTC')
+    pf.remove_security([op_test], 'OTC')
 
     # data structures should reset
     rem_OTCs = pf.get_securities_monthly('OTC')
@@ -259,7 +261,7 @@ def test_remove_expired_1():
     init_net = copy.deepcopy(pf.get_net_greeks())
     op1 = Option(
         35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'Z7')
-    pf.add_security(op1, 'OTC')
+    pf.add_security([op1], 'OTC')
     assert len(pf.OTC_options) == 4
     assert len(pf.OTC['C']) == 3
     prev_net = copy.deepcopy(pf.get_net_greeks())
@@ -281,7 +283,7 @@ def test_remove_expired_2():
     op = Option(
         35, 0.05, 'call', 0.4245569263291844, ft, 'amer', False, 'Z7')
     pf = Portfolio()
-    pf.add_security(op, 'OTC')
+    pf.add_security([op], 'OTC')
     net = pf.get_net_greeks()['C']['H7']
     net = np.array(net)
     # print('net: ', net)
@@ -305,7 +307,7 @@ def test_ordering():
     op = Option(
         35, 0.05, 'call', 0.4245569263291844, ft, 'amer', True, 'Z7', ordering=2)
     pf = Portfolio()
-    pf.add_security(op, 'OTC')
+    pf.add_security([op], 'OTC')
     init_ord = op.get_ordering()
     assert init_ord == 2
     pf.decrement_ordering('C', 1)
@@ -332,7 +334,7 @@ def test_compute_value():
         35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'Z7')
     opval = op1.get_price()
     # testing OTC pos
-    pf.add_security(op1, 'OTC')
+    pf.add_security([op1], 'OTC')
     addval = pf.compute_value()
     try:
         assert (addval - init_val) == opval * op1.lots * pnlmult
@@ -341,7 +343,7 @@ def test_compute_value():
         assert (addval - init_val - (opval * op1.lots * pnlmult) < 2e-9)
         # print('residue: ', addval - init_val - (opval * op1.lots * pnlmult))
     # testing hedge pos
-    pf.remove_security(op1, 'OTC')
+    pf.remove_security([op1], 'OTC')
 
     try:
         assert pf.compute_value() == init_val
@@ -350,7 +352,7 @@ def test_compute_value():
 
     op2 = Option(
         35, 0.01, 'call', 0.4245569263291844, ft, 'amer', True, 'Z7')
-    pf.add_security(op2, 'hedge')
+    pf.add_security([op2], 'hedge')
     shorted = pf.compute_value()
 
     try:
@@ -372,7 +374,7 @@ def test_exercise_option():
     ft = Future('M7', 50, 'C')
     op1 = Option(
         35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'Z7')
-    pf.add_security(op1, 'OTC')
+    pf.add_security([op1], 'OTC')
 
     assert len(pf.OTC_options) == 4
     add_greeks = copy.deepcopy(pf.get_net_greeks())
@@ -391,7 +393,7 @@ def test_price_vol_change():
     op1 = Option(
         35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'Z7')
     pf = Portfolio()
-    pf.add_security(op1, 'OTC')
+    pf.add_security([op1], 'OTC')
     init_net = copy.deepcopy(pf.get_net_greeks())
     vol = 0.6
     price = 55
@@ -425,8 +427,8 @@ def test_decrement_ordering():
     assert op2.check_expired() == False
 
     pf = Portfolio()
-    pf.add_security(op1, 'OTC')
-    pf.add_security(op2, 'OTC')
+    pf.add_security([op1], 'OTC')
+    pf.add_security([op2], 'OTC')
 
     # op1greeks = list(op1.greeks())
     # check basic portfolio functionality.
@@ -465,8 +467,8 @@ def test_compute_ordering():
     # H7.K7 option
     op2 = Option(25, 0.01, 'put', 0.25, ft2, 'amer', False, 'H7', ordering=1)
     pf = Portfolio()
-    pf.add_security(op1, 'OTC')
-    pf.add_security(op2, 'OTC')
+    pf.add_security([op1], 'OTC')
+    pf.add_security([op2], 'OTC')
 
     assert pf.compute_ordering('C', 'N7') == 2
     assert pf.compute_ordering('C', 'K7') == 1

@@ -62,11 +62,13 @@ def generate_portfolio(flag):
 
     # creating portfolio
     pf = Portfolio()
-    for sec in hedges:
-        pf.add_security(sec, 'OTC')
+    pf.add_security(OTCs, 'OTC')
+    pf.add_security(hedges, 'OTC')
+    # for sec in hedges:
+    #     pf.add_security(sec, 'OTC')
 
-    for sec in OTCs:
-        pf.add_security(sec, 'OTC')
+    # for sec in OTCs:
+    #     pf.add_security(sec, 'OTC')
 
     return pf
 

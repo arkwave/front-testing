@@ -9,6 +9,7 @@ Description    : Script contains implementation of the Option and Futures classe
 """
 
 # lots = 10
+import numpy as np
 
 
 class Option:
@@ -67,7 +68,7 @@ class Option:
     21) get_properties : returns a dictionary containing all the non-default properties of the option. Used for daily to bullet conversion. 
     """
 
-    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=1000, bullet=True, ki=None, ko=None, rebate=0, ordering=None):
+    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=1000, bullet=True, ki=None, ko=None, rebate=0, ordering=1e5):
         self.month = month
         self.barrier = barrier
         self.payoff = payoff
@@ -190,6 +191,7 @@ class Option:
         s = self.underlying.get_price()
         # print(s)
         try:
+            assert self.tau > 0
             delta, gamma, theta, vega = _compute_greeks(
                 self.char, self.K,  self.tau, self.vol, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc)
         except TypeError:
@@ -335,13 +337,13 @@ class Option:
                     return -1
         else:
             # print('hit none case')
-            return None
+            return -np.inf
 
     def zero_option(self):
         self.delta, self.gamma, self.theta, self.vega = 0, 0, 0, 0
 
     def check_expired(self):
-        ret = True if (self.tau == 0 or self.ordering == 0) else False
+        ret = True if (self.tau <= 0 or self.ordering <= 0) else False
         self.expired = ret
         return ret
 

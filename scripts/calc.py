@@ -91,7 +91,7 @@ def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None, barrier=No
     Outputs: Price of the option
     '''
     # expiry case
-    if tau == 0:
+    if tau <= 0:
         return max(s-K, 0) if char == 'call' else max(K-s, 0)
     # vanilla option case
     if barrier is None:
@@ -263,6 +263,10 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0):
     """
 
     # initializing constants
+    if vol == 0:
+        print('vol is zero, setting small value.')
+        vol = 0.0001
+    assert tau > 0
     eta = -1 if direction == 'up' else 1
     phi = 1 if char == 'call' else -1
     b = 0
@@ -737,7 +741,8 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction, produc
     # computing theta
     t1 = _barrier_amer(char, tau, vol, k, s, r,
                        payoff, direction, ki, ko)
-    t2 = _barrier_amer(char, tau-change_tau, vol, k, s, r,
+    ctau = 0.0001 if tau-change_tau <= 0 else tau-change_tau
+    t2 = _barrier_amer(char, ctau, vol, k, s, r,
                        payoff, direction, ki, ko)
     theta = (t2 - t1)/change_tau if tau > 0 else 0
     # scaling greeks to retrieve dollar value.

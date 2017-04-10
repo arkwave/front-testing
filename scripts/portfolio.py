@@ -226,14 +226,16 @@ class Portfolio:
         elif flag == 'hedge':
             op = self.hedge_options
             ft = self.hedge_futures
-        if security.get_desc() == 'option':
-            try:
-                op.append(security)
-            except UnboundLocalError:
-                print('flag: ', flag)
-        elif security.get_desc() == 'future':
-            ft.append(security)
-        self.newly_added.append(security)
+        for sec in security:
+            if sec.get_desc() == 'option':
+                try:
+                    op.append(sec)
+                except UnboundLocalError:
+                    print('flag: ', flag)
+            elif sec.get_desc() == 'future':
+                ft.append(sec)
+
+        self.newly_added.extend(security)
         self.update_sec_by_month(True, flag)
 
     def remove_security(self, security, flag):
@@ -245,42 +247,54 @@ class Portfolio:
         elif flag == 'hedge':
             op = self.hedge_options
             ft = self.hedge_futures
-        try:
-            if security.get_desc() == 'option':
-                op.remove(security)
-            elif security.get_desc() == 'future':
-                ft.remove(security)
-            self.toberemoved.append(security)
-            self.update_sec_by_month(False, flag)
-        except ValueError:
-            return -1
+        for sec in security:
+            try:
+                if sec.get_desc() == 'option':
+                    op.remove(sec)
+                elif sec.get_desc() == 'future':
+                    ft.remove(sec)
+            except ValueError:
+                return -1
+
+        self.toberemoved.extend(security)
+        self.update_sec_by_month(False, flag)
 
     def remove_expired(self):
         '''Removes all expired options from the portfolio. '''
+        explist = {'hedge': [], 'OTC': []}
         for sec in self.OTC_options:
             # handling barrier case
             if sec.barrier == 'amer':
                 if sec.knockedout:
-                    self.remove_security(sec, 'OTC')
+                    explist['OTC'].append(sec)
+                    # self.remove_security(sec, 'OTC')
             # vanilla/knockin case
             if sec.check_expired():
-                self.remove_security(sec, 'OTC')
+                explist['OTC'].append(sec)
+                # self.remove_security(sec, 'OTC')
         for sec in self.hedge_options:
             # handling barrier case.
             if sec.barrier == 'amer':
                 if sec.knockedout:
-                    self.remove_security(sec, 'hedge')
-            # vanilla/knockin case
+                    explist['hedge'].append(sec)
+                    # self.remove_security(sec, 'hedge')
+                    # vanilla/knockin case
             elif sec.check_expired():
-                self.remove_security(sec, 'hedge')
-        # handle rollover futures.
+                explist['hedge'].append(sec)
+                # self.remove_security(sec, 'hedge')
+                # handle rollover futures.
         for ft in self.OTC_futures:
             if ft.check_expired():
-                self.remove_security(ft, 'OTC')
+                explist['OTC'].append(ft)
+                # self.remove_security(ft, 'OTC')
 
         for ft in self.hedge_futures:
             if ft.check_expired():
-                self.remove_security(ft, 'hedge')
+                explist['hedge'].append(ft)
+                # self.remove_security(ft, 'hedge')
+
+        self.remove_security(explist['hedge'], 'hedge')
+        self.remove_security(explist['OTC'], 'OTC')
 
     def update_sec_by_month(self, added, flag, update=None):
         '''
@@ -466,8 +480,8 @@ class Portfolio:
             if option.moneyness() == 1:
                 # convert into a future.
                 underlying = option.get_underlying()
-                self.remove_security(option, flag)
-                self.add_security(underlying, flag)
+                self.remove_security([option], flag)
+                self.add_security([underlying], flag)
 
 ############### getter/utility methods #################
 

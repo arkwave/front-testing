@@ -125,12 +125,13 @@ def prep_portfolio(voldata, pricedata, filepath):
         pf (Portfolio)              : a portfolio object.
     """
     oplist = {'hedge': [], 'OTC': []}
+    ftlist = {'hedge': [], 'OTC': []}
     sim_start = min(min(voldata.value_date), min(pricedata.value_date))
     t = time.time()
     pf = Portfolio()
     curr_mth = dt.date.today().month
     curr_mth_sym = month_to_sym[curr_mth]
-    curr_yr = dt.date.today().year % 2000 + decade
+    curr_yr = dt.date.today().year % (2000 + decade)
     curr_sym = curr_mth_sym + str(curr_yr)
     # sim_start = pd.Timestamp('2017-01-01')
     # curr_sym = month_to_sym[sim_start.month] + \
@@ -155,6 +156,7 @@ def prep_portfolio(voldata, pricedata, filepath):
                     tau = voldata[(voldata['value_date'] == sim_start) &
                                   (voldata['vol_id'] == volid) &
                                   (voldata['call_put_id'] == volflag)]['tau'].values[0]
+                    print('days to exp: ', round(tau * 365))
                     # get vol from data
                     vol = voldata[(voldata['vol_id'] == volid) &
                                   (voldata['call_put_id'] == volflag) &
@@ -183,6 +185,7 @@ def prep_portfolio(voldata, pricedata, filepath):
                     f_name = volid.split()[0]
                     mths = contract_mths[f_name]
                     ordering = find_cdist(curr_sym, f_mth, mths)
+                    # print('ordering inputs: ', curr_sym, f_mth)
                     u_name = volid.split('.')[0]
                     f_price = pricedata[(pricedata['value_date'] == sim_start) &
                                         (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
@@ -207,15 +210,19 @@ def prep_portfolio(voldata, pricedata, filepath):
                     shorted = True if inputs[4] == 'short' else False
                     ft = Future(mth, price, product,
                                 shorted=shorted, ordering=ordering)
-                    # ftlist[flag].append(ft)
-                    pf.add_security(ft, flag)
-
+                    ftlist[flag].append(ft)
+                    # pf.add_security([ft], flag)
     # handling bullet options
-    oplist = handle_dailies(oplist)
-    for flag in oplist:
+    bullets = handle_dailies(oplist)
+    # print('bullet list:', len(bullets['OTC']))
+    for flag in bullets:
         ops = oplist[flag]
-        for op in ops:
-            pf.add_security(op, flag)
+        pf.add_security(ops, flag)
+        # for op in ops:
+        #     pf.add_security(op, flag)
+    for flag in ftlist:
+        fts = ftlist[flag]
+        pf.add_security(fts, flag)
 
     elapsed = time.time() - t
     print('[PREP_PORTFOLIO] elapsed: ', elapsed)
@@ -245,7 +252,8 @@ def handle_dailies(dic):
 
                 # creating the bullets corresponding to this daily option.
                 for i in range(1, ttm_range+1):
-                    tau = 1/365 * i
+                    tau = i/365
+                    assert tau > 0
                     op_i = Option(strike, tau, char, vol, underlying,
                                   payoff, shorted, month, direc=direc, barrier=barrier, lots=lots,
                                   bullet=False, ki=ki, ko=ko, rebate=rebate, ordering=ordering)
