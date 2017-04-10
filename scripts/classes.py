@@ -97,6 +97,31 @@ class Option:
         self.rebate = rebate
         self.product = self.get_product()
 
+    def __str__(self):
+        string = ''
+        string += self.product + ' ' + self.underlying.get_month() + '.' + \
+            self.month + ' '
+        string += str(self.K) + ' '
+        if self.barrier is None:
+            string += 'Vanilla '
+        elif self.barrier == 'euro':
+            string += 'E'
+        string += 'C' if self.char == 'call' else 'P'
+        if self.ki:
+            if self.direc == 'up':
+                string += 'UI'
+            if self.direc == 'down':
+                string += 'DI'
+            string += str(self.ki)
+        if self.ko:
+            if self.direc == 'up':
+                string += 'UO'
+            if self.direc == 'down':
+                string += 'DO'
+            string += ' ' + str(self.ko)
+        string += ' S' if self.shorted else ' L'
+        return string
+
     def set_ordering(self, val):
         self.ordering = val
 
@@ -272,7 +297,7 @@ class Option:
 
     def get_price(self):
         # check for expiry case
-        if self.tau == 0:
+        if self.tau <= 0:
             mult = -1 if self.shorted else 1
             s = self.underlying.get_price()
             k = self.K
@@ -388,6 +413,12 @@ class Future:
         else:
             raise ValueError("Price cannot be negative")
         self.expired = self.check_expired()
+
+    def __str__(self):
+        string = self.product + ' ' + self.month + ' '
+        string += str(self.price)
+        string += ' S' if self.shorted else ' L'
+        return string
 
     def get_ordering(self):
         return self.ordering
