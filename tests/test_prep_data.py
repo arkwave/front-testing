@@ -11,6 +11,8 @@ import scripts.prep_data as pr
 # import os
 import pandas as pd
 import numpy as np
+from scripts.classes import Option, Future
+
 
 filepath = 'portfolio_specs.txt'
 voldata, pricedata, edf = pr.read_data(filepath)
@@ -133,9 +135,22 @@ def test_find_cdist():
     assert pr.find_cdist('X7', 'Z9', all_mths) == 11
 
 
-def test_ciprice():
-    pass
+def test_daily_to_bullets():
+    ft1 = Future('H7', 30, 'C')
+    op1 = Option(
+        35, 0.05106521860205984, 'call', 0.4245569263291844, ft1, 'amer', False, 'Z7')
+    op2 = Option(
+        35, 0.05106521860205984, 'call', 0.4245569263291844, ft1, 'amer', False, 'Z7', bullet=False)
+    dic1 = {'hedge': [], 'OTC': [op1]}
+    dic2 = {'hedge': [], 'OTC': [op2]}
+    # applying function
+    ret1 = pr.handle_dailies(dic1)
+    ret2 = pr.handle_dailies(dic2)
 
-
-def test_civols():
-    pass
+    assert len(ret1) == 2
+    assert len(ret1['OTC']) == 1
+    try:
+        assert len(ret2['OTC']) == 19
+    except AssertionError:
+        print('actual len: ', len(ret2['OTC']))
+        print('desired: ', 19)

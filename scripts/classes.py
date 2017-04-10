@@ -64,9 +64,10 @@ class Option:
     18) set_ordering   : sets the ordering of this option.
     19) get_ordering   : return self.ordering
     20) get_month      : returns the month associated with this option.
+    21) get_properties : returns a dictionary containing all the non-default properties of the option. Used for daily to bullet conversion. 
     """
 
-    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=1000, bullet=None, ki=None, ko=None, rebate=0, ordering=None):
+    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=1000, bullet=True, ki=None, ko=None, rebate=0, ordering=None):
         self.month = month
         self.barrier = barrier
         self.payoff = payoff
@@ -270,12 +271,14 @@ class Option:
     def get_price(self):
         # check for expiry case
         if self.tau == 0:
+            mult = -1 if self.shorted else 1
             s = self.underlying.get_price()
             k = self.K
             if self.char == 'call':
-                return max(s - k, 0)
+                val = max(s - k, 0)
             elif self.char == 'put':
-                return max(k - s, 0)
+                val = max(k - s, 0)
+            return mult * val
         # not expired; check if active.
         else:
             active = self.check_active()
@@ -341,6 +344,13 @@ class Option:
         ret = True if (self.tau == 0 or self.ordering == 0) else False
         self.expired = ret
         return ret
+
+    def get_properties(self):
+        return {'month': self.month, 'barrier': self.barrier, 'payoff': self.payoff,
+                'underlying': self.underlying, 'lots': self.lots, 'ki': self.ki,
+                'ko': self.ko, 'direc': self.direc, 'strike': self.K, 'char': self.char,
+                'vol': self.vol,  'shorted': self.shorted, 'ordering': self.ordering,
+                'rebate': self.rebate}
 
 
 class Future:

@@ -370,49 +370,58 @@ Pnl calculations.
 > pnl mult                                          [Done]
 
 
-Handle options: 
-> bullet vs daily payoff                            [] -- > convert daily into ttm = 1 day payoff options. 
+
+
+10/4
 > exercise                                          [Done]
 
+> make sure shorted values option payoff at expiry 
+is being handled correctly.                         [Done]
+
+> bullet vs daily payoff                            [Done]
+	>> convert daily into 1 dtm payoff options      [Done]
+	>> testing daily to bullet conversion.          [Done]
 
 
-Debug gamma calculations                            []
-adapt computation for returns/vol change,           []
-reading in multiplier list                          []
+> go over PnL once more to make sure it's right.    []
+>> Handle exercise                  []
+>> feed_data                        []
+
+> Debug gamma calculations                          []
+
+> adapt feed_data to check for high/low for ki/ko   []
+
+> settle any and all question regarding 
+hedging lots                                        []
 
 
 
 
-
-
-
-
-
-TODO once dumps are ready:
-> generate data requirements from portfolio object  [] -> use get_all_futures.
-> finalize database updating stuff. 
+TODO once dumps are ready:> finalize database updating stuff. 
 > batch script to run the file every day. 
 
 
 
 
+Aux Concerns:
+> reading in multiplier list                          []
+> generate data requirements from portfolio object    [] -> use get_all_futures.
+> adapt computation for returns/vol change,           []
 
 
 
+=====================
+Notes from meeting: #
+=====================
 
 
 
-
-
-Notes from meeting:
-
-XML instead of text files, read using beautiful soup.
-
-vanna/volga methods for vols. 
-high/low prices for barriers
-correlation surfaces as inputs
-flexible hedging strategies.
-accounting for gap risk.
+1. XML instead of text files, read using beautiful soup.
+2. vanna/volga methods for vols. 
+3. high/low prices for barriers
+4. correlation surfaces as inputs
+5. flexible hedging strategies.
+6. accounting for gap risk.
 
 MC Pricing for Barriers:
 1) Brownian bridge-based methods.

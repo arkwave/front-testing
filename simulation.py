@@ -17,8 +17,7 @@ import copy
 
 """
 TODO:
-> Step 3     : handle_options
-> Step 4     : pnl accumulation
+> Step 3     : handle_exercise  
 """
 # Dictionary of multipliers for greeks/pnl calculation.
 # format  =  'product' : [dollar_mult, lot_mult, futures_tick,
@@ -73,6 +72,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
 
     3) Handle the options component:
             > Check if option is bullet or daily.
+            > handle exericse appropriately. 
 
     4) PnL calculation. Components include:
             > PnL contribution from changes in price/vols.
@@ -114,8 +114,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
         raw_change, pf = feed_data(vdf, pdf, pf, rollover_dates)
         pnl += raw_change
     # Step 3
-        cost, pf = handle_options(pf)
-        pnl += cost
+        expenditure, pf = handle_exercise(pf)
+        pnl += expenditure
     # Step 4
         pf, hedges = rebalance(vdf, pdf, pf, hedges)
     # Step 6: Plotting results/data viz
@@ -157,6 +157,12 @@ def feed_data(voldf, pdf, pf, dic):
     pf.remove_expired()
 
     # 3)  update prices of futures, underlying & portfolio alike.
+
+    # 3.5) getting list of all prices that are available for this day. This
+    # checks if there are high/low prices, and uses them to deal with barriers
+    # if they are available.
+    priceList = []
+
     for ft in pf.get_all_futures():
         pdt, ordering = ft.get_product(), ft.get_ordering()
         val = pdf[(pdf.pdt == pdt) & (
@@ -186,7 +192,7 @@ def feed_data(voldf, pdf, pf, dic):
     return raw_diff, pf
 
 
-def handle_options(pf):
+def handle_exercise(pf):
     """ Handles option exercise, as well as bullet vs daily payoff.
     Args:
         pf (Portfolio object) : the portfolio being run through the simulator.
@@ -194,20 +200,27 @@ def handle_options(pf):
     Returns:
         tuple: the combined PnL from exercising (if appropriate) and daily/bullet payoffs, as well as the updated portfolio.
 
+    Notes on implementation:
+
+    1) options are exercised if less than or equal to 2 days to maturity, and option is in the money. Futures obtained are immediately sold and profit is locked in. 
+
     """
     expenditure = 0
     tol = 2/365
     # handle options exercise
     all_ops = pf.get_all_options()
+
     for op in all_ops:
         if op.tau <= tol and op.exercise():
             op.update_tau(op.tau)
             # once for exercise, another for selling/buying to cover the
             # future obtained.
-            expenditure += (op.lots * op.get_price()) - 2*brokerage
+            product = op.get_product()
+            pnl_mult = multipliers[product][-1]
+            fees = 2*brokerage if not op.shorted else 0
+            expenditure += op.lots * op.get_price()*pnl_mult - fees
 
-    # handle daily vs bullet payoffs
-    # TODO
+    return expenditure, pf
 
 
 def rebalance(vdf, pdf, pf, hedges):

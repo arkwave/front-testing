@@ -69,15 +69,15 @@ contract_mths = {
 
 def read_data(filepath=filepath):
     """Wrapper method that handles all read-in and preprocessing. This function does the following:
-    1) reads in path to volatility, price and expiry tables from portfolio_specs.txt 
-    2) reads in dataframes from said paths 
-    3) cleans that data in different ways, depending on the flag passed in. Exact information can be found in clean_data function. 
+    1) reads in path to volatility, price and expiry tables from portfolio_specs.txt
+    2) reads in dataframes from said paths
+    3) cleans that data in different ways, depending on the flag passed in. Exact information can be found in clean_data function.
 
     Args:
-        filepath (string, optional): the relative filepath to portfolio_specs.txt 
+        filepath (string, optional): the relative filepath to portfolio_specs.txt
 
     Returns:
-        pandas dataframes x 3: volatility data, price data, expiry data. 
+        pandas dataframes x 3: volatility data, price data, expiry data.
     """
     t = time.time()
     with open(filepath) as f:
@@ -119,11 +119,12 @@ def prep_portfolio(voldata, pricedata, filepath):
     Args:
         voldata (pandas dataframe)  : dataframe containing the volatility surface (i.e. strike-wise volatilities)
         pricedata (pandas dataframe): dataframe containing the daily price of underlying.
-        filepath (string)           : path to portfolio_specs.txt 
+        filepath (string)           : path to portfolio_specs.txt
 
     Returns:
         pf (Portfolio)              : a portfolio object.
     """
+    oplist = {'hedge': [], 'OTC': []}
     sim_start = min(min(voldata.value_date), min(pricedata.value_date))
     t = time.time()
     pf = Portfolio()
@@ -190,7 +191,8 @@ def prep_portfolio(voldata, pricedata, filepath):
                     opt = Option(strike, tau, char, vol, underlying,
                                  payoff, shorted=shorted, month=opmth, direc=direc, barrier=barriertype,
                                  bullet=bullet, ki=ki, ko=ko, ordering=ordering)
-                    pf.add_security(opt, flag)
+                    oplist[flag].append(opt)
+                    # pf.add_security(opt, flag)
 
                 # input specifies a future
                 elif inputs[0] == 'Future':
@@ -205,38 +207,79 @@ def prep_portfolio(voldata, pricedata, filepath):
                     shorted = True if inputs[4] == 'short' else False
                     ft = Future(mth, price, product,
                                 shorted=shorted, ordering=ordering)
-
+                    # ftlist[flag].append(ft)
                     pf.add_security(ft, flag)
+
+    # handling bullet options
+    oplist = handle_dailies(oplist)
+    for flag in oplist:
+        ops = oplist[flag]
+        for op in ops:
+            pf.add_security(op, flag)
 
     elapsed = time.time() - t
     print('[PREP_PORTFOLIO] elapsed: ', elapsed)
     return pf
 
 
-####################################################################
-################### Data Cleaning Functions ########################
-####################################################################
+def handle_dailies(dic):
+    for flag in dic:
+        lst = dic[flag]
+        tmp = lst.copy()
+        for op in tmp:
+            bullets = []
+            # daily option
+            if not op.bullet:
+                # getting parameters of the daily option.
+                params = op.get_properties()
+                lst.remove(op)
+                ttm_range = round(op.tau * 365)
+                strike, char, vol, underlying, payoff, shorted, month, ordering, lots \
+                    = params['strike'], params['char'], params['vol'], params['underlying'], \
+                    params['payoff'],  params['shorted'], params['month'], \
+                    params['ordering'], params['lots']
+                # barrier params
+                direc, barrier, ki, ko, rebate = \
+                    params['direc'], params['barrier'], params[
+                        'ki'], params['ko'], params['rebate']
+
+                # creating the bullets corresponding to this daily option.
+                for i in range(1, ttm_range+1):
+                    tau = 1/365 * i
+                    op_i = Option(strike, tau, char, vol, underlying,
+                                  payoff, shorted, month, direc=direc, barrier=barrier, lots=lots,
+                                  bullet=False, ki=ki, ko=ko, rebate=rebate, ordering=ordering)
+                    bullets.append(op_i)
+            lst.extend(bullets)
+
+    return dic
+
+
+###############################################################
+################### Data Cleaning Functions ###################
+###############################################################
+
 
 def clean_data(df, flag, edf=None):
-    """Function that cleans the dataframes passed into it according to the flag passed in. 
+    """Function that cleans the dataframes passed into it according to the flag passed in.
     1) flag == 'exp':
-        > datatype conversion to pd.Timestamp 
-        > filters for data > 2010. 
-        > converts formatting; i.e. C H17 --> C H7 
+        > datatype conversion to pd.Timestamp
+        > filters for data > 2010.
+        > converts formatting; i.e. C H17 --> C H7
     2) flag == 'vol':
         > convert date strings to pd.Timestamp
         > calculate time to maturity from vol_id (i.e. C Z7.Z7 --> TTM in years)
         > appends expiry date
-        > generates additional fields from existing ones. 
+        > generates additional fields from existing ones.
         > assigns preliminary ordering (i.e. c1, c2 months from current month). This step involves another function civols (line 479)
-        > computes all-purpose label comprising of vol_id, order, and call_put_id 
+        > computes all-purpose label comprising of vol_id, order, and call_put_id
             - example: C Z7.Z7 4 C --> Corn Z7.Z7 call option with ordering 4
             - example: C Z7.Z7 4 P --> Corn Z7.Z7 put option with ordering 4.
     3) flag == 'price':
-        > expiry date and ordering like in vol. 
-        > date strings to pd.Timestamp 
+        > expiry date and ordering like in vol.
+        > date strings to pd.Timestamp
         > calculates returns; log(S_curr/S_prev)
-        > calculates orderings with rollover, using function ciprice 
+        > calculates orderings with rollover, using function ciprice
     Args:
         df (pandas dataframe)   : the dataframe to be cleaned.
         flag (pandas dataframe) : determines which dataframe is being processed.
@@ -244,7 +287,7 @@ def clean_data(df, flag, edf=None):
 
 
     Returns:
-        TYPE: the cleaned dataframe, with the appropriate data transformations made. 
+        TYPE: the cleaned dataframe, with the appropriate data transformations made.
     """
     # cleaning expiry data
     if flag == 'exp':
@@ -368,7 +411,7 @@ def ciprice(pricedata, rollover='opex'):
 
 def vol_by_delta(voldata, pricedata):
     """Takes in a dataframe of vols and prices (same format as those returned by read_data),
-     and generates delta-wise vol organized hierarchically by date, underlying and vol_id. Uses piecewise-cubic Hermite Interpolation to interpolate delta-vol curve. 
+     and generates delta-wise vol organized hierarchically by date, underlying and vol_id. Uses piecewise-cubic Hermite Interpolation to interpolate delta-vol curve.
 
     Args:
         voldata (TYPE): dataframe of vols
@@ -376,7 +419,7 @@ def vol_by_delta(voldata, pricedata):
 
     Returns:
         pandas dataframe: dataframe with following columns:
-            Product| Date | underlying | TTM | vol_id | order | 5D | ... | 95D 
+            Product| Date | underlying | TTM | vol_id | order | 5D | ... | 95D
     """
     t = time.time()
     relevant_price = pricedata[
@@ -556,12 +599,12 @@ def civols(vdf, pdf, rollover='opex'):
 
 
 def ttm(df, s, edf):
-    """Takes in a vol_id (for example C Z7.Z7) and outputs the time to expiry for the option in years 
+    """Takes in a vol_id (for example C Z7.Z7) and outputs the time to expiry for the option in years
 
     Args:
         df (dataframe): dataframe containing option description.
         s (Series): Series of vol_ids
-        edf (dataframe): dataframe of expiries. 
+        edf (dataframe): dataframe of expiries.
     """
     s = s.unique()
     df['tau'] = ''
@@ -716,12 +759,12 @@ def scale_prices(pricedata):
 
 
 def get_expiry(pricedata, edf, rollover=None):
-    """Appends expiry dates to price data. 
+    """Appends expiry dates to price data.
 
     Args:
         pricedata (TYPE): Dataframe of prices.
         edf (TYPE): Dataframe of expiries
-        rollover (None, optional): rollover criterion. defaults to None. 
+        rollover (None, optional): rollover criterion. defaults to None.
 
     Returns:
         TYPE: Description
