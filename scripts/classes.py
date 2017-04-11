@@ -2,7 +2,7 @@
 File Name      : classes.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 4/4/2017
+Last Modified  : 11/4/2017
 Python version : 3.5
 Description    : Script contains implementation of the Option and Futures classes, as well as helper methods that set/store/manipulate instance variables. This class is used in simulation.py.
 
@@ -120,7 +120,7 @@ class Option:
                 string += 'DO'
             string += ' ' + str(self.ko)
         string += ' S' if self.shorted else ' L'
-        string += ' ' + str(self.lots)
+        string += ' ' + str(int(self.lots))
         return string
 
     def set_ordering(self, val):
@@ -419,7 +419,7 @@ class Future:
         string = self.product + ' ' + self.month + ' '
         string += str(self.price)
         string += ' S' if self.shorted else ' L'
-        string += ' ' + str(self.lots)
+        string += ' ' + str(int(self.lots))
         return string
 
     def get_ordering(self):

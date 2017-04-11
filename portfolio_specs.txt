@@ -4,7 +4,8 @@ datasets\option_expiry.csv
 
 %% Option,strike,vol_id,callorput,optiontype,barriertype,direction,knockin,knockout,bullet,longorshort,hedgeorOTC
 
-Option,300,C  Z7.Z7,call,euro,amer,up,None,420,True,long,OTC
+Option,300,C  U7.U7,call,euro,amer,up,None,420,True,long,OTC
+Option,300,C  N7.N7,call,euro,None,None,None,None,True,long,hedge
 Option,300,C  Z7.Z7,call,euro,None,None,None,None,True,short,hedge
 
 

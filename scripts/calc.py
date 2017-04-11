@@ -2,7 +2,7 @@
 File Name      : calc.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 3/4/2017
+Last Modified  : 11/4/2017
 Python version : 3.5
 
 Description:
@@ -12,12 +12,14 @@ Script contains implementation of the following calculation-related methods:
     > vanilla options (american and european)
     > barrier options (american and european barriers)
     > call-spreads and put-spreads
+    > digital options
 
 2) Computing greeks for all option classes:
     > Vanilla Options
     > Options with American Barriers
     > Options with European Barriers
     > Call-spreads and put-spreads
+    > digital options
 
 3) Calculating implied volatility for Vanilla options.
 
@@ -27,8 +29,12 @@ Script contains implementation of the following calculation-related methods:
 
 Notes:
 1) Currently, European vanilla and American Vanilla are assumed to be valued the same/have the same greeks.
+
 2) All barrier options require that the exercise structure be European. Even if an american option is passed in, it is valued like a European.
+
 3) Search through the file with the flag NIU to see functions that are implemented but not currently in use.
+
+4) Greeks are scaled using lots, lot multipliers and dollar multipliers. 
 
  """
 

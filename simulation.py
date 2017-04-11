@@ -2,7 +2,7 @@
 File Name      : simulation.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 3/4/2017
+Last Modified  : 11/4/2017
 Python version : 3.5
 Description    : Overall script that runs the simulation
 
@@ -16,10 +16,6 @@ from math import ceil
 import copy
 import time
 
-"""
-TODO:
-> Step 3     : handle_exercise
-"""
 # Dictionary of multipliers for greeks/pnl calculation.
 # format  =  'product' : [dollar_mult, lot_mult, futures_tick,
 # options_tick, pnl_mult]
@@ -102,22 +98,23 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
     t = time.time()
     rollover_dates = get_rollover_dates(pricedata)
     pnl = 0
-    # start = min(min(voldata.value_date), min(pricedata.value_date))
-    # end = min(max(voldata.value_date), max(pricedata.value_date))
+
     date_range = sorted(voldata.value_date.unique())
     # print('date range: ', date_range)
     # Step 1 & 2
     for date in date_range:
         # isolate data relevant for this day.
-        print('date: ', date)
+        # print('date: ', date)
         vdf = voldata[voldata.value_date == date]
         pdf = pricedata[pricedata.value_date == date]
         # getting data pertinent to that day.
         # raw_change to be the difference between old and new value per
         # iteration.
         # print(str(date) + ' feeding data [1/3]')
-        raw_change, pf = feed_data(vdf, pdf, pf, rollover_dates)
+        raw_change, pf, full_data = feed_data(vdf, pdf, pf, rollover_dates)
         pnl += raw_change
+        if full_data:
+            break
     # Step 3
         # print(str(date) + ' handling exercise [2/3]')
         expenditure, pf = handle_exercise(pf)
@@ -156,6 +153,7 @@ def feed_data(voldf, pdf, pf, dic):
     Returns:
         tuple: change in value and updated portfolio object.
     """
+    broken = False
     if voldf.empty:
         raise ValueError('vol df is empty!')
     date = voldf.value_date.unique()[0]
@@ -191,24 +189,32 @@ def feed_data(voldf, pdf, pf, dic):
             val = pdf[(pdf.pdt == pdt) & (
                 pdf.order == ordering)].settle_value.values[0]
             ft.update_price(val)
+        # index error would occur only if data is missing.
         except IndexError:
             # print('Date, ordering, product', pdt,
                   # ordering, pdf.value_date.unique())
-            print('###### UPDATE_PRICE FAILED #######')
-            print(pdt, ordering)
+            print('###### DATA MISSING #######')
+            # print(pdt, ordering)
+            broken = True
+            break
+
     # update option attributes by feeding in vol.
-
     all_options = pf.get_all_options()
-
-    for op in all_options:
-        # info reqd: strike, order, product.
-        strike, order, product = op.K, op.ordering, op.product
-        cpi = 'C' if op.char == 'call' else 'P'
-        # interpolate or round? currently rounding, interpolation easy.
-        strike = round(strike/10) * 10
-        val = voldf[(voldf.pdt == product) & (voldf.strike == strike) & (
-            voldf.order == order) & (voldf.call_put_id == cpi)].settle_vol.values[0]
-        op.update_greeks(val)
+    if not broken:
+        for op in all_options:
+            # info reqd: strike, order, product.
+            strike, order, product = op.K, op.ordering, op.product
+            cpi = 'C' if op.char == 'call' else 'P'
+            # interpolate or round? currently rounding, interpolation easy.
+            strike = round(strike/10) * 10
+            try:
+                val = voldf[(voldf.pdt == product) & (voldf.strike == strike) & (
+                    voldf.order == order) & (voldf.call_put_id == cpi)].settle_vol.values[0]
+                op.update_greeks(val)
+            except IndexError:
+                print('### DATA MISSING ###')
+                broken = True
+                break
 
     # updating portfolio after modifying underlying objects
     pf.update_sec_by_month(None, 'OTC', update=True)
@@ -218,7 +224,7 @@ def feed_data(voldf, pdf, pf, dic):
     new_val = pf.compute_value()
     raw_diff = new_val - prev_val
 
-    return raw_diff, pf
+    return raw_diff, pf, broken
 
 
 def handle_exercise(pf):
@@ -456,16 +462,18 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering):
     return pf, ft
 
 
-# if __name__ == '__main__':
-#     filepath = 'portfolio_specs.txt'
-#     vdf, pdf, edf = read_data(filepath)
-#     # check sanity of data
-#     vdates = pd.to_datetime(vdf.value_date.unique())
-#     pdates = pd.to_datetime(pdf.value_date.unique())
-#     if not np.array_equal(vdates, pdates):
-#         raise ValueError(
-#             'Invalid data sets passed in; vol and price data must have the same date range.')
-#     # generate portfolio
-#     pf = prep_portfolio(vdf, pdf, filepath)
-#     # proceed to run simulation
-#     run_simulation(vdf, pdf, edf, pf)
+if __name__ == '__main__':
+    filepath = 'portfolio_specs.txt'
+    vdf, pdf, edf = read_data(filepath)
+    # check sanity of data
+    vdates = pd.to_datetime(vdf.value_date.unique())
+    pdates = pd.to_datetime(pdf.value_date.unique())
+    if not np.array_equal(vdates, pdates):
+        raise ValueError(
+            'Invalid data sets passed in; vol and price data must have the same date range.')
+
+    # generate portfolio
+    pf = prep_portfolio(vdf, pdf, filepath)
+    # print(pf)
+    # proceed to run simulation
+    run_simulation(vdf, pdf, edf, pf)

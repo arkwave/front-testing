@@ -2,7 +2,7 @@
 File Name      : portfolio.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 23/3/2017
+Last Modified  : 11/4/2017
 Python version : 3.5
 Description    : Script contains implementation of the Portfolio class, as well as helper methods that set/store/manipulate instance variables. This class is used in simulation.py.
 
@@ -35,7 +35,7 @@ multipliers = {
 }
 
 
-from operator import sub, add
+from operator import add
 import pprint
 
 
@@ -78,8 +78,6 @@ class Portfolio:
 
     """
 
-# TODO: differentiating into hedges and target.
-
     def __init__(self):
 
         self.OTC_options = []
@@ -109,12 +107,16 @@ class Portfolio:
         hedgeops = [op.__str__() for op in self.hedge_options]
         hedgeft = [op.__str__() for op in self.hedge_futures]
         nets = self.net_greeks
+        # OTC_full = self.OTC
+        # hedge_full = self.hedges
 
         r_dict = {'OTC Options': otcops,
                   'OTC Futures': otcft,
                   'Hedge Options': hedgeops,
                   'Hedge Futures': hedgeft,
                   'Net Greeks': nets}
+        # 'OTC Dict': OTC_full,
+        # 'Hedge Dict': hedge_full}
 
         return str(pprint.pformat(r_dict))
 
@@ -574,12 +576,10 @@ class Portfolio:
                 ft.decrement_ordering(i)
 
     def compute_ordering(self, product, month):
-        if product in self.OTC:
-            if month in self.OTC[product]:
-                dic = self.OTC
-        elif product in self.hedges:
-            if month in self.hedges[product]:
-                dic = self.hedges
+        if product in self.OTC and month in self.OTC[product]:
+            dic = self.OTC
+        elif product in self.hedges and month in self.hedges[product]:
+            dic = self.hedges
         data = dic[product][month]
         if data[0]:
             s = next(iter(data[0]))

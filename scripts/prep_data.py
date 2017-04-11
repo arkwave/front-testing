@@ -127,6 +127,7 @@ def prep_portfolio(voldata, pricedata, filepath):
     oplist = {'hedge': [], 'OTC': []}
     ftlist = {'hedge': [], 'OTC': []}
     sim_start = min(min(voldata.value_date), min(pricedata.value_date))
+    sim_start = pd.to_datetime(sim_start)
     t = time.time()
     pf = Portfolio()
     curr_mth = dt.date.today().month
@@ -149,14 +150,14 @@ def prep_portfolio(voldata, pricedata, filepath):
                     strike = float(inputs[1])
                     volid = str(inputs[2])
                     opmth = volid.split()[1].split('.')[0]
-                    char = inputs[3]
+                    char = str(inputs[3])
                     volflag = 'C' if char == 'call' else 'P'
 
                     # get tau from data
                     tau = voldata[(voldata['value_date'] == sim_start) &
                                   (voldata['vol_id'] == volid) &
                                   (voldata['call_put_id'] == volflag)]['tau'].values[0]
-                    print('days to exp: ', round(tau * 365))
+                    # print('days to exp: ', round(tau * 365))
                     # get vol from data
                     vol = voldata[(voldata['vol_id'] == volid) &
                                   (voldata['call_put_id'] == volflag) &

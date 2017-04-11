@@ -388,10 +388,12 @@ is being handled correctly.                         [Done]
 >> feed_data                                  []
 >> settle any and all question regarding 
 hedging lots                                  []
-> adapt computation for returns/vol change,         []
+
 
 > Debug gamma calculations                          []
+> adapt computation for returns/vol change,         []
 > adapt feed_data to check for high/low for ki/ko   []
+
 
 
 
@@ -407,6 +409,10 @@ Aux Concerns:
 > reading in multiplier list                          []
 > generate data requirements from portfolio object    [] -> use get_all_futures.
 > speedups needed quite badly. 
+
+
+
+
 
 TODO once dumps are ready:> finalize database updating stuff. 
 > batch script to run the file every day. 
