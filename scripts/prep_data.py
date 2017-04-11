@@ -106,9 +106,9 @@ def read_data(filepath=filepath):
             print(os.getcwd())
     elapsed = time.time() - t
     print('[READ_DATA] elapsed: ', elapsed)
-    # final_vol.to_csv('datasets/final_vols.csv', index=False)
-    # final_price.to_csv('datasets/final_price.csv', index=False)
-    # edf.to_csv('datasets/final_expdata.csv', index=False)
+    final_vol.to_csv('datasets/final_vols.csv', index=False)
+    final_price.to_csv('datasets/final_price.csv', index=False)
+    edf.to_csv('datasets/final_expdata.csv', index=False)
     return final_vol, final_price, edf
 
 
@@ -344,12 +344,13 @@ def clean_data(df, flag, edf=None):
         df = get_expiry(df, edf)
         df = assign_ci(df)
         df = scale_prices(df)
+        df = df.fillna(0)
         df.expdate = pd.to_datetime(df.expdate)
         df = df[df.value_date <= df.expdate]
 
     df.reset_index(drop=True, inplace=True)
     df = df.dropna()
-    # df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
+    df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
 
     return df
 
@@ -376,7 +377,15 @@ def ciprice(pricedata, rollover='opex'):
             # lst = contract_mths[product]
             most_recent = []
             by_date = None
-            relevant_dates = ro_dates[product]
+            try:
+                relevant_dates = ro_dates[product]
+            except KeyError:
+                df2 = df[
+                        ['pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']]
+                df2.columns = [
+                    'pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']
+                by_product = df2
+                continue
             # iterate over rollover dates for this product.
             for date in relevant_dates:
                 df = df[df.order > 0]
@@ -560,7 +569,17 @@ def civols(vdf, pdf, rollover='opex'):
             df = vdf[vdf.pdt == product]
             most_recent = []
             by_date = None
-            relevant_dates = ro_dates[product]
+            try:
+                relevant_dates = ro_dates[product]
+            except KeyError:
+                # no rollover dates for this product
+                df2 = df[['pdt', 'order', 'value_date', 'underlying_id', 'vol_id',
+                          'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']]
+                df2.columns = ['pdt', 'order', 'value_date', 'underlying_id',
+                               'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
+                by_product = df2
+                continue
+
             # iterate over rollover dates for this product.
             for date in relevant_dates:
                 # filter order > 0 to get rid of C_i that have been dealt with.
@@ -760,10 +779,16 @@ def scale_prices(pricedata):
         df = pricedata[(pricedata['underlying_id'] == x)]
         s = df['settle_value']
         s1 = s.shift(-1)
-        ret = np.log(s1/s)
+        if len(s1) == 1 and np.isnan(s1.values[0]):
+            ret = 0
+        else:
+            ret = np.log(s1/s)
         pricedata.ix[
             (pricedata['underlying_id'] == x), 'returns'] = ret
-    pricedata = pricedata.dropna()
+
+    # print(pricedata)
+    pricedata = pricedata.fillna(0)
+    # print(pricedata)
     return pricedata
 
 

@@ -389,7 +389,12 @@ is being handled correctly.                         [Done]
 >> settle any and all question regarding 
 hedging lots                                  []
 
+> debug net greeks and updating               []
 
+
+
+
+12/4
 > Debug gamma calculations                          []
 > adapt computation for returns/vol change,         []
 > adapt feed_data to check for high/low for ki/ko   []
