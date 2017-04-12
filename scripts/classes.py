@@ -414,6 +414,8 @@ class Future:
         else:
             raise ValueError("Price cannot be negative")
         self.expired = self.check_expired()
+        mult = -1 if shorted else 1
+        self.delta = 1 * lots * mult
 
     def __str__(self):
         string = self.product + ' ' + self.month + ' '
