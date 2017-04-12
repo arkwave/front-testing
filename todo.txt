@@ -384,23 +384,23 @@ is being handled correctly.                         [Done]
 
 12/4
 > timestep issues, check with pnp             [Done]
-> debug net greeks and updating               []
 
 
 
 
 13/4
+> debug net greeks and updating               []
+> implement futures = 1 delta.                []
+
 > split pnl into options and futures          []
-> debug net greeks issue                      []
 > check pnp options                           []
-> delta = 1 for futures                       []
 > E barriers                                  []
 > A barriers                                  []
 
 
 
 
-13/4
+14/4
 > Debug gamma calculations                          []
 > adapt computation for returns/vol change,         []
 > adapt feed_data to check for high/low for ki/ko   []
