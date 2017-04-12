@@ -318,10 +318,10 @@ def rebalance(vdf, pdf, pf, hedges):
     3)
 
     Args:
-        vdf (TYPE): Description
-        pdf (TYPE): Description
-        pf (TYPE): Description
-        hedges (TYPE): Description
+        vdf (TYPE): Dataframe of volatilities
+        pdf (TYPE): Dataframe of prices
+        pf (TYPE): portfolio object
+        hedges (TYPE): Dictionary of hedging conditions 
 
     Returns:
         TYPE: Description
@@ -338,8 +338,8 @@ def rebalance(vdf, pdf, pf, hedges):
                 hedges, vdf, pdf, month, pf, product, ordering, 'gamma')
             vinputs = gen_hedge_inputs(
                 hedges, vdf, pdf, month, pf, product, ordering, 'vega')
-            # pf = hedge(pf, ginputs, product, month, 'gamma')
-            # pf = hedge(pf, vinputs, product, month, 'vega')
+            pf = hedge(pf, ginputs, product, month, 'gamma')
+            pf = hedge(pf, vinputs, product, month, 'vega')
             pf, dhedges = hedge_delta(hedges['delta'], vdf, pdf,
                                       pf, month, product, ordering)
     return pf
@@ -485,10 +485,6 @@ def hedge(pf, inputs, product, month, flag):
         print('DEBUG - adding')
         pf.add_security(callops, 'hedge')
         pf.add_security(putops, 'hedge')
-
-        # for i in range(num_required):
-        #     pf.add_security([callop], 'hedge')
-        #     pf.add_security([putop], 'hedge')
 
     return pf  # [callop, putop]
 
