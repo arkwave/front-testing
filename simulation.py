@@ -47,8 +47,8 @@ multipliers = {
 hedges = {'delta': 'zero', 'gamma': (-5000, 5000), 'vega': (-5000, 5000)}
 
 # slippage/brokerage
-slippage = 1
-brokerage = 1
+# slippage = 1
+# brokerage = 1
 
 # passage of time
 timestep = 1/365
@@ -99,12 +99,23 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
     rollover_dates = get_rollover_dates(pricedata)
     pnl = 0
 
-    date_range = sorted(voldata.value_date.unique())
+    date_range = sorted(voldata.value_date.unique())  # [1:]
     # print('date range: ', date_range)
     # Step 1 & 2
-    for date in date_range:
+    init_val = 0
+    # next_date = None
+    for i in range(len(date_range)):
+        date = date_range[i]
+        try:
+            next_date = date_range[i+1]
+        except IndexError:
+            next_date = None
+        # init_val = pf.compute_value()
+        # pf.timestep(timestep)
         # isolate data relevant for this day.
         print('##################### date: ', date, '################')
+        # init_val = pf.compute_value()
+        print('INITIAL VALUE: ', init_val)
         vdf = voldata[voldata.value_date == date]
         pdf = pricedata[pricedata.value_date == date]
         # getting data pertinent to that day.
@@ -112,7 +123,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
         # iteration.
         # print(str(date) + ' feeding data [1/3]')
         raw_change, pf, broken = feed_data(vdf, pdf, pf, rollover_dates)
-        pnl += raw_change
+        # pnl += raw_change
         if broken:
             break
     # Step 3
@@ -120,9 +131,24 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
         expenditure, pf = handle_exercise(pf)
         pnl += expenditure
 
+        # compute value after updating greeks
+        updated_val = pf.compute_value()
+        dailypnl = updated_val - init_val if init_val != 0 else 0
+        pnl += dailypnl
+        print('[10]   EOD PNL: ', dailypnl)
+        print('[10.5] Cumulative PNL: ', pnl)
     # Step 4
         # print(str(date) + ' rebalancing [3/3')
         pf = rebalance(vdf, pdf, pf, hedges)
+        print('[13]  EOD PORTFOLIO: ', pf)
+        init_val = pf.compute_value()
+    # Step 5: Decrement timestep after all steps.
+        # calculate number of days to step
+        num_days = 0 if next_date is None else (
+            pd.Timestamp(next_date) - pd.Timestamp(date)).days
+        print('NUM DAYS: ', num_days)
+        pf.timestep(num_days * timestep)
+
     # Step 6: Plotting results/data viz
     elapsed = time.time() - t
     print('Time elapsed: ', elapsed)
@@ -154,6 +180,10 @@ def feed_data(voldf, pdf, pf, dic):
         tuple: change in value and updated portfolio object.
     """
 
+    # debugging
+    x = list(pf.OTC['C']['N7'][0])
+    y = list(pf.hedges['C']['N7'][0]) if pf.hedges else []
+
     broken = False
     if voldf.empty:
         raise ValueError('vol df is empty!')
@@ -161,8 +191,11 @@ def feed_data(voldf, pdf, pf, dic):
     raw_diff = 0
     # 1) initial value of the portfolio before updates.
     prev_val = pf.compute_value()
-    # decrement tau
-    pf.timestep(timestep)
+    # print('[0]    PREVIOUS VALUE: ', prev_val)
+    # print('[0.1]  PRICE BEFORE VOL UPDATE: ', x[0].get_price())
+    # print('[0.2]  VOL BEFORE VOL UPDATE: ', x[0].vol)
+    # print('[0.3]  GREEKS BEFORE VOL UPDATE: ', pf.OTC['C']['N7'][2:])
+    # print('[0.4]  PORFOLIO BEFORE VOL UPDATE: ', pf)
     # 2) Check for rollovers and expiries
     # rollovers
     for product in dic:
@@ -223,23 +256,23 @@ def feed_data(voldf, pdf, pf, dic):
     pf.update_sec_by_month(None, 'OTC', update=True)
     pf.update_sec_by_month(None, 'hedge', update=True)
 
-    # debugging
-    x = list(pf.OTC['C']['N7'][0])
-    y = list(pf.hedges['C']['N7'][0]) if pf.hedges else []
     print('[1]  TAU: ', x[0].tau)
     print('[2]  TTM: ', x[0].tau * 365)
-    print('[3]  VOL: ', x[0].vol)
-    print('[4]  PRICE: ', x[0].compute_price())
-    print('[5]  GREEKS OTC: ', x[0].greeks())
+    print('[3]  VOL AFTER UPDATE: ', x[0].vol)
+    print('[4]  PRICE AFTER UPADTE: ', x[0].compute_price())
+    print('[5]  GREEKS AFTER UPDATE: ', pf.OTC['C']['N7'][2:])
+
     if y:
         print('[5.1] GREEKS HEDGE: ', y[0].greeks())
         print('[5.2] GREEKS HEDGE: ', y[1].greeks())
-    print('[6]  PORFOLIO: ', pf)
+
+    print('[6]  PORFOLIO AFTER UPDATE: ', pf)
     print('[7]  NET GREEKS: ', pf.net_greeks)
+
     # 5) computing new value
     new_val = pf.compute_value()
     raw_diff = new_val - prev_val
-
+    print('[8]  NEW VALUE AFTER FEED: ', new_val)
     return raw_diff, pf, broken
 
 
@@ -262,14 +295,17 @@ def handle_exercise(pf):
     all_ops = pf.get_all_options()
 
     for op in all_ops:
+
         if op.tau <= tol and op.exercise():
+            print("----- EXERCISING CASE ------")
+            print(op.tau, op.exercise())
             op.update_tau(op.tau)
             # once for exercise, another for selling/buying to cover the
             # future obtained.
             product = op.get_product()
             pnl_mult = multipliers[product][-1]
-            fees = 2*brokerage if not op.shorted else 0
-            expenditure += op.lots * op.get_price()*pnl_mult - fees
+            # fees = 2*brokerage if not op.shorted else 0
+            expenditure += op.lots * op.get_price()*pnl_mult  # - fees
 
     return expenditure, pf
 
@@ -302,8 +338,8 @@ def rebalance(vdf, pdf, pf, hedges):
                 hedges, vdf, pdf, month, pf, product, ordering, 'gamma')
             vinputs = gen_hedge_inputs(
                 hedges, vdf, pdf, month, pf, product, ordering, 'vega')
-            pf = hedge(pf, ginputs, product, month, 'gamma')
-            pf = hedge(pf, vinputs, product, month, 'vega')
+            # pf = hedge(pf, ginputs, product, month, 'gamma')
+            # pf = hedge(pf, vinputs, product, month, 'vega')
             pf, dhedges = hedge_delta(hedges['delta'], vdf, pdf,
                                       pf, month, product, ordering)
     return pf
@@ -478,17 +514,32 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering):
     future_price = pdf[(pdf.pdt == product) & (
         pdf.order == ordering)].settle_value.values[0]
     net_greeks = pf.get_net_greeks()
-    print('[11]  NG DH: ', net_greeks)
+    curr_delta_hedged = 0
+    # print('[11]  NG DH: ', net_greeks)
     if cond == 'zero':
         # flag that indicates delta hedging.
         vals = net_greeks[product][month]
         delta = vals[0]
-        print('[12]  DELTA: ', delta)
-        num_lots_needed = abs(round(delta))
-        shorted = True if delta > 0 else False
+        # TODO: reimplement such that futures have a delta of 1 or -1
+        # check if hedges already exist for this product/month
+        if (product in pf.hedges) and (month in pf.hedges[product]):
+            hedge_futures = pf.hedges[product][month][1]
+            curr_delta_hedged = sum([x.lots for x in hedge_futures])
+            num_lots_needed = abs(round(delta)) - curr_delta_hedged
+            shorted = True if num_lots_needed > 0 else False
+            num_lots_needed = abs(num_lots_needed)
+        # print('[12]  DELTA: ', delta)
+        else:
+            shorted = True if delta > 0 else False
+            num_lots_needed = abs(round(delta))
+
         ft = Future(month, future_price, product,
                     shorted=shorted, ordering=ordering, lots=num_lots_needed)
-        pf.add_security([ft], 'hedge')
+        if num_lots_needed == 0:
+            print('delta is already zeroed!')
+            return pf, None
+        else:
+            pf.add_security([ft], 'hedge')
     return pf, ft
 
 

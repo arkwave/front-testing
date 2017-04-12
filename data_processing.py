@@ -380,8 +380,11 @@ def ciprice(pricedata, rollover='opex'):
 
 if __name__ == '__main__':
     # compute simulation start day; earliest day in dataframe.
-    filepath = 'portfolio_specs.txt'
+    t = time.time()
+    filepath = 'data_loc.txt'
     voldata, pricedata, edf = read_data(filepath)
+    voldata.to_csv('bydelta_vols.csv', index=False)
+    pricedata.to_csv('bydelta_price.csv', index=False)
 
     # just a sanity check, these two should be the same.
     sim_start = min(min(voldata['value_date']), min(pricedata['value_date']))
@@ -396,3 +399,5 @@ if __name__ == '__main__':
     # final_price.to_csv('ci_price_final.csv', index=False)
     call_vols.to_csv('call_vols_by_delta.csv', index=False)
     put_vols.to_csv('put_vols_by_delta.csv', index=False)
+    elapsed = time.time() - t
+    print('elapsed: ', elapsed)

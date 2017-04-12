@@ -87,9 +87,9 @@ def read_data(filepath=filepath):
             pricepath = f.readline().strip('\n')
             expath = f.readline().strip('\n')
             # import dataframes
-            volDF = pd.read_csv(volpath)
-            priceDF = pd.read_csv(pricepath)
-            edf = pd.read_csv(expath)
+            volDF = pd.read_csv(volpath).dropna()
+            priceDF = pd.read_csv(pricepath).dropna()
+            edf = pd.read_csv(expath).dropna()
             # clean dataframes
             edf = clean_data(edf, 'exp')
             volDF = clean_data(volDF, 'vol', edf=edf)
@@ -190,6 +190,8 @@ def prep_portfolio(voldata, pricedata, filepath):
                     u_name = volid.split('.')[0]
                     f_price = pricedata[(pricedata['value_date'] == sim_start) &
                                         (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
+                    print('PRICE AND DATE UNDERLYING: ', sim_start, f_price)
+                    print('VOL AND DATE: ', sim_start, vol)
                     underlying = Future(
                         f_mth, f_price, f_name, ordering=ordering)
                     opt = Option(strike, tau, char, vol, underlying,

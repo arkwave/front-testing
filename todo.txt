@@ -382,28 +382,28 @@ is being handled correctly.                         [Done]
 
 
 
-11/4
-> go over PnL once more to make sure it's right.    []
->> Handle exercise                            []
->> feed_data                                  []
->> settle any and all question regarding 
-hedging lots                                  []
-
+12/4
+> timestep issues, check with pnp             [Done]
 > debug net greeks and updating               []
 
 
 
 
-12/4
+13/4
+> split pnl into options and futures          []
+> debug net greeks issue                      []
+> check pnp options                           []
+> delta = 1 for futures                       []
+> E barriers                                  []
+> A barriers                                  []
+
+
+
+
+13/4
 > Debug gamma calculations                          []
 > adapt computation for returns/vol change,         []
 > adapt feed_data to check for high/low for ki/ko   []
-
-
-
-
-
-
 
 
 

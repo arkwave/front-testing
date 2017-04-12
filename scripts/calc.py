@@ -41,8 +41,8 @@ Notes:
 from math import log, sqrt, exp, pi
 from scipy.stats import norm
 import numpy as np
-# import pandas as pd
-# from .prep_data import read_data
+import pandas as pd
+from .prep_data import read_data
 
 
 # Dictionary of multipliers for greeks/pnl calculation.
@@ -77,7 +77,7 @@ multipliers = {
 # spreads.
 filepath = 'portfolio_specs.txt'
 
-# voldf, pricedf, edf = read_data(filepath)
+voldf, pricedf, edf = read_data(filepath)
 
 
 #####################################################################
