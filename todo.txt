@@ -392,15 +392,14 @@ is being handled correctly.                         [Done]
 > debug net greeks and updating               [Done]
 > implement futures = 1 delta.                [Done]
 
-> split pnl into options and futures          []
 > pnl into daily and cumulative               [Done]
+> check pnp options                           [Done]
 
 
-
-
-> check pnp options                           []
 > E barriers                                  []
 > A barriers                                  []
+> split pnl into options and futures          []
+
 
 
 

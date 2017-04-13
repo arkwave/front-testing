@@ -10,6 +10,7 @@ Description    : Overall script that runs the simulation
 
 import numpy as np
 import pandas as pd
+from scripts.calc import get_barrier_vol
 from scripts.classes import Option, Future
 from scripts.prep_data import read_data, prep_portfolio, get_rollover_dates
 from math import ceil
@@ -224,7 +225,7 @@ def feed_data(voldf, pdf, pf, dic):
             val = pdf[(pdf.pdt == pdt) & (
                 pdf.order == ordering)].settle_value.values[0]
             ft.update_price(val)
-            # print('UPDATED - new price: ', val)
+            print('UPDATED - new price: ', val)
         # index error would occur only if data is missing.
         except IndexError:
             # print('Date, ordering, product', pdt,
@@ -247,7 +248,7 @@ def feed_data(voldf, pdf, pf, dic):
                 val = voldf[(voldf.pdt == product) & (voldf.strike == strike) & (
                     voldf.order == order) & (voldf.call_put_id == cpi)].settle_vol.values[0]
                 op.update_greeks(vol=val)
-                # print('UPDATED - new vol: ', val)
+                print('UPDATED - new vol: ', val)
             except IndexError:
                 print('### DATA MISSING ###')
                 broken = True
@@ -257,23 +258,30 @@ def feed_data(voldf, pdf, pf, dic):
     pf.update_sec_by_month(None, 'OTC', update=True)
     pf.update_sec_by_month(None, 'hedge', update=True)
 
-    # print('[1]  TAU: ', x[0].tau)
-    # print('[2]  TTM: ', x[0].tau * 365)
-    # print('[3]  VOL AFTER UPDATE: ', x[0].vol)
-    # print('[4]  PRICE AFTER UPADTE: ', x[0].compute_price())
-    # print('[5]  GREEKS AFTER UPDATE: ', pf.OTC['C']['N7'][2:])
+    print('[1]  TAU: ', x[0].tau)
+    print('[2]  TTM: ', x[0].tau * 365)
+    print('[3]  VOL AFTER UPDATE: ', x[0].vol)
+    cpi = 'C' if x[0].char == 'call' else 'P'
+    if x[0].barrier:
+        blvl = x[0].ki if x[0].ki else x[0].ko
+        print('BARRIER LEVEL: ', blvl)
+        print('[3.5]BARRIER VOL: ', get_barrier_vol(
+            voldf, x[0].get_product(), x[0].tau, cpi, blvl))
 
-    # if y:
-    #     print('[5.1] GREEKS HEDGE: ', y[0].greeks())
-    #     print('[5.2] GREEKS HEDGE: ', y[1].greeks())
+    print('[4]  PRICE AFTER UPADTE: ', x[0].compute_price())
+    print('[5]  GREEKS AFTER UPDATE: ', pf.OTC['C']['N7'][2:])
 
-    # print('[6]  PORFOLIO AFTER UPDATE: ', pf)
-    # print('[7]  NET GREEKS: ', pf.net_greeks)
+    if y:
+        print('[5.1] GREEKS HEDGE: ', y[0].greeks())
+        print('[5.2] GREEKS HEDGE: ', y[1].greeks())
+
+    print('[6]  PORFOLIO AFTER UPDATE: ', pf)
+    print('[7]  NET GREEKS: ', pf.net_greeks)
 
     # 5) computing new value
     new_val = pf.compute_value()
     raw_diff = new_val - prev_val
-    # print('[8]  NEW VALUE AFTER FEED: ', new_val)
+    print('[8]  NEW VALUE AFTER FEED: ', new_val)
     return raw_diff, pf, broken
 
 
@@ -411,8 +419,8 @@ def hedge(pf, inputs, product, month, flag):
     callop = Option(k, tau, 'call', cvol, underlying,
                     'euro', month=month, ordering=ordering, shorted=None)
 
-    # print('[9]  CVOL: ', cvol)
-    # print('[10] PVOL: ', pvol)
+    print('[9]  CVOL: ', cvol)
+    print('[10] PVOL: ', pvol)
 
     putop = Option(k, tau, 'put', pvol, underlying,
                    'euro', month=month, ordering=ordering, shorted=None)
@@ -487,7 +495,8 @@ def hedge(pf, inputs, product, month, flag):
         # print('DEBUG - adding')
         pf.add_security(callops, 'hedge')
         pf.add_security(putops, 'hedge')
-
+    else:
+        print(flag.upper() + ' WITHIN BOUNDS. SKIPPING HEDGING')
     return pf  # [callop, putop]
 
 
@@ -525,11 +534,11 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering):
         #     num_lots_needed = abs(round(delta)) - curr_delta_hedged
         #     shorted = True if num_lots_needed > 0 else False
         #     num_lots_needed = abs(num_lots_needed)
-        # print('[12]  DELTA: ', delta)
+        print('[12]  DELTA: ', delta)
         shorted = True if delta > 0 else False
         num_lots_needed = abs(round(delta))
         if num_lots_needed == 0:
-            print('delta is already zeroed!')
+            print('DELTA IS ZEROED. SKIPPING HEDGING')
             return pf, None
         else:
             ft = Future(month, future_price, product,
