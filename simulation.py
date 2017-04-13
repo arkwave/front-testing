@@ -10,6 +10,7 @@ Description    : Overall script that runs the simulation
 
 import numpy as np
 import pandas as pd
+from scripts.calc import get_barrier_vol
 from scripts.classes import Option, Future
 from scripts.prep_data import read_data, prep_portfolio, get_rollover_dates
 from math import ceil
@@ -182,6 +183,7 @@ def feed_data(voldf, pdf, pf, dic):
 
     # debugging
     x = list(pf.OTC['C']['N7'][0])
+    # print('HEDGES: ', pf.hedges)
     y = list(pf.hedges['C']['N7'][0]) if pf.hedges else []
 
     broken = False
@@ -259,6 +261,13 @@ def feed_data(voldf, pdf, pf, dic):
     print('[1]  TAU: ', x[0].tau)
     print('[2]  TTM: ', x[0].tau * 365)
     print('[3]  VOL AFTER UPDATE: ', x[0].vol)
+    cpi = 'C' if x[0].char == 'call' else 'P'
+    if x[0].barrier:
+        blvl = x[0].ki if x[0].ki else x[0].ko
+        print('BARRIER LEVEL: ', blvl)
+        print('[3.5]BARRIER VOL: ', get_barrier_vol(
+            voldf, x[0].get_product(), x[0].tau, cpi, blvl))
+
     print('[4]  PRICE AFTER UPADTE: ', x[0].compute_price())
     print('[5]  GREEKS AFTER UPDATE: ', pf.OTC['C']['N7'][2:])
 
@@ -409,15 +418,12 @@ def hedge(pf, inputs, product, month, flag):
     # creating straddle components.
     callop = Option(k, tau, 'call', cvol, underlying,
                     'euro', month=month, ordering=ordering, shorted=None)
-    cd, cg, ct, cv = callop.greeks()
 
     print('[9]  CVOL: ', cvol)
     print('[10] PVOL: ', pvol)
 
     putop = Option(k, tau, 'put', pvol, underlying,
                    'euro', month=month, ordering=ordering, shorted=None)
-
-    pd, pg, pt, pv = putop.greeks()
 
     # print('delta diff ' + str(flag), cd + pd)
 
@@ -447,7 +453,7 @@ def hedge(pf, inputs, product, month, flag):
     lower = bound[0]
     if greek > upper or greek < lower:
         # gamma hedging logic.
-
+        # print(flag + ' hedging')
         if greek < lower:
             # print('lower!')
             # need to buy straddles. expenditure is positive.
@@ -482,10 +488,15 @@ def hedge(pf, inputs, product, month, flag):
 
         callops = [callop] * num_required
         putops = [putop] * num_required
-        print('DEBUG - adding')
+        cd, cg, ct, cv = callop.greeks()
+        # print('CALLOP GREEKS: ', cd, cg, ct, cv)
+        pd, pg, pt, pv = putop.greeks()
+        # print('PUTOP GREEKS: ', pd, pg, pt, pv)
+        # print('DEBUG - adding')
         pf.add_security(callops, 'hedge')
         pf.add_security(putops, 'hedge')
-
+    else:
+        print(flag.upper() + ' WITHIN BOUNDS. SKIPPING HEDGING')
     return pf  # [callop, putop]
 
 
@@ -510,31 +521,28 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering):
     future_price = pdf[(pdf.pdt == product) & (
         pdf.order == ordering)].settle_value.values[0]
     net_greeks = pf.get_net_greeks()
-    curr_delta_hedged = 0
+    # curr_delta_hedged = 0
     # print('[11]  NG DH: ', net_greeks)
     if cond == 'zero':
         # flag that indicates delta hedging.
         vals = net_greeks[product][month]
         delta = vals[0]
-        # TODO: reimplement such that futures have a delta of 1 or -1
         # check if hedges already exist for this product/month
-        if (product in pf.hedges) and (month in pf.hedges[product]):
-            hedge_futures = pf.hedges[product][month][1]
-            curr_delta_hedged = sum([x.lots for x in hedge_futures])
-            num_lots_needed = abs(round(delta)) - curr_delta_hedged
-            shorted = True if num_lots_needed > 0 else False
-            num_lots_needed = abs(num_lots_needed)
-        # print('[12]  DELTA: ', delta)
-        else:
-            shorted = True if delta > 0 else False
-            num_lots_needed = abs(round(delta))
-
-        ft = Future(month, future_price, product,
-                    shorted=shorted, ordering=ordering, lots=num_lots_needed)
+        # if (product in pf.hedges) and (month in pf.hedges[product]):
+        #     hedge_futures = pf.hedges[product][month][1]
+        #     curr_delta_hedged = sum([x.lots for x in hedge_futures])
+        #     num_lots_needed = abs(round(delta)) - curr_delta_hedged
+        #     shorted = True if num_lots_needed > 0 else False
+        #     num_lots_needed = abs(num_lots_needed)
+        print('[12]  DELTA: ', delta)
+        shorted = True if delta > 0 else False
+        num_lots_needed = abs(round(delta))
         if num_lots_needed == 0:
-            print('delta is already zeroed!')
+            print('DELTA IS ZEROED. SKIPPING HEDGING')
             return pf, None
         else:
+            ft = Future(month, future_price, product,
+                        shorted=shorted, ordering=ordering, lots=num_lots_needed)
             pf.add_security([ft], 'hedge')
     return pf, ft
 
@@ -544,10 +552,10 @@ if __name__ == '__main__':
     vdf, pdf, edf = read_data(filepath)
     # check sanity of data
     vdates = pd.to_datetime(vdf.value_date.unique())
-    print(vdates)
+    # print(vdates)
 
     pdates = pd.to_datetime(pdf.value_date.unique())
-    print(pdates)
+    # print(pdates)
     if not np.array_equal(vdates, pdates):
         raise ValueError(
             'Invalid data sets passed in; vol and price data must have the same date range.')

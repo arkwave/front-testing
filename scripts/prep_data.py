@@ -105,10 +105,10 @@ def read_data(filepath=filepath):
             import os
             print(os.getcwd())
     elapsed = time.time() - t
-    print('[READ_DATA] elapsed: ', elapsed)
-    final_vol.to_csv('datasets/final_vols.csv', index=False)
-    final_price.to_csv('datasets/final_price.csv', index=False)
-    edf.to_csv('datasets/final_expdata.csv', index=False)
+    # print('[READ_DATA] elapsed: ', elapsed)
+    # final_vol.to_csv('datasets/final_vols.csv', index=False)
+    # final_price.to_csv('datasets/final_price.csv', index=False)
+    # edf.to_csv('datasets/final_expdata.csv', index=False)
     return final_vol, final_price, edf
 
 
@@ -190,8 +190,8 @@ def prep_portfolio(voldata, pricedata, filepath):
                     u_name = volid.split('.')[0]
                     f_price = pricedata[(pricedata['value_date'] == sim_start) &
                                         (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
-                    print('PRICE AND DATE UNDERLYING: ', sim_start, f_price)
-                    print('VOL AND DATE: ', sim_start, vol)
+                    # print('PRICE AND DATE UNDERLYING: ', sim_start, f_price)
+                    # print('VOL AND DATE: ', sim_start, vol)
                     underlying = Future(
                         f_mth, f_price, f_name, ordering=ordering)
                     opt = Option(strike, tau, char, vol, underlying,
@@ -228,7 +228,7 @@ def prep_portfolio(voldata, pricedata, filepath):
         pf.add_security(fts, flag)
 
     elapsed = time.time() - t
-    print('[PREP_PORTFOLIO] elapsed: ', elapsed)
+    # print('[PREP_PORTFOLIO] elapsed: ', elapsed)
     return pf
 
 
@@ -352,7 +352,7 @@ def clean_data(df, flag, edf=None):
 
     df.reset_index(drop=True, inplace=True)
     df = df.dropna()
-    df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
+    # df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
 
     return df
 
@@ -424,7 +424,7 @@ def ciprice(pricedata, rollover='opex'):
     else:
         final = -1
     elapsed = time.time() - t
-    print('[CI-PRICE] elapsed: ', elapsed)
+    # print('[CI-PRICE] elapsed: ', elapsed)
     # final.to_csv('ci_price_final.csv', index=False)
     return final
 
@@ -619,7 +619,7 @@ def civols(vdf, pdf, rollover='opex'):
     else:
         final = -1
     elapsed = time.time() - t
-    print('[CI-VOLS] elapsed: ', elapsed)
+    # print('[CI-VOLS] elapsed: ', elapsed)
     return final
 
 
