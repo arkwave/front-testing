@@ -194,12 +194,12 @@ class Portfolio:
             # dealing with common months
             for month in common_months:
                 OTC_greeks = OTCdata[month][2:]
-                print('DEBUG: OTC greeks: ', OTC_greeks)
+                # print('DEBUG: OTC greeks: ', OTC_greeks)
                 hedge_greeks = hedgedata[month][2:]
-                print('DEBUG: Hedge greeks: ', hedge_greeks)
+                # print('DEBUG: Hedge greeks: ', hedge_greeks)
                 # net = list(map(sub, OTC_greeks, hedge_greeks))
                 net = list(map(add, OTC_greeks, hedge_greeks))
-                print('DEBUG: Net Greeks: ', net)
+                # print('DEBUG: Net Greeks: ', net)
                 final_dic[product][month] = net
             # dealing with non overlapping months
             for month in OTC_unique_mths:
@@ -366,6 +366,7 @@ class Portfolio:
                             dic[product][month][1].add(sec)
                     self.update_greeks_by_month(
                         product, month, sec, added, flag)
+                    self.compute_net_greeks()
 
             # removing
             else:
@@ -393,21 +394,55 @@ class Portfolio:
                     else:
                         self.update_greeks_by_month(
                             product, month, sec, added, flag)
+                        self.compute_net_greeks()
 
         # updating greeks per month when feeding in new prices/vols
         else:
             # updating cumulative greeks on a month-by-month basis.
-            # reset all greeks
+            d3 = self.net_greeks
 
-            for sec in op:
-                product = sec.get_product()
-                month = sec.get_month()
-                dic[product][month][2:] = [0, 0, 0, 0]
-                # self.net_greeks[product][month] = [0, 0, 0, 0]
-                # update from scratch. treated as fresh add of all existing
-                # securities.
-                self.update_greeks_by_month(
-                    product, month, sec, True, flag)
+            # reset all greeks
+            for product in dic:
+                for month in dic[product]:
+                    dic[product][month][2:] = [0, 0, 0, 0]
+            # for product in d2:
+            #     for month in d2[product]:
+            #         d2[product][month][2:] = [0, 0, 0, 0]
+            for product in d3:
+                for month in d3[product]:
+                    d3[product][month] = [0, 0, 0, 0]
+
+            # gather all securities in this portfolio
+            # otc_ft = self.OTC_futures
+            # otc_op = self.OTC_options
+            # hedge_ft = self.hedge_futures
+            # hedge_op = self.hedge_options
+
+            # recompute greeks for all months and products.
+            self.recompute(ft, flag)
+            self.recompute(op, flag)
+            # self.recompute(hedge_ft, flag)
+            # self.recompute(hedge_op, flag)
+
+            # for sec in op:
+            #     product = sec.get_product()
+            #     month = sec.get_month()
+            #     # self.net_greeks[product][month] = [0, 0, 0, 0]
+            #     # update from scratch. treated as fresh add of all existing
+            #     # securities.
+            #     self.update_greeks_by_month(
+            #         product, month, sec, True, flag)
+
+            # recompute net greeks
+            self.compute_net_greeks()
+
+    def recompute(self, lst, flag):
+        # if lst:
+            # print('recomputing ' + flag + ' ' + str(lst[0].get_desc()))
+        for sec in lst:
+            pdt = sec.get_product()
+            month = sec.get_month()
+            self.update_greeks_by_month(pdt, month, sec, True, flag)
 
     def update_greeks_by_month(self, product, month, sec, added, flag):
         """Updates the greeks for each month. This method is called every time update_sec_by_month
@@ -426,8 +461,17 @@ class Portfolio:
         """
         dic = self.OTC if flag == 'OTC' else self.hedges
 
-        data = dic[product][month]
-        print('DEBUG - data: ', data[2:])
+        if not dic:
+            # print(flag + ' dic missing')
+            return
+
+        if (product in dic) and (month in dic[product]):
+            # print(flag + ' dic exists')
+            data = dic[product][month]
+        else:
+            return
+
+        # print('DEBUG - data: ', data[2:])
 
         if sec.get_desc() == 'option':
             delta, gamma, theta, vega = sec.greeks()
@@ -441,8 +485,14 @@ class Portfolio:
                 data[3] -= gamma
                 data[4] -= theta
                 data[5] -= vega
-            print('DEBUG II - data: ', data[2:])
-            self.compute_net_greeks()
+            # print('DEBUG II - data: ', data[2:])
+
+        elif sec.get_desc() == 'future':
+            delta = sec.delta
+            if added:
+                data[2] += delta
+            else:
+                data[2] -= delta
 
     def compute_value(self):
         """Computes the value of this portfolio by summing across all securities contained within. Current computation takes (value of OTC positions - value of hedge positions)

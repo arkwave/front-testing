@@ -389,8 +389,8 @@ is being handled correctly.                         [Done]
 
 
 13/4
-> debug net greeks and updating               []
-> implement futures = 1 delta.                []
+> debug net greeks and updating               [Done]
+> implement futures = 1 delta.                [Done]
 
 > split pnl into options and futures          []
 > pnl into daily and cumulative               [Done]
