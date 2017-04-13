@@ -385,6 +385,7 @@ def gen_hedge_inputs(hedges, vdf, pdf, month, pf, product, ordering, flag):
     # relevant data for constructing Option and Future objects.
     price = pdf[(pdf.pdt == product) & (
         pdf.order == ordering)].settle_value.values[0]
+
     k = round(price/10) * 10
     # print('[8]  STRIKE: ', k)
     cvol = vdf[(vdf.pdt == product) & (
