@@ -393,6 +393,10 @@ is being handled correctly.                         [Done]
 > implement futures = 1 delta.                []
 
 > split pnl into options and futures          []
+
+
+
+
 > check pnp options                           []
 > E barriers                                  []
 > A barriers                                  []
