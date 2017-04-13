@@ -393,6 +393,7 @@ is being handled correctly.                         [Done]
 > implement futures = 1 delta.                []
 
 > split pnl into options and futures          []
+> pnl into daily and cumulative               [Done]
 
 
 
@@ -418,6 +419,8 @@ Aux Concerns:
 > reading in multiplier list                          []
 > generate data requirements from portfolio object    [] -> use get_all_futures.
 > speedups needed quite badly. 
+
+
 
 
 

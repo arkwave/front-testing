@@ -106,9 +106,9 @@ def read_data(filepath=filepath):
             print(os.getcwd())
     elapsed = time.time() - t
     print('[READ_DATA] elapsed: ', elapsed)
-    final_vol.to_csv('datasets/final_vols.csv', index=False)
-    final_price.to_csv('datasets/final_price.csv', index=False)
-    edf.to_csv('datasets/final_expdata.csv', index=False)
+    # final_vol.to_csv('datasets/final_vols.csv', index=False)
+    # final_price.to_csv('datasets/final_price.csv', index=False)
+    # edf.to_csv('datasets/final_expdata.csv', index=False)
     return final_vol, final_price, edf
 
 
@@ -352,7 +352,7 @@ def clean_data(df, flag, edf=None):
 
     df.reset_index(drop=True, inplace=True)
     df = df.dropna()
-    df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
+    # df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
 
     return df
 
