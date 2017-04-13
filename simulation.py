@@ -410,6 +410,7 @@ def hedge(pf, inputs, product, month, flag):
     callop = Option(k, tau, 'call', cvol, underlying,
                     'euro', month=month, ordering=ordering, shorted=None)
     cd, cg, ct, cv = callop.greeks()
+    print('CALLOP GREEKS: ', cd, cg, ct, cv)
 
     print('[9]  CVOL: ', cvol)
     print('[10] PVOL: ', pvol)
@@ -419,6 +420,7 @@ def hedge(pf, inputs, product, month, flag):
 
     pd, pg, pt, pv = putop.greeks()
 
+    print('PUTOP GREEKS: ', pd, pg, pt, pv)
     # print('delta diff ' + str(flag), cd + pd)
 
     # straddle_val = callop.compute_price() + putop.compute_price()

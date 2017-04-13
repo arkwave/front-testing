@@ -194,12 +194,12 @@ class Portfolio:
             # dealing with common months
             for month in common_months:
                 OTC_greeks = OTCdata[month][2:]
-                # print('DEBUG: OTC greeks: ', OTC_greeks)
+                print('DEBUG: OTC greeks: ', OTC_greeks)
                 hedge_greeks = hedgedata[month][2:]
-                # print('DEBUG: Hedge greeks: ', hedge_greeks)
+                print('DEBUG: Hedge greeks: ', hedge_greeks)
                 # net = list(map(sub, OTC_greeks, hedge_greeks))
                 net = list(map(add, OTC_greeks, hedge_greeks))
-                # print('DEBUG: Net Greeks: ', net)
+                print('DEBUG: Net Greeks: ', net)
                 final_dic[product][month] = net
             # dealing with non overlapping months
             for month in OTC_unique_mths:
@@ -427,7 +427,7 @@ class Portfolio:
         dic = self.OTC if flag == 'OTC' else self.hedges
 
         data = dic[product][month]
-        # print('DEBUG - data: ', data[2:])
+        print('DEBUG - data: ', data[2:])
 
         if sec.get_desc() == 'option':
             delta, gamma, theta, vega = sec.greeks()
@@ -441,7 +441,7 @@ class Portfolio:
                 data[3] -= gamma
                 data[4] -= theta
                 data[5] -= vega
-            # print('DEBUG II - data: ', data[2:])
+            print('DEBUG II - data: ', data[2:])
             self.compute_net_greeks()
 
     def compute_value(self):
