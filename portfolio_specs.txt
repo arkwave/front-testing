@@ -1,11 +1,10 @@
-datasets\test_vol.csv
-datasets\test_price.csv
+datasets/settlement_vol_surf_table.csv
+datasets/underlying_settle_value_table.csv
 datasets/option_expiry.csv
 
 
-%%datasets/settlement_vol_surf_table.csv
-%%datasets/underlying_settle_value_table.csv
-
+%%datasets\test_vol.csv
+%%datasets\test_price.csv
 
 %% Option,strike,vol_id,callorput,optiontype,barriertype,direction,knockin,knockout,bullet,longorshort,hedgeorOTC
 
