@@ -106,9 +106,9 @@ def read_data(filepath):
             print(os.getcwd())
     elapsed = time.time() - t
     # print('[READ_DATA] elapsed: ', elapsed)
-    # final_vol.to_csv('datasets/final_vols.csv', index=False)
-    # final_price.to_csv('datasets/final_price.csv', index=False)
-    # edf.to_csv('datasets/final_expdata.csv', index=False)
+    final_vol.to_csv('datasets/final_vols.csv', index=False)
+    final_price.to_csv('datasets/final_price.csv', index=False)
+    edf.to_csv('datasets/final_expdata.csv', index=False)
     return final_vol, final_price, edf
 
 
@@ -268,9 +268,6 @@ def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
     # constructing each object individually
     for i in range(len(specs)):
         data = specs.iloc[i]
-        # print(data)
-        # for col in data:
-        #     print(str(col) + ': ', type(col))
         if data.Type == 'Future':
             # future case
             full = data.vol_id.split()
@@ -281,10 +278,10 @@ def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
             price = pricedata[(pricedata['underlying_id'] == data.vol_id) &
                               (pricedata['value_date'] == sim_start)]['settle_value'].values[0]
             flag = data.hedgeorOTC
-            # flag = inputs[4].strip('\n')
+            lots = 1000 if data.lots == 'None' else int(data.lots)
             shorted = True if data.shorted else False
-            ft = Future(mth, price, product,
-                        shorted=shorted, ordering=ordering)
+            ft = Future(mth, price, product, shorted=shorted,
+                        lots=lots, ordering=ordering)
             ftlist[flag].append(ft)
 
         elif data.Type == 'Option':
@@ -292,26 +289,27 @@ def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
             volid = str(data.vol_id)
             opmth = volid.split()[1].split('.')[0]
             char = str(data.call_put_id)
-            # char = str(inputs[3])
             volflag = 'C' if char == 'call' else 'P'
 
             # get tau from data
             tau = voldata[(voldata['value_date'] == sim_start) &
                           (voldata['vol_id'] == volid) &
                           (voldata['call_put_id'] == volflag)]['tau'].values[0]
-            # print('days to exp: ', round(tau * 365))
             # get vol from data
-            vol = voldata[(voldata['vol_id'] == volid) &
-                          (voldata['call_put_id'] == volflag) &
-                          (voldata['value_date'] == sim_start) &
-                          (voldata['strike'] == strike)]['settle_vol'].values[0]
+            try:
+                vol = voldata[(voldata['vol_id'] == volid) &
+                              (voldata['call_put_id'] == volflag) &
+                              (voldata['value_date'] == sim_start) &
+                              (voldata['strike'] == strike)]['settle_vol'].values[0]
+            except IndexError:
+                print('vol_id: ', volid)
+                print('call_put_id: ', volflag)
+                print('value_date: ', sim_start)
+                print('strike: ', strike)
+                raise ValueError('voldata cannot be located!')
             # american vs european payoff
             payoff = str(data.optiontype)
             # american or european barrier.
-            # print('TYPE: ', type(data.barriertype))
-            # print('barriertype: ', data.barriertype == 'nan')
-
-            # debugging:
 
             barriertype = None if data.barriertype == 'None' else str(
                 data.barriertype)
@@ -327,6 +325,8 @@ def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
             flag = str(data.hedgeorOTC)
             # short or long position on this option.
             shorted = True if data.shorted else False
+            # lots
+            lots = 1000 if data.lots == 'None' else int(data.lots)
 
             # handle underlying construction
             f_mth = volid.split()[1].split('.')[1]
@@ -334,25 +334,29 @@ def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
             mths = contract_mths[f_name]
             ordering = find_cdist(curr_sym, f_mth, mths)
             # print('ordering inputs: ', curr_sym, f_mth)
-            u_name = volid.split('.')[0]
-            f_price = pricedata[(pricedata['value_date'] == sim_start) &
-                                (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
-            # print('PRICE AND DATE UNDERLYING: ', sim_start, f_price)
-            # print('VOL AND DATE: ', sim_start, vol)
-            underlying = Future(
-                f_mth, f_price, f_name, ordering=ordering)
+            u_name = f_name + '  ' + volid.split('.')[1]
+            try:
+                f_price = pricedata[(pricedata['value_date'] == sim_start) &
+                                    (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
+            except IndexError:
+                print('vol_id: ', volid)
+                print('f_name: ', f_name)
+                print('value_date: ', sim_start)
+                print('underlying_id: ', u_name)
+
+            underlying = Future(f_mth, f_price, f_name, ordering=ordering)
             opt = Option(strike, tau, char, vol, underlying,
-                         payoff, shorted=shorted, month=opmth, direc=direc, barrier=barriertype,
-                         bullet=bullet, ki=ki, ko=ko, ordering=ordering)
-            oplist[flag].append(opt)            # option case
+                         payoff, shorted=shorted, month=opmth, direc=direc,
+                         barrier=barriertype, lots=lots, bullet=bullet,
+                         ki=ki, ko=ko, ordering=ordering)
+            oplist[flag].append(opt)
+
     # handling bullet options
     bullets = handle_dailies(oplist)
-    # print('bullet list:', len(bullets['OTC']))
     for flag in bullets:
         ops = oplist[flag]
         pf.add_security(ops, flag)
-        # for op in ops:
-        #     pf.add_security(op, flag)
+
     for flag in ftlist:
         fts = ftlist[flag]
         pf.add_security(fts, flag)

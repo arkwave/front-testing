@@ -268,12 +268,6 @@ def test_american_barrier_greeks():
             # print('ab _ greeks _ delta run ' + str(i) + ': ', d, deltas[i])
             print('testcalc: ab _ greeks _ delta run ' + str(i) +
                   ' %  error: ', (abs(d - d1)/d1) * 100)
-        # try:
-        #     assert np.isclose(g, gammas[i])
-        # except AssertionError:
-        #     # print('ab _ greeks _ gamma run ' + str(i) + ': ', g, gammas[i])
-        #     print('testcalc: ab _ greeks _ gammas run ' + str(i) +
-        #           ' %  error: ', (abs(g - g1)/g1) * 100)
         try:
             assert np.isclose(t, thetas[i])
         except AssertionError:

@@ -38,10 +38,11 @@ Notes:
 
  """
 
+
 from math import log, sqrt, exp, pi
 from scipy.stats import norm
 import numpy as np
-import pandas as pd
+# import pandas as pd
 from .prep_data import read_data
 
 

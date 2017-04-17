@@ -2,7 +2,7 @@
 File Name      : test_prep_data.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 30/3/2017
+Last Modified  : 17/4/2017
 Python version : 3.5
 Description    : File contains tests for the methods in prep_data.py
 
@@ -14,7 +14,7 @@ import numpy as np
 from scripts.classes import Option, Future
 
 
-filepath = 'portfolio_specs.txt'
+filepath = 'data_loc.txt'
 voldata, pricedata, edf = pr.read_data(filepath)
 
 contract_mths = {
@@ -40,22 +40,22 @@ contract_mths = {
 }
 
 
-def test_prep_portfolio():
+# def test_prep_portfolio():
 
-    vdata, pdata, edf = pr.read_data(filepath)
-    pmin = min(pdata['value_date'])
-    vmin = min(vdata['value_date'])
+#     vdata, pdata, edf = pr.read_data(filepath)
+#     pmin = min(pdata['value_date'])
+#     vmin = min(vdata['value_date'])
 
-    assert pmin == vmin
+#     assert pmin == vmin
 
-    # sim_start = pmin
-    pf = pr.prep_portfolio(vdata, pdata)
+#     # sim_start = pmin
+#     pf = pr.prep_portfolio(vdata, pdata)
 
-    otc = pf.OTC
-    # hedge = pf.hedges
+#     otc = pf.OTC
+#     # hedge = pf.hedges
 
-    assert len(otc) == 1
-    # assert len(hedge) == 1
+#     assert len(otc) == 1
+#     # assert len(hedge) == 1
 
 
 def test_get_rollover_dates():

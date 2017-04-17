@@ -16,6 +16,7 @@ from scripts.prep_data import read_data, prep_portfolio, get_rollover_dates
 from math import ceil
 import copy
 import time
+import matplotlib.pyplot as plt
 
 # Dictionary of multipliers for greeks/pnl calculation.
 # format  =  'product' : [dollar_mult, lot_mult, futures_tick,
@@ -100,19 +101,21 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
     rollover_dates = get_rollover_dates(pricedata)
     pnl = 0
 
+    daily_values = []
+    cumul_values = []
+
     date_range = sorted(voldata.value_date.unique())  # [1:]
+    xvals = range(1, len(date_range)+1)
     # print('date range: ', date_range)
+
     # Step 1 & 2
     init_val = 0
-    # next_date = None
     for i in range(len(date_range)):
         date = date_range[i]
         try:
             next_date = date_range[i+1]
         except IndexError:
             next_date = None
-        # init_val = pf.compute_value()
-        # pf.timestep(timestep)
         # isolate data relevant for this day.
         print('##################### date: ', date, '################')
         # init_val = pf.compute_value()
@@ -122,24 +125,23 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
         # getting data pertinent to that day.
         # raw_change to be the difference between old and new value per
         # iteration.
-        # print(str(date) + ' feeding data [1/3]')
         raw_change, pf, broken = feed_data(vdf, pdf, pf, rollover_dates)
         # pnl += raw_change
         if broken:
             break
     # Step 3
-        # print(str(date) + ' handling exercise [2/3]')
         expenditure, pf = handle_exercise(pf)
         pnl += expenditure
 
         # compute value after updating greeks
         updated_val = pf.compute_value()
         dailypnl = updated_val - init_val if init_val != 0 else 0
+        daily_values.append(dailypnl)
         pnl += dailypnl
+        cumul_values.append(pnl)
         print('[10]   EOD PNL: ', dailypnl)
         print('[10.5] Cumulative PNL: ', pnl)
     # Step 4
-        # print(str(date) + ' rebalancing [3/3')
         pf = rebalance(vdf, pdf, pf, hedges)
         print('[13]  EOD PORTFOLIO: ', pf)
         init_val = pf.compute_value()
@@ -157,6 +159,12 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
     print(pnl)
     print('################# Portfolio: ###################')
     print(pf)
+
+    plt.figure()
+    plt.plot(xvals, daily_values, c='c', alpha=0.6)
+    plt.plot(xvals, cumul_values, c='m', alpha=0.7)
+    plt.legend()
+    plt.show()
     # print('Portfolio: ', pf)
     return pnl, pf
 
@@ -268,12 +276,12 @@ def feed_data(voldf, pdf, pf, dic):
         print('[3.5]BARRIER VOL: ', get_barrier_vol(
             voldf, x[0].get_product(), x[0].tau, cpi, blvl))
 
-    print('[4]  PRICE AFTER UPADTE: ', x[0].compute_price())
-    print('[5]  GREEKS AFTER UPDATE: ', pf.OTC['C']['N7'][2:])
+    # print('[4]  PRICE AFTER UPDATE: ', x[0].compute_price())
+    # print('[5]  GREEKS AFTER UPDATE: ', pf.OTC['C']['N7'][2:])
 
     if y:
         print('[5.1] GREEKS HEDGE: ', y[0].greeks())
-        print('[5.2] GREEKS HEDGE: ', y[1].greeks())
+        # print('[5.2] GREEKS HEDGE: ', y[1].greeks())
 
     print('[6]  PORFOLIO AFTER UPDATE: ', pf)
     print('[7]  NET GREEKS: ', pf.net_greeks)
@@ -522,19 +530,10 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering):
     future_price = pdf[(pdf.pdt == product) & (
         pdf.order == ordering)].settle_value.values[0]
     net_greeks = pf.get_net_greeks()
-    # curr_delta_hedged = 0
-    # print('[11]  NG DH: ', net_greeks)
     if cond == 'zero':
         # flag that indicates delta hedging.
         vals = net_greeks[product][month]
         delta = vals[0]
-        # check if hedges already exist for this product/month
-        # if (product in pf.hedges) and (month in pf.hedges[product]):
-        #     hedge_futures = pf.hedges[product][month][1]
-        #     curr_delta_hedged = sum([x.lots for x in hedge_futures])
-        #     num_lots_needed = abs(round(delta)) - curr_delta_hedged
-        #     shorted = True if num_lots_needed > 0 else False
-        #     num_lots_needed = abs(num_lots_needed)
         print('[12]  DELTA: ', delta)
         shorted = True if delta > 0 else False
         num_lots_needed = abs(round(delta))
@@ -550,6 +549,7 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering):
 
 if __name__ == '__main__':
     filepath = 'data_loc.txt'
+    t = time.time()
     vdf, pdf, edf = read_data(filepath)
     # check sanity of data
     vdates = pd.to_datetime(vdf.value_date.unique())
@@ -562,7 +562,10 @@ if __name__ == '__main__':
             'Invalid data sets passed in; vol and price data must have the same date range.')
 
     # generate portfolio
-    pf = prep_portfolio(vdf, pdf)
-    # print(pf)
+    pf = prep_portfolio(vdf, pdf, filepath='datasets/corn_portfolio_specs.csv')
+    e1 = time.time() - t
+    print('[data & portfolio prep]: ', e1)
     # proceed to run simulation
     run_simulation(vdf, pdf, edf, pf)
+    e2 = time.time() - e1
+    print('[simulation]: ', e2)
