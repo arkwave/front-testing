@@ -396,29 +396,30 @@ is being handled correctly.                         [Done]
 > check pnp options                           [Done]
 
 
-
-> E barriers                                  [DONE]
-
-
-> Debug gamma calculations                    []
-> A barriers                                  []
-
-
-
-
 14/4
+> E barriers                                  [DONE]
+> FINISHED THE SIMULATION                     [DONE]
 
+
+
+
+17/4
+> Debug gamma calculations                    [Done]
+> A barriers                                  [Done]
+> feeding in now down through CSV             [Done]
+
+
+
+18/4
+> adapt feed_data to check for high/low/close for ki/ko   []
+> generate data requirements from portfolio object    [] -> use get_all_futures.
 
 
 
 
 Aux Concerns:
-> reading in multiplier list                          []
-> generate data requirements from portfolio object    [] -> use get_all_futures.
-> speedups needed quite badly. 
-> adapt computation for returns/vol change,         []
-> adapt feed_data to check for high/low for ki/ko   []
-
+> reading in multiplier list                          [] 
+> adapt computation for returns/vol change,           []
 
 
 

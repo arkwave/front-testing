@@ -36,7 +36,7 @@ sym_to_month = {'F': 1, 'G': 2, 'H': 3, 'J': 4, 'K': 5,
 decade = 10
 
 # specifies the filepath for the read-in file.
-filepath = 'portfolio_specs.txt'
+# filepath = 'portfolio_specs.txt'
 
 # details contract months for each commodity. used in the continuation
 # assignment.
@@ -67,7 +67,7 @@ contract_mths = {
 ###############################################################
 
 
-def read_data(filepath=filepath):
+def read_data(filepath):
     """Wrapper method that handles all read-in and preprocessing. This function does the following:
     1) reads in path to volatility, price and expiry tables from portfolio_specs.txt
     2) reads in dataframes from said paths
@@ -112,18 +112,146 @@ def read_data(filepath=filepath):
     return final_vol, final_price, edf
 
 
-def prep_portfolio(voldata, pricedata, filepath):
-    """
-    Reads in portfolio specifications from portfolio_specs.txt and constructs a portfolio object. The paths to the dataframes are specified in the first 3 lines of portfolio_specs.txt, while the remaining securities to be added into this portfolio are stored in the remaining lines. By design, all empty lines or lines beginning with %% are ignored.
+# def prep_portfolio(voldata, pricedata, filepath):
+#     """
+# Reads in portfolio specifications from portfolio_specs.txt and
+# constructs a portfolio object. The paths to the dataframes are specified
+# in the first 3 lines of portfolio_specs.txt, while the remaining
+# securities to be added into this portfolio are stored in the remaining
+# lines. By design, all empty lines or lines beginning with %% are
+# ignored.
+
+#     Args:
+#         voldata (pandas dataframe)  : dataframe containing the volatility surface (i.e. strike-wise volatilities)
+#         pricedata (pandas dataframe): dataframe containing the daily price of underlying.
+#         filepath (string)           : path to portfolio_specs.txt
+
+#     Returns:
+#         pf (Portfolio)              : a portfolio object.
+#     """
+#     oplist = {'hedge': [], 'OTC': []}
+#     ftlist = {'hedge': [], 'OTC': []}
+#     sim_start = min(min(voldata.value_date), min(pricedata.value_date))
+#     sim_start = pd.to_datetime(sim_start)
+#     t = time.time()
+#     pf = Portfolio()
+#     curr_mth = dt.date.today().month
+#     curr_mth_sym = month_to_sym[curr_mth]
+#     curr_yr = dt.date.today().year % (2000 + decade)
+#     curr_sym = curr_mth_sym + str(curr_yr)
+#     # sim_start = pd.Timestamp('2017-01-01')
+#     # curr_sym = month_to_sym[sim_start.month] + \
+#     #     str(sim_start.year % (2000 + decade))
+#     # print('x1: ', curr_sym)
+#     with open(filepath) as f:
+#         for line in f:
+#             # ignore lines with %% or blank lines.
+#             if "%%" in line or line in ['\n', '\r\n']:
+#                 continue
+#             else:
+#                 inputs = line.split(',')
+#                 # input specifies an option
+#                 if inputs[0] == 'Option':
+#                     strike = float(inputs[1])
+#                     volid = str(inputs[2])
+#                     opmth = volid.split()[1].split('.')[0]
+#                     char = str(inputs[3])
+#                     volflag = 'C' if char == 'call' else 'P'
+
+#                     # get tau from data
+#                     tau = voldata[(voldata['value_date'] == sim_start) &
+#                                   (voldata['vol_id'] == volid) &
+#                                   (voldata['call_put_id'] == volflag)]['tau'].values[0]
+#                     # print('days to exp: ', round(tau * 365))
+#                     # get vol from data
+#                     vol = voldata[(voldata['vol_id'] == volid) &
+#                                   (voldata['call_put_id'] == volflag) &
+#                                   (voldata['value_date'] == sim_start) &
+#                                   (voldata['strike'] == strike)]['settle_vol'].values[0]
+#                     # american vs european payoff
+#                     payoff = str(inputs[4])
+#                     # american or european barrier.
+#                     barriertype = None if inputs[
+#                         5] == 'None' else str(inputs[5])
+#                     # direction of barrier.
+#                     direc = None if inputs[6] == 'None' else str(inputs[6])
+#                     # knock-in. is not None iff this is a knock-in option.
+#                     ki = None if inputs[7] == 'None' else int(inputs[7])
+#                     # knock-out. is not None iff this is a knock-out option.
+#                     ko = None if inputs[8] == 'None' else int(inputs[8])
+#                     # bullet vs daily pay-out. defaults to False.
+#                     bullet = True if inputs[9] == 'True' else False
+#                     # hedge or OTC
+#                     flag = str(inputs[11]).strip('\n')
+#                     # short or long position on this option.
+#                     shorted = True if inputs[10] == 'short' else False
+
+#                     # handle underlying construction
+#                     f_mth = volid.split()[1].split('.')[1]
+#                     f_name = volid.split()[0]
+#                     mths = contract_mths[f_name]
+#                     ordering = find_cdist(curr_sym, f_mth, mths)
+#                     # print('ordering inputs: ', curr_sym, f_mth)
+#                     u_name = volid.split('.')[0]
+#                     f_price = pricedata[(pricedata['value_date'] == sim_start) &
+#                                         (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
+#                     # print('PRICE AND DATE UNDERLYING: ', sim_start, f_price)
+#                     # print('VOL AND DATE: ', sim_start, vol)
+#                     underlying = Future(
+#                         f_mth, f_price, f_name, ordering=ordering)
+#                     opt = Option(strike, tau, char, vol, underlying,
+#                                  payoff, shorted=shorted, month=opmth, direc=direc, barrier=barriertype,
+#                                  bullet=bullet, ki=ki, ko=ko, ordering=ordering)
+#                     oplist[flag].append(opt)
+#                     # pf.add_security(opt, flag)
+
+#                 # input specifies a future
+#                 elif inputs[0] == 'Future':
+
+#                     full = inputs[1].split()
+#                     product = full[0]
+#                     mth = full[1]
+#                     ordering = find_cdist(curr_sym, mth)
+#                     price = pricedata[(pricedata['underlying_id'] == inputs[1]) &
+#                                       (pricedata['value_date'] == sim_start)]['settle_value'].values[0]
+#                     flag = inputs[4].strip('\n')
+#                     shorted = True if inputs[4] == 'short' else False
+#                     ft = Future(mth, price, product,
+#                                 shorted=shorted, ordering=ordering)
+#                     ftlist[flag].append(ft)
+#                     # pf.add_security([ft], flag)
+#     # handling bullet options
+#     bullets = handle_dailies(oplist)
+#     # print('bullet list:', len(bullets['OTC']))
+#     for flag in bullets:
+#         ops = oplist[flag]
+#         pf.add_security(ops, flag)
+#         # for op in ops:
+#         #     pf.add_security(op, flag)
+#     for flag in ftlist:
+#         fts = ftlist[flag]
+#         pf.add_security(fts, flag)
+
+#     elapsed = time.time() - t
+#     # print('[PREP_PORTFOLIO] elapsed: ', elapsed)
+#     return pf
+
+
+def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
+    """Constructs the portfolio from the requisite CSV file that specifies the details of 
+    each security in the portfolio.
 
     Args:
-        voldata (pandas dataframe)  : dataframe containing the volatility surface (i.e. strike-wise volatilities)
-        pricedata (pandas dataframe): dataframe containing the daily price of underlying.
-        filepath (string)           : path to portfolio_specs.txt
+        voldata (TYPE): volatility data
+        pricedata (TYPE): price data
+        filepath (TYPE): path to the csv containing portfolio specifications
 
     Returns:
-        pf (Portfolio)              : a portfolio object.
+        TYPE: portfolio object 
+
     """
+
+    # initializing variables
     oplist = {'hedge': [], 'OTC': []}
     ftlist = {'hedge': [], 'OTC': []}
     sim_start = min(min(voldata.value_date), min(pricedata.value_date))
@@ -134,87 +262,89 @@ def prep_portfolio(voldata, pricedata, filepath):
     curr_mth_sym = month_to_sym[curr_mth]
     curr_yr = dt.date.today().year % (2000 + decade)
     curr_sym = curr_mth_sym + str(curr_yr)
-    # sim_start = pd.Timestamp('2017-01-01')
-    # curr_sym = month_to_sym[sim_start.month] + \
-    #     str(sim_start.year % (2000 + decade))
-    # print('x1: ', curr_sym)
-    with open(filepath) as f:
-        for line in f:
-            # ignore lines with %% or blank lines.
-            if "%%" in line or line in ['\n', '\r\n']:
-                continue
-            else:
-                inputs = line.split(',')
-                # input specifies an option
-                if inputs[0] == 'Option':
-                    strike = float(inputs[1])
-                    volid = str(inputs[2])
-                    opmth = volid.split()[1].split('.')[0]
-                    char = str(inputs[3])
-                    volflag = 'C' if char == 'call' else 'P'
+    # reading in the dataframe of portfolio values
+    specs = pd.read_csv(filepath)
+    specs = specs.fillna('None')
+    # constructing each object individually
+    for i in range(len(specs)):
+        data = specs.iloc[i]
+        # print(data)
+        # for col in data:
+        #     print(str(col) + ': ', type(col))
+        if data.Type == 'Future':
+            # future case
+            full = data.vol_id.split()
+            product = full[0]
+            mth = full[1]
+            lst = contract_mths[product]
+            ordering = find_cdist(curr_sym, mth, lst)
+            price = pricedata[(pricedata['underlying_id'] == data.vol_id) &
+                              (pricedata['value_date'] == sim_start)]['settle_value'].values[0]
+            flag = data.hedgeorOTC
+            # flag = inputs[4].strip('\n')
+            shorted = True if data.shorted else False
+            ft = Future(mth, price, product,
+                        shorted=shorted, ordering=ordering)
+            ftlist[flag].append(ft)
 
-                    # get tau from data
-                    tau = voldata[(voldata['value_date'] == sim_start) &
-                                  (voldata['vol_id'] == volid) &
-                                  (voldata['call_put_id'] == volflag)]['tau'].values[0]
-                    # print('days to exp: ', round(tau * 365))
-                    # get vol from data
-                    vol = voldata[(voldata['vol_id'] == volid) &
-                                  (voldata['call_put_id'] == volflag) &
-                                  (voldata['value_date'] == sim_start) &
-                                  (voldata['strike'] == strike)]['settle_vol'].values[0]
-                    # american vs european payoff
-                    payoff = str(inputs[4])
-                    # american or european barrier.
-                    barriertype = None if inputs[
-                        5] == 'None' else str(inputs[5])
-                    # direction of barrier.
-                    direc = None if inputs[6] == 'None' else str(inputs[6])
-                    # knock-in. is not None iff this is a knock-in option.
-                    ki = None if inputs[7] == 'None' else int(inputs[7])
-                    # knock-out. is not None iff this is a knock-out option.
-                    ko = None if inputs[8] == 'None' else int(inputs[8])
-                    # bullet vs daily pay-out. defaults to False.
-                    bullet = True if inputs[9] == 'True' else False
-                    # hedge or OTC
-                    flag = str(inputs[11]).strip('\n')
-                    # short or long position on this option.
-                    shorted = True if inputs[10] == 'short' else False
+        elif data.Type == 'Option':
+            strike = float(data.strike)
+            volid = str(data.vol_id)
+            opmth = volid.split()[1].split('.')[0]
+            char = str(data.call_put_id)
+            # char = str(inputs[3])
+            volflag = 'C' if char == 'call' else 'P'
 
-                    # handle underlying construction
-                    f_mth = volid.split()[1].split('.')[1]
-                    f_name = volid.split()[0]
-                    mths = contract_mths[f_name]
-                    ordering = find_cdist(curr_sym, f_mth, mths)
-                    # print('ordering inputs: ', curr_sym, f_mth)
-                    u_name = volid.split('.')[0]
-                    f_price = pricedata[(pricedata['value_date'] == sim_start) &
-                                        (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
-                    # print('PRICE AND DATE UNDERLYING: ', sim_start, f_price)
-                    # print('VOL AND DATE: ', sim_start, vol)
-                    underlying = Future(
-                        f_mth, f_price, f_name, ordering=ordering)
-                    opt = Option(strike, tau, char, vol, underlying,
-                                 payoff, shorted=shorted, month=opmth, direc=direc, barrier=barriertype,
-                                 bullet=bullet, ki=ki, ko=ko, ordering=ordering)
-                    oplist[flag].append(opt)
-                    # pf.add_security(opt, flag)
+            # get tau from data
+            tau = voldata[(voldata['value_date'] == sim_start) &
+                          (voldata['vol_id'] == volid) &
+                          (voldata['call_put_id'] == volflag)]['tau'].values[0]
+            # print('days to exp: ', round(tau * 365))
+            # get vol from data
+            vol = voldata[(voldata['vol_id'] == volid) &
+                          (voldata['call_put_id'] == volflag) &
+                          (voldata['value_date'] == sim_start) &
+                          (voldata['strike'] == strike)]['settle_vol'].values[0]
+            # american vs european payoff
+            payoff = str(data.optiontype)
+            # american or european barrier.
+            # print('TYPE: ', type(data.barriertype))
+            # print('barriertype: ', data.barriertype == 'nan')
 
-                # input specifies a future
-                elif inputs[0] == 'Future':
+            # debugging:
 
-                    full = inputs[1].split()
-                    product = full[0]
-                    mth = full[1]
-                    ordering = find_cdist(curr_sym, mth)
-                    price = pricedata[(pricedata['underlying_id'] == inputs[1]) &
-                                      (pricedata['value_date'] == sim_start)]['settle_value'].values[0]
-                    flag = inputs[4].strip('\n')
-                    shorted = True if inputs[4] == 'short' else False
-                    ft = Future(mth, price, product,
-                                shorted=shorted, ordering=ordering)
-                    ftlist[flag].append(ft)
-                    # pf.add_security([ft], flag)
+            barriertype = None if data.barriertype == 'None' else str(
+                data.barriertype)
+            # direction of barrier.
+            direc = None if data.direction == 'None' else str(data.direction)
+            # knock-in. is not None iff this is a knock-in option.
+            ki = None if data.knockin == 'None' else float(data.knockin)
+            # knock-out. is not None iff this is a knock-out option.
+            ko = None if data.knockout == 'None' else float(data.knockout)
+            # bullet vs daily pay-out. defaults to False.
+            bullet = True if data.bullet else False
+            # hedge or OTC
+            flag = str(data.hedgeorOTC)
+            # short or long position on this option.
+            shorted = True if data.shorted else False
+
+            # handle underlying construction
+            f_mth = volid.split()[1].split('.')[1]
+            f_name = volid.split()[0]
+            mths = contract_mths[f_name]
+            ordering = find_cdist(curr_sym, f_mth, mths)
+            # print('ordering inputs: ', curr_sym, f_mth)
+            u_name = volid.split('.')[0]
+            f_price = pricedata[(pricedata['value_date'] == sim_start) &
+                                (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
+            # print('PRICE AND DATE UNDERLYING: ', sim_start, f_price)
+            # print('VOL AND DATE: ', sim_start, vol)
+            underlying = Future(
+                f_mth, f_price, f_name, ordering=ordering)
+            opt = Option(strike, tau, char, vol, underlying,
+                         payoff, shorted=shorted, month=opmth, direc=direc, barrier=barriertype,
+                         bullet=bullet, ki=ki, ko=ko, ordering=ordering)
+            oplist[flag].append(opt)            # option case
     # handling bullet options
     bullets = handle_dailies(oplist)
     # print('bullet list:', len(bullets['OTC']))
@@ -227,7 +357,7 @@ def prep_portfolio(voldata, pricedata, filepath):
         fts = ftlist[flag]
         pf.add_security(fts, flag)
 
-    elapsed = time.time() - t
+    # elapsed = time.time() - t
     # print('[PREP_PORTFOLIO] elapsed: ', elapsed)
     return pf
 

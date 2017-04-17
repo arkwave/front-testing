@@ -41,6 +41,7 @@ contract_mths = {
 
 
 def test_prep_portfolio():
+
     vdata, pdata, edf = pr.read_data(filepath)
     pmin = min(pdata['value_date'])
     vmin = min(vdata['value_date'])
@@ -48,7 +49,7 @@ def test_prep_portfolio():
     assert pmin == vmin
 
     # sim_start = pmin
-    pf = pr.prep_portfolio(vdata, pdata, filepath)
+    pf = pr.prep_portfolio(vdata, pdata)
 
     otc = pf.OTC
     # hedge = pf.hedges

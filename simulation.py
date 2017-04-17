@@ -549,7 +549,7 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering):
 
 
 if __name__ == '__main__':
-    filepath = 'portfolio_specs.txt'
+    filepath = 'data_loc.txt'
     vdf, pdf, edf = read_data(filepath)
     # check sanity of data
     vdates = pd.to_datetime(vdf.value_date.unique())
@@ -562,7 +562,7 @@ if __name__ == '__main__':
             'Invalid data sets passed in; vol and price data must have the same date range.')
 
     # generate portfolio
-    pf = prep_portfolio(vdf, pdf, filepath)
+    pf = prep_portfolio(vdf, pdf)
     # print(pf)
     # proceed to run simulation
     run_simulation(vdf, pdf, edf, pf)

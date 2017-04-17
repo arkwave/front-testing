@@ -17,8 +17,8 @@ from scripts.prep_data import read_data
 from simulation import gen_hedge_inputs, hedge, hedge_delta
 import numpy as np
 
-
-vdf, pdf, edf = read_data()
+filepath = 'data_loc.txt'
+vdf, pdf, edf = read_data(filepath)
 # vdf.to_csv('vdf.csv')
 # pdf.to_csv('pdf.csv')
 
