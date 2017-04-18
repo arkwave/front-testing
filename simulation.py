@@ -14,17 +14,16 @@ import numpy as np
 import pandas as pd
 # from scripts.calc import get_barrier_vol
 from scripts.classes import Option, Future
-from scripts.prep_data import read_data, prep_portfolio, get_rollover_dates
+from scripts.prep_data import read_data, prep_portfolio, get_rollover_dates, generate_hedges
 from math import ceil
 import copy
 import time
 import matplotlib.pyplot as plt
 import pprint
-from ast import literal_eval
 
 ###########################################################################
 ######################## initializing variables ###########################
-
+###########################################################################
 # Dictionary of multipliers for greeks/pnl calculation.
 # format  =  'product' : [dollar_mult, lot_mult, futures_tick,
 # options_tick, pnl_mult]
@@ -119,12 +118,15 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
     cumul_values = []
 
     date_range = sorted(voldata.value_date.unique())  # [1:]
-    xvals = range(1, len(date_range))
+    xvals = range(1, len(date_range)+1)
     # print('date range: ', date_range)
+
+    # hedging frequency counters for delta, gamma, theta, vega respectively.
+    counters = [1, 1, 1, 1]
 
     # Step 1 & 2
     init_val = 0
-    for i in range(len(date_range)):
+    for i in range(len(date_range[:10])):
         date = date_range[i]
         try:
             next_date = date_range[i+1]
@@ -156,8 +158,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
         print('[10]   EOD PNL: ', dailypnl)
         print('[10.5] Cumulative PNL: ', pnl)
     # Step 4
-        pf = rebalance(vdf, pdf, pf, hedges)
-        # print('[13]  EOD PORTFOLIO: ', pf)
+        pf, counters = rebalance(vdf, pdf, pf, hedges, counters)
+        print('[13]  EOD PORTFOLIO: ', pf)
         init_val = pf.compute_value()
     # Step 5: Decrement timestep after all steps.
         # calculate number of days to step
@@ -212,27 +214,23 @@ def feed_data(voldf, pdf, pf, dic):
     Returns:
         tuple: change in value and updated portfolio object.
     """
-
-    # debugging
-    # print('feeding data...')
-    # x = list(pf.OTC['C']['N7'][0])
-    # print('HEDGES: ', pf.hedges)
-    # y = list(pf.hedges['C']['N7'][0]) if pf.hedges else []
-
     broken = False
     if voldf.empty:
         raise ValueError('vol df is empty!')
     date = voldf.value_date.unique()[0]
     raw_diff = 0
+
     # 1) initial value of the portfolio before updates.
     prev_val = pf.compute_value()
+
+    # [DEBUGGING STATEMENTS]
     # print('[0]    PREVIOUS VALUE: ', prev_val)
     # print('[0.1]  PRICE BEFORE VOL UPDATE: ', x[0].get_price())
     # print('[0.2]  VOL BEFORE VOL UPDATE: ', x[0].vol)
     # print('[0.3]  GREEKS BEFORE VOL UPDATE: ', pf.OTC['C']['N7'][2:])
     # print('[0.4]  PORFOLIO BEFORE VOL UPDATE: ', pf)
-    # 2) Check for rollovers and expiries
-    # rollovers
+
+    # 2) Check for rollovers and expiries rollovers
     for product in dic:
         ro_dates = dic[product]
         # rollover date for this particular product
@@ -294,6 +292,7 @@ def feed_data(voldf, pdf, pf, dic):
     pf.update_sec_by_month(None, 'OTC', update=True)
     pf.update_sec_by_month(None, 'hedge', update=True)
 
+    # [DEBUGGING STATEMENTS]
     # print('[1]  TAU: ', x[0].tau)
     # print('[2]  TTM: ', x[0].tau * 365)
     # print('[3]  VOL AFTER UPDATE: ', x[0].vol)
@@ -312,6 +311,7 @@ def feed_data(voldf, pdf, pf, dic):
     # print('[5.2] GREEKS HEDGE: ', y[1].greeks())
 
     # print('[6]  PORFOLIO AFTER UPDATE: ', pf)
+
     print('[7]  NET GREEKS: ', str(pprint.pformat(pf.net_greeks)))
 
     # 5) computing new value
@@ -383,7 +383,7 @@ def handle_exercise(pf, date, sim_start):
 ########### Hedging-related functions (generation and implementation) #########
 ###############################################################################
 
-def rebalance(vdf, pdf, pf, hedges):
+def rebalance(vdf, pdf, pf, hedges, counters):
     """ Function that handles EOD greek hedging. Calls hedge_delta and hedge_gamma_vega.
     Notes:
     1) hedging gamma and vega done by buying/selling ATM straddles. No liquidity constraints assumed.
@@ -403,6 +403,7 @@ def rebalance(vdf, pdf, pf, hedges):
     # compute how many such deals are required. add to appropriate pos.
     # return both the portfolio, as well as the gain/loss from short/long pos
     # hedging delta, gamma, vega.
+    delta_freq, gamma_freq, theta_freq, vega_freq = counters
     dic = copy.deepcopy(pf.get_net_greeks())
     for product in dic:
         for month in dic[product]:
@@ -411,11 +412,22 @@ def rebalance(vdf, pdf, pf, hedges):
                 hedges, vdf, pdf, month, pf, product, ordering, 'gamma')
             vinputs = gen_hedge_inputs(
                 hedges, vdf, pdf, month, pf, product, ordering, 'vega')
-            pf = hedge(pf, ginputs, product, month, 'gamma')
-            pf = hedge(pf, vinputs, product, month, 'vega')
-            pf, dhedges = hedge_delta(hedges['delta'], vdf, pdf,
-                                      pf, month, product, ordering)
-    return pf
+            if gamma_freq == hedges['gamma'][1]:
+                pf = hedge(pf, ginputs, product, month, 'gamma')
+                counters[1] = 1
+            if vega_freq == hedges['vega'][1]:
+                pf = hedge(pf, vinputs, product, month, 'vega')
+                counters[3] = 1
+            if delta_freq == hedges['delta'][1]:
+
+                pf, dhedges = hedge_delta(hedges['delta'][0], vdf, pdf,
+                                          pf, month, product, ordering)
+                counters[0] = 1
+            # none of the hedges meet their frequency counter
+            else:
+                counters = [x+1 for x in counters]
+
+    return pf, counters
 
 
 # TODO: update this with new objects in mind.
@@ -442,8 +454,8 @@ def gen_hedge_inputs(hedges, vdf, pdf, month, pf, product, ordering, flag):
     gamma = greeks[1]
     vega = greeks[3]
     greek = gamma if flag == 'gamma' else vega
-    gamma_bound = hedges['gamma']
-    vega_bound = hedges['vega']
+    gamma_bound = hedges['gamma'][0]
+    vega_bound = hedges['vega'][0]
     bound = gamma_bound if flag == 'gamma' else vega_bound
 
     # relevant data for constructing Option and Future objects.
@@ -561,8 +573,8 @@ def hedge(pf, inputs, product, month, flag):
         pf.add_security(callops, 'hedge')
         pf.add_security(putops, 'hedge')
     else:
-        # print(str(product) + ' ' + str(month) + ' ' + flag.upper() +
-        #       ' WITHIN BOUNDS. SKIPPING HEDGING')
+        print(str(product) + ' ' + str(month) + ' ' + flag.upper() +
+              ' WITHIN BOUNDS. SKIPPING HEDGING')
         pass
     return pf  # [callop, putop]
 
@@ -606,27 +618,6 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering):
     return pf, ft
 
 
-def generate_hedges(filepath):
-    df = pd.read_csv(filepath)
-    hedges = {}
-    for i in df.index:
-        row = df.iloc[i]
-        # static hedging
-        if row.flag == 'static':
-            greek = row.greek
-            hedges[greek] = [row.cond, int(row.freq)]
-        # bound hedging
-        elif row.flag == 'bound':
-            greek = row.greek
-            hedges[greek] = [literal_eval(row.cond), int(row.freq)]
-
-        # percentage hedging
-        elif row.flag == 'pct':
-            greek = row.greek
-            hedges[greek] = [float(row.cond), int(row.freq)]
-    return hedges
-
-
 ##########################################################################
 ##########################################################################
 ##########################################################################
@@ -648,8 +639,9 @@ if __name__ == '__main__':
             'Invalid data sets passed in; vol and price data must have the same date range.')
 
     # generate portfolio
-    filepath = 'datasets/corn_portfolio_specs.csv'
+    # filepath = 'datasets/corn_portfolio_specs.csv'
     # filepath = 'datasets/bo_portfolio_specs.csv'
+    filepath = 'specs.csv'
     pf, sim_start = prep_portfolio(vdf, pdf, filepath=filepath)
     print(pf)
 
@@ -664,8 +656,17 @@ if __name__ == '__main__':
     # generate hedges
     hedge_path = 'hedging.csv'
     hedges = generate_hedges(hedge_path)
-
     pnl, pf1 = run_simulation(vdf, pdf, edf, pf, hedges=hedges)
+
+    e2 = time.time() - e1
+    print('[simulation]: ', e2)
+
+
+#######################################################################
+#######################################################################
+#######################################################################
+
+# code dump
 
     # proceed to run simulation
     # pnl_list = []
@@ -681,6 +682,3 @@ if __name__ == '__main__':
 
     # print('mean pnl: ', np.mean(pnl_list))
     # print('pnl sd: ', np.std(pnl_list))
-
-    e2 = time.time() - e1
-    print('[simulation]: ', e2)
