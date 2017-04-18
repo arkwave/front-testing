@@ -1,11 +1,3 @@
-datasets/settlement_vol_surf_table.csv
-datasets/underlying_settle_value_table.csv
+datasets/corn_vols.csv
+datasets/corn_prices.csv
 datasets\option_expiry.csv
-
-
-
-
-
-
-datasets\corn_portfolio_vols.csv
-datasets\corn_portfolio_prices.csv
