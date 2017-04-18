@@ -99,8 +99,9 @@ class Option:
 
     def __str__(self):
         string = ''
-        string += self.product + ' ' + self.underlying.get_month() + '.' + \
-            self.month + ' '
+        string += self.product + ' ' + self.month + \
+            '.' + self.underlying.get_month() + ' '
+
         string += str(self.K) + ' '
         if self.barrier is None:
             string += 'Vanilla '
@@ -121,6 +122,7 @@ class Option:
             string += ' ' + str(self.ko)
         string += ' S' if self.shorted else ' L'
         string += ' ' + str(int(self.lots))
+        string += ' ' + str(round(self.tau * 365))
         return string
 
     def set_ordering(self, val):
@@ -369,7 +371,8 @@ class Option:
         self.delta, self.gamma, self.theta, self.vega = 0, 0, 0, 0
 
     def check_expired(self):
-        ret = True if (self.tau <= 0 or self.ordering <= 0) else False
+        ret = True if (np.isclose(self.tau, 0) or self.tau <=
+                       0 or self.ordering <= 0) else False
         self.expired = ret
         return ret
 

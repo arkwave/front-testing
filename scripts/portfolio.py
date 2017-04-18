@@ -608,7 +608,7 @@ class Portfolio:
         return retr
 
     def timestep(self, value):
-        all_options = self.OTC_options + self.hedge_options
+        all_options = self.get_all_options()
         for option in all_options:
             option.update_tau(value)
 

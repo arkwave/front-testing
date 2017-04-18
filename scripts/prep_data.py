@@ -67,6 +67,10 @@ contract_mths = {
 ###############################################################
 
 
+def read_hedges(filepath):
+    pass
+
+
 def read_data(filepath):
     """Wrapper method that handles all read-in and preprocessing. This function does the following:
     1) reads in path to volatility, price and expiry tables from portfolio_specs.txt
@@ -96,7 +100,7 @@ def read_data(filepath):
             priceDF = clean_data(priceDF, 'price', edf=edf)
             # final preprocessing steps
             final_price = ciprice(priceDF)
-            final_vol = civols(volDF, priceDF)
+            final_vol = civols(volDF, final_price)
 
         except FileNotFoundError:
             print(volpath)
@@ -237,6 +241,7 @@ def read_data(filepath):
 #     return pf
 
 
+# NOTE: might want to eliminate any dependence on vol_id and underlying_id
 def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
     """Constructs the portfolio from the requisite CSV file that specifies the details of 
     each security in the portfolio.
@@ -255,7 +260,7 @@ def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
     oplist = {'hedge': [], 'OTC': []}
     ftlist = {'hedge': [], 'OTC': []}
     # sim_start = min(min(voldata.value_date), min(pricedata.value_date))
-    sim_start = pd.to_datetime(sim_start)
+
     t = time.time()
     pf = Portfolio()
     curr_mth = dt.date.today().month
@@ -265,8 +270,11 @@ def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
     # reading in the dataframe of portfolio values
     specs = pd.read_csv(filepath)
     specs = specs.fillna('None')
+
     pf_ids = specs.vol_id.unique()
     sim_start = get_min_start_date(voldata, pricedata, pf_ids)
+    sim_start = pd.to_datetime(sim_start)
+    print('SIM START: ', sim_start)
     # constructing each object individually
     for i in range(len(specs)):
         data = specs.iloc[i]
@@ -277,6 +285,8 @@ def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
             mth = full[1]
             lst = contract_mths[product]
             ordering = find_cdist(curr_sym, mth, lst)
+            # price = pricedata[(pricedata.order == ordering) &
+            #                   (pricedata.value_date == sim_start)]['settle_value'].values[0]
             price = pricedata[(pricedata['underlying_id'] == data.vol_id) &
                               (pricedata['value_date'] == sim_start)]['settle_value'].values[0]
             flag = data.hedgeorOTC
@@ -365,7 +375,7 @@ def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
 
     # elapsed = time.time() - t
     # print('[PREP_PORTFOLIO] elapsed: ', elapsed)
-    return pf
+    return pf, sim_start
 
 
 def handle_dailies(dic):
@@ -455,8 +465,8 @@ def clean_data(df, flag, edf=None):
         df = ttm(df, df['vol_id'], edf)
         df = df[df.tau > 0].dropna()
         # generating additional identifying fields.
-        df['underlying_id'] = df[
-            'vol_id'].str.split().str[0] + '  ' + df['vol_id'].str.split('.').str[1]
+        df['underlying_id'] = df['vol_id'].str.split().str[0] + '  ' + \
+            df['vol_id'].str.split('.').str[1]
         df['pdt'] = df['underlying_id'].str.split().str[0]
         df['ftmth'] = df['underlying_id'].str.split().str[1]
         df['op_id'] = df['op_id'] = df.vol_id.str.split().str[
@@ -472,6 +482,13 @@ def clean_data(df, flag, edf=None):
             print('vol_id type: ', type(df.vol_id[0]))
             print('order type: ', type(df.order[0]))
 
+        # setting data types
+        df.order = pd.to_numeric(df.order)
+        df.tau = pd.to_numeric(df.tau)
+        df.strike = pd.to_numeric(df.strike)
+        df.settle_vol = pd.to_numeric(df.settle_vol)
+        df.value_date = pd.to_datetime(df.value_date)
+
     # cleaning price data
     elif flag == 'price':
         # dealing with datatypes and generating new fields from existing ones.
@@ -485,6 +502,13 @@ def clean_data(df, flag, edf=None):
         df = df.fillna(0)
         df.expdate = pd.to_datetime(df.expdate)
         df = df[df.value_date <= df.expdate]
+
+        # setting data types
+        df.order = pd.to_numeric(df.order)
+        df.value_date = pd.to_datetime(df.value_date)
+        df.settle_value = pd.to_numeric(df.settle_value)
+        df.returns = pd.to_numeric(df.returns)
+        df.expdate = pd.to_datetime(df.expdate)
 
     df.reset_index(drop=True, inplace=True)
     df = df.dropna()
@@ -779,7 +803,7 @@ def ttm(df, s, edf):
         expdate = get_expiry_date(iden, edf)
         # print('Expdate: ', expdate)
         try:
-            expdate = expdate.values[0]
+            expdate = pd.to_datetime(expdate.values[0])
         except IndexError:
             print('Vol ID: ', iden)
         currdate = pd.to_datetime(df[(df['vol_id'] == iden)]['value_date'])
