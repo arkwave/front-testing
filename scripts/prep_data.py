@@ -254,7 +254,7 @@ def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
     # initializing variables
     oplist = {'hedge': [], 'OTC': []}
     ftlist = {'hedge': [], 'OTC': []}
-    sim_start = min(min(voldata.value_date), min(pricedata.value_date))
+    # sim_start = min(min(voldata.value_date), min(pricedata.value_date))
     sim_start = pd.to_datetime(sim_start)
     t = time.time()
     pf = Portfolio()
@@ -265,6 +265,8 @@ def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
     # reading in the dataframe of portfolio values
     specs = pd.read_csv(filepath)
     specs = specs.fillna('None')
+    pf_ids = specs.vol_id.unique()
+    sim_start = get_min_start_date(voldata, pricedata, pf_ids)
     # constructing each object individually
     for i in range(len(specs)):
         data = specs.iloc[i]
@@ -890,15 +892,6 @@ def find_cdist(x1, x2, lst):
     return dist
 
 
-# def generate_mappings(pricedata):
-#     mappings = {}
-#     products = pricedata['pdt'].unique()
-#     curr_mth = dt.date.today().month
-#     for product in products:
-#         mths = contract_mths[product]
-#     pass
-
-
 def scale_prices(pricedata):
     """Converts price data into returns, by applying log(curr/prev). Treats each underlying security by itself so as to avoid taking the quotient of two different securities.
 
@@ -1026,3 +1019,13 @@ def compute_delta(x):
         delta1 = norm.cdf(d1) - 1
 
     return delta1
+
+
+def get_min_start_date(vdf, pdf, lst):
+    dates = []
+    test = pdf.merge(vdf, on=['pdt', 'value_date', 'underlying_id', 'order'])
+    test.to_csv('datasets/merged.csv', index=False)
+    for vid in lst:
+        df = vdf[vdf.vol_id == vid]
+        dates.append(min(df.value_date))
+    return max(dates)

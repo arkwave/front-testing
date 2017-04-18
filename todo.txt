@@ -407,25 +407,26 @@ is being handled correctly.                         [Done]
 > Debug gamma calculations                    [Done]
 > A barriers                                  [Done]
 > feeding in now Done through CSV             [Done]
-
 > data viz                                    []
 	> daily pnl                               [Done]
 	> cumulative pnl                          [Done]
-	> pnl histogram                           []
-
-> adapt feed_data to check for high/low/close []
-for ki/ko           
+> run the corn portfolio                      [Done]
 
 
 
 18/4
-> generate data requirements from portfolio 
-object                                        [] -> use get_all_futures.
+> clean bo data, run the bo portfolio                        []
+> adapt feed_data to check for high/low/close for ki/ko      []
+
+
+
 
 
 
 Aux Concerns:
-> adapt computation for returns/vol change,           []
+> adapt computation for returns/vol change,                  []
+> pnl histogram                                              []
+
 
 
 
@@ -445,7 +446,7 @@ Notes from meeting: #
 3. high/low prices for barriers
 4. correlation surfaces as inputs
 5. flexible hedging strategies.
-6. accounting for gap risk.
+
 
 MC Pricing for Barriers:
 1) Brownian bridge-based methods.
