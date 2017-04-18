@@ -415,10 +415,18 @@ is being handled correctly.                         [Done]
 
 
 18/4
-> clean bo data, run the bo portfolio                        []
-> adapt feed_data to check for high/low/close for ki/ko      []
+> standardize date ranges                                    [Done]
+
+> adapt feed_data to check for high/low/close for ki/ko      [WIP]
+> clean bo data, run the bo portfolio                        [WIP]
+> figure out the expiry issue                                [Done]
+> debug handle options                                       [Done]
+> get solid on the time delta stuff                          [Done]
+> adapt hedges as input.                                     []
 
 
+19/4
+> make sure bullets work                                     []
 
 
 
@@ -439,17 +447,28 @@ TODO once dumps are ready:> finalize database updating stuff.
 Notes from meeting: #
 =====================
 
-
-
-1. XML instead of text files, read using beautiful soup.
+-- to do: --
 2. vanna/volga methods for vols. 
+
 3. high/low prices for barriers
+	> todo once data is acquired.
+
+
+--- followed through ---
+1. XML instead of text files, read using beautiful soup.
+	> replaced using csv
+
+
 4. correlation surfaces as inputs
+	> required for monte carlo generation of series & pricing 
+
 5. flexible hedging strategies.
+	> done
 
 
 MC Pricing for Barriers:
 1) Brownian bridge-based methods.
+
 
 MC Generation of Price and Vol series:
 No idea yet man.
