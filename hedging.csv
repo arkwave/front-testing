@@ -2,4 +2,4 @@ greek,flag,cond,freq
 delta,static,zero,1
 gamma,bound,"(-5000, 5000)",1
 vega,bound,"(-5000, 5000)",1
-theta,,,
+theta,bound,"(-1000,1000)",1
