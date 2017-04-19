@@ -416,17 +416,37 @@ is being handled correctly.                         [Done]
 
 18/4
 > standardize date ranges                                    [Done]
-
-> adapt feed_data to check for high/low/close for ki/ko      [WIP]
-> clean bo data, run the bo portfolio                        [WIP]
 > figure out the expiry issue                                [Done]
 > debug handle options                                       [Done]
 > get solid on the time delta stuff                          [Done]
-> adapt hedges as input.                                     []
+
+
 
 
 19/4
-> make sure bullets work                                     []
+> adapt hedges as input.                                     []
+	- from csv to dictionary                                 [Done]
+
+> fix test_simulation                                        []
+
+> theta hedging with atm straddles                           []
+> vol by delta implementation in feed data                   []
+> computational block:                                       []
+	> price * returns
+	> vol + change vol 
+	> feed these two into portfolio as per usual. 
+
+
+
+
+
+hedging changes:
+> gen_hedge_inputs changes
+- hedge only according to frequency                     
+		> counters                                           [Done]
+		> day number                                         [Done]
+- static and bounded hedging functions implementation        []
+
 
 
 
@@ -434,13 +454,14 @@ is being handled correctly.                         [Done]
 Aux Concerns:
 > adapt computation for returns/vol change,                  []
 > pnl histogram                                              []
-
-
+> adapt feed_data to check for high/low/close for ki/ko      [WIP]
+> clean bo data, run the bo portfolio                        [WIP]
 
 
 
 TODO once dumps are ready:> finalize database updating stuff. 
 > batch script to run the file every day. 
+
 
 
 =====================
