@@ -424,18 +424,25 @@ is being handled correctly.                         [Done]
 
 
 19/4
-> adapt hedges as input.                                     []
-	- from csv to dictionary                                 [Done]
+> adapt hedges as input.                                     [Done]
+	- from csv to dictionary          	                     [Done]
 
-> fix test_simulation                                        []
 
-> theta hedging with atm straddles                           []
+
+> fix test_simulation                                        [Done]
+
+> make sure hedging works for k7 corn                        [Done]
+	> changed location of break function                     [Done]
+
+> theta hedging with atm straddles                           [Done]
+
 > vol by delta implementation in feed data                   []
+	- understand reason why this is required.
+
 > computational block:                                       []
 	> price * returns
 	> vol + change vol 
 	> feed these two into portfolio as per usual. 
-
 
 
 
@@ -446,6 +453,7 @@ hedging changes:
 		> counters                                           [Done]
 		> day number                                         [Done]
 - static and bounded hedging functions implementation        []
+
 
 
 
