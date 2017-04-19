@@ -40,7 +40,7 @@ filepath = 'hedging.csv'
 #         print(filepath)
 
 
-def read_hedges(filepath):
+def generate_hedges(filepath=filepath):
     df = pd.read_csv(filepath)
     hedges = {}
     for i in df.index:
@@ -48,16 +48,17 @@ def read_hedges(filepath):
         # static hedging
         if row.flag == 'static':
             greek = row.greek
-            hedges[greek] = [row.cond, int(row.freq)]
+            hedges[greek] = [row.flag, row.cond, int(row.freq)]
         # bound hedging
         elif row.flag == 'bound':
             greek = row.greek
-            hedges[greek] = [literal_eval(row.cond), int(row.freq)]
-
+            hedges[greek] = [row.flag, literal_eval(row.cond), int(row.freq)]
         # percentage hedging
         elif row.flag == 'pct':
             greek = row.greek
-            hedges[greek] = [float(row.cond), int(row.freq)]
+            hedges[greek] = [row.flag, float(row.cond),
+                             int(row.freq), row.subcond]
+
     return hedges
 
-hedges = read_hedges()
+hedges = generate_hedges()

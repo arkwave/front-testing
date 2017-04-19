@@ -427,8 +427,6 @@ is being handled correctly.                         [Done]
 > adapt hedges as input.                                     [Done]
 	- from csv to dictionary          	                     [Done]
 
-
-
 > fix test_simulation                                        [Done]
 
 > make sure hedging works for k7 corn                        [Done]
@@ -447,13 +445,13 @@ is being handled correctly.                         [Done]
 
 
 
-hedging changes:
+
+overall hedging changes:
 > gen_hedge_inputs changes
 - hedge only according to frequency                     
 		> counters                                           [Done]
 		> day number                                         [Done]
 - static and bounded hedging functions implementation        []
-
 
 
 
