@@ -721,10 +721,12 @@ if __name__ == '__main__':
             'Invalid data sets passed in; vol and price data must have the same date range.')
 
     # generate portfolio
-    filepath = 'k7specs.csv'
-    # filepath = 'datasets/corn_portfolio_specs.csv'
+
+    filepath = 'datasets/corn_portfolio_specs.csv'
     # filepath = 'datasets/bo_portfolio_specs.csv'
+
     pf, sim_start = prep_portfolio(vdf, pdf, filepath=filepath)
+
     print(pf)
 
     vdf, pdf = vdf[vdf.value_date >= sim_start], \
