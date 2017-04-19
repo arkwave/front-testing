@@ -53,7 +53,10 @@ multipliers = {
 
 
 # list of hedging conditions.
-hedges = {'delta': 'zero', 'gamma': (-5000, 5000), 'vega': (-5000, 5000)}
+hedges = {'delta': 'zero',
+          'vega': (-1000, 1000)}
+# 'gamma': (-5000, 5000)}
+# 'theta': (-1000, 1000)}
 
 # slippage/brokerage
 # slippage = 1
@@ -119,12 +122,16 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
     cumul_values = []
 
     date_range = sorted(voldata.value_date.unique())  # [1:]
-    xvals = range(1, len(date_range))
+    xvals = range(1, len(date_range) + 1)
     # print('date range: ', date_range)
 
     # Step 1 & 2
     init_val = 0
-    for i in range(len(date_range)):
+    broken = False
+    for i in range(len(date_range[:10])):
+        if broken:
+            print('DATA MISSING; ENDING SIMULATION')
+            break
         date = date_range[i]
         try:
             next_date = date_range[i+1]
@@ -141,8 +148,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
         # iteration.
         raw_change, pf, broken = feed_data(vdf, pdf, pf, rollover_dates)
         # pnl += raw_change
-        if broken:
-            break
+        # if broken:
+        #     break
     # Step 3
         expenditure, pf = handle_exercise(pf, date, min(date_range))
         pnl += expenditure
@@ -156,8 +163,9 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
         print('[10]   EOD PNL: ', dailypnl)
         print('[10.5] Cumulative PNL: ', pnl)
     # Step 4
+        print('BEFORE REBALANCE: ', pf)
         pf = rebalance(vdf, pdf, pf, hedges)
-        # print('[13]  EOD PORTFOLIO: ', pf)
+        print('[13]  EOD PORTFOLIO: ', pf)
         init_val = pf.compute_value()
     # Step 5: Decrement timestep after all steps.
         # calculate number of days to step
@@ -248,30 +256,10 @@ def feed_data(voldf, pdf, pf, dic):
     # if they are available.
     # priceList = []
 
-    for ft in pf.get_all_futures():
-
-        pdt, ordering = ft.get_product(), ft.get_ordering()
-        # print(pf.get_all_futures()) if ordering is None else print(
-        # 'ordering not none')
-        # print('ordering: ', ordering)
-        try:
-            val = pdf[(pdf.pdt == pdt) & (
-                pdf.order == ordering)].settle_value.values[0]
-            ft.update_price(val)
-            # print('UPDATED - new price: ', val)
-        # index error would occur only if data is missing.
-        except IndexError:
-            # print('Date, ordering, product', pdt,
-                  # ordering, pdf.value_date.unique())
-            print('###### DATA MISSING #######')
-            # print(pdt, ordering)
-            broken = True
-            break
-
     # update option attributes by feeding in vol.
-    all_options = pf.get_all_options()
+    # all_options = pf.get_all_options()
     if not broken:
-        for op in all_options:
+        for op in pf.get_all_options():
             # info reqd: strike, order, product.
             strike, order, product, tau = op.K, op.ordering, op.product, op.tau
             cpi = 'C' if op.char == 'call' else 'P'
@@ -287,6 +275,26 @@ def feed_data(voldf, pdf, pf, dic):
                 # print('UPDATED - new vol: ', val, op)
             except IndexError:
                 print('### DATA MISSING ###')
+                broken = True
+                break
+
+    if not broken:
+        for ft in pf.get_all_futures():
+            pdt, ordering = ft.get_product(), ft.get_ordering()
+            # print(pf.get_all_futures()) if ordering is None else print(
+            # 'ordering not none')
+            # print('ordering: ', ordering)
+            try:
+                val = pdf[(pdf.pdt == pdt) & (
+                    pdf.order == ordering)].settle_value.values[0]
+                ft.update_price(val)
+                # print('UPDATED - new price: ', val)
+            # index error would occur only if data is missing.
+            except IndexError:
+                # print('Date, ordering, product', pdt,
+                      # ordering, pdf.value_date.unique())
+                print('###### DATA MISSING #######')
+                # print(pdt, ordering)
                 broken = True
                 break
 
@@ -312,7 +320,7 @@ def feed_data(voldf, pdf, pf, dic):
     # print('[5.2] GREEKS HEDGE: ', y[1].greeks())
 
     # print('[6]  PORFOLIO AFTER UPDATE: ', pf)
-    print('[7]  NET GREEKS: ', str(pprint.pformat(pf.net_greeks)))
+    # print('[7]  NET GREEKS: ', str(pprint.pformat(pf.net_greeks)))
 
     # 5) computing new value
     new_val = pf.compute_value()
@@ -407,14 +415,29 @@ def rebalance(vdf, pdf, pf, hedges):
     for product in dic:
         for month in dic[product]:
             ordering = pf.compute_ordering(product, month)
-            ginputs = gen_hedge_inputs(
-                hedges, vdf, pdf, month, pf, product, ordering, 'gamma')
-            vinputs = gen_hedge_inputs(
-                hedges, vdf, pdf, month, pf, product, ordering, 'vega')
-            pf = hedge(pf, ginputs, product, month, 'gamma')
-            pf = hedge(pf, vinputs, product, month, 'vega')
-            pf, dhedges = hedge_delta(hedges['delta'], vdf, pdf,
-                                      pf, month, product, ordering)
+            # vega/gamma/theta hedging. loop allows for dynamic hedging dict.
+            for strat in hedges:
+                if strat == 'delta':
+                    continue
+                else:
+                    inputs = gen_hedge_inputs(
+                        hedges, vdf, pdf, month, pf, product, ordering, strat)
+                    pf = hedge(pf, inputs, product, month, strat)
+
+            pf, dhedges = hedge_delta(
+                hedges['delta'], vdf, pdf, pf, month, product, ordering)
+
+            # ginputs = gen_hedge_inputs(
+            #     hedges, vdf, pdf, month, pf, product, ordering, 'gamma')
+            # vinputs = gen_hedge_inputs(
+            #     hedges, vdf, pdf, month, pf, product, ordering, 'vega')
+            # tinputs = gen_hedge_inputs(
+            #     hedges, vdf, pdf, month, pf, product, ordering, 'theta')
+            # pf = hedge(pf, tinputs, product, month, 'theta')
+            # pf = hedge(pf, ginputs, product, month, 'gamma')
+            # pf = hedge(pf, vinputs, product, month, 'vega')
+            # pf, dhedges = hedge_delta(hedges['delta'], vdf, pdf,
+            #                           pf, month, product, ordering)
     return pf
 
 
@@ -438,13 +461,15 @@ def gen_hedge_inputs(hedges, vdf, pdf, month, pf, product, ordering, flag):
     """
     net_greeks = pf.get_net_greeks()
     greeks = net_greeks[product][month]
-    # naming variables for clarity.
-    gamma = greeks[1]
-    vega = greeks[3]
-    greek = gamma if flag == 'gamma' else vega
-    gamma_bound = hedges['gamma']
-    vega_bound = hedges['vega']
-    bound = gamma_bound if flag == 'gamma' else vega_bound
+    if flag == 'gamma':
+        greek = greeks[1]
+        bound = hedges['gamma']
+    elif flag == 'vega':
+        greek = greeks[3]
+        bound = hedges['vega']
+    elif flag == 'theta':
+        greek = greeks[2]
+        bound = hedges['theta']
 
     # relevant data for constructing Option and Future objects.
     price = pdf[(pdf.pdt == product) & (
@@ -477,93 +502,160 @@ def hedge(pf, inputs, product, month, flag):
     Returns:
         tuple: cost of the hedge, and the updated portfolio
     """
-
+    # print(flag + ' ' + product + ' ' + month + ' ' + str(inputs))
     price, k, cvol, pvol, tau, underlying, greek, bound, ordering = inputs
 
     # creating straddle components.
     callop = Option(k, tau, 'call', cvol, underlying,
                     'euro', month=month, ordering=ordering, shorted=None)
 
-    # print('[9]  CVOL: ', cvol)
-    # print('[10] PVOL: ', pvol)
-
     putop = Option(k, tau, 'put', pvol, underlying,
                    'euro', month=month, ordering=ordering, shorted=None)
 
-    # print('delta diff ' + str(flag), cd + pd)
-
-    # straddle_val = callop.compute_price() + putop.compute_price()
     lm, dm = multipliers[product][1], multipliers[product][0]
 
-    if flag == 'gamma':
-        greek_c = (list(callop.greeks())[1] * dm) / (callop.lots * lm)
-        greek_p = (list(putop.greeks())[1] * dm) / (putop.lots * lm)
-
-    else:
-        greek_c = list(callop.greeks())[3] * 100 / (callop.lots * lm * dm)
-        greek_p = list(putop.greeks())[3] * 100 / (putop.lots * lm * dm)
-
     # gamma and vega hedging.
-    cdelta, cgamma, ctheta, cvega = callop.greeks()
-    pdelta, pgamma, ptheta, pvega = putop.greeks()
-
-    if flag == 'gamma':
-        pgreek, cgreek = pgamma, cgamma
-        # print('gamma hedging straddle: ', pgamma, cgamma)
-    else:
-        pgreek, cgreek = pvega, cvega
-
-    # checking if gamma exceeds bounds
     upper = bound[1]
     lower = bound[0]
     if greek > upper or greek < lower:
         # gamma hedging logic.
-        # print(flag + ' hedging')
+        # print(product + ' ' + month + ' ' + flag + ' hedging')
         if greek < lower:
-            # print('lower!')
-            # need to buy straddles. expenditure is positive.
-            callop.shorted = False
-            putop.shorted = False
-            # print('greek_c: ', greek_c)
-            # print('greek_p: ', greek_p)
+            # print('lower')
+            # need to buy straddles for gamma/vega, short for theta.
             if flag == 'gamma':
-                lots_req = round((abs(greek) * dm)/((greek_c + greek_p) * lm))
+                callop.shorted = False
+                putop.shorted = False
+                cdelta, cgamma, ctheta, cvega = callop.greeks()
+                pdelta, pgamma, ptheta, pvega = putop.greeks()
+                greek_c = (cgamma * dm) / (callop.lots * lm)
+                greek_p = (pgamma * dm) / (putop.lots * lm)
+                pgreek, cgreek = pgamma, cgamma
+                lots_req = round((abs(greek) * dm) /
+                                 ((greek_c + greek_p) * lm))
+
             elif flag == 'vega':
+                callop.shorted = False
+                putop.shorted = False
+                cdelta, cgamma, ctheta, cvega = callop.greeks()
+                pdelta, pgamma, ptheta, pvega = putop.greeks()
+                greek_c = (cvega * 100) / (callop.lots * lm * dm)
+                greek_p = (pvega * 100) / (putop.lots * lm * dm)
+                pgreek, cgreek = pvega, cvega
                 lots_req = round((abs(greek) * 100) /
                                  ((greek_c + greek_p) * lm * dm))
+
+            elif flag == 'theta':
+                # print('theta < lower: shorting straddles.')
+                callop.shorted = True
+                putop.shorted = True
+                cdelta, cgamma, ctheta, cvega = callop.greeks()
+                pdelta, pgamma, ptheta, pvega = putop.greeks()
+                greek_c = (ctheta * 365) / (callop.lots * lm * dm)
+                greek_p = (ctheta * 365) / (putop.lots * lm * dm)
+                pgreek, cgreek = ptheta, ctheta
+                lots_req = round((abs(greek) * 365) /
+                                 ((greek_c + greek_p) * lm * dm))
+
             callop.lots, putop.lots = lots_req, lots_req
-            # print('lots req: ', lots_req)
             num_required = ceil(abs(greek)/(pgreek + cgreek))
+
+            # print('lots req: ', lots_req)
+            # print('greek: ', greek)
+            # print('pgreek: ', pgreek)
+            # print('cgreek: ', cgreek)
             # print('num_req: ', num_required)
 
+            # if flag == 'gamma':
+            #     print('callop gamma: ', callop.gamma)
+            #     print('putop gamma: ', putop.gamma)
+            #     print('total ' + flag + ' added: ',
+            #           (callop.gamma + putop.gamma) * num_required)
+            # elif flag == 'vega':
+            #     print('callop vega: ', callop.vega)
+            #     print('putop vega: ', putop.vega)
+            #     print('total ' + flag + ' added: ',
+            #           (callop.vega + putop.vega) * num_required)
+            # elif flag == 'theta':
+            #     print('callop theta: ', callop.theta)
+            #     print('putop theta: ', putop.theta)
+            #     print('total ' + flag + ' added: ',
+            #           (callop.theta + putop.theta) * num_required)
+
         elif greek > upper:
-            # need to short straddles. expenditure is negative.
+            # need to short straddles for gamma/vega, long theta.
             # print('upper')
-            callop.shorted = True
-            putop.shorted = True
             if flag == 'gamma':
-                lots_req = round((greek * dm)/((greek_c + greek_p) * lm))
+                callop.shorted = True
+                putop.shorted = True
+                cdelta, cgamma, ctheta, cvega = callop.greeks()
+                pdelta, pgamma, ptheta, pvega = putop.greeks()
+                greek_c = (cgamma * dm) / (callop.lots * lm)
+                greek_p = (pgamma * dm) / (putop.lots * lm)
+                pgreek, cgreek = pgamma, cgamma
+                lots_req = round((greek * dm)/(abs(greek_c + greek_p) * lm))
+
             elif flag == 'vega':
                 # print('vega')
-                lots_req = round((greek * 100)/((greek_c + greek_p) * lm * dm))
-            # print('lots req: ', lots_req)
+                callop.shorted = True
+                putop.shorted = True
+                cdelta, cgamma, ctheta, cvega = callop.greeks()
+                pdelta, pgamma, ptheta, pvega = putop.greeks()
+                greek_c = (cvega * 100) / (callop.lots * lm * dm)
+                greek_p = (pvega * 100) / (putop.lots * lm * dm)
+                pgreek, cgreek = pvega, cvega
+                lots_req = round(
+                    (greek * 100)/(abs(greek_c + greek_p) * lm * dm))
+
+            elif flag == 'theta':
+                # print('theta > upper: buying straddles.')
+                callop.shorted = False
+                putop.shorted = False
+                cdelta, cgamma, ctheta, cvega = callop.greeks()
+                pdelta, pgamma, ptheta, pvega = putop.greeks()
+                greek_c = (ctheta * 365) / (callop.lots * lm * dm)
+                greek_p = (ctheta * 365) / (putop.lots * lm * dm)
+                pgreek, cgreek = ptheta, ctheta
+                lots_req = round(
+                    (greek * 365)/(abs(greek_c + greek_p) * lm * dm))
+
             callop.lots, putop.lots = lots_req, lots_req
-            num_required = ceil((greek)/(pgreek + cgreek))
+            num_required = ceil((greek) / abs(pgreek + cgreek))
+
+            # print('greek: ', greek)
+            # print(greek_c, greek_p, lm, dm)
+            # print('pgreek: ', pgreek)
+            # print('cgreek: ', cgreek)
+            # print('lots req: ', lots_req)
+
             # print('num_required: ', num_required)
+
+            # if flag == 'gamma':
+            #     print('callop gamma: ', callop.gamma)
+            #     print('putop gamma: ', putop.gamma)
+            #     print('total ' + flag + ' added: ',
+            #           (callop.gamma + putop.gamma) * num_required)
+            # elif flag == 'vega':
+            #     print('callop vega: ', callop.vega)
+            #     print('putop vega: ', putop.vega)
+            #     print('total ' + flag + ' added: ',
+            #           (callop.vega + putop.vega) * num_required)
+            # elif flag == 'theta':
+            #     print('callop theta: ', callop.theta)
+            #     print('putop theta: ', putop.theta)
+            #     print('total ' + flag + ' added: ',
+            #           (callop.theta + putop.theta) * num_required)
 
         callops = [callop] * num_required
         putops = [putop] * num_required
         cd, cg, ct, cv = callop.greeks()
-        # print('CALLOP GREEKS: ', cd, cg, ct, cv)
         pd, pg, pt, pv = putop.greeks()
-        # print('PUTOP GREEKS: ', pd, pg, pt, pv)
-        # print('DEBUG - adding')
+
         pf.add_security(callops, 'hedge')
         pf.add_security(putops, 'hedge')
     else:
-        # print(str(product) + ' ' + str(month) + ' ' + flag.upper() +
-        #       ' WITHIN BOUNDS. SKIPPING HEDGING')
-        pass
+        print(str(product) + ' ' + str(month) + ' ' + flag.upper() +
+              ' WITHIN BOUNDS. SKIPPING HEDGING')
     return pf  # [callop, putop]
 
 
@@ -584,7 +676,8 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering):
         tuple: hedging costs and final portfolio with hedges added.
 
     """
-
+    # print('cond: ', cond)
+    # print('delta hedging: ', product + '  ' + month)
     future_price = pdf[(pdf.pdt == product) & (
         pdf.order == ordering)].settle_value.values[0]
     net_greeks = pf.get_net_greeks()
@@ -592,39 +685,19 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering):
         # flag that indicates delta hedging.
         vals = net_greeks[product][month]
         delta = vals[0]
-        # print('[12]  DELTA: ', delta)
+        # print('[12] ' + product + ' ' + month + ' delta', delta)
         shorted = True if delta > 0 else False
         num_lots_needed = abs(round(delta))
+        # print('lots needed: ', num_lots_needed)
         if num_lots_needed == 0:
-            # print(str(product) + ' ' + str(month) +
-            #       ' DELTA IS ZEROED. SKIPPING HEDGING')
+            print(str(product) + ' ' + str(month) +
+                  ' DELTA IS ZEROED. SKIPPING HEDGING')
             return pf, None
         else:
             ft = Future(month, future_price, product,
                         shorted=shorted, ordering=ordering, lots=num_lots_needed)
             pf.add_security([ft], 'hedge')
     return pf, ft
-
-
-def generate_hedges(filepath):
-    df = pd.read_csv(filepath)
-    hedges = {}
-    for i in df.index:
-        row = df.iloc[i]
-        # static hedging
-        if row.flag == 'static':
-            greek = row.greek
-            hedges[greek] = [row.cond, int(row.freq)]
-        # bound hedging
-        elif row.flag == 'bound':
-            greek = row.greek
-            hedges[greek] = [literal_eval(row.cond), int(row.freq)]
-
-        # percentage hedging
-        elif row.flag == 'pct':
-            greek = row.greek
-            hedges[greek] = [float(row.cond), int(row.freq)]
-    return hedges
 
 
 ##########################################################################
@@ -648,7 +721,8 @@ if __name__ == '__main__':
             'Invalid data sets passed in; vol and price data must have the same date range.')
 
     # generate portfolio
-    filepath = 'datasets/corn_portfolio_specs.csv'
+    filepath = 'k7specs.csv'
+    # filepath = 'datasets/corn_portfolio_specs.csv'
     # filepath = 'datasets/bo_portfolio_specs.csv'
     pf, sim_start = prep_portfolio(vdf, pdf, filepath=filepath)
     print(pf)
@@ -662,8 +736,6 @@ if __name__ == '__main__':
     print('[data & portfolio prep]: ', e1)
 
     # generate hedges
-    hedge_path = 'hedging.csv'
-    hedges = generate_hedges(hedge_path)
 
     pnl, pf1 = run_simulation(vdf, pdf, edf, pf, hedges=hedges)
 

@@ -128,7 +128,8 @@ def test_feed_data_updates():
 
 
 def test_gen_inputs():
-    hedges = {'delta': 'zero', 'gamma': (-10, 10), 'vega': (-10, 10)}
+    hedges = {'delta': 'zero',
+              'gamma': (-10, 10), 'vega': (-10, 10), 'theta': (-10, 10)}
     pf = generate_portfolio('long')
     min_date = min(vdf.value_date)
     vdf1 = vdf[vdf.value_date == min_date]
@@ -160,7 +161,8 @@ def test_gen_inputs():
 
 
 def test_hedge_gamma_long():
-    hedges = {'delta': 'zero', 'gamma': (-3000, 3000), 'vega': (-3000, 3000)}
+    hedges = {'delta': 'zero',
+              'gamma': (-3000, 3000), 'vega': (-3000, 3000), 'theta': (-1000, 1000)}
     pf = generate_portfolio('long')
     min_date = min(vdf.value_date)
     vdf1 = vdf[vdf.value_date == min_date]
@@ -194,7 +196,8 @@ def test_hedge_gamma_long():
 
 def test_hedge_gamma_short():
     # gamma hedging from below
-    hedges = {'delta': 'zero', 'gamma': (-3000, 3000), 'vega': (-3000, 3000)}
+    hedges = {'delta': 'zero',
+              'gamma': (-3000, 3000), 'vega': (-3000, 3000), 'theta': (-1000, 1000)}
     pf = generate_portfolio('short')
     min_date = min(vdf.value_date)
     vdf1 = vdf[vdf.value_date == min_date]
@@ -226,7 +229,8 @@ def test_hedge_gamma_short():
 
 
 def test_hedge_vega_short():
-    hedges = {'delta': 'zero', 'gamma': (-3000, 3000), 'vega': (-3000, 3000)}
+    hedges = {'delta': 'zero',
+              'gamma': (-3000, 3000), 'vega': (-3000, 3000), 'theta': (-1000, 1000)}
     pf = generate_portfolio('short')
     min_date = min(vdf.value_date)
     vdf1 = vdf[vdf.value_date == min_date]
@@ -257,7 +261,8 @@ def test_hedge_vega_short():
 
 
 def test_hedge_vega_long():
-    hedges = {'delta': 'zero', 'gamma': (-3000, 3000), 'vega': (-3000, 3000)}
+    hedges = {'delta': 'zero',
+              'gamma': (-3000, 3000), 'vega': (-3000, 3000), 'theta': (-1000, 1000)}
     pf = generate_portfolio('long')
     min_date = min(vdf.value_date)
     vdf1 = vdf[vdf.value_date == min_date]
@@ -288,7 +293,8 @@ def test_hedge_vega_long():
 
 
 def test_joint_vega_gamma():
-    hedges = {'delta': 'zero', 'gamma': (-3000, 3000), 'vega': (-3000, 3000)}
+    hedges = {'delta': 'zero',
+              'gamma': (-3000, 3000), 'vega': (-3000, 3000), 'theta': (-1000, 1000)}
     pf = generate_portfolio('long')
     min_date = min(vdf.value_date)
     vdf1 = vdf[vdf.value_date == min_date]
