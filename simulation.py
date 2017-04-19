@@ -52,8 +52,8 @@ multipliers = {
 
 
 # list of hedging conditions.
-hedges = {'delta': 'zero',
-          'vega': (-1000, 1000)}
+# hedges = {'delta': 'zero',
+#           'vega': (-1000, 1000)}
 # 'gamma': (-5000, 5000)}
 # 'theta': (-1000, 1000)}
 
@@ -72,7 +72,7 @@ timestep = 1/365
 ############## Main Simulation Loop #################
 #####################################################
 
-def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
+def run_simulation(voldata, pricedata, expdata, pf, hedges):
     """Each run of the simulation consists of 5 steps:
 
     1) Feed data into the portfolio.
@@ -131,7 +131,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
     # Step 1 & 2
     init_val = 0
     broken = False
-    for i in range(len(date_range[:10])):
+    for i in range(len(date_range[:4])):
         if broken:
             print('DATA MISSING; ENDING SIMULATION')
             break
@@ -412,36 +412,66 @@ def rebalance(vdf, pdf, pf, hedges, counters):
     # return both the portfolio, as well as the gain/loss from short/long pos
     # hedging delta, gamma, vega.
     delta_freq, gamma_freq, theta_freq, vega_freq = counters
+    print('delta freq: ', delta_freq)
+    print('vega freq: ', vega_freq)
     dic = copy.deepcopy(pf.get_net_greeks())
+    hedgearr = [False, False, False, False]
+    # updating counters
+    for strat in hedges:
+        if strat == 'delta':
+            if delta_freq == hedges[strat][2]:
+                counters[0] = 1
+                hedgearr[0] = True
+            else:
+                print('delta freq not met.')
+                counters[0] += 1
+        elif strat == 'gamma':
+            if gamma_freq == hedges[strat][2]:
+                counters[1] = 1
+                hedgearr[1] = True
+            else:
+                print('gamma freq not met')
+                counters[1] += 1
+        elif strat == 'vega':
+            if vega_freq == hedges[strat][2]:
+                counters[3] = 1
+                hedgearr[3] = True
+            else:
+                print('vega freq not met')
+                counters[3] += 1
+        elif strat == 'theta':
+            if theta_freq == hedges[strat][2]:
+                counters[2] = 1
+                hedgearr[2] = True
+            else:
+                print('gamma freq not met')
+                counters[2] += 1
+
     for product in dic:
         for month in dic[product]:
             ordering = pf.compute_ordering(product, month)
             # vega/gamma/theta hedging. loop allows for dynamic hedging dict.
             for strat in hedges:
+                # print(strat)
                 if strat == 'delta':
                     continue
-                # updating counters
-                elif strat == 'gamma':
-                    counters[1] = 1 if theta_freq == hedges[
-                        strat][2] else counters[1] + 1
-                elif strat == 'vega':
-                    counters[3] = 1 if theta_freq == hedges[
-                        strat][2] else counters[3] + 1
-                elif strat == 'theta':
-                    counters[2] = 1 if theta_freq == hedges[
-                        strat][2] else counters[2] + 1
-
-                inputs = gen_hedge_inputs(
-                    hedges, vdf, pdf, month, pf, product, ordering, strat)
-                pf = hedge(pf, inputs, product, month, strat)
-
-            if delta_freq == hedges['delta'][2]:
-                counters[0] = 1
+                # updating counters and setting bool
+                elif strat == 'gamma' and hedgearr[1]:
+                    inputs = gen_hedge_inputs(
+                        hedges, vdf, pdf, month, pf, product, ordering, strat)
+                    pf = hedge(pf, inputs, product, month, strat)
+                elif strat == 'vega' and hedgearr[3]:
+                    inputs = gen_hedge_inputs(
+                        hedges, vdf, pdf, month, pf, product, ordering, strat)
+                    pf = hedge(pf, inputs, product, month, strat)
+                elif strat == 'theta' and hedgearr[2]:
+                    inputs = gen_hedge_inputs(
+                        hedges, vdf, pdf, month, pf, product, ordering, strat)
+                    pf = hedge(pf, inputs, product, month, strat)
+            if hedgearr[0]:
                 pf, dhedges = hedge_delta(hedges['delta'][1], vdf, pdf,
                                           pf, month, product, ordering)
-            else:
-                counters[0] += 1
-
+    print('counters:', counters)
     return pf, counters
 
 
@@ -465,27 +495,16 @@ def gen_hedge_inputs(hedges, vdf, pdf, month, pf, product, ordering, flag):
     """
     net_greeks = pf.get_net_greeks()
     greeks = net_greeks[product][month]
-<< << << < HEAD
     if flag == 'gamma':
         greek = greeks[1]
-        bound = hedges['gamma']
+        bound = hedges['gamma'][1]
     elif flag == 'vega':
         greek = greeks[3]
-        bound = hedges['vega']
+        bound = hedges['vega'][1]
     elif flag == 'theta':
         greek = greeks[2]
-        bound = hedges['theta']
-== == == =
-# naming variables for clarity.
-    gamma = greeks[1]
-    vega = greeks[3]
-    greek = gamma if flag == 'gamma' else vega
-    gamma_bound = hedges['gamma'][1]
-    vega_bound = hedges['vega'][1]
-    bound = gamma_bound if flag == 'gamma' else vega_bound
->>>>>> > flexhedge
-
-# relevant data for constructing Option and Future objects.
+        bound = hedges['theta'][1]
+    # relevant data for constructing Option and Future objects.
     price = pdf[(pdf.pdt == product) & (
         pdf.order == ordering)].settle_value.values[0]
 
@@ -672,10 +691,7 @@ def hedge(pf, inputs, product, month, flag):
     else:
         print(str(product) + ' ' + str(month) + ' ' + flag.upper() +
               ' WITHIN BOUNDS. SKIPPING HEDGING')
-<< << << < HEAD
-== == == =
-    pass
->>>>>> > flexhedge
+        pass
     return pf  # [callop, putop]
 
 
