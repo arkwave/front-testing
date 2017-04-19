@@ -128,7 +128,11 @@ def test_feed_data_updates():
 
 
 def test_gen_inputs():
-    hedges = {'delta': 'zero', 'gamma': (-10, 10), 'vega': (-10, 10)}
+    hedges = {'vega': ['bound', (-10, 10), 1],
+              'delta': ['static', 'zero', 3],
+              'gamma': ['bound', (-10, 10), 1]}
+
+    # hedges = {'delta': 'zero', 'gamma': (-10, 10), 'vega': (-10, 10)}
     pf = generate_portfolio('long')
     min_date = min(vdf.value_date)
     vdf1 = vdf[vdf.value_date == min_date]
@@ -144,7 +148,7 @@ def test_gen_inputs():
     price, k, cvol, pvol, tau, underlying, greek, bound, order = ginputs
 
     assert order == 1
-    assert bound == hedges['gamma'][0]
+    assert bound == hedges['gamma'][1]
     assert price == 357.5
     assert k == 360
     assert np.isclose(cvol, 0.206545518999999)
@@ -160,8 +164,9 @@ def test_gen_inputs():
 
 
 def test_hedge_gamma_long():
-    hedges = {'gamma': [(-3000, 3000), 1],
-              'vega': [(-3000, 3000), 1], 'delta': ['zero', 1]}
+    hedges = {'gamma': ['bound', (-3000, 3000), 1],
+              'vega':  ['bound', (-3000, 3000), 1],
+              'delta': ['static', 'zero', 1]}
     pf = generate_portfolio('long')
     min_date = min(vdf.value_date)
     vdf1 = vdf[vdf.value_date == min_date]
@@ -178,7 +183,7 @@ def test_hedge_gamma_long():
     # gamma hedging from above.
     net = pf.get_net_greeks()
     init_gamma = net['C']['K7'][1]
-    assert init_gamma not in range(*hedges['gamma'][0])
+    assert init_gamma not in range(*hedges['gamma'][1])
     assert init_gamma == greek
     pf = hedge(pf, inputs, product, month, 'gamma')
     # print(inputs, product, month)
@@ -196,8 +201,9 @@ def test_hedge_gamma_long():
 
 def test_hedge_gamma_short():
     # gamma hedging from below
-    hedges = {'gamma': [(-3000, 3000), 1],
-              'vega': [(-3000, 3000), 1], 'delta': ['zero', 1]}
+    hedges = {'gamma': ['bound', (-3000, 3000), 1],
+              'vega':  ['bound', (-3000, 3000), 1],
+              'delta': ['static', 'zero', 1]}
     pf = generate_portfolio('short')
     min_date = min(vdf.value_date)
     vdf1 = vdf[vdf.value_date == min_date]
@@ -213,7 +219,7 @@ def test_hedge_gamma_short():
 
     net = pf.get_net_greeks()
     init_gamma = net['C']['K7'][1]
-    assert init_gamma not in range(*hedges['gamma'][0])
+    assert init_gamma not in range(*hedges['gamma'][1])
     assert init_gamma == greek
     pf2 = hedge(pf, inputs, product, month, 'gamma')
     # print('gamma short hedging expenditure: ', expenditure)
@@ -229,8 +235,9 @@ def test_hedge_gamma_short():
 
 
 def test_hedge_vega_short():
-    hedges = {'gamma': [(-3000, 3000), 1],
-              'vega': [(-3000, 3000), 1], 'delta': ['zero', 1]}
+    hedges = {'gamma': ['bound', (-3000, 3000), 1],
+              'vega':  ['bound', (-3000, 3000), 1],
+              'delta': ['static', 'zero', 1]}
     pf = generate_portfolio('short')
     min_date = min(vdf.value_date)
     vdf1 = vdf[vdf.value_date == min_date]
@@ -245,7 +252,7 @@ def test_hedge_vega_short():
 
     net = pf.get_net_greeks()
     init_vega = net['C']['K7'][3]
-    assert init_vega not in range(*hedges['vega'][0])
+    assert init_vega not in range(*hedges['vega'][1])
     assert init_vega == greek
     pf2 = hedge(pf, inputs, product, month, 'vega')
     # print('vega hedging expenditure: ', expenditure)
@@ -261,8 +268,9 @@ def test_hedge_vega_short():
 
 
 def test_hedge_vega_long():
-    hedges = {'gamma': [(-3000, 3000), 1],
-              'vega': [(-3000, 3000), 1], 'delta': ['zero', 1]}
+    hedges = {'gamma': ['bound', (-3000, 3000), 1],
+              'vega':  ['bound', (-3000, 3000), 1],
+              'delta': ['static', 'zero', 1]}
     pf = generate_portfolio('long')
     min_date = min(vdf.value_date)
     vdf1 = vdf[vdf.value_date == min_date]
@@ -277,7 +285,7 @@ def test_hedge_vega_long():
 
     net = pf.get_net_greeks()
     init_vega = net['C']['K7'][3]
-    assert init_vega not in range(*hedges['vega'][0])
+    assert init_vega not in range(*hedges['vega'][1])
     assert init_vega == greek
     pf2 = hedge(pf, inputs, product, month, 'vega')
     # print('vega hedging expenditure: ', expenditure)
@@ -293,8 +301,9 @@ def test_hedge_vega_long():
 
 
 def test_joint_vega_gamma():
-    hedges = {'gamma': [(-3000, 3000), 1],
-              'vega': [(-3000, 3000), 1], 'delta': ['zero', 1]}
+    hedges = {'gamma': ['bound', (-3000, 3000), 1],
+              'vega':  ['bound', (-3000, 3000), 1],
+              'delta': ['static', 'zero', 1]}
     pf = generate_portfolio('long')
     min_date = min(vdf.value_date)
     vdf1 = vdf[vdf.value_date == min_date]

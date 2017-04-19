@@ -126,7 +126,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges=hedges):
 
     # Step 1 & 2
     init_val = 0
-    for i in range(len(date_range[:10])):
+    for i in range(len(date_range[:3])):
         date = date_range[i]
         try:
             next_date = date_range[i+1]
@@ -412,15 +412,14 @@ def rebalance(vdf, pdf, pf, hedges, counters):
                 hedges, vdf, pdf, month, pf, product, ordering, 'gamma')
             vinputs = gen_hedge_inputs(
                 hedges, vdf, pdf, month, pf, product, ordering, 'vega')
-            if gamma_freq == hedges['gamma'][1]:
+            if gamma_freq == hedges['gamma'][2]:
                 pf = hedge(pf, ginputs, product, month, 'gamma')
                 counters[1] = 1
-            if vega_freq == hedges['vega'][1]:
+            if vega_freq == hedges['vega'][2]:
                 pf = hedge(pf, vinputs, product, month, 'vega')
                 counters[3] = 1
-            if delta_freq == hedges['delta'][1]:
-
-                pf, dhedges = hedge_delta(hedges['delta'][0], vdf, pdf,
+            if delta_freq == hedges['delta'][2]:
+                pf, dhedges = hedge_delta(hedges['delta'][1], vdf, pdf,
                                           pf, month, product, ordering)
                 counters[0] = 1
             # none of the hedges meet their frequency counter
@@ -454,8 +453,8 @@ def gen_hedge_inputs(hedges, vdf, pdf, month, pf, product, ordering, flag):
     gamma = greeks[1]
     vega = greeks[3]
     greek = gamma if flag == 'gamma' else vega
-    gamma_bound = hedges['gamma'][0]
-    vega_bound = hedges['vega'][0]
+    gamma_bound = hedges['gamma'][1]
+    vega_bound = hedges['vega'][1]
     bound = gamma_bound if flag == 'gamma' else vega_bound
 
     # relevant data for constructing Option and Future objects.
@@ -528,6 +527,8 @@ def hedge(pf, inputs, product, month, flag):
     # checking if gamma exceeds bounds
     upper = bound[1]
     lower = bound[0]
+    # print('upper: ', upper)
+    # print('lower: ', lower)
     if greek > upper or greek < lower:
         # gamma hedging logic.
         # print(flag + ' hedging')
@@ -656,6 +657,7 @@ if __name__ == '__main__':
     # generate hedges
     hedge_path = 'hedging.csv'
     hedges = generate_hedges(hedge_path)
+    print(hedges)
     pnl, pf1 = run_simulation(vdf, pdf, edf, pf, hedges=hedges)
 
     e2 = time.time() - e1
