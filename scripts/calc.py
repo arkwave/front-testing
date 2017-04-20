@@ -80,7 +80,8 @@ multipliers = {
 filepath = 'data_loc.txt'
 
 voldf, pricedf, edf = read_data(filepath)
-
+seed = 7
+np.random.seed(seed)
 
 #####################################################################
 ##################### Option pricing formulas #######################

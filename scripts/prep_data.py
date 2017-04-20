@@ -942,8 +942,8 @@ def compute_delta(x):
 
 def get_min_start_date(vdf, pdf, lst):
     dates = []
-    test = pdf.merge(vdf, on=['pdt', 'value_date', 'underlying_id', 'order'])
-    test.to_csv('datasets/merged.csv', index=False)
+    # test = pdf.merge(vdf, on=['pdt', 'value_date', 'underlying_id', 'order'])
+    # test.to_csv('datasets/merged.csv', index=False)
     for vid in lst:
         df = vdf[vdf.vol_id == vid]
         dates.append(min(df.value_date))

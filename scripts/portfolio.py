@@ -37,6 +37,10 @@ multipliers = {
 
 from operator import add
 import pprint
+import numpy as np
+
+seed = 7
+np.random.seed(seed)
 
 
 class Portfolio:
