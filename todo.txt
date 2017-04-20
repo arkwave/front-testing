@@ -434,13 +434,23 @@ is being handled correctly.                         [Done]
 
 > theta hedging with atm straddles                           [Done]
 
-> vol by delta implementation in feed data                   []
-	- understand reason why this is required.
+- hedge only according to frequency                     
+		> counters                                           [Done]
+		> day number                                         [Done]
 
-> computational block:                                       []
-	> price * returns
+> vol by delta implementation in feed data                   [Done]
+	- understand reason why this is required.
+	> testing required
+
+
+
+20/4
+> computational block:                                       [Done]
+	> price * returns                                         
 	> vol + change vol 
 	> feed these two into portfolio as per usual. 
+	> TESTING REQUIRED. 
+data cleaning; run the portfolio on 3 yrs data               []
 
 
 
@@ -448,11 +458,8 @@ is being handled correctly.                         [Done]
 
 overall hedging changes:
 > gen_hedge_inputs changes
-- hedge only according to frequency                     
-		> counters                                           [Done]
-		> day number                                         [Done]
 - static and bounded hedging functions implementation        []
-
+		> end of week                                        []
 
 
 

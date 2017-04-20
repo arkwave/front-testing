@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 # from scripts.calc import get_barrier_vol
 from scripts.classes import Option, Future
+from scripts.calc import find_vol_change
 from scripts.prep_data import read_data, prep_portfolio, get_rollover_dates, generate_hedges
 from math import ceil
 import copy
@@ -131,7 +132,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges):
     # Step 1 & 2
     init_val = 0
     broken = False
-    for i in range(len(date_range[:4])):
+    for i in range(len(date_range[:3])):
         if broken:
             print('DATA MISSING; ENDING SIMULATION')
             break
@@ -140,7 +141,12 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges):
             next_date = date_range[i+1]
         except IndexError:
             next_date = None
+        try:
+            prev_date = date_range[i-1]
+        except IndexError:
+            prev_date = None
         # isolate data relevant for this day.
+        date = pd.to_datetime(date)
         print('##################### date: ', date, '################')
         # init_val = pf.compute_value()
         # print('INITIAL VALUE: ', init_val)
@@ -149,7 +155,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges):
         # getting data pertinent to that day.
         # raw_change to be the difference between old and new value per
         # iteration.
-        raw_change, pf, broken = feed_data(vdf, pdf, pf, rollover_dates)
+        raw_change, pf, broken = feed_data(
+            vdf, pdf, pf, rollover_dates, date, prev_date, voldata)
         # pnl += raw_change
         # if broken:
         #     break
@@ -203,7 +210,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges):
 ##########################################################################
 
 
-def feed_data(voldf, pdf, pf, dic):
+def feed_data(voldf, pdf, pf, dic, date, prev_date, voldata):
     """This function does the following:
     1) Computes current value of portfolio.
     2) Checks for rollovers and expiries.
@@ -269,6 +276,18 @@ def feed_data(voldf, pdf, pf, dic):
                 val = voldf[(voldf.pdt == product) & (voldf.strike == strike) &
                             (voldf.order == order) & (voldf.call_put_id == cpi) &
                             (np.isclose(voldf.tau.values, tau))].settle_vol.values[0]
+                # find the strike corresponding to this delta in the previous
+                # day's data
+                if prev_date is None:
+                    vol_change = 0
+                else:
+                    date, prev_date = pd.to_datetime(
+                        date), pd.to_datetime(prev_date)
+
+                    vol_change = find_vol_change(
+                        voldata, val, op, date, prev_date)
+
+                val += vol_change
                 op.update_greeks(vol=val)
                 # print('UPDATED - new vol: ', val, op)
             except IndexError:
@@ -279,20 +298,19 @@ def feed_data(voldf, pdf, pf, dic):
     if not broken:
         for ft in pf.get_all_futures():
             pdt, ordering = ft.get_product(), ft.get_ordering()
-            # print(pf.get_all_futures()) if ordering is None else print(
-            # 'ordering not none')
-            # print('ordering: ', ordering)
             try:
                 val = pdf[(pdf.pdt == pdt) & (
                     pdf.order == ordering)].settle_value.values[0]
+                returns = pdf[(pdf.pdt == pdt) & (
+                    pdf.order == ordering)].returns.values[0]
+                # update val with returns
+                val = val * (1 + returns)
                 ft.update_price(val)
                 # print('UPDATED - new price: ', val)
+
             # index error would occur only if data is missing.
             except IndexError:
-                # print('Date, ordering, product', pdt,
-                      # ordering, pdf.value_date.unique())
                 print('###### DATA MISSING #######')
-                # print(pdt, ordering)
                 broken = True
                 break
 
@@ -399,13 +417,13 @@ def rebalance(vdf, pdf, pf, hedges, counters):
     3)
 
     Args:
-        vdf (TYPE): Dataframe of volatilities
-        pdf (TYPE): Dataframe of prices
-        pf (TYPE): portfolio object
-        hedges (TYPE): Dictionary of hedging conditions
+        vdf (pandas dataframe): Dataframe of volatilities
+        pdf (pandas dataframe): Dataframe of prices
+        pf (object): portfolio object
+        hedges (dict): Dictionary of hedging conditions
 
     Returns:
-        TYPE: Description
+        tuple: portfolio, counters 
     """
     # compute the gamma and vega of atm straddles; one call + one put.
     # compute how many such deals are required. add to appropriate pos.
@@ -481,14 +499,14 @@ def gen_hedge_inputs(hedges, vdf, pdf, month, pf, product, ordering, flag):
     straddles for hedging, based on the flag.
 
     Args:
-        hedges (TYPE): hedging rules.
-        vdf (TYPE): volatility dataframe
-        pdf (TYPE): price dataframe
-        month (TYPE): month being hedged
-        pf (TYPE): portfolio being hedged
-        product (TYPE): product being hedged
-        ordering (TYPE): ordering corresponding to month being hedged
-        flag (TYPE): gamma or vega
+        hedges (dict): hedging rules.
+        vdf (pandas dataframe): volatility dataframe
+        pdf (pandas dataframe): price dataframe
+        month (string): month being hedged
+        pf (object): portfolio being hedged
+        product (string): product being hedged
+        ordering (int): ordering corresponding to month being hedged
+        flag (string): gamma, vega or theta 
 
     Returns:
         list : inputs required to construct atm straddles.
@@ -527,10 +545,10 @@ def hedge(pf, inputs, product, month, flag):
     2) hedges the greek in question (specified by flag) with the straddles.
 
     Args:
-        pf (TYPE): portfolio object
-        inputs (TYPE): list of inputs reqd to construct straddle objects
-        product (TYPE): the product being hedged
-        month (TYPE): month being hedged
+        pf (portfolio object): portfolio object
+        inputs (list): list of inputs reqd to construct straddle objects
+        product (string): the product being hedged
+        month (string): month being hedged
 
     Returns:
         tuple: cost of the hedge, and the updated portfolio
@@ -757,6 +775,7 @@ if __name__ == '__main__':
             'Invalid data sets passed in; vol and price data must have the same date range.')
 
     # generate portfolio
+    # filepath = 'specs.csv'
     filepath = 'datasets/corn_portfolio_specs.csv'
     # filepath = 'datasets/bo_portfolio_specs.csv'
     pf, sim_start = prep_portfolio(vdf, pdf, filepath=filepath)
