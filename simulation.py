@@ -134,7 +134,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges):
     # Step 1 & 2
     init_val = 0
     broken = False
-    for i in range(len(date_range[:3])):
+    for i in range(len(date_range)):
         if broken:
             print('DATA MISSING; ENDING SIMULATION')
             break
@@ -280,16 +280,16 @@ def feed_data(voldf, pdf, pf, dic, date, prev_date, voldata):
                             (np.isclose(voldf.tau.values, tau))].settle_vol.values[0]
                 # find the strike corresponding to this delta in the previous
                 # day's data
-                if prev_date is None:
-                    vol_change = 0
-                else:
-                    date, prev_date = pd.to_datetime(
-                        date), pd.to_datetime(prev_date)
+                # if prev_date is None:
+                #     vol_change = 0
+                # else:
+                #     date, prev_date = pd.to_datetime(
+                #         date), pd.to_datetime(prev_date)
 
-                    vol_change = find_vol_change(
-                        voldata, val, op, date, prev_date)
+                #     vol_change = find_vol_change(
+                #         voldata, val, op, date, prev_date)
 
-                val += vol_change
+                # val += vol_change
                 op.update_greeks(vol=val)
                 # print('UPDATED - new vol: ', val, op)
             except IndexError:
@@ -303,10 +303,10 @@ def feed_data(voldf, pdf, pf, dic, date, prev_date, voldata):
             try:
                 val = pdf[(pdf.pdt == pdt) & (
                     pdf.order == ordering)].settle_value.values[0]
-                returns = pdf[(pdf.pdt == pdt) & (
-                    pdf.order == ordering)].returns.values[0]
-                # update val with returns
-                val = val * (1 + returns)
+                # returns = pdf[(pdf.pdt == pdt) & (
+                #     pdf.order == ordering)].returns.values[0]
+                # # update val with returns
+                # val = val * (1 + returns)
                 ft.update_price(val)
                 # print('UPDATED - new price: ', val)
 
