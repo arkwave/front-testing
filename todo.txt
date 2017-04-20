@@ -446,11 +446,22 @@ is being handled correctly.                         [Done]
 
 20/4
 > computational block:                                       [Done]
-	> price * returns                                         
-	> vol + change vol 
-	> feed these two into portfolio as per usual. 
-	> TESTING REQUIRED. 
-data cleaning; run the portfolio on 3 yrs data               []
+	> price * returns                                        [Done] 
+	> vol + change vol                                       [Done]
+	> feed these two into portfolio as per usual.            [Done]
+
+
+change the data selection process.
+	> need to save current local sim date, use these values  []
+	  to construct the portfolio.
+	> generate ordering based on earliest date in dataset.   []
+	> decrement tau as per usual.                            []
+		- test to make sure that simulation only lasts as 
+		long as ttm in days.                                 []
+	> 
+
+
+apply on BO portfolio
 
 
 
