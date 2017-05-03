@@ -464,28 +464,100 @@ change the data selection process.
 apply on BO portfolio
 
 
-
-
-
-overall hedging changes:
-> gen_hedge_inputs changes
-- static and bounded hedging functions implementation        []
-		> end of week                                        []
-
-
-
-
 Aux Concerns:
-> adapt computation for returns/vol change,                  []
-> pnl histogram                                              []
 > adapt feed_data to check for high/low/close for ki/ko      [WIP]
 > clean bo data, run the bo portfolio                        [WIP]
-
 
 
 TODO once dumps are ready:> finalize database updating stuff. 
 > batch script to run the file every day. 
 
+
+Historical Simulator TODOS:
+
+> Today [3/5]:
+	
+
+				  ## Data-Related ## 
+
+	> [Done] read_data: sim_start as start_date; figure out what is required, 
+	  and what is being piped downstream into clean_data and related functions.
+	> [Done] functions related to start_date: 
+	    1) assign_ci
+	    2) get_expiry and expiry-related
+	> [Done] prep_portfolio
+		- debug get minimum dates
+		- update datasets 
+		- bucketing tau during initializing -- > M7.N7 option should be updated with c_i where i = N7
+	> [Done] generating hedges                                                                        
+
+	
+
+
+				## Simulation-related ##
+
+	> [Done] global_vars refactoring of everything. [HIGH PRIORITY]
+	> Changes to simulation logic; include placeholders for measure input.  
+		- Notes:
+			1) Following variables are NOT REQUIRED: [daynum, run_size, hedge_today, op_to_strike]
+			2) Differences in simulation loop:
+				- in PVM, init_val is reset whenever simulation block ends. in HSM, init_val is never reset, since 
+				we don't have simulation blocks, nor portfolio restores. 
+				- Simulation order in PVM:
+					feed --> (handle exercise) --> pnl calc --> rebalance.
+				- Simulation order in HSM:
+					feed --> handle exercise --> pnl --> rebalance. Should probably move handle exercise into feed. 
+				- decrement ordering has validity in HSM but not in PVM. 
+				- PVM currently has brokerage/slippage included in PnL calculations and repr. HSM does not. 
+
+	> [Done] Brokerage/slippage and associated PnL representation changes. 
+	> [Done] changes to hedging implementation 
+	> [Done] changes to feed_data implementation
+	> [Done] handling exercises/expiries/decrement ordering distinction btwn var and historical
+		- handle_exercise: cash and future settlement
+
+				## Others: ##
+
+	> fix imports and implicit/default function calls in other files. 
+	> fix tests. 
+
+
+
+> Tomorrow [4/5]:
+
+				## Object-Related ##
+	> Changes made to Portfolio/Option/Futures class
+		- Futures:
+			+ cash vs future settlement
+
+		- Options:
+			+ cash vs future settlement
+			+ [Done] str representation 
+
+		- Portfolio
+			+ 
+	
+				## Calculation-related ##
+
+	> Updates made to calc.py
+		+ update read_data imports and function calls.
+		+ make sure european barriers are handled correctly
+		+ calculations are right, just need to make sure that variables are passed correctly. 
+
+
+
+				## Testing-related ##
+	> changes to nosetests: can more or less port over tests from PortfolioVARModule wholesale.
+
+
+				## Implementation TODOs: ##
+	> delta roll hedging
+	> debugging the inevitable. 
+
+
+
+> after all:
+	- run with PnP and make sure it works. 
 
 
 =====================
