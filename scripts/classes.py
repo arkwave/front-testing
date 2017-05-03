@@ -120,9 +120,11 @@ class Option:
             if self.direc == 'down':
                 string += 'DO'
             string += ' ' + str(self.ko)
-        string += ' S' if self.shorted else ' L'
+        string += ' S ' if self.shorted else ' L '
+        string += str(self.underlying.get_price())
         string += ' ' + str(int(self.lots))
         string += ' ' + str(round(self.tau * 365))
+        string += ' [c_' + str(self.ordering) + ']'
         return string
 
     def set_ordering(self, val):

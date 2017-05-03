@@ -23,6 +23,7 @@ from scipy.stats import norm
 from math import log, sqrt
 import time
 from ast import literal_eval
+from collections import OrderedDict
 
 seed = 7
 np.random.seed(seed)
@@ -70,74 +71,149 @@ contract_mths = {
 ###############################################################
 
 def generate_hedges(filepath):
+    """Generates an Ordered Dictionary detailing the hedging logic, read in from the filepath specified. 
+
+    Args:
+        filepath (string): path to the csv file specifying hedging logic. 
+
+    Returns:
+        OrderedDictionary: Dictionary of hedges with the format:
+            {greek: [[condition_1], [condition_2]]}
+        where condition_i is a list specifying the details of the conditions imposed on that greek.
+    """
     df = pd.read_csv(filepath)
-    hedges = {}
+    hedges = OrderedDict()
     for i in df.index:
         row = df.iloc[i]
         # static hedging
+        greek = row.greek
         if row.flag == 'static':
-            greek = row.greek
-            hedges[greek] = [row.flag, row.cond, int(row.freq)]
+            # greek = row.greek
+            lst = [row.flag, row.cond, int(row.freq)]
+            # hedges[greek].append(lst)
         # bound hedging
         elif row.flag == 'bound':
-            greek = row.greek
-            hedges[greek] = [row.flag, literal_eval(row.cond), int(row.freq)]
+            # greek = row.greek
+            if not np.isnan(row.tau):
+                tau = float(row.tau)
+                lst = [row.flag, literal_eval(row.cond), int(row.freq), tau]
+            else:
+                lst = [row.flag, literal_eval(row.cond), int(row.freq)]
+
         # percentage hedging
         elif row.flag == 'pct':
-            greek = row.greek
-            hedges[greek] = [row.flag, float(row.cond),
-                             int(row.freq), row.subcond]
+            # greek = row.greek
+            lst = [row.flag, float(row.cond), int(row.freq), row.subcond]
+        elif row.flag == 'roll':
+            # greek = row.greek
+            lst = [row.flag, float(row.cond), int(
+                row.freq), literal_eval(row.subcond)]
+        # append to the dictionary
+        if greek in hedges:
+            hedges[greek].append(lst)
+        else:
+            hedges[greek] = [lst]
 
     return hedges
 
 
-def read_data(filepath):
+def read_data(volpath, pricepath, epath, start_date=None, end_date=None, test=False, writeflag=None):
     """Wrapper method that handles all read-in and preprocessing. This function does the following:
     1) reads in path to volatility, price and expiry tables from portfolio_specs.txt
     2) reads in dataframes from said paths
     3) cleans that data in different ways, depending on the flag passed in. Exact information can be found in clean_data function.
 
     Args:
-        filepath (string, optional): the relative filepath to portfolio_specs.txt
+        volpath (str): path to the volatility DF
+
+        pricepath (str): path to the price DF
+
+        epath (str): path to the option expiry DF
+
+        start_date (pd.Timestamp, optional): Desired start date for the simulation. Defaults to None, in which case the starting date selected is the earliest date such that all vol_ids in the volatility dataframe have data. 
+
+        end_date (str, optional): Desired end date for the simulation. Defaults to None, in which case the end date selected is the latest date such that all vol_ids in the volatility dataframe have data. 
+
+        test (bool, optional): flag used to indicate if the function is called as part of a test or as part of the actual simulation. Test=True writes the resultant dataframes to the path specified, subjected to writeflag, while test=False does not write any dataframes to csv.
+
+        writeflag (str, optional): Determines where the datasets are being written to. 
 
     Returns:
-        pandas dataframes x 3: volatility data, price data, expiry data.
-    """
-    t = time.time()
-    with open(filepath) as f:
-        try:
-            # get paths
-            volpath = f.readline().strip('\n')
-            pricepath = f.readline().strip('\n')
-            expath = f.readline().strip('\n')
-            # import dataframes
-            volDF = pd.read_csv(volpath).dropna()
-            priceDF = pd.read_csv(pricepath).dropna()
-            edf = pd.read_csv(expath).dropna()
-            # clean dataframes
-            edf = clean_data(edf, 'exp')
-            volDF = clean_data(volDF, 'vol', edf=edf)
-            priceDF = clean_data(priceDF, 'price', edf=edf)
-            # final preprocessing steps
-            final_price = ciprice(priceDF)
-            final_vol = civols(volDF, final_price)
+        pandas dataframes x 4: volatility data, price data, expiry data, and cleaned prices (to be used exclusively for rollover dates)
 
-        except FileNotFoundError:
-            print(volpath)
-            print(pricepath)
-            print(expath)
-            import os
-            print(os.getcwd())
-    elapsed = time.time() - t
-    # print('[READ_DATA] elapsed: ', elapsed)
-    final_vol.to_csv('datasets/final_vols.csv', index=False)
-    final_price.to_csv('datasets/final_price.csv', index=False)
-    edf.to_csv('datasets/final_expdata.csv', index=False)
-    return final_vol, final_price, edf
+    Raises:
+        ValueError: Raised if the start date is inconsistent with the datasets. 
+
+    """
+
+    t = time.clock()
+    try:
+        # get paths
+        volpath, pricepath, epath = str(volpath), str(pricepath), str(epath)
+        volDF = pd.read_csv(volpath).dropna()
+        priceDF = pd.read_csv(pricepath).dropna()
+        edf = pd.read_csv(epath).dropna()
+
+        # fixing datetimes
+        volDF.value_date = pd.to_datetime(volDF.value_date)
+        priceDF.value_date = pd.to_datetime(priceDF.value_date)
+        start_date = get_min_start_date(
+            volDF, priceDF, volDF.vol_id.unique()) if start_date is None else start_date
+
+        # filtering relevant dates
+        volDF = volDF[(volDF.value_date >= start_date) &
+                      (volDF.value_date <= end_date)] \
+            if end_date \
+            else volDF[(volDF.value_date >= start_date)]
+
+        priceDF = priceDF[(priceDF.value_date >= start_date) &
+                          (priceDF.value_date <= end_date)] \
+            if end_date \
+            else priceDF[(priceDF.value_date >= start_date)]
+
+        # catch errors
+        if (volDF.empty or priceDF.empty):
+            raise ValueError(
+                '[scripts/prep_data.read_data] : Improper start date entered; resultant dataframes are empty')
+
+        # clean dataframes
+        edf = clean_data(edf, 'exp', writeflag=writeflag)
+        volDF = clean_data(volDF, 'vol', date=start_date,
+                           edf=edf, writeflag=writeflag)
+        priceDF = clean_data(priceDF, 'price', date=start_date,
+                             edf=edf, writeflag=writeflag)
+
+        # final preprocessing steps
+        final_price = ciprice(priceDF)
+        final_vol = civols(volDF, final_price)
+
+    except FileNotFoundError:
+        print('files not found! printing paths below...')
+        print(volpath)
+        print(pricepath)
+        print(epath)
+        import os
+        print(os.getcwd())
+    elapsed = time.clock() - t
+    print('[READ_DATA] elapsed: ', elapsed)
+
+    if writeflag:
+        if writeflag == 'small':
+            writestr = 'small_data'
+        else:
+            writestr = 'full_data'
+
+    if not test:
+        final_vol.to_csv('datasets/' + writestr +
+                         '/final_vols.csv', index=False)
+        final_price.to_csv('datasets/' + writestr +
+                           '/final_price.csv', index=False)
+        edf.to_csv('datasets/' + writestr + '/final_expdata.csv', index=False)
+    return final_vol, final_price, edf, priceDF
 
 
 # NOTE: might want to eliminate any dependence on vol_id and underlying_id
-def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
+def prep_portfolio(voldata, pricedata, filepath):
     """Constructs the portfolio from the requisite CSV file that specifies the details of 
     each security in the portfolio.
 
@@ -149,26 +225,34 @@ def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
     Returns:
         TYPE: portfolio object 
 
+    Raises:
+        ValueError: Description
+
     """
 
     # initializing variables
     oplist = {'hedge': [], 'OTC': []}
     ftlist = {'hedge': [], 'OTC': []}
     # sim_start = min(min(voldata.value_date), min(pricedata.value_date))
+    # reading in the dataframe of portfolio specifications
+    specs = pd.read_csv(filepath)
+    specs = specs.fillna('None')
+    pf_ids = specs[specs.Type == 'Option'].vol_id.unique()
+    print('pf_ids: ', pf_ids)
+    try:
+        sim_start = get_min_start_date(voldata, pricedata, pf_ids)
+    except ValueError:
+        print('[scripts/prep_data.prep_portfolio] There are vol_ids in this portfolio with no corresponding data in the datasets.')
+    sim_start = pd.to_datetime(sim_start)
 
     t = time.time()
     pf = Portfolio()
-    curr_mth = dt.date.today().month
-    curr_mth_sym = month_to_sym[curr_mth]
-    curr_yr = dt.date.today().year % (2000 + decade)
-    curr_sym = curr_mth_sym + str(curr_yr)
-    # reading in the dataframe of portfolio values
-    specs = pd.read_csv(filepath)
-    specs = specs.fillna('None')
 
-    pf_ids = specs.vol_id.unique()
-    sim_start = get_min_start_date(voldata, pricedata, pf_ids)
-    sim_start = pd.to_datetime(sim_start)
+    curr_mth = sim_start.month
+    curr_mth_sym = month_to_sym[curr_mth]
+    curr_yr = sim_start.year % (2000 + decade)
+    curr_sym = curr_mth_sym + str(curr_yr)
+
     print('SIM START: ', sim_start)
     # constructing each object individually
     for i in range(len(specs)):
@@ -182,7 +266,7 @@ def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
             ordering = find_cdist(curr_sym, mth, lst)
             # price = pricedata[(pricedata.order == ordering) &
             #                   (pricedata.value_date == sim_start)]['settle_value'].values[0]
-            price = pricedata[(pricedata['underlying_id'] == data.vol_id) &
+            price = pricedata[(pricedata['order'] == ordering) &
                               (pricedata['value_date'] == sim_start)]['settle_value'].values[0]
             flag = data.hedgeorOTC
             lots = 1000 if data.lots == 'None' else int(data.lots)
@@ -198,10 +282,18 @@ def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
             char = str(data.call_put_id)
             volflag = 'C' if char == 'call' else 'P'
 
-            # get tau from data
-            tau = voldata[(voldata['value_date'] == sim_start) &
-                          (voldata['vol_id'] == volid) &
-                          (voldata['call_put_id'] == volflag)]['tau'].values[0]
+            # get tau from data+
+            try:
+                tau = voldata[(voldata['value_date'] == sim_start) &
+                              (voldata['vol_id'] == volid) &
+                              (voldata['call_put_id'] == volflag)]['tau'].values[0]
+            except IndexError:
+                print('vol_id: ', volid)
+                print('call_put_id: ', volflag)
+                print('value_date: ', sim_start)
+                print('strike: ', strike)
+                raise ValueError(
+                    'voldata cannot be located! Inputs: ', volid, volflag, sim_start, strike)
             # get vol from data
             try:
                 vol = voldata[(voldata['vol_id'] == volid) &
@@ -268,8 +360,8 @@ def prep_portfolio(voldata, pricedata, filepath='specs.csv'):
         fts = ftlist[flag]
         pf.add_security(fts, flag)
 
-    # elapsed = time.time() - t
-    # print('[PREP_PORTFOLIO] elapsed: ', elapsed)
+    elapsed = time.time() - t
+    print('[PREP_PORTFOLIO] elapsed: ', elapsed)
     return pf, sim_start
 
 
@@ -312,7 +404,7 @@ def handle_dailies(dic):
 ###############################################################
 
 
-def clean_data(df, flag, edf=None):
+def clean_data(df, flag, date=None, edf=None, writeflag=None):
     """Function that cleans the dataframes passed into it according to the flag passed in.
     1) flag == 'exp':
         > datatype conversion to pd.Timestamp
@@ -368,7 +460,7 @@ def clean_data(df, flag, edf=None):
             1].str.split('.').str[0]
 
         # transformative functions
-        df = assign_ci(df)
+        df = assign_ci(df, date)
         try:
             df['label'] = df['vol_id'] + ' ' + \
                 df['order'].astype(str) + ' ' + df.call_put_id
@@ -392,7 +484,7 @@ def clean_data(df, flag, edf=None):
         df['ftmth'] = df['underlying_id'].str.split().str[1]
         # transformative functions.
         df = get_expiry(df, edf)
-        df = assign_ci(df)
+        df = assign_ci(df, date)
         df = scale_prices(df)
         df = df.fillna(0)
         df.expdate = pd.to_datetime(df.expdate)
@@ -407,7 +499,10 @@ def clean_data(df, flag, edf=None):
 
     df.reset_index(drop=True, inplace=True)
     df = df.dropna()
-    # df.to_csv('datasets/cleaned_' + flag + '.csv', index=False)
+
+    writestr = 'small_data' if writeflag == 'small' else 'full_data'
+    df.to_csv('datasets/' + writestr + '/cleaned_' +
+              flag + '.csv', index=False)
 
     return df
 
@@ -725,7 +820,7 @@ def get_expiry_date(volid, edf):
     return expdate
 
 
-def assign_ci(df):
+def assign_ci(df, date):
     """Identifies the continuation numbers of each underlying.
 
     Args:
@@ -734,7 +829,7 @@ def assign_ci(df):
     Returns:
         Pandas dataframe     : Dataframe with the CIs populated.
     """
-    today = dt.date.today()
+    today = pd.to_datetime(date)
     # today = pd.Timestamp('2017-01-01')
     curr_mth = month_to_sym[today.month]
     curr_yr = today.year

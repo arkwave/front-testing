@@ -77,9 +77,9 @@ multipliers = {
 # TODO: Bid-ask for options will vary depending on configuration. i.e. <
 # 60 days, 60-120 days, > 120 days serial time deltas will have different
 # spreads.
-filepath = 'data_loc.txt'
+# filepath = 'data_loc.txt'
 
-voldf, pricedf, edf = read_data(filepath)
+# voldf, pricedf, edf = read_data(filepath)
 seed = 7
 np.random.seed(seed)
 
