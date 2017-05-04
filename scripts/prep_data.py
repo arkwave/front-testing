@@ -16,7 +16,6 @@ Description    : Script contains methods to read-in and format data. These metho
 from .portfolio import Portfolio
 from .classes import Option, Future
 import pandas as pd
-import datetime as dt
 import numpy as np
 from scipy.interpolate import PchipInterpolator
 from scipy.stats import norm

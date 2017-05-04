@@ -2,7 +2,7 @@
 File Name      : simulation.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 18/4/2017
+Last Modified  : 4/5/2017
 Python version : 3.5
 Description    : Overall script that runs the simulation
 
@@ -77,7 +77,7 @@ np.random.seed(seed)
 ############## Main Simulation Loop #################
 #####################################################
 
-def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, brokerage=None, slippage=None):
+def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_date=None, brokerage=None, slippage=None):
     """Each run of the simulation consists of 5 steps:
 
     1) Feed data into the portfolio.
@@ -132,43 +132,62 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, brok
 
     # hedging frequency counters for delta, gamma, theta, vega respectively.
     counters = [1, 1, 1, 1]
-    # Step 1 & 2
+
     init_val = 0
     broken = False
     for i in range(len(date_range)):
-        if broken:
-            print('DATA MISSING; ENDING SIMULATION')
-            break
+
+        # get the current date
         date = date_range[i]
+
+    # Steps 1 & 2: Error checks to prevent useless simulation runs.
+
+        # broken = True if there is missing data.
+        if broken:
+            print('DATA MISSING; ENDING SIMULATION...')
+            break
+
+        # checks to make sure if there are still non-hedge securities in pf
+        if len(pf.OTC_options) == 0 and len(pf.OTC_futures) == 0:
+            print('PORTFOLIO IS EMTPY. ENDING SIMULATION...')
+            break
+
+        # if end_date is inputted, check to see if the current date exceeds
+        # end_date
+        if end_date:
+            if date >= end_date:
+                print('REACHED END OF SIMULATION.')
+                break
+
         try:
             next_date = date_range[i+1]
         except IndexError:
             next_date = None
-        try:
-            prev_date = date_range[i-1]
-        except IndexError:
-            prev_date = None
+
         # isolate data relevant for this day.
         date = pd.to_datetime(date)
         print('##################### date: ', date, '################')
 
+        # filter data specific to the current day of the simulation.
         vdf = voldata[voldata.value_date == date]
         pdf = pricedata[pricedata.value_date == date]
-        # getting data pertinent to that day.
-        # raw_change to be the difference between old and new value per
-        # iteration.
-        raw_change, pf, broken = feed_data(
-            vdf, pdf, pf, rollover_dates, date, prev_date, brokerage=brokerage, slippage=slippage)
 
-    # Step 3: Compute raw change in portfolio value
+        print('Portfolio before feed: ', pf)
+
+    # Step 3: Feed data into the portfolio.
+        raw_change, pf, broken = feed_data(
+            vdf, pdf, pf, rollover_dates, brokerage=brokerage, slippage=slippage)
+
+    # Step 4: Compute pnl for the day
         updated_val = pf.compute_value()
         dailypnl = updated_val - init_val if init_val != 0 else 0
 
-    # Step 4: Hedge.
+    # Step 5: Hedge.
+        # cost = 0
         pf, counters, cost = rebalance(
             vdf, pdf, pf, hedges, counters, brokerage=brokerage, slippage=slippage)
 
-    # Step 4.5: Subtract brokerage/slippage costs from rebalancing. Append to
+    # Step 6: Subtract brokerage/slippage costs from rebalancing. Append to
     # relevant lists.
         gross_daily_values.append(dailypnl)
         net_daily_values.append(dailypnl - cost)
@@ -183,14 +202,21 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, brok
         print('[10.3] Cumulative PNL (net): ', netpnl)
         print('[13]  EOD PORTFOLIO: ', pf)
         init_val = pf.compute_value()
-    # Step 5: Decrement timestep after all steps.
+
+    # Step 7: Placeholders for the signal-generating program.
+        # sec, hedgeDict, close_pos = get_signal()
+        # pf.add_security(sec, 'OTC')
+        # if hedgeDict is not None:
+        #     hedges = hedgeDict
+
+    # Step 8: Decrement timestep after all steps.
         # calculate number of days to step
         num_days = 0 if next_date is None else (
             pd.Timestamp(next_date) - pd.Timestamp(date)).days
         print('NUM DAYS: ', num_days)
         pf.timestep(num_days * timestep)
 
-    # Step 6: Plotting results/data viz
+    # Step 9: Plotting results/data viz
     elapsed = time.clock() - t
     print('Time elapsed: ', elapsed)
     print('##################### PNL: #####################')
@@ -212,14 +238,15 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, brok
 ##########################################################################
 
 
-def feed_data(voldf, pdf, pf, dic, date, prev_date, brokerage=None, slippage=None):
-    """This function does the following:
-    1) Computes current value of portfolio.
-    2) Checks for rollovers and expiries.
-    3) Feeds relevant information into the portfolio.
-    4) Asseses knockin/knockouts.
-    5) Computes new value of portfolio.
-    6) returns change in value, as well as updated portfolio.
+def feed_data(voldf, pdf, pf, dic, brokerage=None, slippage=None):
+    """
+    This function does the following:
+        1) Computes current value of portfolio.
+        2) Checks for rollovers and expiries.
+        3) Feeds relevant information into the portfolio.
+        4) Asseses knockin/knockouts. <- taken care of automatically upon feeding in data.
+        5) Computes new value of portfolio.
+        6) returns change in value, as well as updated portfolio.
 
     Args:
         voldf (pandas dataframe): dataframe of vols in same format as returned by read_data
@@ -227,9 +254,14 @@ def feed_data(voldf, pdf, pf, dic, date, prev_date, brokerage=None, slippage=Non
         pf (portfolio object): portfolio specified by portfolio_specs.txt
         dic (dictionary): dictionary of rollover dates, in the format
                 {product_i: [c_1 rollover, c_2 rollover, ... c_n rollover]}
+        brokerage (int, optional): brokerage fees per lot.
+        slippage (int, optional): slippage cost
 
     Returns:
-        tuple: change in value and updated portfolio object.
+        tuple: change in value, updated portfolio object, and whether or not there is missing data.
+
+    Raises:
+        ValueError: Raised if voldf is empty.
     """
     broken = False
     if voldf.empty:
@@ -237,16 +269,11 @@ def feed_data(voldf, pdf, pf, dic, date, prev_date, brokerage=None, slippage=Non
     date = voldf.value_date.unique()[0]
     raw_diff = 0
 
-    # 1) initial value of the portfolio before updates.
+    # 1) initial value of the portfolio before updates, and handling exercises
+    # before feeding data.
     prev_val = pf.compute_value()
     expenditure, pf = handle_exercise(pf, brokerage, slippage)
-    raw_diff -= expenditure
-    # [DEBUGGING STATEMENTS]
-    # print('[0]    PREVIOUS VALUE: ', prev_val)
-    # print('[0.1]  PRICE BEFORE VOL UPDATE: ', x[0].get_price())
-    # print('[0.2]  VOL BEFORE VOL UPDATE: ', x[0].vol)
-    # print('[0.3]  GREEKS BEFORE VOL UPDATE: ', pf.OTC['C']['N7'][2:])
-    # print('[0.4]  PORFOLIO BEFORE VOL UPDATE: ', pf)
+    raw_diff += expenditure
 
     # 2) Check for rollovers and expiries rollovers
     for product in dic:
@@ -261,8 +288,10 @@ def feed_data(voldf, pdf, pf, dic, date, prev_date, brokerage=None, slippage=Non
     # update option attributes by feeding in vol.
     if not broken:
         for op in pf.get_all_options():
-            # info reqd: strike, order, product.
+            # info reqd: strike, order, product, tau
             strike, order, product, tau = op.K, op.ordering, op.product, op.tau
+            # print('price: ', op.compute_price())
+            # print('OP GREEKS: ', op.greeks())
             cpi = 'C' if op.char == 'call' else 'P'
             # interpolate or round? currently rounding, interpolation easy.
             strike = round(strike/10) * 10
@@ -272,7 +301,7 @@ def feed_data(voldf, pdf, pf, dic, date, prev_date, brokerage=None, slippage=Non
                 df_tau = min(val.tau, key=lambda x: abs(x-tau))
                 val = val[val.tau == df_tau].settle_vol.values[0]
                 op.update_greeks(vol=val)
-                # print('UPDATED - new vol: ', val, op)
+                print('UPDATED - new vol: ', val)
             except IndexError:
                 print('### DATA MISSING ###')
                 print('product: ', product)
@@ -282,13 +311,15 @@ def feed_data(voldf, pdf, pf, dic, date, prev_date, brokerage=None, slippage=Non
                 print('tau: ', df_tau)
                 broken = True
                 break
-
+            # print(str(op) + ' OP VALUE AFTER FEED: ', op.compute_price())
+            # print('OP GREEKS: ', op.greeks())
     if not broken:
         for ft in pf.get_all_futures():
             pdt, ordering = ft.get_product(), ft.get_ordering()
             try:
                 val = pdf[(pdf.pdt == pdt) & (
                     pdf.order == ordering)].settle_value.values[0]
+                print('UPDATED - new price: ', val)
                 ft.update_price(val)
 
             # index error would occur only if data is missing.
@@ -301,6 +332,7 @@ def feed_data(voldf, pdf, pf, dic, date, prev_date, brokerage=None, slippage=Non
     pf.update_sec_by_month(None, 'OTC', update=True)
     pf.update_sec_by_month(None, 'hedge', update=True)
 
+    # print('Portfolio After Feed: ', pf)
     print('[7]  NET GREEKS: ', str(pprint.pformat(pf.net_greeks)))
 
     # 5) computing new value
@@ -323,7 +355,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
 
     """
     t = time.clock()
-    expenditure = 0
+    profit = 0
     tol = 1/365
     # handle options exercise
     # all_ops = pf.get_all_options()
@@ -336,23 +368,14 @@ def handle_exercise(pf, brokerage=None, slippage=None):
                     print("----- CASH SETTLEMENT: OTC OP ------")
                     print("exercising OTC op " + str(op))
                     op.update_tau(op.tau)
-                    # once for exercise, another for selling/buying to cover the
-                    # future obtained.
                     product = op.get_product()
                     pnl_mult = multipliers[product][-1]
-                    # fees = 2*brokerage if not op.shorted else 0
                     oppnl = op.lots * op.get_price()*pnl_mult
                     print('profit on this exercise: ', oppnl)
-                    # print('lots, price, mult: ', op.lots, op.get_price(),
-                    # pnl_mult)
                     print("-------------------------------------")
 
-                    # TODO: Double check exercise slippage/brokerage
-                    # if brokerage:
-                    #     fees = brokerage * op.lots if not op.shorted else 0
-                    expenditure += oppnl  # - fees
+                    profit += oppnl  # - fees
                 elif op.settlement == 'futures':
-                    # TODO: brokerage/slippage during futures settlement
                     print('----- FUTURE SETTLEMENT: OTC OP ------')
                     pf.exercise_option(op, 'OTC')
             else:
@@ -365,28 +388,21 @@ def handle_exercise(pf, brokerage=None, slippage=None):
                     print("----- CASH SETTLEMENT: HEDGE OPS ------")
                     print('exercising hedge op ' + str(op))
                     op.update_tau(op.tau)
-                    # once for exercise, another for selling/buying to cover the
-                    # future obtained.
                     product = op.get_product()
                     pnl_mult = multipliers[product][-1]
                     oppnl = op.lots * op.get_price()*pnl_mult
                     print('profit on this exercise: ', oppnl)
                     print('---------------------------------------')
-                    # TODO: double check if this is right.
-                    # if brokerage:
-                    #     fees = brokerage * op.lots if not op.shorted else 0
-
-                    # expenditure += oppnl - fees
+                    profit += oppnl
                 elif op.settlement == 'futures':
-                    # TODO: brokerage/slippage during futures settlement
                     print('----- FUTURE SETTLEMENT: HEDGE OPS ------')
                     pf.exercise_option(op, 'hedge')
             else:
                 print('letting hedge op ' + str(op) + ' expire.')
 
-    print(' ### net exercise profit: ', expenditure)
+    print(' ### net exercise profit: ', profit)
     print('handle expiry time: ', time.clock() - t)
-    return expenditure, pf
+    return profit, pf
 
 
 ###############################################################################
@@ -412,15 +428,15 @@ def rebalance(vdf, pdf, pf, hedges, counters, brokerage=None, slippage=None):
         hedges (dict): Dictionary of hedging conditions
 
     Returns:
-        tuple: portfolio, counters 
+        tuple: portfolio, counters
     """
     # compute the gamma and vega of atm straddles; one call + one put.
     # compute how many such deals are required. add to appropriate pos.
     # return both the portfolio, as well as the gain/loss from short/long pos
     # hedging delta, gamma, vega.
     delta_freq, gamma_freq, theta_freq, vega_freq = counters
-    print('delta freq: ', delta_freq)
-    print('vega freq: ', vega_freq)
+    # print('delta freq: ', delta_freq)
+    # print('vega freq: ', vega_freq)
     dic = copy.deepcopy(pf.get_net_greeks())
     hedgearr = [False, False, False, False]
     # updating counters
@@ -560,13 +576,13 @@ def gen_hedge_inputs(hedges, vdf, pdf, month, pf, product, ordering, flag):
 
     if len(relevant_conds) == 3:
         tau = max(tau_vals)
-        print('order: ', ordering)
-        print('ttm assigned: ', tau*365)
+        # print('order: ', ordering)
+        # print('ttm assigned: ', tau*365)
     else:
         target = relevant_conds[3]
         tau = min(tau_vals, key=lambda x: abs(x-target))
-        print('order: ', ordering)
-        print('ttm assigned: ', tau*365)
+        # print('order: ', ordering)
+        # print('ttm assigned: ', tau*365)
 
     underlying = Future(month, price, product, ordering=ordering)
 
@@ -607,7 +623,10 @@ def hedge(pf, inputs, product, month, flag, brokerage=None, slippage=None):
     # print('lower: ', lower)
     if greek > upper or greek < lower:
         # gamma hedging logic.
-        # print(product + ' ' + month + ' ' + flag + ' hedging')
+        print(product + ' ' + month + ' ' + flag + ' hedging')
+
+        print('cvol: ', cvol)
+        print('pvol: ', pvol)
         if greek < lower:
             # print('lower')
             # need to buy straddles for gamma/vega, short for theta.
@@ -731,7 +750,7 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering, brokerage=None, sl
 
     """
     # print('cond: ', cond)
-    # print('delta hedging: ', product + '  ' + month)
+    print('delta hedging: ', product + '  ' + month)
     future_price = pdf[(pdf.pdt == product) & (
         pdf.order == ordering)].settle_value.values[0]
     net_greeks = pf.get_net_greeks()
@@ -854,8 +873,8 @@ if __name__ == '__main__':
     # start_date = gv.start_date
 
     # filepath to portfolio specs. #
-    specpath = gv.portfolio_path
-    # specpath = 'specs.csv'
+    # specpath = gv.portfolio_path
+    specpath = 'specs.csv'
     # specpath = 'datasets/bo_portfolio_specs.csv'
 
     # fix portfolio internal date #
@@ -869,7 +888,6 @@ if __name__ == '__main__':
     # path to hedging conditions #
     hedge_path = gv.hedge_path
 
-    run_size = gv.run_size
     print('####################################################')
     print('DEFAULT PARAMETERS INITIALIZED. READING IN DATA... [1/7]')
     ##########################################################################
@@ -880,14 +898,14 @@ if __name__ == '__main__':
     # scratch #
 
     ### small data ###
-    volpath, pricepath, exppath, rollpath = \
-        gv.small_final_vol_path,\
+    volpath, pricepath, exppath, rollpath = gv.small_final_vol_path,\
         gv.small_final_price_path,\
         gv.small_final_exp_path,\
         gv.small_cleaned_price
 
     ### full data ###
-    # volpath, pricepath, exppath, rollpath = gv.final_vol_path, gv.final_price_path, gv.final_exp_path, gv.cleaned_price
+    # volpath, pricepath, exppath, rollpath = gv.final_vol_path,
+    # gv.final_price_path, gv.final_exp_path, gv.cleaned_price
 
     writeflag = 'small' if 'small' in volpath else 'full'
 
@@ -987,7 +1005,6 @@ if __name__ == '__main__':
     print('START DATE: ', start_date)
     # print('INTERNAL_DATE: ', internal_date)
     print('END DATE: ', end_date)
-    print('BLOCK SIZE: ', run_size)
     print('Portfolio: ', pf)
     print('NUM OPS: ', len(pf.OTC_options))
     print('Hedge Conditions: ', hedges)

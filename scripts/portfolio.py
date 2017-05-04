@@ -416,26 +416,9 @@ class Portfolio:
                 for month in d3[product]:
                     d3[product][month] = [0, 0, 0, 0]
 
-            # gather all securities in this portfolio
-            # otc_ft = self.OTC_futures
-            # otc_op = self.OTC_options
-            # hedge_ft = self.hedge_futures
-            # hedge_op = self.hedge_options
-
             # recompute greeks for all months and products.
             self.recompute(ft, flag)
             self.recompute(op, flag)
-            # self.recompute(hedge_ft, flag)
-            # self.recompute(hedge_op, flag)
-
-            # for sec in op:
-            #     product = sec.get_product()
-            #     month = sec.get_month()
-            #     # self.net_greeks[product][month] = [0, 0, 0, 0]
-            #     # update from scratch. treated as fresh add of all existing
-            #     # securities.
-            #     self.update_greeks_by_month(
-            #         product, month, sec, True, flag)
 
             # recompute net greeks
             self.compute_net_greeks()

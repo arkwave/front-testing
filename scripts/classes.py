@@ -2,7 +2,7 @@
 File Name      : classes.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 11/4/2017
+Last Modified  : 4/5/2017
 Python version : 3.5
 Description    : Script contains implementation of the Option and Futures classes, as well as helper methods that set/store/manipulate instance variables. This class is used in simulation.py.
 
@@ -38,7 +38,7 @@ class Option:
         20) expired    =   boolean indicating if the option has expired.
         21) rebate     =   value paid to holder of option if option is knocked out.
         22) ordering   =   indicating if this option is c1, c2, ... c8. For vol/price purposes.
-
+        23) settlement =   string indicating if the option is cash- or future-settled upon exercise
 
         Notes: 
         1_ ki, ko, bullet, direc and barrier default to None and must be expressly overridden if an exotic option is desired.
@@ -68,7 +68,7 @@ class Option:
     21) get_properties : returns a dictionary containing all the non-default properties of the option. Used for daily to bullet conversion. 
     """
 
-    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=1000, bullet=True, ki=None, ko=None, rebate=0, ordering=1e5):
+    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=1000, bullet=True, ki=None, ko=None, rebate=0, ordering=1e5, settlement='cash'):
         self.month = month
         self.barrier = barrier
         self.payoff = payoff
@@ -96,6 +96,7 @@ class Option:
         self.expired = False  # defaults to false.
         self.rebate = rebate
         self.product = self.get_product()
+        self.settlement = settlement
 
     def __str__(self):
         string = ''

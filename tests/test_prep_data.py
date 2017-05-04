@@ -12,10 +12,13 @@ import scripts.prep_data as pr
 import pandas as pd
 import numpy as np
 from scripts.classes import Option, Future
+import scripts.global_vars as gv
 
 
-filepath = 'data_loc.txt'
-voldata, pricedata, edf = pr.read_data(filepath)
+voldata, pricedata, edf, priceDF = pr.read_data(gv.test_vol_data,
+                                                gv.test_price_data,
+                                                gv.test_exp_data,
+                                                gv.test_start_date, test=True)
 
 contract_mths = {
 
@@ -62,14 +65,15 @@ def test_get_rollover_dates():
     ret = pr.get_rollover_dates(pricedata)
     assert len(ret) == 1
     assert set(ret.keys()) == set(['C'])
-    val = pd.to_datetime('2017-04-21 00:00:00')
-    try:
-        assert ret['C'][0] == val
-    except AssertionError:
-        print('found: ', ret['C'][0])
-        print('val: ', val)
+    # val = pd.to_datetime('2017-04-21 00:00:00')
+    # try:
+    #     assert ret['C'][0] == val
+    # except AssertionError:
+    #     print('found: ', ret['C'][0])
+    #     print('val: ', val)
     ret = ret['C']
     actuals = [
+        pd.Timestamp('2017-02-24 00:00:00'),
         pd.Timestamp('2017-04-21 00:00:00'),
         pd.Timestamp('2017-06-23 00:00:00'),
         pd.Timestamp('2017-08-25 00:00:00'),

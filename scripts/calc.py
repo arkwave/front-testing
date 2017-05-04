@@ -44,7 +44,7 @@ from scipy.stats import norm
 import numpy as np
 # from pandas import to_datetime
 import pandas as pd
-from .prep_data import read_data
+from .global_vars import final_vol_path as volpath
 
 
 # Dictionary of multipliers for greeks/pnl calculation.
@@ -79,7 +79,6 @@ multipliers = {
 # spreads.
 # filepath = 'data_loc.txt'
 
-# voldf, pricedf, edf = read_data(filepath)
 seed = 7
 np.random.seed(seed)
 
@@ -195,7 +194,6 @@ def get_barrier_vol(df, product, tau, call_put_id, barlevel):
         print(type(barlevel))
         print(type(df['strike'][0]))
         print('barlevel: ', barlevel)
-        print('strikeval: ', df['strike'])
         print('tau_val: ', tau)
         print('Product: ', product)
 
@@ -205,8 +203,6 @@ def get_barrier_vol(df, product, tau, call_put_id, barlevel):
 # NOTE: Currently follows implementation taken from PnP Excel source code,
 # and so only accounts for ECUI, ECUO, EPDI, EPDO options.
 def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, rebate=0, barvol=None):
-    # from .prep_data import read_data
-    # voldf, pricedf, edf = read_data(filepath)
     """ Pricing model for options with European barriers.
 
     Inputs:
@@ -228,6 +224,8 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, r
     """
     barlevel = ki if ki else ko
     call_put_id = 'C' if char == 'call' else 'P'
+    voldf = pd.read_csv(volpath)
+    voldf.value_date = pd.to_datetime(voldf.value_date)
     bvol = get_barrier_vol(voldf, product, tau, call_put_id,
                            barlevel) if barvol is None else barvol
 
@@ -784,10 +782,10 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction, produc
     Returns:
         delta, gamma, theta, vega : greeks of this instrument.
     """
-    # from .prep_data import read_data
-    # voldf, pricedf, edf = read_data(filepath)
     barlevel = ki if ki else ko
     call_put_id = 'C' if char == 'call' else 'P'
+    voldf = pd.read_csv(volpath)
+    voldf.value_date = pd.to_datetime(voldf.value_date)
     bvol = get_barrier_vol(voldf, product, tau, call_put_id,
                            barlevel) if barvol is None else barvol
 
@@ -928,7 +926,6 @@ def american_iv(option, s, k, c, tau, r, product, num_iter=100):
             print('sigma: ', sigma)
             print('diff: ', diff)
             print('tau: ', tau)
-            # print('vol: ', vol)
     return sigma
 
 
@@ -1039,75 +1036,6 @@ def _num_vega(payoff, option_type, s, k, tau, r,  vol, b=0):
     # vega = vega1*lots*lm*dm/100
     return vega
 
-
-# FIXME: D is always NAN.
-def find_vol_change(voldf, vol, option, date, prev_date):
-    # print('##################################################')
-    # print('[dvol 1] option: ', option)
-    delta = abs(option.delta / option.lots)
-    # find strike corresponding to this delta in prev_date data
-    D = norm.ppf(delta) if option.char == 'call' else -norm.ppf(delta)
-    if np.isnan(D):
-        print('[dvol 2] D IS NAN')
-        # print('D IS NAN')
-        if option.char == 'call':
-            print('[dvol 3] call delta: ', delta)
-            # print('call delta: ', delta)
-        else:
-            print('[dvol 3] put delta: ', delta)
-            # print('put delta: ', delta)
-    s = option.underlying.get_price()
-    tau = option.tau
-    strike = s/(exp(vol*sqrt(tau) * D - ((vol**2)*tau)/2))
-    # finding vol according to this strike in prev_date data
-    strike = round(strike/10) * 10
-    product = option.get_product()
-    order = option.get_ordering()
-    cpi = 'C' if option.char == 'call' else 'P'
-
-    voldf.value_date = pd.to_datetime(voldf.value_date)
-    date, prev_date = pd.to_datetime(date), pd.to_datetime(prev_date)
-
-    try:
-        prev_vol = voldf[(voldf.value_date == prev_date) &
-                         (voldf.pdt == product) & (np.isclose(voldf.strike, strike)) &
-                         (voldf.order == order) & (voldf.call_put_id == cpi) &
-                         (voldf.tau < (tau + 2/365))].settle_vol.values[0]
-    except IndexError:
-        print('[dvol 4] prev_vol does not exist for this strike')
-        print('[dvol 5] problematic strike: ', strike)
-        print('[dvol 6] inputs: ', D, s, tau, delta, pd.to_datetime(prev_date))
-        print('debug -- 1: ', voldf[(voldf.value_date == prev_date) &
-                                    (voldf.pdt == product) &
-                                    (np.isclose(voldf.strike, strike)) &
-                                    (voldf.order == order)])
-        print('debug -- 2: ', voldf[(voldf.value_date == prev_date) &
-                                    (voldf.pdt == product) &
-                                    (np.isclose(voldf.strike, strike)) &
-                                    (voldf.order == order) &
-                                    (voldf.call_put_id == cpi)])
-        print('debug -- 3: ', voldf[(voldf.value_date == prev_date) &
-                                    (voldf.pdt == product) &
-                                    (np.isclose(voldf.strike, strike)) &
-                                    (voldf.order == order) &
-                                    (voldf.call_put_id == cpi) &
-                                    (voldf.tau < (tau + 2/365))])
-        prev_vol = 0
-
-    try:
-        curr_vol = voldf[(voldf.value_date == date) &
-                         (voldf.pdt == product) & (voldf.strike == strike) &
-                         (voldf.order == order) & (voldf.call_put_id == cpi) &
-                         (voldf.tau < (tau + 2/365))].settle_vol.values[0]
-
-    except IndexError:
-        print('[dvol 7] curr_vol does not exist for this strike')
-        print('[dvol 8] problematic strike: ', strike)
-        print('[dvol 9] inputs: ', D, s, tau, delta)
-        curr_vol = 0
-
-    # print('####################################################')
-    return curr_vol - prev_vol
 
 ####################################################################
 ########### Barrier Option Valuation Helper Methods ################

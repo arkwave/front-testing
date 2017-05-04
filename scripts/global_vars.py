@@ -46,11 +46,9 @@ portfolio_path = 'datasets/corn_portfolio_specs.csv'
 # simulation settings
 start_date = Timestamp('2014-08-07')
 # start_date = Timestamp('2017-01-01')
-internal_date = Timestamp('2017-04-20')
-end_date = internal_date
-run_size = 2
+# end_date =
 
-brokerage = 1
+brokerage = 0
 slippage = None
 
 
