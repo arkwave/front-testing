@@ -16,6 +16,8 @@ import pandas as pd
 from scripts.classes import Option, Future
 # from scripts.calc import find_vol_change
 from scripts.prep_data import read_data, prep_portfolio, get_rollover_dates, generate_hedges, get_min_start_date
+
+from scripts.calc import compute_strike_from_delta
 # from math import ceil
 import copy
 import time
@@ -473,9 +475,13 @@ def rebalance(vdf, pdf, pf, hedges, counters, brokerage=None, slippage=None):
     roll_hedged = check_roll_status(pf, hedges)
 
     cost = 0
+
     if not roll_hedged:
-        pf, cost = hedge_delta_roll(
-            pf, hedge, vdf, pdf, brokerage=brokerage, slippage=slippage)
+        roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedge[
+            'delta'][i][0] == 'roll']
+        pf, exp = hedge_delta_roll(
+            pf, roll_cond, pdf, brokerage=brokerage, slippage=slippage)
+        cost += exp
 
     while not done_hedging:
         for product in dic:
@@ -782,8 +788,56 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering, brokerage=None, sl
 
 
 # FIXME: Needs to be implemented
-def hedge_delta_roll(pf, hedge, vdf, pdf, brokerage=None, slippage=None):
-    return pf, 0
+def hedge_delta_roll(pf, rolL_cond, pdf, brokerage=None, slippage=None):
+    """Rolls delta of the option back to a value specified in hedge dictionary if op.delta exceeds certain bounds.
+
+    Args:
+        pf (TYPE): Portfolio being hedged
+        roll_cond (TYPE): list of the form ['roll', value, frequency, bound]
+        vdf (TYPE): volatility data frame containing information for current day
+        pdf (TYPE): price dataframe containing information for current day
+        brokerage (int, optional): brokerage fees per lot
+        slippage (int, optional): slippage loss
+
+    Returns:
+        tuple: updated portfolio and cost of purchasing/selling options.
+    """
+    cost = 0
+    roll_val, bounds = roll_cond[1]/100, roll_cond[3]
+    pfx = copy.deepcopy(pf)
+    for op in pfx.OTC_options:
+        delta = abs(op.delta/op.lots)
+        # case: delta not in bounds. roll delta.
+        if delta > bounds[1] or delta < bounds[0]:
+            # get strike corresponding to delta
+            cpi = 'C' if op.char == 'call' else 'P'
+            # get the vol from the vol_by_delta part of pdf
+            col = str(roll_val) + 'd'
+            try:
+                vol = pdf[(pdf.call_put_id == cpi) &
+                          (pdf.order == op.ordering) &
+                          (pdf.pdt == op.get_product()) &
+                          (pdf.tau == op.tau)][col].values[0]
+            except IndexError:
+                print(cpi, op.ordering, op.get_product(), op.tau)
+                print('vol not found in volbydelta')
+                vol = op.vol
+
+            strike = compute_strike_from_delta(op, delta1=roll_val, vol=vol)
+
+            newop = Option(strike, op.tau, op.char, vol, op.underlying,
+                           op.payoff, op.shorted, op.month, direc=op.direc,
+                           barrier=op.barrier, lots=op.lots, bullet=op.bullet,
+                           ki=op.ki, ko=op.ko, rebate=op.rebate,
+                           ordering=op.ordering, settlement=op.settlement)
+            pf.remove_security(op, 'OTC')
+            pf.add_security(newop, 'OTC')
+
+            # handle expenses: brokerage and old op price - new op price
+            cost += (brokerage * (op.lots + newop.lots)) + \
+                (op.compute_price() - newop.compute_price())
+
+    return pf, cost
 
 
 ###############################################################################
@@ -1090,7 +1144,29 @@ if __name__ == '__main__':
 ##########################################################################
 ##########################################################################
 
-# # Commands upon running the file
+
+#######################################################################
+#######################################################################
+#######################################################################
+
+# code dump
+
+    # proceed to run simulation
+    # pnl_list = []
+
+    # for i in range(10):
+    #     pf, sim_start = prep_portfolio(vdf, pdf, filepath=filepath)
+    #     print(pf)
+    #     vdf, pdf = vdf[vdf.value_date >= sim_start], \
+    #         pdf[pdf.value_date >= sim_start]
+    #     pnl, pf1 = run_simulation(vdf, pdf, edf, pf)
+    #     pnl_list.append(pnl)
+    #     print('run ' + str(i) + ' completed')
+
+    # print('mean pnl: ', np.mean(pnl_list))
+    # print('pnl sd: ', np.std(pnl_list))
+
+    # # Commands upon running the file
 
 # if __name__ == '__main__':
 #     datapath = 'data_loc.txt'
@@ -1125,25 +1201,3 @@ if __name__ == '__main__':
 
 #     e2 = time.clock() - e1
 #     print('[simulation]: ', e2)
-
-
-#######################################################################
-#######################################################################
-#######################################################################
-
-# code dump
-
-    # proceed to run simulation
-    # pnl_list = []
-
-    # for i in range(10):
-    #     pf, sim_start = prep_portfolio(vdf, pdf, filepath=filepath)
-    #     print(pf)
-    #     vdf, pdf = vdf[vdf.value_date >= sim_start], \
-    #         pdf[pdf.value_date >= sim_start]
-    #     pnl, pf1 = run_simulation(vdf, pdf, edf, pf)
-    #     pnl_list.append(pnl)
-    #     print('run ' + str(i) + ' completed')
-
-    # print('mean pnl: ', np.mean(pnl_list))
-    # print('pnl sd: ', np.std(pnl_list))

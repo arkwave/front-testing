@@ -842,6 +842,39 @@ def _compute_iv(optiontype, s, k, c, tau, r, flag):
         # return american_iv(s, k, c, tau, r, optiontype)
 
 
+def compute_strike_from_delta(option, delta1=None, vol=None):
+    """Helper function that calculates the historic equivalent strike from 
+    the delta of the option. Strike is reverse-engineered from Black Scholes.
+
+    Args:
+        option (TYPE): The option for which HES is being calculated.
+
+    Returns:
+        double: the historically equivalent strike. 
+    """
+    delta = abs(option.delta / option.lots) if delta1 is None else delta1
+    delta = 1e-5 if delta == 0 else delta
+    delta = 0.99 if delta == 1 else delta
+    # find strike corresponding to this delta in prev_date data
+    D = norm.ppf(delta) if option.char == 'call' else -norm.ppf(delta)
+    if np.isnan(D):
+        print('[dvol 2] D IS NAN')
+        # print('D IS NAN')
+        if option.char == 'call':
+            print('[dvol 3] call delta: ', delta)
+            # print('call delta: ', delta)
+        else:
+            print('[dvol 3] put delta: ', delta)
+            # print('put delta: ', delta)
+    s = option.underlying.get_price()
+    tau = option.tau
+    vol = option.vol if vol is None else vol
+    strike = s/(exp((vol*sqrt(tau) * D) - ((vol**2)*tau)/2))
+    # finding vol according to this strike in prev_date data
+    strike = round(strike/10) * 10
+    return strike
+
+
 ####################################################################
 ##### Supplemental Methods for Numerical Approximations ############
 ####################################################################

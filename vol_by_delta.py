@@ -4,6 +4,7 @@ import numpy as np
 from scipy.stats import norm
 from math import log, sqrt
 from scipy.interpolate import PchipInterpolator
+import time
 
 seed = 7
 np.random.seed(seed)
@@ -85,117 +86,224 @@ def vol_by_delta(voldata, pricedata):
     """
     relevant_price = pricedata[
         ['underlying_id', 'value_date', 'settle_value', 'order']]
-    relevant_vol = voldata[['value_date', 'vol_id', 'strike',
+    relevant_vol = voldata[['value_date', 'vol_id', 'strike', 'order',
                             'call_put_id', 'tau', 'settle_vol', 'underlying_id']]
 
     print('merging')
     merged = pd.merge(relevant_vol, relevant_price,
-                      on=['value_date', 'underlying_id'])
+                      on=['value_date', 'underlying_id', 'order'])
     # filtering out negative tau values.
     merged = merged[(merged['tau'] > 0) & (merged['settle_vol'] > 0)]
 
     print('computing deltas')
+
     merged['delta'] = merged.apply(compute_delta, axis=1)
     # merged.to_csv('merged.csv')
     merged['pdt'] = merged['underlying_id'].str.split().str[0]
 
+    merged.delta = merged.delta.abs()
+
     print('getting labels')
     # getting labels for deltas
-    delta_vals = np.arange(0.05, 1, 0.05)
+    delta_vals = np.arange(0.05, 0.96, 0.01)
     delta_labels = [str(int(100*x)) + 'd' for x in delta_vals]
-    # all_cols = ['underlying_id', 'tau', 'vol_id'].extend(delta_labels)
 
     print('preallocating')
     # preallocating dataframes
-    call_df = merged[merged.call_put_id == 'C'][
-        ['value_date', 'underlying_id', 'tau', 'vol_id', 'order', 'pdt']].drop_duplicates()
-    put_df = merged[merged.call_put_id == 'P'][
-        ['value_date', 'underlying_id', 'tau', 'vol_id', 'order', 'pdt']].drop_duplicates()
+    vdf = merged[['value_date', 'underlying_id', 'tau', 'vol_id',
+                  'order', 'pdt', 'call_put_id']].drop_duplicates()
 
-    # adding option month as a column
-    c_pdt = call_df.vol_id.str.split().str[0]
-    c_opmth = call_df.vol_id.str.split().str[1].str.split('.').str[0]
-    c_fin = c_pdt + ' ' + c_opmth
-    call_df['op_id'] = c_fin
-    p_pdt = put_df.vol_id.str.split().str[0]
-    p_opmth = put_df.vol_id.str.split().str[1].str.split('.').str[0]
-    p_fin = p_pdt + ' ' + p_opmth
-    put_df['op_id'] = p_fin
-
-    # appending rest of delta labels as columns.
-    call_df = pd.concat([call_df, pd.DataFrame(columns=delta_labels)], axis=1)
-    put_df = pd.concat([put_df, pd.DataFrame(columns=delta_labels)], axis=1)
     products = merged.pdt.unique()
+
+    vbd = pd.DataFrame(columns=delta_labels)
 
     print('beginning iteration:')
     # iterate first over products, thenn dates for that product, followed by
     # vol_ids in that product/date
+    dlist = []
     for pdt in products:
         tmp = merged[merged.pdt == pdt]
         # tmp.to_csv('test.csv')
         dates = tmp.value_date.unique()
         vids = tmp.vol_id.unique()
+        cpi = list(tmp.call_put_id.unique())
         for date in dates:
             for vid in vids:
-                # filter by vol_id and by day.
-                df = tmp[(tmp.value_date == date) & (tmp.vol_id == vid)]
-                calls = df[df.call_put_id == 'C']
-                puts = df[df.call_put_id == 'P']
-                # setting absolute value.
-                puts.delta = np.abs(puts.delta)
-                # sorting in ascending order of delta for interpolation
-                # purposes
-                calls = calls.sort_values(by='delta')
-                puts = puts.sort_values(by='delta')
-                # reshaping data for interpolation.
-                drange = np.arange(0.05, 1, 0.05)
-                cdeltas = calls.delta.values
-                cvols = calls.settle_vol.values
-                pdeltas = puts.delta.values
-                pvols = puts.settle_vol.values
-                # interpolating delta using Piecewise Cubic Hermite
-                # Interpolation (Pchip)
-                try:
-                    f1 = PchipInterpolator(cdeltas, cvols, axis=1)
-                    f2 = PchipInterpolator(pdeltas, pvols, axis=1)
-                except IndexError:
-                    continue
-                # grabbing delta-wise vols based on interpolation.
-                call_deltas = f1(drange)
-                put_deltas = f2(drange)
+                for ind in cpi:
+                    # filter by vol_id and by day.
+                    df = tmp[(tmp.value_date == date) &
+                             (tmp.vol_id == vid) &
+                             (tmp.call_put_id == ind)]
 
-                try:
-                    call_df.loc[(call_df.vol_id == vid) & (call_df.value_date == date),
-                                delta_labels] = call_deltas
-                except ValueError:
-                    print('target: ', call_df.loc[(call_df.vol_id == vid) & (
-                        call_df.value_date == date), delta_labels])
-                    print('values: ', call_deltas)
+                    # sorting in ascending order of delta for interpolation
+                    # purposes
+                    df = df.sort_values(by='delta')
 
-                try:
-                    put_df.loc[(put_df.vol_id == vid) & (put_df.value_date == date),
-                               delta_labels] = put_deltas
-                except ValueError:
-                    print('target: ', call_df.loc[(call_df.vol_id == vid) & (
-                        call_df.value_date == date), delta_labels])
-                    print('values: ', call_deltas)
+                    # reshaping data for interpolation.
+                    drange = np.arange(0.05, 0.96, 0.01)
+                    deltas = df.delta.values
+                    vols = df.settle_vol.values
+                    # interpolating delta using Piecewise Cubic Hermite
+                    # Interpolation (Pchip)
 
-    # changing call_df.tau and put_df.tau to days to expiry.
-    call_df.tau = call_df.tau * 365
-    put_df.tau = put_df.tau * 365
-    print('Done. writing to csv...')
-    # call_df.to_csv('call_deltas.csv', index=False)
-    # put_df.to_csv('put_deltas.csv', index=False)
+                    try:
+                        f1 = PchipInterpolator(deltas, vols, axis=1)
+                    except IndexError:
+                        continue
+                    # grabbing delta-wise vols based on interpolation.
+                    vols = f1(drange)
+
+                    dic = dict(zip(delta_labels, vols))
+                    # adding the relevant values from the indexing dataframe
+                    dic['pdt'] = pdt
+                    dic['vol_id'] = vid
+                    dic['value_date'] = date
+                    dic['call_put_id'] = ind
+                    dlist.append(dic)
+
+    vbd = pd.DataFrame(dlist, columns=delta_labels.extend([
+                       'pdt', 'vol_id', 'value_date', 'call_put_id']))
+
+    vbd = pd.merge(vdf, vbd, on=['pdt', 'vol_id', 'value_date', 'call_put_id'])
 
     # resetting indices
-    call_df.reset_index(drop=True, inplace=True)
-    put_df.reset_index(drop=True, inplace=True)
-    return call_df, put_df
+    return vbd
 
 
-if __name__ == '__main__':
-    filepath = 'portfolio_specs.txt'
-    vdf, pdf, edf = read_data(filepath)
-    vbd_c, vbd_p = vol_by_delta(vdf, pdf)
-    # vbd_c.to_csv('vols_by_delta_c.csv')
-    # vbd_p.to_csv('vols_by_delta_p.csv')
+# def vol_by_delta(voldata, pricedata):
+#     """takes in a dataframe of vols and prices (same format as those returned by read_data),
+# and generates delta-wise vol organized hierarchically by date,
+# underlying and vol_id
+
+#     Args:
+#         voldata (TYPE): dataframe of vols
+#         pricedata (TYPE): dataframe of prices
+
+#     Returns:
+#         pandas dataframe: delta-wise vol of each option.
+#     """
+#     relevant_price = pricedata[
+#         ['underlying_id', 'value_date', 'settle_value', 'order']]
+#     relevant_vol = voldata[['value_date', 'vol_id', 'strike', 'order',
+#                             'call_put_id', 'tau', 'settle_vol', 'underlying_id']]
+
+#     print('merging')
+#     merged = pd.merge(relevant_vol, relevant_price,
+#                       on=['value_date', 'underlying_id', 'order'])
+#     # filtering out negative tau values.
+#     merged = merged[(merged['tau'] > 0) & (merged['settle_vol'] > 0)]
+
+#     print('computing deltas')
+#     merged['delta'] = merged.apply(compute_delta, axis=1)
+#     # merged.to_csv('merged.csv')
+#     merged['pdt'] = merged['underlying_id'].str.split().str[0]
+
+#     print('getting labels')
+#     # getting labels for deltas
+#     delta_vals = np.arange(0.05, 0.96, 0.01)
+#     delta_labels = [str(int(100*x)) + 'd' for x in delta_vals]
+#     # all_cols = ['underlying_id', 'tau', 'vol_id'].extend(delta_labels)
+
+#     print('preallocating')
+#     # preallocating dataframes
+#     call_df = merged[merged.call_put_id == 'C'][
+#         ['value_date', 'underlying_id', 'tau', 'vol_id', 'order', 'pdt', 'call_put_id']].drop_duplicates()
+#     put_df = merged[merged.call_put_id == 'P'][
+#         ['value_date', 'underlying_id', 'tau', 'vol_id', 'order', 'pdt', 'call_put_id']].drop_duplicates()
+
+#     # adding option month as a column
+#     c_pdt = call_df.vol_id.str.split().str[0]
+#     c_opmth = call_df.vol_id.str.split().str[1].str.split('.').str[0]
+#     c_fin = c_pdt + ' ' + c_opmth
+#     call_df['op_id'] = c_fin
+#     p_pdt = put_df.vol_id.str.split().str[0]
+#     p_opmth = put_df.vol_id.str.split().str[1].str.split('.').str[0]
+#     p_fin = p_pdt + ' ' + p_opmth
+#     put_df['op_id'] = p_fin
+
+#     # appending rest of delta labels as columns.
+#     call_df = pd.concat([call_df, pd.DataFrame(columns=delta_labels)], axis=1)
+#     put_df = pd.concat([put_df, pd.DataFrame(columns=delta_labels)], axis=1)
+#     products = merged.pdt.unique()
+
+#     print('beginning iteration:')
+#     # iterate first over products, thenn dates for that product, followed by
+#     # vol_ids in that product/date
+#     for pdt in products:
+#         tmp = merged[merged.pdt == pdt]
+#         # tmp.to_csv('test.csv')
+#         dates = tmp.value_date.unique()
+#         vids = tmp.vol_id.unique()
+#         for date in dates:
+#             for vid in vids:
+#                 # filter by vol_id and by day.
+#                 df = tmp[(tmp.value_date == date) & (tmp.vol_id == vid)]
+#                 calls = df[df.call_put_id == 'C']
+#                 puts = df[df.call_put_id == 'P']
+#                 # setting absolute value.
+#                 puts.delta = np.abs(puts.delta)
+#                 # sorting in ascending order of delta for interpolation
+#                 # purposes
+#                 calls = calls.sort_values(by='delta')
+#                 puts = puts.sort_values(by='delta')
+#                 # reshaping data for interpolation.
+#                 drange = np.arange(0.05, 0.96, 0.01)
+#                 cdeltas = calls.delta.values
+#                 cvols = calls.settle_vol.values
+#                 pdeltas = puts.delta.values
+#                 pvols = puts.settle_vol.values
+#                 # interpolating delta using Piecewise Cubic Hermite
+#                 # Interpolation (Pchip)
+#                 try:
+#                     f1 = PchipInterpolator(cdeltas, cvols, axis=1)
+#                     f2 = PchipInterpolator(pdeltas, pvols, axis=1)
+#                 except IndexError:
+#                     continue
+#                 # grabbing delta-wise vols based on interpolation.
+#                 call_deltas = f1(drange)
+#                 put_deltas = f2(drange)
+
+#                 try:
+#                     call_df.loc[(call_df.vol_id == vid) & (call_df.value_date == date),
+#                                 delta_labels] = call_deltas
+#                 except ValueError:
+#                     print('target: ', call_df.loc[(call_df.vol_id == vid) & (
+#                         call_df.value_date == date), delta_labels])
+#                     print('values: ', call_deltas)
+
+#                 try:
+#                     put_df.loc[(put_df.vol_id == vid) & (put_df.value_date == date),
+#                                delta_labels] = put_deltas
+#                 except ValueError:
+#                     print('target: ', call_df.loc[(call_df.vol_id == vid) & (
+#                         call_df.value_date == date), delta_labels])
+#                     print('values: ', call_deltas)
+
+#     # changing call_df.tau and put_df.tau to days to expiry.
+#     # call_df.tau = call_df.tau * 365
+#     # put_df.tau = put_df.tau * 365
+#     print('Done. writing to csv...')
+#     # call_df.to_csv('call_deltas.csv', index=False)
+#     # put_df.to_csv('put_deltas.csv', index=False)
+
+#     # resetting indices
+#     call_df.reset_index(drop=True, inplace=True)
+#     put_df.reset_index(drop=True, inplace=True)
+#     return call_df, put_df
+
+
+# if __name__ == '__main__':
+#     # filepath = 'portfolio_specs.txt'
+#     # vdf, pdf, edf = read_data(filepath)
+#     vdf = pd.read_csv('datasets/small_data/final_vols.csv')
+#     pdf = pd.read_csv('datasets/small_data/final_price.csv')
+#     vdf.value_date = pd.to_datetime(vdf.value_date)
+#     pdf.value_date = pd.to_datetime(pdf.value_date)
+#     t = time.clock()
+#     vbd_c, vbd_p = vol_by_delta(vdf, pdf)
+#     vbd = pd.concat([vbd_c, vbd_p], axis=0)
+#     # vbd_c.to_csv('vols_by_delta_c.csv')
+#     # vbd_p.to_csv('vols_by_delta_p.csv')
+#     vbd.to_csv('datasets/vols_by_delta.csv')
+#     elapsed = time.clock() - t
+#     print('time elapsed: ', elapsed)
