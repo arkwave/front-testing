@@ -1,10 +1,10 @@
-from scripts.classes import Option, Future
-from scripts.portfolio import Portfolio
+
 brokerage = 1
+import numpy as np
 from math import log, sqrt, exp
-from scipy.stats import norm
 import pandas as pd
 from ast import literal_eval
+from collections import OrderedDict
 
 multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
@@ -39,38 +39,6 @@ filepath = 'hedging.csv'
 #     except FileNotFoundError:
 #         print(filepath)
 
-
-def generate_hedges(filepath=filepath):
-    df = pd.read_csv(filepath)
-    hedges = {}
-    for i in df.index:
-        row = df.iloc[i]
-        # static hedging
-        if row.flag == 'static':
-            greek = row.greek
-            hedges[greek] = [row.flag, row.cond, int(row.freq)]
-        # bound hedging
-        elif row.flag == 'bound':
-            greek = row.greek
-            hedges[greek] = [row.flag, literal_eval(row.cond), int(row.freq)]
-        # percentage hedging
-        elif row.flag == 'pct':
-            greek = row.greek
-            hedges[greek] = [row.flag, float(row.cond),
-                             int(row.freq), row.subcond]
-
-    return hedges
-
-hedges = generate_hedges()
-
-
-from scripts.prep_data import read_data
-import pandas as pd
-import numpy as np
-from scipy.stats import norm
-from math import log, sqrt
-from scipy.interpolate import PchipInterpolator
-import time
 
 seed = 7
 np.random.seed(seed)
@@ -116,145 +84,16 @@ contract_mths = {
 }
 
 
-def compute_delta(x):
-    s = x.settle_value
-    K = x.strike
-    tau = x.tau
-    char = x.call_put_id
-    vol = x.settle_vol
-    r = 0
-    try:
-        d1 = (log(s/K) + (r + 0.5 * vol ** 2)*tau) / \
-            (vol * sqrt(tau))
-    except (ZeroDivisionError):
-        d1 = -np.inf
+vdf = pd.read_csv('datasets/small_data/final_vols.csv')
+pdf = pd.read_csv('datasets/small_data/final_price.csv')
+pdf.value_date = pd.to_datetime(pdf.value_date)
+vdf.value_date = pd.to_datetime(vdf.value_date)
+signals = pd.read_csv('datasets/signals.csv')
+signals.value_date = pd.to_datetime(signals.value_date)
 
-    if char == 'C':
-        # call option calc for delta and theta
-        delta1 = norm.cdf(d1)
-    if char == 'P':
-        # put option calc for delta and theta
-        delta1 = norm.cdf(d1) - 1
-
-    return delta1
-
-
-def vol_by_delta(voldata, pricedata):
-    """takes in a dataframe of vols and prices (same format as those returned by read_data),
-     and generates delta-wise vol organized hierarchically by date, underlying and vol_id
-
-    Args:
-        voldata (TYPE): dataframe of vols
-        pricedata (TYPE): dataframe of prices
-
-    Returns:
-        pandas dataframe: delta-wise vol of each option.
-    """
-    relevant_price = pricedata[
-        ['underlying_id', 'value_date', 'settle_value', 'order']]
-    relevant_vol = voldata[['value_date', 'vol_id', 'strike', 'order',
-                            'call_put_id', 'tau', 'settle_vol', 'underlying_id']]
-
-    print('merging')
-    merged = pd.merge(relevant_vol, relevant_price,
-                      on=['value_date', 'underlying_id', 'order'])
-    # filtering out negative tau values.
-    merged = merged[(merged['tau'] > 0) & (merged['settle_vol'] > 0)]
-
-    print('computing deltas')
-
-    merged['delta'] = merged.apply(compute_delta, axis=1)
-    # merged.to_csv('merged.csv')
-    merged['pdt'] = merged['underlying_id'].str.split().str[0]
-
-    merged.delta = merged.delta.abs()
-
-    print('getting labels')
-    # getting labels for deltas
-    delta_vals = np.arange(0.05, 0.96, 0.01)
-    delta_labels = [str(int(100*x)) + 'd' for x in delta_vals]
-
-    print('preallocating')
-    # preallocating dataframes
-    vdf = merged[['value_date', 'underlying_id', 'tau', 'vol_id',
-                  'order', 'pdt', 'call_put_id']].drop_duplicates()
-
-    products = merged.pdt.unique()
-
-    vbd = pd.DataFrame(columns=delta_labels)
-
-    print('beginning iteration:')
-    # iterate first over products, thenn dates for that product, followed by
-    # vol_ids in that product/date
-    dlist = []
-    for pdt in products:
-        tmp = merged[merged.pdt == pdt]
-        # tmp.to_csv('test.csv')
-        dates = tmp.value_date.unique()
-        vids = tmp.vol_id.unique()
-        cpi = list(tmp.call_put_id.unique())
-        for date in dates:
-            for vid in vids:
-                for ind in cpi:
-                    # filter by vol_id and by day.
-                    df = tmp[(tmp.value_date == date) &
-                             (tmp.vol_id == vid) &
-                             (tmp.call_put_id == ind)]
-
-                    # sorting in ascending order of delta for interpolation
-                    # purposes
-                    df = df.sort_values(by='delta')
-
-                    # reshaping data for interpolation.
-                    drange = np.arange(0.05, 0.96, 0.01)
-                    deltas = df.delta.values
-                    vols = df.settle_vol.values
-                    # interpolating delta using Piecewise Cubic Hermite
-                    # Interpolation (Pchip)
-
-                    try:
-                        f1 = PchipInterpolator(deltas, vols, axis=1)
-                    except IndexError:
-                        continue
-                    # grabbing delta-wise vols based on interpolation.
-                    vols = f1(drange)
-
-                    dic = dict(zip(delta_labels, vols))
-                    # adding the relevant values from the indexing dataframe
-                    dic['pdt'] = pdt
-                    dic['vol_id'] = vid
-                    dic['value_date'] = date
-                    dic['call_put_id'] = ind
-                    dlist.append(dic)
-
-    vbd = pd.DataFrame(dlist, columns=delta_labels.extend([
-                       'pdt', 'vol_id', 'value_date', 'call_put_id']))
-
-    vbd = pd.merge(vdf, vbd, on=['pdt', 'vol_id', 'value_date', 'call_put_id'])
-
-    # resetting indices
-    return vbd
-
-if __name__ == '__main__':
-    # filepath = 'portfolio_specs.txt'
-    # vdf, pdf, edf = read_data(filepath)
-    vdf = pd.read_csv('datasets/small_data/final_vols.csv')
-    pdf = pd.read_csv('datasets/small_data/final_price.csv')
-    vdf.value_date = pd.to_datetime(vdf.value_date)
-    pdf.value_date = pd.to_datetime(pdf.value_date)
-    t = time.clock()
-
-    vbd, merged = vol_by_delta(vdf, pdf)
-    # vbd = pd.concat([vbd_c, vbd_p], axis=0)
-    # vbd_c.to_csv('vols_by_delta_c.csv')
-    # vbd_p.to_csv('vols_by_delta_p.csv')
-    # vbd.to_csv('test_vols_by_delta.csv', index=False)
-    elapsed = time.clock() - t
-    print('time elapsed: ', elapsed)
-
-    df1 = pd.read_csv('datasets/small_data/final_price.csv')
-    df1.value_date = pd.to_datetime(df1.value_date)
-
-    finmerged = pd.merge(
-        df1, vbd, on=['pdt', 'underlying_id', 'vol_id', 'order'])
-    finmerged.to_csv('datasets/small_data/final_merged.csv', index=False)
+pv_dates = pd.Series(pdf.value_date.unique())
+df = pd.DataFrame(pv_dates, columns=['s'])
+df['s1'] = df.s.shift(-1)
+df['numdays'] = (df.s1 - df.s).dt.days
+df = df.fillna(0)
+df.numdays = df.numdays.astype(int)
