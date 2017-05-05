@@ -475,21 +475,24 @@ TODO once dumps are ready:> finalize database updating stuff.
 
 Historical Simulator TODOS:
 
-> Today [3/5]:
-	
 
-				  ## Data-Related ## 
+
+3/5:
+
+>				  ## Data-Related ## 
 
 	> [Done] read_data: sim_start as start_date; figure out what is required, 
 	  and what is being piped downstream into clean_data and related functions.
+
 	> [Done] functions related to start_date: 
 	    1) assign_ci
 	    2) get_expiry and expiry-related
+
 	> [Done] prep_portfolio
 		- debug get minimum dates
 		- update datasets 
-		- bucketing tau during initializing -- > M7.N7 option should be updated with c_i where i = N7
-	> [Done] generating hedges                                                                        
+
+	> [Done] generatin hedges                                                                        
 
 	
 
@@ -516,48 +519,98 @@ Historical Simulator TODOS:
 	> [Done] handling exercises/expiries/decrement ordering distinction btwn var and historical
 		- handle_exercise: cash and future settlement
 
-				## Others: ##
 
-	> fix imports and implicit/default function calls in other files. 
+
+
+4/5:
+
+>				## Others: ##
+	> [Done] fix imports and implicit/default function calls in other files. 
 	> fix tests. 
 
-
-
-> Tomorrow [4/5]:
-
 				## Object-Related ##
-	> Changes made to Portfolio/Option/Futures class
-		- Futures:
+	> [Done] Changes made to Portfolio/Option/Futures class
+		- [Done] Futures:
 			+ cash vs future settlement
-
-		- Options:
+		- [Done] Options:
 			+ cash vs future settlement
 			+ [Done] str representation 
-
-		- Portfolio
-			+ 
+		- [Done] Portfolio
 	
 				## Calculation-related ##
-
-	> Updates made to calc.py
+	> [Done] Updates made to calc.py
 		+ update read_data imports and function calls.
 		+ make sure european barriers are handled correctly
 		+ calculations are right, just need to make sure that variables are passed correctly. 
 
-
-
 				## Testing-related ##
-	> changes to nosetests: can more or less port over tests from PortfolioVARModule wholesale.
+	> [Done] changes to nosetests: can more or less port over tests from PortfolioVARModule wholesale.
 
 
 				## Implementation TODOs: ##
-	> delta roll hedging
+	> delta roll hedging [Done]
+
+
 	> debugging the inevitable. 
 
 
-
-> after all:
+> after all [DONE]
 	- run with PnP and make sure it works. 
+
+
+
+
+5/5: 
+> debug delta hedge roll
+	- for some reason, offending option is not getting removed.                   [Done]
+	- not finding the relevant vol in the dataframe randomly.                     [Done]
+	- figure out why delta of new option isn't exactly 25 delta.                  [Done]
+		- due to the strike being rounded up/down to the nearest 10.  
+
+
+
+> refactor get_min_start_date so that it depends on portfolio rather than on the dataframe. [Done]
+> refactor simulation loop so that it buys/sells according to signal provided.
+
+
+	- keep loop to be in terms of voldata dates
+		- change dates in signals df to account for SOD/EOD difference; signals are given a the start
+		of the day <=> eod of the previous day. 
+
+		- make changes to simulation functions to accomodate empty portfolio
+
+			> added in .empty() method to portfolio that checks if self.OTC and self.hedge dictionaries are
+			empty. Preferred checking dictionaries rather than just OTC dict to distinguish between portfolio state
+			when all OTCs have expired vs an initially empty portfolio with no signal yet. 
+
+			> changed get_min_start_date to reflect min between signals and voldata, with a bunch of extra conditions
+			so that it can be applied unchanged to both prep_portfolio and prep_data with the same results.
+
+	
+	- need to figure out how to specify a particular month's contract even if initial portfolio is empty.
+		- for now, add in vol_id flag into the signals dataframe, default to C  N7.N7 
+
+	- include handling logic for rollover upon crossing expiry buffer.
+
+	- sort out the inconsistency in dates between signals and voldata
+		> need to somehow cross reference dates in voldata and signals such that signals_date - numdays = vdf.date
+		> prelimiary steps in diagnostic. 
+
+	- function to parse signal input:
+		- date | 25d call vol | 25d put vol | signal
+		- for each day:
+			1) 
+
+
+
+
+Next week:
+	> discuss with Ujjwal and interface software. 
+
+
+
+
+
 
 
 =====================
