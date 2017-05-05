@@ -124,6 +124,9 @@ class Portfolio:
 
         return str(pprint.pformat(r_dict))
 
+    def empty(self):
+        return (len(self.OTC) == 0) and (len(self.hedges) == 0)
+
     def set_pnl(self, pnl):
         self.pnl = pnl
 
@@ -281,7 +284,7 @@ class Portfolio:
                 elif sec.get_desc() == 'future':
                     ft.remove(sec)
             except ValueError:
-                return -1
+                print('specified security doesnt exist in this portfolio')
 
         self.toberemoved.extend(security)
         self.update_sec_by_month(False, flag)
@@ -608,8 +611,10 @@ class Portfolio:
         return set(names)
 
     def decrement_ordering(self, product, i):
-        options = self.OTC_options + self.hedge_options
-        futures = self.OTC_futures + self.hedge_futures
+        options = self.get_all_options()
+        futures = self.get_all_futures()
+        # options = self.OTC_options + self.hedge_options
+        # futures = self.OTC_futures + self.hedge_futures
         for op in options:
             if op.get_product() == product:
                 op.decrement_ordering(i)

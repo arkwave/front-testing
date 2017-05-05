@@ -13,17 +13,19 @@ from scripts.classes import Option, Future
 from scripts.portfolio import Portfolio
 from scripts.prep_data import read_data, generate_hedges
 import scripts.global_vars as gv
-from simulation import gen_hedge_inputs, \
-    hedge, hedge_delta, \
-    hedge_delta_roll,\
-    check_roll_status
+from simulation import hedge, hedge_delta_roll, check_roll_status, gen_hedge_inputs
 import numpy as np
 import pandas as pd
+import time
+# import numpy as np
 
+t = time.clock()
 vdf, pdf, edf, priceD = read_data(gv.test_vol_data,
                                   gv.test_price_data,
                                   gv.test_exp_data,
                                   gv.test_start_date, test=True)
+elapsed = time.clock() - t
+print('[test_simulation] data read-in elapsed: ', elapsed)
 
 
 def generate_portfolio(flag):
@@ -40,10 +42,12 @@ def generate_portfolio(flag):
     # options
 
     op1 = Option(
-        350, 0.301369863013698, 'call', 0.4245569263291844, ft1, 'amer', short, 'K7', ordering=2)
+        350, 0.301369863013698, 'call', 0.4245569263291844, ft1, 'amer', short,
+        'K7', ordering=2)
 
     op2 = Option(
-        290, 0.301369863013698, 'call', 0.45176132048500206, ft2, 'amer', short, 'K7', ordering=2)
+        290, 0.301369863013698, 'call', 0.45176132048500206, ft2, 'amer', short,
+        'K7', ordering=2)
 
     op3 = Option(300, 0.473972602739726, 'call', 0.14464169782291536,
                  ft3, 'amer', short, 'N7',  direc='up', barrier='amer', bullet=False,
@@ -53,7 +57,8 @@ def generate_portfolio(flag):
                  ft4, 'amer', short, 'N7', direc='down', barrier='amer', bullet=False,
                  ki=280, ordering=2)
     op5 = Option(
-        320, 0.473972602739726, 'put', 0.8281728247909962, ft5, 'amer', short, 'N7', ordering=2)
+        320, 0.473972602739726, 'put', 0.8281728247909962, ft5, 'amer', short,
+        'N7', ordering=2)
 
     # Portfolio Futures
     # ft6 = Future('K7', 370, 'C', shorted=False, ordering=1)
@@ -424,25 +429,37 @@ def test_delta_hedging_short():
 
 
 def test_check_roll_status():
-    pf = generate_portfolio('long')
-    voldf = pd.read_csv('datasets/full_data/final_vols.csv')
-    datelist = [pd.Timestamp('2017-04-17 00:00:00'),
-                pd.Timestamp('2017-04-16 00:00:00'),
-                pd.Timestamp('2017-04-15 00:00:00'),
-                pd.Timestamp('2017-04-20 00:00:00')]
-    internal_date = pd.Timestamp('2017-04-20 00:00:00')
+    # pf = generate_portfolio('long')
+    ft5 = Future('N7', 350, 'C')
+    op5 = Option(
+        360, 0.238356164383561, 'put', 0.25, ft5, 'amer', False,
+        'N7', ordering=2)
+    op6 = Option(
+        340, 0.238356164383561, 'call', 0.25, ft5, 'amer', False,
+        'N7', ordering=2)
+    print('init deltas: ', abs(op5.delta/op5.lots), abs(op6.delta/op6.lots))
+    pf = Portfolio()
+    pf.add_security([op5, op6], 'OTC')
+    # print('INITIAL PF: ', pf)
+    voldf = pd.read_csv('datasets/small_data/final_price.csv')
     voldf.value_date = pd.to_datetime(voldf.value_date)
-    mask = voldf.value_date.isin(datelist)
-    relv_vols = voldf[mask]
+    # mask = voldf.value_date.isin(datelist)
+    relv_vols = voldf[voldf.value_date == pd.Timestamp('2017-03-28 00:00:00')]
     # print('relv_vols: ', relv_vols)
     hedges = generate_hedges('hedging.csv')
+    # print('hedges: ', hedges)
     res = check_roll_status(pf, hedges)
     assert res is False
     # perform rolling hedge
-    pf1, cost = hedge_delta_roll(pf, hedges, relv_vols, internal_date)
+    roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
+        'delta'][i][0] == 'roll'][0]
+    pf1, cost = hedge_delta_roll(pf, roll_cond, relv_vols)
+    # print('ENDING PF: ', pf1)
     res2 = check_roll_status(pf1, hedges)
     try:
+        for op in pf.OTC_options:
+            print('resultant delta: ', abs(op.delta/op.lots))
         assert res2 is True
     except AssertionError:
         for op in pf.OTC_options:
-            print('delta: ', abs(op.delta/op.lots))
+            print('roll hedge failed: delta: ', abs(op.delta/op.lots))

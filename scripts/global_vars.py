@@ -39,6 +39,9 @@ small_cleaned_exp = 'datasets/small_data/cleaned_exp.csv'
 # hedge path
 hedge_path = 'hedging.csv'
 
+# signal path
+signal_path = 'datasets/signals.csv'
+
 # portfolio location
 portfolio_path = 'datasets/corn_portfolio_specs.csv'
 

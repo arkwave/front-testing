@@ -17,7 +17,7 @@ from .portfolio import Portfolio
 from .classes import Option, Future
 import pandas as pd
 import numpy as np
-from scipy.interpolate import PchipInterpolator
+from scipy.interpolate import PchipInterpolator, interp1d
 from scipy.stats import norm
 from math import log, sqrt
 import time
@@ -82,6 +82,7 @@ def generate_hedges(filepath):
     """
     df = pd.read_csv(filepath)
     hedges = OrderedDict()
+    lst = []
     for i in df.index:
         row = df.iloc[i]
         # static hedging
@@ -116,7 +117,7 @@ def generate_hedges(filepath):
     return hedges
 
 
-def read_data(volpath, pricepath, epath, start_date=None, end_date=None, test=False, writeflag=None):
+def read_data(volpath, pricepath, epath, specpath, signals=None, start_date=None, end_date=None, test=False, writeflag=None):
     """Wrapper method that handles all read-in and preprocessing. This function does the following:
     1) reads in path to volatility, price and expiry tables from portfolio_specs.txt
     2) reads in dataframes from said paths
@@ -148,16 +149,24 @@ def read_data(volpath, pricepath, epath, start_date=None, end_date=None, test=Fa
     t = time.clock()
     try:
         # get paths
-        volpath, pricepath, epath = str(volpath), str(pricepath), str(epath)
+        volpath, pricepath, epath, specpath = str(
+            volpath), str(pricepath), str(epath), str(specpath)
         volDF = pd.read_csv(volpath).dropna()
         priceDF = pd.read_csv(pricepath).dropna()
         edf = pd.read_csv(epath).dropna()
 
+        specs = pd.read_csv(specpath)
+        vid_list = specs[specs.Type == 'Option'].vol_id.unique()
+
         # fixing datetimes
         volDF.value_date = pd.to_datetime(volDF.value_date)
         priceDF.value_date = pd.to_datetime(priceDF.value_date)
-        start_date = get_min_start_date(
-            volDF, priceDF, volDF.vol_id.unique()) if start_date is None else start_date
+
+        if start_date is None:
+            start_date = get_min_start_date(
+                volDF, priceDF, vid_list, signals=signals)
+
+        print('prep_data start_date: ', start_date)
 
         # filtering relevant dates
         volDF = volDF[(volDF.value_date >= start_date) &
@@ -186,20 +195,6 @@ def read_data(volpath, pricepath, epath, start_date=None, end_date=None, test=Fa
         final_price = ciprice(priceDF)
         final_vol = civols(volDF, final_price)
 
-        # computing the vol by delta for each day.
-        try:
-            vbd = vol_by_delta(final_vol, final_price)
-        except KeyError:
-            print(final_price.columns)
-            print(final_vol.columns)
-
-        # merging vol_by_delta and price dataframes on product, underlying_id,
-        # value_date and order
-        merged = pd.merge(vbd, final_price, on=[
-                          'pdt', 'value_date', 'underlying_id', 'order'])
-
-        final_price = merged
-
     except FileNotFoundError:
         print('files not found! printing paths below...')
         print(volpath)
@@ -217,12 +212,21 @@ def read_data(volpath, pricepath, epath, start_date=None, end_date=None, test=Fa
             writestr = 'full_data'
 
     if not test:
+        vbd = vol_by_delta(final_vol, final_price)
+
+        # merging vol_by_delta and price dataframes on product, underlying_id,
+        # value_date and order
+        merged = pd.merge(vbd, final_price, on=[
+                          'pdt', 'value_date', 'underlying_id', 'order'])
+        final_price = merged
+
         final_vol.to_csv('datasets/' + writestr +
                          '/final_vols.csv', index=False)
         final_price.to_csv('datasets/' + writestr +
                            '/final_price.csv', index=False)
 
         edf.to_csv('datasets/' + writestr + '/final_expdata.csv', index=False)
+
     return final_vol, final_price, edf, priceDF
 
 
@@ -245,18 +249,25 @@ def prep_portfolio(voldata, pricedata, filepath):
     """
 
     # initializing variables
+    sim_start = None
     oplist = {'hedge': [], 'OTC': []}
     ftlist = {'hedge': [], 'OTC': []}
     # sim_start = min(min(voldata.value_date), min(pricedata.value_date))
     # reading in the dataframe of portfolio specifications
     specs = pd.read_csv(filepath)
     specs = specs.fillna('None')
+
     pf_ids = specs[specs.Type == 'Option'].vol_id.unique()
     print('pf_ids: ', pf_ids)
-    try:
-        sim_start = get_min_start_date(voldata, pricedata, pf_ids)
-    except ValueError:
-        print('[scripts/prep_data.prep_portfolio] There are vol_ids in this portfolio with no corresponding data in the datasets.')
+
+    sim_start = get_min_start_date(voldata, pricedata, pf_ids)
+    print('prep_portfolio start_date: ', sim_start)
+
+    if specs.empty:
+        return Portfolio(), None
+
+    # except ValueError:
+    #     print('[scripts/prep_data.prep_portfolio] There are vol_ids in this portfolio with no corresponding data in the datasets.')
     sim_start = pd.to_datetime(sim_start)
 
     t = time.time()
@@ -604,14 +615,16 @@ def vol_by_delta(voldata, pricedata):
     Returns:
         pandas dataframe: delta-wise vol of each option.
     """
+    print('voldata: ', voldata)
+    print('pricedata: ', pricedata)
     relevant_price = pricedata[
-        ['underlying_id', 'value_date', 'settle_value', 'order']]
-    relevant_vol = voldata[['value_date', 'vol_id', 'strike', 'order',
+        ['pdt', 'underlying_id', 'value_date', 'settle_value', 'order']]
+    relevant_vol = voldata[['pdt', 'value_date', 'vol_id', 'strike', 'order',
                             'call_put_id', 'tau', 'settle_vol', 'underlying_id']]
 
     print('merging')
     merged = pd.merge(relevant_vol, relevant_price,
-                      on=['value_date', 'underlying_id', 'order'])
+                      on=['pdt', 'value_date', 'underlying_id', 'order'])
     # filtering out negative tau values.
     merged = merged[(merged['tau'] > 0) & (merged['settle_vol'] > 0)]
 
@@ -666,10 +679,19 @@ def vol_by_delta(voldata, pricedata):
                     # interpolating delta using Piecewise Cubic Hermite
                     # Interpolation (Pchip)
 
+                    # f1 = PchipInterpolator(deltas, vols, axis=1)
                     try:
-                        f1 = PchipInterpolator(deltas, vols, axis=1)
-                    except IndexError:
+                        f1 = interp1d(deltas, vols, kind='linear',
+                                      fill_value='extrapolate')
+                    except ValueError:
+                        # print('INTERPOLATION BROKE')
+                        # print('vid: ', vid)
+                        # print('cpi: ', ind)
+                        # print('date: ', date)
+                        # print('deltas: ', deltas)
+                        # print('vols: ', vols)
                         continue
+
                     # grabbing delta-wise vols based on interpolation.
                     vols = f1(drange)
 
@@ -683,7 +705,9 @@ def vol_by_delta(voldata, pricedata):
 
     vbd = pd.DataFrame(dlist, columns=delta_labels.extend([
                        'pdt', 'vol_id', 'value_date', 'call_put_id']))
-
+    print('delta labels: ', delta_labels)
+    print('vbd columns: ', vbd.columns)
+    print('vdf columns: ', vdf.columns)
     vbd = pd.merge(vdf, vbd, on=['pdt', 'vol_id', 'value_date', 'call_put_id'])
 
     # resetting indices
@@ -1025,14 +1049,44 @@ def compute_delta(x):
     return delta1
 
 
-def get_min_start_date(vdf, pdf, lst):
+def get_min_start_date(vdf, pdf, lst, signals=None):
+    """Gets the smallest starting date such that data exists by checking all the vol_ids
+    present in the portfolio (inputted through lst). Returns the smallest date such that data
+    exists for all vol_ids in the portfolio. If signals are included, then compares the initial result
+    to the minimum date of the signals df, and returns the larger date. 
+
+    Args:
+        vdf (pandas df): dataframe of volatilities.
+        pdf (pandas df): dataframe of prices
+        lst (list): list of vol_ids present in portfolio. 
+        signals (pandas df, optional): list of buy/sell/hold signals per day. 
+
+    Returns:
+        pd.Timestamp: smallest date that satisfies all the conditions. 
+    """
     dates = []
     # test = pdf.merge(vdf, on=['pdt', 'value_date', 'underlying_id', 'order'])
     # test.to_csv('datasets/merged.csv', index=False)
-    for vid in lst:
-        df = vdf[vdf.vol_id == vid]
-        dates.append(min(df.value_date))
-    return max(dates)
+    sig_date = None
+    if signals is not None:
+        signals.value_date = pd.to_datetime(signals.value_date)
+        sig_date = min(signals.value_date)
+        print('sig_date: ', sig_date)
+        dates = pd.to_datetime(vdf.value_date.unique())
+        print('dates: ', dates)
+        valid_start_dates = [x for x in dates if x < sig_date]
+        start_date = max(valid_start_dates)
+        return start_date
+
+    elif lst:
+        for vid in lst:
+            df = vdf[vdf.vol_id == vid]
+            dates.append(min(df.value_date))
+        return max(dates)
+
+    else:
+        raise ValueError(
+            'neither signals nor lst is valid. No start date to be found. ')
 
 
 ##########################################################################

@@ -79,7 +79,7 @@ np.random.seed(seed)
 ############## Main Simulation Loop #################
 #####################################################
 
-def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_date=None, brokerage=None, slippage=None):
+def run_simulation(signals, voldata, pricedata, expdata, pf, hedges, rollover_dates, end_date=None, brokerage=None, slippage=None):
     """Each run of the simulation consists of 5 steps:
 
     1) Feed data into the portfolio.
@@ -150,8 +150,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
             break
 
         # checks to make sure if there are still non-hedge securities in pf
-        if len(pf.OTC_options) == 0 and len(pf.OTC_futures) == 0:
-            print('PORTFOLIO IS EMTPY. ENDING SIMULATION...')
+        if len(pf.OTC_options) == 0 and len(pf.OTC_futures) == 0 and not pf.empty():
+            print('ALL OTC OPTIONS HAVE EXPIRED. ENDING SIMULATION...')
             break
 
         # if end_date is inputted, check to see if the current date exceeds
@@ -166,6 +166,11 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         except IndexError:
             next_date = None
 
+        try:
+            prev_date = date_range[i-1]
+        except IndexError:
+            prev_date = None
+
         # isolate data relevant for this day.
         date = pd.to_datetime(date)
         print('##################### date: ', date, '################')
@@ -178,7 +183,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
 
     # Step 3: Feed data into the portfolio.
         raw_change, pf, broken = feed_data(
-            vdf, pdf, pf, rollover_dates, brokerage=brokerage, slippage=slippage)
+            vdf, pdf, pf, rollover_dates, prev_date, brokerage=brokerage, slippage=slippage)
 
     # Step 4: Compute pnl for the day
         updated_val = pf.compute_value()
@@ -206,10 +211,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         init_val = pf.compute_value()
 
     # Step 7: Placeholders for the signal-generating program.
-        # sec, hedgeDict, close_pos = get_signal()
-        # pf.add_security(sec, 'OTC')
-        # if hedgeDict is not None:
-        #     hedges = hedgeDict
+        pf = apply_signal(pf, vdf, pdf, signals, date)
 
     # Step 8: Decrement timestep after all steps.
         # calculate number of days to step
@@ -240,7 +242,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
 ##########################################################################
 
 
-def feed_data(voldf, pdf, pf, dic, brokerage=None, slippage=None):
+def feed_data(voldf, pdf, pf, dic, prev_date, brokerage=None, slippage=None):
     """
     This function does the following:
         1) Computes current value of portfolio.
@@ -266,8 +268,14 @@ def feed_data(voldf, pdf, pf, dic, brokerage=None, slippage=None):
         ValueError: Raised if voldf is empty.
     """
     broken = False
+
+    # sanity checks
+    if pf.empty():
+        return 0, pf, False
+
     if voldf.empty:
         raise ValueError('vol df is empty!')
+
     date = voldf.value_date.unique()[0]
     raw_diff = 0
 
@@ -277,14 +285,31 @@ def feed_data(voldf, pdf, pf, dic, brokerage=None, slippage=None):
     expenditure, pf = handle_exercise(pf, brokerage, slippage)
     raw_diff += expenditure
 
+    curr_date = pd.to_datetime(pdf.value_date.unique()[0])
+    print('curr_date: ', curr_date)
+    prev_date = pd.to_datetime(prev_date)
+
     # 2) Check for rollovers and expiries rollovers
     for product in dic:
         ro_dates = dic[product]
         # rollover date for this particular product
-        if date in ro_dates:
-            pf.decrement_ordering(product, 1)
+        if prev_date is None:
+            if date in ro_dates:
+                print('ROLLOVER DETECTED; DECREMENTING ORDERING')
+                pf.decrement_ordering(product, 1)
+        else:
+            relevant_rollovers = [x for x in ro_dates if (
+                x.month == prev_date.month) and (x.year == prev_date.year)]
+            for date in relevant_rollovers:
+                # rollover in between dates
+                if date.day < curr_date.day and date.day > prev_date.day:
+                    print('ROLLOVER DETECTED; DECREMENTING ORDERING')
+                    pf.decrement_ordering(product, 1)
+
     # expiries; also removes options for which ordering = 0
     pf.remove_expired()
+
+    print('pf after rollovers and expiries: ', pf)
 
     # 3)  update prices of futures, underlying & portfolio alike.
     # update option attributes by feeding in vol.
@@ -304,8 +329,8 @@ def feed_data(voldf, pdf, pf, dic, brokerage=None, slippage=None):
                 val = val[val.tau == df_tau].settle_vol.values[0]
                 op.update_greeks(vol=val)
                 print('UPDATED - new vol: ', val)
-            except IndexError:
-                print('### DATA MISSING ###')
+            except (IndexError, ValueError):
+                print('### VOLATILITY DATA MISSING ###')
                 print('product: ', product)
                 print('strike: ', strike)
                 print('order: ', order)
@@ -315,6 +340,7 @@ def feed_data(voldf, pdf, pf, dic, brokerage=None, slippage=None):
                 break
             # print(str(op) + ' OP VALUE AFTER FEED: ', op.compute_price())
             # print('OP GREEKS: ', op.greeks())
+
     if not broken:
         for ft in pf.get_all_futures():
             pdt, ordering = ft.get_product(), ft.get_ordering()
@@ -326,7 +352,11 @@ def feed_data(voldf, pdf, pf, dic, brokerage=None, slippage=None):
 
             # index error would occur only if data is missing.
             except IndexError:
-                print('###### DATA MISSING #######')
+                print('###### PRICE DATA MISSING #######')
+                print('ordering: ', ordering)
+                print('pdt: ', pdt)
+                print('debug 1: ', pdf[(pdf.pdt == pdt) &
+                                       (pdf.order == ordering)])
                 broken = True
                 break
 
@@ -356,6 +386,9 @@ def handle_exercise(pf, brokerage=None, slippage=None):
     1) options are exercised if less than or equal to 2 days to maturity, and option is in the money. Futures obtained are immediately sold and profit is locked in.
 
     """
+    if pf.empty():
+        return 0, pf
+
     t = time.clock()
     profit = 0
     tol = 1/365
@@ -442,6 +475,9 @@ def rebalance(vdf, pdf, pf, hedges, counters, brokerage=None, slippage=None):
     dic = copy.deepcopy(pf.get_net_greeks())
     hedgearr = [False, False, False, False]
     # updating counters
+    if pf.empty():
+        return pf, counters, 0
+
     for greek in hedges:
         if greek == 'delta':
             if delta_freq == hedges[greek][0][2]:
@@ -476,9 +512,13 @@ def rebalance(vdf, pdf, pf, hedges, counters, brokerage=None, slippage=None):
 
     cost = 0
 
+    if roll_hedged:
+        print('deltas within bounds. skipping roll_hedging')
+
     if not roll_hedged:
-        roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedge[
-            'delta'][i][0] == 'roll']
+        print('roll hedging')
+        roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
+            'delta'][i][0] == 'roll'][0]
         pf, exp = hedge_delta_roll(
             pf, roll_cond, pdf, brokerage=brokerage, slippage=slippage)
         cost += exp
@@ -515,11 +555,15 @@ def rebalance(vdf, pdf, pf, hedges, counters, brokerage=None, slippage=None):
                     # grabbing condition that indicates zeroing condition on
                     # delta
                     delta_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
-                        'delta'][i][0] == 'static'][0][1]
+                        'delta'][i][0] == 'static']
+                    if delta_cond:
+                        delta_cond = delta_cond[0][1]
                     # print('delta conds: ', delta_cond)
-                    pf, dhedges, fees = hedge_delta(
-                        delta_cond, vdf, pdf, pf, month, product, ordering, brokerage=brokerage, slippage=slippage)
-                    cost += fees
+                        pf, dhedges, fees = hedge_delta(
+                            delta_cond, vdf, pdf, pf, month, product, ordering, brokerage=brokerage, slippage=slippage)
+                        cost += fees
+                    else:
+                        print('no delta hedging specifications found')
         done_hedging = hedges_satisfied(pf, hedges)
     return pf, counters, cost
 
@@ -788,56 +832,96 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering, brokerage=None, sl
 
 
 # FIXME: Needs to be implemented
-def hedge_delta_roll(pf, rolL_cond, pdf, brokerage=None, slippage=None):
+def hedge_delta_roll(pf, roll_cond, pdf, brokerage=None, slippage=None):
     """Rolls delta of the option back to a value specified in hedge dictionary if op.delta exceeds certain bounds.
 
     Args:
-        pf (TYPE): Portfolio being hedged
-        roll_cond (TYPE): list of the form ['roll', value, frequency, bound]
-        vdf (TYPE): volatility data frame containing information for current day
-        pdf (TYPE): price dataframe containing information for current day
+        pf (object): Portfolio being hedged
+        roll_cond (list): list of the form ['roll', value, frequency, bound]
+        vdf (pandas df): volatility data frame containing information for current day
+        pdf (pandas df): price dataframe containing information for current day
         brokerage (int, optional): brokerage fees per lot
         slippage (int, optional): slippage loss
 
     Returns:
         tuple: updated portfolio and cost of purchasing/selling options.
     """
+    # print('hedge_delta_roll conds: ', roll_cond)
+
     cost = 0
-    roll_val, bounds = roll_cond[1]/100, roll_cond[3]
-    pfx = copy.deepcopy(pf)
-    for op in pfx.OTC_options:
+    roll_val, bounds = roll_cond[1], np.array(roll_cond[3])/100
+
+    # pfx = copy.deepcopy(pf)
+    # print('PFX: ', pfx)
+
+    toberemoved = []
+    tobeadded = []
+
+    for op in pf.OTC_options:
         delta = abs(op.delta/op.lots)
         # case: delta not in bounds. roll delta.
         if delta > bounds[1] or delta < bounds[0]:
             # get strike corresponding to delta
             cpi = 'C' if op.char == 'call' else 'P'
             # get the vol from the vol_by_delta part of pdf
-            col = str(roll_val) + 'd'
+            col = str(int(roll_val)) + 'd'
             try:
-                vol = pdf[(pdf.call_put_id == cpi) &
-                          (pdf.order == op.ordering) &
-                          (pdf.pdt == op.get_product()) &
-                          (pdf.tau == op.tau)][col].values[0]
+                vol = pdf.loc[(pdf.call_put_id == cpi) &
+                              (pdf.order == op.ordering) &
+                              (pdf.pdt == op.get_product()) &
+                              (np.isclose(pdf.tau, op.tau)), col].values[0]
             except IndexError:
                 print(cpi, op.ordering, op.get_product(), op.tau)
                 print('vol not found in volbydelta')
+                # print('debug 1: ', pdf[(pdf.call_put_id == cpi)])
+                print('debug 2: ', pdf[(pdf.call_put_id == cpi) &
+                                       (pdf.order == op.ordering)])
+                print('debug 3: ', pdf[(pdf.call_put_id == cpi) &
+                                       (pdf.order == op.ordering) &
+                                       (pdf.pdt == op.get_product())])
+                print('debug 4: ', pdf[(pdf.call_put_id == cpi) &
+                                       (pdf.order == op.ordering) &
+                                       (pdf.pdt == op.get_product()) &
+                                       (np.isclose(pdf.tau, op.tau))])
+                print('debug 5: ', pdf[(pdf.call_put_id == cpi) &
+                                       (pdf.order == op.ordering) &
+                                       (pdf.pdt == op.get_product()) &
+                                       (pdf.tau == op.tau)][col])
+                test = pdf.loc[(pdf.call_put_id == cpi) &
+                               (pdf.order == op.ordering) &
+                               (pdf.pdt == op.get_product()) &
+                               (np.isclose(pdf.tau, op.tau)), col].values[0]
+                # print(test)
+                print('column desired in columns: ', col in test.columns)
                 vol = op.vol
 
-            strike = compute_strike_from_delta(op, delta1=roll_val, vol=vol)
+            strike = compute_strike_from_delta(
+                op, delta1=roll_val/100, vol=vol)
 
             newop = Option(strike, op.tau, op.char, vol, op.underlying,
                            op.payoff, op.shorted, op.month, direc=op.direc,
                            barrier=op.barrier, lots=op.lots, bullet=op.bullet,
                            ki=op.ki, ko=op.ko, rebate=op.rebate,
                            ordering=op.ordering, settlement=op.settlement)
-            pf.remove_security(op, 'OTC')
-            pf.add_security(newop, 'OTC')
+
+            toberemoved.append(op)
+            tobeadded.append(newop)
 
             # handle expenses: brokerage and old op price - new op price
-            cost += (brokerage * (op.lots + newop.lots)) + \
-                (op.compute_price() - newop.compute_price())
+            if brokerage:
+                cost += (brokerage * (op.lots + newop.lots)) + \
+                    (op.compute_price() - newop.compute_price())
 
+    pf.remove_security(toberemoved, 'OTC')
+    pf.add_security(tobeadded, 'OTC')
+    # print('final portfolio: ', pf)
+    # print('initial copy (pfx): ', pfx)
     return pf, cost
+
+
+def apply_signal(pf, vdf, pdf, signals, date):
+
+    return pf
 
 
 ###############################################################################
@@ -896,7 +980,8 @@ def check_roll_status(pf, hedges):
     # search for the roll condition
     for cond in delta_conds:
         if cond[0] == 'roll':
-            rollbounds = cond[3]
+            # print('cond: ', cond)
+            rollbounds = np.array(cond[3])/100
             found = True
     # if roll conditions actually exist, proceed.
     if found:
@@ -924,7 +1009,7 @@ if __name__ == '__main__':
     # datapath = 'data_loc.txt'
 
     # fix portfolio start date #
-    # start_date = gv.start_date
+    start_date = None
 
     # filepath to portfolio specs. #
     # specpath = gv.portfolio_path
@@ -952,10 +1037,11 @@ if __name__ == '__main__':
     # scratch #
 
     ### small data ###
-    volpath, pricepath, exppath, rollpath = gv.small_final_vol_path,\
+    volpath, pricepath, exppath, rollpath, sigpath = gv.small_final_vol_path,\
         gv.small_final_price_path,\
         gv.small_final_exp_path,\
-        gv.small_cleaned_price
+        gv.small_cleaned_price,\
+        gv.signal_path
 
     ### full data ###
     # volpath, pricepath, exppath, rollpath = gv.final_vol_path,
@@ -965,7 +1051,8 @@ if __name__ == '__main__':
 
     if os.path.exists(volpath) and os.path.exists(pricepath)\
             and os.path.exists(exppath)\
-            and os.path.exists(rollpath):
+            and os.path.exists(rollpath) \
+            and os.path.exists(sigpath):
         print('####################################################')
         print('DATA EXISTS. READING IN... [2/7]')
         print('datasets listed below: ')
@@ -973,11 +1060,16 @@ if __name__ == '__main__':
         print('pricepath: ', pricepath)
         print('exppath: ', exppath)
         print('rollpath: ', rollpath)
+        print('signals: ', sigpath)
         print('####################################################')
 
         vdf, pdf, edf = pd.read_csv(volpath), pd.read_csv(
             pricepath), pd.read_csv(exppath)
         rolldf = pd.read_csv(rollpath)
+        signals = pd.read_csv(sigpath)
+
+        # sorting out date types
+        signals.value_date = pd.to_datetime(signals.value_date)
         rolldf.value_date, rolldf.expdate = pd.to_datetime(
             rolldf.value_date), pd.to_datetime(rolldf.expdate)
         vdf.value_date = pd.to_datetime(vdf.value_date)
@@ -1001,20 +1093,26 @@ if __name__ == '__main__':
         print('exppath: ', epath)
         # print('rollpath: ', rollpath)
         print('####################################################')
-        vdf, pdf, edf, rolldf = read_data(
-            volpath, pricepath, epath, test=False,  writeflag=writeflag)
 
+        signals = pd.read_csv(sigpath)
+        signals.value_date = pd.to_datetime(signals.value_date)
+
+        vdf, pdf, edf, rolldf = read_data(
+            volpath, pricepath, epath, specpath, signals, test=False,  writeflag=writeflag, start_date=start_date)
+
+        signals = pd.read_csv(sigpath)
+        signals.value_date = pd.to_datetime(signals.value_date)
     print('DATA READ-IN COMPLETE. SANITY CHECKING... [3/7]')
     print('READ-IN RUNTIME: ', time.clock() - t)
 
     ######################### check sanity of data ###########################
 
-    start_date = get_min_start_date(vdf, pdf, vdf.vol_id.unique())
-    vdf, pdf = vdf[vdf.value_date >= start_date], \
-        pdf[pdf.value_date >= start_date]
+    # vdf, pdf = vdf[vdf.value_date >= start_date], \
+    #     pdf[pdf.value_date >= start_date]
 
     vdates = pd.to_datetime(sorted(vdf.value_date.unique()))
     pdates = pd.to_datetime(sorted(pdf.value_date.unique()))
+
     # check to see that date ranges are equivalent for both price and vol data
     if not np.array_equal(vdates, pdates):
         print('vol_dates: ', vdates)
@@ -1023,16 +1121,6 @@ if __name__ == '__main__':
         print('difference 2: ', [x for x in pdates if x not in vdates])
         raise ValueError(
             'Invalid data sets passed in; vol and price data must have the same date range. Aborting run.')
-    # check that the right set of data has been filtered
-    # if min(vdates) != start_date or min(pdates) != start_date:
-    #     print('min_vdate: ', min(vdates))
-    #     print('min_pdate: ', min(pdates))
-    #     print('start_date: ', start_date)
-    #     raise ValueError('Inconsistency in start date. Aborting run.')
-
-    # # check to ensure that initialization data is contained in dataset.
-    # if (internal_date not in set(vdates)) or (internal_date not in set(pdates)):
-    #     raise ValueError('Internal portfolio date is not in datasets')
 
     # if end_date specified, check that it makes sense (i.e. is greater than
     # start date)
@@ -1046,15 +1134,20 @@ if __name__ == '__main__':
 
     # generate portfolio #
     pf, start_date = prep_portfolio(vdf, pdf, filepath=specpath)
+
     print('####################################################')
     print('PORTFOLIO PREPARED. GENERATING HEDGES... [5/7]')
 
     # generate hedges #
     hedges = generate_hedges(hedge_path)
 
+    # get rollover dates
+    rollover_dates = get_rollover_dates(rolldf)
+
     e1 = time.clock() - t
     print('TOTAL PREP TIME: ', e1)
 
+    ###############################################################
     # print statements for informational purposes #
     print('START DATE: ', start_date)
     # print('INTERNAL_DATE: ', internal_date)
@@ -1064,15 +1157,15 @@ if __name__ == '__main__':
     print('Hedge Conditions: ', hedges)
     print('Brokerage: ', gv.brokerage)
     print('Slippage: ', gv.slippage)
-    # print('[prep_data and prep_portfolio time taken]: ', e1)
     print('####################################################')
     print('HEDGES GENERATED. RUNNING SIMULATION... [6/7]')
 
-    rollover_dates = get_rollover_dates(rolldf)
     print('ROLLOVER DATES: ', rollover_dates)
+
     # run simulation #
     grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values = run_simulation(
-        vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage, slippage=gv.slippage)
+        signals, vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage, slippage=gv.slippage)
+
     print('####################################################')
     print('SIMULATION COMPLETE. PRINTING RELEVANT OUTPUT... [7/7]')
 
@@ -1087,9 +1180,6 @@ if __name__ == '__main__':
 
     gvar = np.percentile(gross_daily_values, 5)
     cvar = np.percentile(net_daily_values, 5)
-
-    # print('num_daily_pnls: ', len(pnl_per_block))
-    # print('num_cumul_pnls: ', len(cumul_pnl))
 
     print('VaR [gross]: ', gvar)
     print('VaR [net]: ', cvar)

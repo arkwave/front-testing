@@ -428,6 +428,7 @@ class Future:
         string += str(self.price)
         string += ' S' if self.shorted else ' L'
         string += ' ' + str(int(self.lots))
+        string += ' [c_' + str(self.ordering) + ']'
         return string
 
     def get_ordering(self):
