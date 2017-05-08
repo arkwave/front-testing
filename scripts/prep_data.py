@@ -12,7 +12,6 @@ Description    : Script contains methods to read-in and format data. These metho
 ############### Imports/Global Variables ##################
 ###########################################################
 
-
 from .portfolio import Portfolio
 from .classes import Option, Future
 import pandas as pd
@@ -23,6 +22,8 @@ from math import log, sqrt
 import time
 from ast import literal_eval
 from collections import OrderedDict
+import os as osf
+from .global_vars import pdt as gvpdt
 
 seed = 7
 np.random.seed(seed)
@@ -69,11 +70,60 @@ contract_mths = {
 ################## Data Read-in Functions #####################
 ###############################################################
 
-def generate_hedges(filepath):
-    """Generates an Ordered Dictionary detailing the hedging logic, read in from the filepath specified. 
+def match_to_signals(vdf, pdf, signals):
+    """Lines up the value_date convention between vdf, pdf and signals. Signals are reported at the start of the day, whereas vdf/pdf report EOD values. Additionally, settlement values for fridays are currently reported on the following Sunday. This function adjusts for that discrepancy and filters out all days in vdf/pdf that are not in signals.
 
     Args:
-        filepath (string): path to the csv file specifying hedging logic. 
+        vdf (pandas df): dataframe of vols
+        pdf (pandas df): dataframe of prices
+        signals (pandas df): dataframe of signals
+
+    Returns:
+        tuple: vol and price dataframes with prices updated/removed accordingly.
+    """
+    vdf['sunday'] = vdf.value_date.dt.weekday == 6
+    pdf['sunday'] = pdf.value_date.dt.weekday == 6
+
+    vdf.loc[vdf.sunday == True, 'value_date'] -= pd.Timedelta('2 days')
+    pdf.loc[pdf.sunday == True, 'value_date'] -= pd.Timedelta('2 days')
+
+    # filtering relevant dates
+    vdf = vdf[(vdf.value_date > pd.Timestamp('2017-01-02')) &
+              (vdf.value_date < pd.Timestamp('2017-04-02'))]
+    pdf = pdf[(pdf.value_date > pd.Timestamp('2017-01-02')) &
+              (pdf.value_date < pd.Timestamp('2017-04-02'))]
+
+    d1 = [x for x in vdf.value_date.unique()
+          if x not in signals.value_date.unique()]
+    d1 = pd.to_datetime(d1)
+
+    d2 = [x for x in pdf.value_date.unique()
+          if x not in signals.value_date.unique()]
+    d2 = pd.to_datetime(d2)
+
+    d3 = [x for x in signals.value_date.unique()
+          if x not in vdf.value_date.unique()]
+    d3 = pd.to_datetime(d3)
+
+    d4 = [x for x in signals.value_date.unique()
+          if x not in pdf.value_date.unique()]
+    d4 = pd.to_datetime(d4)
+
+    # mask = signals.value_date.isin(d3)
+    vmask = vdf.value_date.isin(d1)
+    pmask = pdf.value_date.isin(d2)
+
+    vdf = vdf[~vmask]
+    pdf = pdf[~pmask]
+
+    return vdf, pdf
+
+
+def generate_hedges(filepath):
+    """Generates an Ordered Dictionary detailing the hedging logic, read in from the filepath specified.
+
+    Args:
+        filepath (string): path to the csv file specifying hedging logic.
 
     Returns:
         OrderedDictionary: Dictionary of hedges with the format:
@@ -130,32 +180,39 @@ def read_data(volpath, pricepath, epath, specpath, signals=None, start_date=None
 
         epath (str): path to the option expiry DF
 
-        start_date (pd.Timestamp, optional): Desired start date for the simulation. Defaults to None, in which case the starting date selected is the earliest date such that all vol_ids in the volatility dataframe have data. 
+        start_date (pd.Timestamp, optional): Desired start date for the simulation. Defaults to None, in which case the starting date selected is the earliest date such that all vol_ids in the volatility dataframe have data.
 
-        end_date (str, optional): Desired end date for the simulation. Defaults to None, in which case the end date selected is the latest date such that all vol_ids in the volatility dataframe have data. 
+        end_date (str, optional): Desired end date for the simulation. Defaults to None, in which case the end date selected is the latest date such that all vol_ids in the volatility dataframe have data.
 
         test (bool, optional): flag used to indicate if the function is called as part of a test or as part of the actual simulation. Test=True writes the resultant dataframes to the path specified, subjected to writeflag, while test=False does not write any dataframes to csv.
 
-        writeflag (str, optional): Determines where the datasets are being written to. 
+        writeflag (str, optional): Determines where the datasets are being written to.
 
     Returns:
         pandas dataframes x 4: volatility data, price data, expiry data, and cleaned prices (to be used exclusively for rollover dates)
 
     Raises:
-        ValueError: Raised if the start date is inconsistent with the datasets. 
+        ValueError: Raised if the start date is inconsistent with the datasets.
 
     """
 
     t = time.clock()
+
     try:
         # get paths
         volpath, pricepath, epath, specpath = str(
             volpath), str(pricepath), str(epath), str(specpath)
+
+        print('vol: ', osf.path.exists(volpath))
+        print('price: ', osf.path.exists(pricepath))
+        print('exp: ', osf.path.exists(epath))
+        print('specs: ', osf.path.exists(specpath))
+
         volDF = pd.read_csv(volpath).dropna()
         priceDF = pd.read_csv(pricepath).dropna()
         edf = pd.read_csv(epath).dropna()
-
         specs = pd.read_csv(specpath)
+
         vid_list = specs[specs.Type == 'Option'].vol_id.unique()
 
         # fixing datetimes
@@ -163,6 +220,7 @@ def read_data(volpath, pricepath, epath, specpath, signals=None, start_date=None
         priceDF.value_date = pd.to_datetime(priceDF.value_date)
 
         if start_date is None:
+            # print('SIGNALS: ', signals)
             start_date = get_min_start_date(
                 volDF, priceDF, vid_list, signals=signals)
 
@@ -203,28 +261,37 @@ def read_data(volpath, pricepath, epath, specpath, signals=None, start_date=None
         import os
         print(os.getcwd())
     elapsed = time.clock() - t
-    print('[READ_DATA] elapsed: ', elapsed)
 
+    print('[READ_DATA] elapsed: ', elapsed)
     if writeflag:
         if writeflag == 'small':
-            writestr = 'small_data'
+            writestr = 'small_' + gvpdt.lower()
         else:
-            writestr = 'full_data'
-
+            writestr = 'full_' + gvpdt.lower()
+    print('writestr: ', writestr)
     if not test:
         vbd = vol_by_delta(final_vol, final_price)
 
         # merging vol_by_delta and price dataframes on product, underlying_id,
         # value_date and order
+        vbd.underlying_id = vbd.underlying_id.str.split().str[0]\
+            + '  ' + vbd.underlying_id.str.split().str[1]
+        final_price.underlying_id = final_price.underlying_id.str.split().str[0]\
+            + '  ' + final_price.underlying_id.str.split().str[1]
         merged = pd.merge(vbd, final_price, on=[
                           'pdt', 'value_date', 'underlying_id', 'order'])
         final_price = merged
+
+        # handle conventions for vol_id in price/vol data.
+        final_vol.vol_id = final_vol.vol_id.str.split().str[0]\
+            + '  ' + final_vol.vol_id.str.split().str[1]
+        final_price.vol_id = final_price.vol_id.str.split().str[0]\
+            + '  ' + final_price.vol_id.str.split().str[1]
 
         final_vol.to_csv('datasets/' + writestr +
                          '/final_vols.csv', index=False)
         final_price.to_csv('datasets/' + writestr +
                            '/final_price.csv', index=False)
-
         edf.to_csv('datasets/' + writestr + '/final_expdata.csv', index=False)
 
     return final_vol, final_price, edf, priceDF
@@ -232,7 +299,7 @@ def read_data(volpath, pricepath, epath, specpath, signals=None, start_date=None
 
 # NOTE: might want to eliminate any dependence on vol_id and underlying_id
 def prep_portfolio(voldata, pricedata, filepath):
-    """Constructs the portfolio from the requisite CSV file that specifies the details of 
+    """Constructs the portfolio from the requisite CSV file that specifies the details of
     each security in the portfolio.
 
     Args:
@@ -241,7 +308,7 @@ def prep_portfolio(voldata, pricedata, filepath):
         filepath (TYPE): path to the csv containing portfolio specifications
 
     Returns:
-        TYPE: portfolio object 
+        TYPE: portfolio object
 
     Raises:
         ValueError: Description
@@ -258,7 +325,7 @@ def prep_portfolio(voldata, pricedata, filepath):
     specs = specs.fillna('None')
 
     pf_ids = specs[specs.Type == 'Option'].vol_id.unique()
-    print('pf_ids: ', pf_ids)
+    # print('pf_ids: ', pf_ids)
 
     sim_start = get_min_start_date(voldata, pricedata, pf_ids)
     print('prep_portfolio start_date: ', sim_start)
@@ -267,7 +334,8 @@ def prep_portfolio(voldata, pricedata, filepath):
         return Portfolio(), None
 
     # except ValueError:
-    #     print('[scripts/prep_data.prep_portfolio] There are vol_ids in this portfolio with no corresponding data in the datasets.')
+    # print('[scripts/prep_data.prep_portfolio] There are vol_ids in this
+    # portfolio with no corresponding data in the datasets.')
     sim_start = pd.to_datetime(sim_start)
 
     t = time.time()
@@ -318,7 +386,7 @@ def prep_portfolio(voldata, pricedata, filepath):
                 print('value_date: ', sim_start)
                 print('strike: ', strike)
                 raise ValueError(
-                    'voldata cannot be located! Inputs: ', volid, volflag, sim_start, strike)
+                    'tau cannot be located! Inputs: ', volid, volflag, sim_start, strike)
             # get vol from data
             try:
                 vol = voldata[(voldata['vol_id'] == volid) &
@@ -330,7 +398,8 @@ def prep_portfolio(voldata, pricedata, filepath):
                 print('call_put_id: ', volflag)
                 print('value_date: ', sim_start)
                 print('strike: ', strike)
-                raise ValueError('voldata cannot be located!')
+                raise ValueError('vol cannot be located!',
+                                 volid, volflag, sim_start, strike)
             # american vs european payoff
             payoff = str(data.optiontype)
             # american or european barrier.
@@ -525,7 +594,8 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
     df.reset_index(drop=True, inplace=True)
     df = df.dropna()
 
-    writestr = 'small_data' if writeflag == 'small' else 'full_data'
+    writestr = 'small_' + gvpdt.lower() if writeflag == 'small' else 'full_' + \
+        gvpdt.lower()
     df.to_csv('datasets/' + writestr + '/cleaned_' +
               flag + '.csv', index=False)
 
@@ -615,12 +685,19 @@ def vol_by_delta(voldata, pricedata):
     Returns:
         pandas dataframe: delta-wise vol of each option.
     """
-    print('voldata: ', voldata)
-    print('pricedata: ', pricedata)
+    # print('voldata: ', voldata)
+    # print('pricedata: ', pricedata)
     relevant_price = pricedata[
         ['pdt', 'underlying_id', 'value_date', 'settle_value', 'order']]
     relevant_vol = voldata[['pdt', 'value_date', 'vol_id', 'strike', 'order',
                             'call_put_id', 'tau', 'settle_vol', 'underlying_id']]
+
+    # handle discrepancies in underlying_id format
+    relevant_price.underlying_id = relevant_price.underlying_id.str.split().str[0]\
+        + '  ' + relevant_price.underlying_id.str.split().str[1]
+
+    relevant_vol.underlying_id = relevant_vol.underlying_id.str.split().str[0] + '  '\
+        + relevant_vol.underlying_id.str.split().str[1]
 
     print('merging')
     merged = pd.merge(relevant_vol, relevant_price,
@@ -705,9 +782,17 @@ def vol_by_delta(voldata, pricedata):
 
     vbd = pd.DataFrame(dlist, columns=delta_labels.extend([
                        'pdt', 'vol_id', 'value_date', 'call_put_id']))
-    print('delta labels: ', delta_labels)
-    print('vbd columns: ', vbd.columns)
-    print('vdf columns: ', vdf.columns)
+    # print('delta labels: ', delta_labels)
+    # print('vbd columns: ', vbd.columns)
+    # print('vdf columns: ', vdf.columns)
+    # print('pdt: ', vbd.pdt.unique() == vdf.pdt.unique())
+    # print('vol_id: ', vbd.vol_id.unique(), vdf.vol_id.unique())
+    # print('dates: ', np.array_equal(pd.to_datetime(
+    #     vbd.value_date.unique()), pd.to_datetime(vdf.value_date.unique())))
+
+    # print('vbd: ', vbd)
+    # print('vdf: ', vdf)
+
     vbd = pd.merge(vdf, vbd, on=['pdt', 'vol_id', 'value_date', 'call_put_id'])
 
     # resetting indices
@@ -1053,16 +1138,16 @@ def get_min_start_date(vdf, pdf, lst, signals=None):
     """Gets the smallest starting date such that data exists by checking all the vol_ids
     present in the portfolio (inputted through lst). Returns the smallest date such that data
     exists for all vol_ids in the portfolio. If signals are included, then compares the initial result
-    to the minimum date of the signals df, and returns the larger date. 
+    to the minimum date of the signals df, and returns the larger date.
 
     Args:
         vdf (pandas df): dataframe of volatilities.
         pdf (pandas df): dataframe of prices
-        lst (list): list of vol_ids present in portfolio. 
-        signals (pandas df, optional): list of buy/sell/hold signals per day. 
+        lst (list): list of vol_ids present in portfolio.
+        signals (pandas df, optional): list of buy/sell/hold signals per day.
 
     Returns:
-        pd.Timestamp: smallest date that satisfies all the conditions. 
+        pd.Timestamp: smallest date that satisfies all the conditions.
     """
     dates = []
     # test = pdf.merge(vdf, on=['pdt', 'value_date', 'underlying_id', 'order'])
@@ -1071,14 +1156,17 @@ def get_min_start_date(vdf, pdf, lst, signals=None):
     if signals is not None:
         signals.value_date = pd.to_datetime(signals.value_date)
         sig_date = min(signals.value_date)
-        print('sig_date: ', sig_date)
-        dates = pd.to_datetime(vdf.value_date.unique())
-        print('dates: ', dates)
-        valid_start_dates = [x for x in dates if x < sig_date]
-        start_date = max(valid_start_dates)
-        return start_date
+        # print('sig_date: ', sig_date)
+        # dates = pd.to_datetime(vdf.value_date.unique())
+        # print('dates: ', dates)
+        # valid_start_dates = [x for x in dates if x < sig_date]
+        # start_date = max(valid_start_dates)
+        return sig_date
 
     elif lst:
+        # print('lst: ', lst)
+        # print('vdf volid: ', vdf.vol_id.unique()[0])
+        # print('vdf test: ', vdf.vol_id.unique()[0] == 'CT  N7.N7')
         for vid in lst:
             df = vdf[vdf.vol_id == vid]
             dates.append(min(df.value_date))
