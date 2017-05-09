@@ -213,11 +213,15 @@ def read_data(volpath, pricepath, epath, specpath, signals=None, start_date=None
         edf = pd.read_csv(epath).dropna()
         specs = pd.read_csv(specpath)
 
-        vid_list = specs[specs.Type == 'Option'].vol_id.unique()
-
         # fixing datetimes
         volDF.value_date = pd.to_datetime(volDF.value_date)
         priceDF.value_date = pd.to_datetime(priceDF.value_date)
+
+        if signals is not None:
+            signals.value_date = pd.to_datetime(signals.value_date)
+            volDF, priceDF = match_to_signals(volDF, priceDF, signals)
+
+        vid_list = specs[specs.Type == 'Option'].vol_id.unique()
 
         if start_date is None:
             # print('SIGNALS: ', signals)
@@ -324,14 +328,14 @@ def prep_portfolio(voldata, pricedata, filepath):
     specs = pd.read_csv(filepath)
     specs = specs.fillna('None')
 
+    if specs.empty:
+        return Portfolio(), None
+
     pf_ids = specs[specs.Type == 'Option'].vol_id.unique()
     # print('pf_ids: ', pf_ids)
 
     sim_start = get_min_start_date(voldata, pricedata, pf_ids)
     print('prep_portfolio start_date: ', sim_start)
-
-    if specs.empty:
-        return Portfolio(), None
 
     # except ValueError:
     # print('[scripts/prep_data.prep_portfolio] There are vol_ids in this

@@ -2,12 +2,11 @@
 File Name      : simulation.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 4/5/2017
+Last Modified  : 9/5/2017
 Python version : 3.5
 Description    : Overall script that runs the simulation
 
 """
-
 
 ################################ imports ###################################
 import numpy as np
@@ -15,8 +14,8 @@ import pandas as pd
 # from scripts.calc import get_barrier_vol
 from scripts.classes import Option, Future
 # from scripts.calc import find_vol_change
-from scripts.prep_data import read_data, prep_portfolio, get_rollover_dates, generate_hedges, get_min_start_date
-
+from scripts.prep_data import read_data, prep_portfolio, get_rollover_dates, generate_hedges, find_cdist
+from collections import OrderedDict
 from scripts.calc import compute_strike_from_delta
 # from math import ceil
 import copy
@@ -55,16 +54,36 @@ multipliers = {
     'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
 }
 
+contract_mths = {
 
-# list of hedging conditions.
-# hedges = {'delta': 'zero',
-#           'vega': (-1000, 1000)}
-# 'gamma': (-5000, 5000)}
-# 'theta': (-1000, 1000)}
+    'LH':  ['G', 'J', 'K', 'M', 'N', 'Q', 'V', 'Z'],
+    'LSU': ['H', 'K', 'Q', 'V', 'Z'],
+    'LCC': ['H', 'K', 'N', 'U', 'Z'],
+    'SB':  ['H', 'K', 'N', 'V'],
+    'CC':  ['H', 'K', 'N', 'U', 'Z'],
+    'CT':  ['H', 'K', 'N', 'Z'],
+    'KC':  ['H', 'K', 'N', 'U', 'Z'],
+    'W':   ['H', 'K', 'N', 'U', 'Z'],
+    'S':   ['F', 'H', 'K', 'N', 'Q', 'U', 'X'],
+    'C':   ['H', 'K', 'N', 'U', 'Z'],
+    'BO':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
+    'LC':  ['G', 'J', 'M', 'Q', 'V' 'Z'],
+    'LRC': ['F', 'H', 'K', 'N', 'U', 'X'],
+    'KW':  ['H', 'K', 'N', 'U', 'Z'],
+    'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
+    'COM': ['G', 'K', 'Q', 'X'],
+    'OBM': ['H', 'K', 'U', 'Z'],
+    'MW':  ['H', 'K', 'N', 'U', 'Z']
+}
 
-# slippage/brokerage
-# slippage = 1
-# brokerage = 1
+
+# Dictionary mapping month to symbols and vice versa
+month_to_sym = {1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
+                7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'}
+sym_to_month = {'F': 1, 'G': 2, 'H': 3, 'J': 4, 'K': 5,
+                'M': 6, 'N': 7, 'Q': 8, 'U': 9, 'V': 10, 'X': 11, 'Z': 12}
+decade = 10
+
 
 # passage of time
 timestep = 1/365
@@ -130,42 +149,40 @@ def run_simulation(signals, voldata, pricedata, expdata, pf, hedges, rollover_da
     net_daily_values = []
     net_cumul_values = []
 
-    date_range = sorted(voldata.value_date.unique())  # [1:]
+    loglist = []
 
+    date_range = sorted(voldata.value_date.unique())  # [1:]
+    print('dates: ', pd.to_datetime(date_range))
     # hedging frequency counters for delta, gamma, theta, vega respectively.
     counters = [1, 1, 1, 1]
 
     init_val = 0
     broken = False
     for i in range(len(date_range)):
-
         # get the current date
         date = date_range[i]
 
     # Steps 1 & 2: Error checks to prevent useless simulation runs.
-
         # broken = True if there is missing data.
         if broken:
             print('DATA MISSING; ENDING SIMULATION...')
             break
-
         # checks to make sure if there are still non-hedge securities in pf
         if len(pf.OTC_options) == 0 and len(pf.OTC_futures) == 0 and not pf.empty():
             print('ALL OTC OPTIONS HAVE EXPIRED. ENDING SIMULATION...')
             break
-
         # if end_date is inputted, check to see if the current date exceeds
         # end_date
         if end_date:
             if date >= end_date:
                 print('REACHED END OF SIMULATION.')
                 break
-
+        # try to get next date
         try:
             next_date = date_range[i+1]
         except IndexError:
             next_date = None
-
+        # try to get previous date
         try:
             prev_date = date_range[i-1]
         except IndexError:
@@ -178,8 +195,7 @@ def run_simulation(signals, voldata, pricedata, expdata, pf, hedges, rollover_da
         # filter data specific to the current day of the simulation.
         vdf = voldata[voldata.value_date == date]
         pdf = pricedata[pricedata.value_date == date]
-
-        print('Portfolio before feed: ', pf)
+        print('Portfolio before any ops: ', pf)
 
     # Step 3: Feed data into the portfolio.
         raw_change, pf, broken = feed_data(
@@ -188,13 +204,19 @@ def run_simulation(signals, voldata, pricedata, expdata, pf, hedges, rollover_da
     # Step 4: Compute pnl for the day
         updated_val = pf.compute_value()
         dailypnl = updated_val - init_val if init_val != 0 else 0
+        print('Vegas: ', [(str(op), op.vega) for op in pf.OTC_options])
 
-    # Step 5: Hedge.
+    # Step 5: Apply signal
+        roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
+            'delta'][i][0] == 'roll'][0]
+        pf = apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond)
+
+    # Step 6: Hedge.
         # cost = 0
-        pf, counters, cost = rebalance(
+        pf, counters, cost, roll_hedged = rebalance(
             vdf, pdf, pf, hedges, counters, brokerage=brokerage, slippage=slippage)
 
-    # Step 6: Subtract brokerage/slippage costs from rebalancing. Append to
+    # Step 7: Subtract brokerage/slippage costs from rebalancing. Append to
     # relevant lists.
         gross_daily_values.append(dailypnl)
         net_daily_values.append(dailypnl - cost)
@@ -208,20 +230,80 @@ def run_simulation(signals, voldata, pricedata, expdata, pf, hedges, rollover_da
         print('[10.2] Cumulative PNL (GROSS): ', grosspnl)
         print('[10.3] Cumulative PNL (net): ', netpnl)
         print('[13]  EOD PORTFOLIO: ', pf)
+
+    # Step 8: Initialize init_val to be used in the next loop.
         init_val = pf.compute_value()
+        print('[14] pf after signal: ', pf)
 
-    # Step 7: Placeholders for the signal-generating program.
-        pf = apply_signal(pf, vdf, pdf, signals, date)
+    # Step 9: computing stuff to be logged
+        lst = [date, dailypnl, dailypnl-cost, grosspnl, netpnl, roll_hedged]
+        dic = pf.get_net_greeks()
+        call_vega, put_vega = 0, 0
+        cols = ['value_date', 'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross',
+                'cu_pnl_net', 'delta_rolled', 'pdt', 'month', 'delta', 'gamma',
+                'theta', 'vega', 'net_call_vega', 'net_put_vega', 'net_ft_pos']
+        for pdt in dic:
+            for mth in dic[pdt]:
+                # getting net greeks
+                delta, gamma, theta, vega = dic[pdt][mth]
+                ops = pf.OTC[pdt][mth][0]
+                ftpos = 0
+                # net future position
+                ft = pf.hedges[pdt][mth][1]
+                for f in ft:
+                    val = f.lots if not f.shorted else -f.lots
+                    ftpos += val
+                calls = [op for op in ops if op.char == 'call']
+                puts = [op for op in ops if op.char == 'put']
+                # net call vega, net put vega
+                call_vega = sum([op.vega for op in calls])
+                put_vega = sum([op.vega for op in puts])
+                lst.extend([pdt, mth, delta, gamma, theta,
+                            vega, call_vega, put_vega, ftpos])
+                dic = OrderedDict(zip(cols, lst))
+                loglist.append(dic)
 
-    # Step 8: Decrement timestep after all steps.
+    # Step 10: Decrement timestep after all computation steps
+
         # calculate number of days to step
         num_days = 0 if next_date is None else (
             pd.Timestamp(next_date) - pd.Timestamp(date)).days
-        print('NUM DAYS: ', num_days)
+        print('TIME STEPPING: ', str(num_days) + ' days')
+
         pf.timestep(num_days * timestep)
 
+        print('pf after timestep: ', pf)
+        for op in pf.OTC_options:
+            print('Option: ', op)
+            print('vol: ', op.vol)
+            print('price: ', op.underlying.get_price())
+
     # Step 9: Plotting results/data viz
+
+    # appending 25d vol changes and price changes
+    signals['underlying_id'] = signals.pdt + '  ' + signals.ftmth
+    signals['vol_id'] = signals.pdt + '  ' + \
+        signals.opmth + '.' + signals.ftmth
+
+    df = pd.merge(signals, pricedata[['value_date', 'underlying_id', 'settle_value']], on=[
+                  'value_date', 'underlying_id'])
+    df = df.drop_duplicates()
+    df['price_change'] = df.settle_value.shift(-1) - df.settle_value
+    df['25d_call_change'] = df.delta_call_25_a.shift(-1) - df.delta_call_25_a
+    df['25d_put_change'] = df.delta_put_25_b.shift(-1) - df.delta_put_25_b
+    df['25d_call_change'] = df['25d_call_change'].shift(1)
+    df['25d_put_change'] = df['25d_put_change'].shift(1)
+
+    df = df.fillna(0)
+    log = pd.DataFrame(loglist)
+
+    # merge the log and the vol/price changes
+    log = pd.merge(log, df[['value_date', 'vol_id', 'price_change',
+                            '25d_call_change', '25d_put_change']], on=['value_date'])
+
+    log.to_csv('log.csv', index=False)
     elapsed = time.clock() - t
+
     print('Time elapsed: ', elapsed)
     print('##################### PNL: #####################')
     print('gross pnl: ', grosspnl)
@@ -286,7 +368,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, brokerage=None, slippage=None):
     raw_diff += expenditure
 
     curr_date = pd.to_datetime(pdf.value_date.unique()[0])
-    print('curr_date: ', curr_date)
+    # print('curr_date: ', curr_date)
     prev_date = pd.to_datetime(prev_date)
 
     # 2) Check for rollovers and expiries rollovers
@@ -309,7 +391,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, brokerage=None, slippage=None):
     # expiries; also removes options for which ordering = 0
     pf.remove_expired()
 
-    print('pf after rollovers and expiries: ', pf)
+    # print('pf after rollovers and expiries: ', pf)
 
     # 3)  update prices of futures, underlying & portfolio alike.
     # update option attributes by feeding in vol.
@@ -321,10 +403,14 @@ def feed_data(voldf, pdf, pf, dic, prev_date, brokerage=None, slippage=None):
             # print('OP GREEKS: ', op.greeks())
             cpi = 'C' if op.char == 'call' else 'P'
             # interpolate or round? currently rounding, interpolation easy.
-            strike = round(strike/10) * 10
+            ticksize = multipliers[op.get_product()][-2]
+            # get strike corresponding to closest available ticksize.
+            print('feed_data - ticksize: ', ticksize, op.get_product())
+            strike = round(round(strike/ticksize) * ticksize, 2)
             try:
+                vid = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
                 val = voldf[(voldf.pdt == product) & (voldf.strike == strike) &
-                            (voldf.order == order) & (voldf.call_put_id == cpi)]
+                            (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
                 df_tau = min(val.tau, key=lambda x: abs(x-tau))
                 val = val[val.tau == df_tau].settle_vol.values[0]
                 op.update_greeks(vol=val)
@@ -334,6 +420,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, brokerage=None, slippage=None):
                 print('product: ', product)
                 print('strike: ', strike)
                 print('order: ', order)
+                print('vid: ', vid)
                 print('call put id: ', cpi)
                 print('tau: ', df_tau)
                 broken = True
@@ -345,8 +432,9 @@ def feed_data(voldf, pdf, pf, dic, prev_date, brokerage=None, slippage=None):
         for ft in pf.get_all_futures():
             pdt, ordering = ft.get_product(), ft.get_ordering()
             try:
-                val = pdf[(pdf.pdt == pdt) & (
-                    pdf.order == ordering)].settle_value.values[0]
+                uid = ft.get_product() + '  ' + ft.get_month()
+                val = pdf[(pdf.pdt == pdt) &
+                          (pdf.underlying_id == uid)].settle_value.values[0]
                 print('UPDATED - new price: ', val)
                 ft.update_price(val)
 
@@ -354,6 +442,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, brokerage=None, slippage=None):
             except IndexError:
                 print('###### PRICE DATA MISSING #######')
                 print('ordering: ', ordering)
+                print('uid: ', uid)
                 print('pdt: ', pdt)
                 print('debug 1: ', pdf[(pdf.pdt == pdt) &
                                        (pdf.order == ordering)])
@@ -474,9 +563,10 @@ def rebalance(vdf, pdf, pf, hedges, counters, brokerage=None, slippage=None):
     # print('vega freq: ', vega_freq)
     dic = copy.deepcopy(pf.get_net_greeks())
     hedgearr = [False, False, False, False]
+    droll = None
     # updating counters
     if pf.empty():
-        return pf, counters, 0
+        return pf, counters, 0, False
 
     for greek in hedges:
         if greek == 'delta':
@@ -509,6 +599,7 @@ def rebalance(vdf, pdf, pf, hedges, counters, brokerage=None, slippage=None):
                 counters[2] += 1
     done_hedging = hedges_satisfied(pf, hedges)
     roll_hedged = check_roll_status(pf, hedges)
+    droll = not roll_hedged
 
     cost = 0
 
@@ -516,7 +607,9 @@ def rebalance(vdf, pdf, pf, hedges, counters, brokerage=None, slippage=None):
         print('deltas within bounds. skipping roll_hedging')
 
     if not roll_hedged:
-        print('roll hedging')
+        print(' ++ ROLL HEDGING REQUIRED ++ ')
+        for op in pf.OTC_options:
+            print('delta: ', abs(op.delta/op.lots))
         roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
             'delta'][i][0] == 'roll'][0]
         pf, exp = hedge_delta_roll(
@@ -565,7 +658,8 @@ def rebalance(vdf, pdf, pf, hedges, counters, brokerage=None, slippage=None):
                     else:
                         print('no delta hedging specifications found')
         done_hedging = hedges_satisfied(pf, hedges)
-    return pf, counters, cost
+
+    return (pf, counters, cost, droll)
 
 
 # TODO: update this with new objects in mind.
@@ -590,49 +684,46 @@ def gen_hedge_inputs(hedges, vdf, pdf, month, pf, product, ordering, flag):
     greeks = net_greeks[product][month]
     if flag == 'gamma':
         greek = greeks[1]
-        # bound = [hedges['gamma'][i][1] for i in range(len(hedges)) if hedges[
-        #     'gamma'][i][0] == 'bound'][0]
     elif flag == 'vega':
         greek = greeks[3]
-        # bound = hedges['vega'][0][1]
     elif flag == 'theta':
         greek = greeks[2]
-        # bound = hedges['theta'][0][1]
-
     # grabbing bound
     relevant_conds = [hedges[flag][i] for i in range(len(hedges[flag])) if hedges[
         flag][i][0] == 'bound'][0]
     bound = relevant_conds[1]
     # print('relevant_conds: ', relevant_conds)
     # print('bound: ', bound)
-
+    uid = product + '  ' + month
     # relevant data for constructing Option and Future objects.
-    price = pdf[(pdf.pdt == product) & (
-        pdf.order == ordering)].settle_value.values[0]
-
-    k = round(price/10) * 10
+    price = pdf[(pdf.pdt == product) &
+                (pdf.underlying_id == uid)].settle_value.values[0]
+    ticksize = multipliers[product][-2]
+    print('gen_hedge_inputs - ticksize: ', ticksize, product)
+    k = round(round(price / ticksize) * ticksize, 2)
     # print('[8]  STRIKE: ', k)
-    cvol = vdf[(vdf.pdt == product) & (
-        vdf.call_put_id == 'C') & (vdf.order == ordering) & (vdf.strike == k)].settle_vol.values[0]
-    pvol = vdf[(vdf.pdt == product) & (
-        vdf.call_put_id == 'P') & (vdf.order == ordering) & (vdf.strike == k)].settle_vol.values[0]
+    cvol = vdf[(vdf.pdt == product) &
+               (vdf.call_put_id == 'C') &
+               (vdf.underlying_id == uid) &
+               (vdf.strike == k)].settle_vol.values[0]
+
+    pvol = vdf[(vdf.pdt == product) &
+               (vdf.call_put_id == 'P') &
+               (vdf.underlying_id == uid) &
+               (vdf.strike == k)].settle_vol.values[0]
+
     # if no tau provided, default to using same-month atm straddles.
-    tau_vals = vdf[(vdf.pdt == product) & (
-        vdf.call_put_id == 'P') & (vdf.order == ordering) & (vdf.strike == k)].tau
-    # print('max tau: ', max(tau_vals))
-    # print('min tau: ', min(tau_vals))
-    # if not (np.isclose(max(tau_vals), min(tau_vals))):
-    #     print('tau differential present')
+    tau_vals = vdf[(vdf.pdt == product) &
+                   (vdf.call_put_id == 'P') &
+                   (vdf.underlying_id == uid) &
+                   (vdf.strike == k)].tau
 
     if len(relevant_conds) == 3:
         tau = max(tau_vals)
-        # print('order: ', ordering)
-        # print('ttm assigned: ', tau*365)
+
     else:
         target = relevant_conds[3]
         tau = min(tau_vals, key=lambda x: abs(x-target))
-        # print('order: ', ordering)
-        # print('ttm assigned: ', tau*365)
 
     underlying = Future(month, price, product, ordering=ordering)
 
@@ -671,10 +762,12 @@ def hedge(pf, inputs, product, month, flag, brokerage=None, slippage=None):
     lower = bound[0]
     # print('upper: ', upper)
     # print('lower: ', lower)
+    print('>>>>>>>>>>> hedging ' + product + ' ' +
+          month + ' ' + flag + ' <<<<<<<<<<<<<')
     if greek > upper or greek < lower:
         # gamma hedging logic.
-        print(product + ' ' + month + ' ' + flag + ' hedging')
 
+        # print(product + ' ' + month + ' ' + flag + ' hedging')
         print('cvol: ', cvol)
         print('pvol: ', pvol)
         if greek < lower:
@@ -779,6 +872,7 @@ def hedge(pf, inputs, product, month, flag, brokerage=None, slippage=None):
               ' WITHIN BOUNDS. SKIPPING HEDGING')
         pass
     print('hedging fees - ' + flag + ': ', fees)
+    print('>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<')
     return pf, fees   # [callop, putop]
 
 
@@ -800,20 +894,21 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering, brokerage=None, sl
 
     """
     # print('cond: ', cond)
-    print('delta hedging: ', product + '  ' + month)
-    future_price = pdf[(pdf.pdt == product) & (
-        pdf.order == ordering)].settle_value.values[0]
+    print('>>>>>>>>>>> delta hedging: ', product +
+          '  ' + month + ' <<<<<<<<<<<<<')
+    uid = product + '  ' + month
+    future_price = pdf[(pdf.pdt == product) &
+                       (pdf.underlying_id == uid)].settle_value.values[0]
+
     net_greeks = pf.get_net_greeks()
     fees = 0
-    print('cond: ', cond)
+    # print('cond: ', cond)
     if cond == 'zero':
         # flag that indicates delta hedging.
         vals = net_greeks[product][month]
         delta = vals[0]
-        # print('[12] ' + product + ' ' + month + ' delta', delta)
         shorted = True if delta > 0 else False
         num_lots_needed = abs(round(delta))
-        # print('lots needed: ', num_lots_needed)
         if num_lots_needed == 0:
             print(str(product) + ' ' + str(month) +
                   ' DELTA IS ZEROED. SKIPPING HEDGING')
@@ -828,6 +923,7 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering, brokerage=None, sl
         # TODO
         pass
     print('hedging fees - delta: ', fees)
+    print('>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<')
     return pf, ft, fees
 
 
@@ -862,42 +958,48 @@ def hedge_delta_roll(pf, roll_cond, pdf, brokerage=None, slippage=None):
         # case: delta not in bounds. roll delta.
         if delta > bounds[1] or delta < bounds[0]:
             # get strike corresponding to delta
+            print('delta not in bounds: ', op, delta)
             cpi = 'C' if op.char == 'call' else 'P'
             # get the vol from the vol_by_delta part of pdf
             col = str(int(roll_val)) + 'd'
             try:
+                vid = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
                 vol = pdf.loc[(pdf.call_put_id == cpi) &
-                              (pdf.order == op.ordering) &
+                              (pdf.vol_id == vid) &
                               (pdf.pdt == op.get_product()) &
                               (np.isclose(pdf.tau, op.tau)), col].values[0]
+                # print('vol found')
             except IndexError:
-                print(cpi, op.ordering, op.get_product(), op.tau)
-                print('vol not found in volbydelta')
-                # print('debug 1: ', pdf[(pdf.call_put_id == cpi)])
-                print('debug 2: ', pdf[(pdf.call_put_id == cpi) &
-                                       (pdf.order == op.ordering)])
-                print('debug 3: ', pdf[(pdf.call_put_id == cpi) &
-                                       (pdf.order == op.ordering) &
-                                       (pdf.pdt == op.get_product())])
-                print('debug 4: ', pdf[(pdf.call_put_id == cpi) &
-                                       (pdf.order == op.ordering) &
-                                       (pdf.pdt == op.get_product()) &
-                                       (np.isclose(pdf.tau, op.tau))])
-                print('debug 5: ', pdf[(pdf.call_put_id == cpi) &
-                                       (pdf.order == op.ordering) &
-                                       (pdf.pdt == op.get_product()) &
-                                       (pdf.tau == op.tau)][col])
-                test = pdf.loc[(pdf.call_put_id == cpi) &
-                               (pdf.order == op.ordering) &
-                               (pdf.pdt == op.get_product()) &
-                               (np.isclose(pdf.tau, op.tau)), col].values[0]
+                print('[ERROR] -', cpi, vid, op.get_product(), op.tau)
+                print('[ERROR] - tau: ', op.tau)
+                # print('[ERROR] -vol not found in volbydelta')
+                # print('[ERROR] -debug 1: ', pdf[(pdf.call_put_id == cpi)])
+                # print('[ERROR] -debug 2: ', pdf[(pdf.call_put_id == cpi) &
+                #                                 (pdf.vol_id == vid)])
+                # print('[ERROR] -debug 3: ', pdf[(pdf.call_put_id == cpi) &
+                #                                 (pdf.vol_id == vid) &
+                #                                 (pdf.pdt == op.get_product())])
+                # print('[ERROR] -debug 4: ', pdf[(pdf.call_put_id == cpi) &
+                #                                 (pdf.vol_id == vid) &
+                #                                 (pdf.pdt == op.get_product()) &
+                #                                 (np.isclose(pdf.tau, op.tau))])
+                # print('[ERROR] -debug 5: ', pdf[(pdf.call_put_id == cpi) &
+                #                                 (pdf.vol_id == vid) &
+                #                                 (pdf.pdt == op.get_product()) &
+                #                                 (pdf.tau == op.tau)][col])
+                # test = pdf.loc[(pdf.call_put_id == cpi) &
+                #                (pdf.underlying_id == uid) &
+                #                (pdf.pdt == op.get_product()) &
+                #                (np.isclose(pdf.tau, op.tau)), col]
                 # print(test)
-                print('column desired in columns: ', col in test.columns)
+                # print('column desired in columns: ', col in
+                # test.columns)strike
+
                 vol = op.vol
 
             strike = compute_strike_from_delta(
                 op, delta1=roll_val/100, vol=vol)
-
+            # print('roll_hedging - newop tau: ', op.tau)
             newop = Option(strike, op.tau, op.char, vol, op.underlying,
                            op.payoff, op.shorted, op.month, direc=op.direc,
                            barrier=op.barrier, lots=op.lots, bullet=op.bullet,
@@ -919,7 +1021,7 @@ def hedge_delta_roll(pf, roll_cond, pdf, brokerage=None, slippage=None):
     return pf, cost
 
 
-def apply_signal(pf, vdf, pdf, signals, date):
+def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond):
     """Applies the signal generated by the recommendation program to the portfolio. 
 
     Args:
@@ -930,9 +1032,93 @@ def apply_signal(pf, vdf, pdf, signals, date):
         date (TYPE): current date 
 
     Returns:
-        TYPE: Description
+        portfolio object: the portfolio with the requisite changes applied.
     """
-    return pf
+    print('________APPLYING SIGNAL_______: ', next_date)
+    if next_date is None:
+        print('reached end of signal period')
+        return pf
+    ret = None
+    next_date = pd.to_datetime(next_date)
+    cols = ['delta_call_25_a', 'delta_put_25_b',
+            'signal_diff', 'opmth', 'ftmth', 'pdt', 'lots']
+    cvol, pvol, sig, opmth, ftmth, pdt, lots = signals.loc[
+        signals.value_date == next_date, cols].values[0]
+    if sig == 0:
+        ret = pf
+    else:
+        dval = roll_cond[1]/100
+        num_skews = abs(sig)
+        shorted = True if sig < 0 else False
+        cvol, pvol = cvol/100, pvol/100
+        # create the underlying future
+        curr_mth = date.month
+        curr_mth_sym = month_to_sym[curr_mth]
+        curr_yr = date.year % (2000 + decade)
+        curr_sym = curr_mth_sym + str(curr_yr)
+        order = find_cdist(curr_sym, ftmth, contract_mths[pdt])
+        uid = pdt + '  ' + ftmth
+        try:
+            ftprice = pdf[(pdf.value_date == date) &
+                          (pdf.underlying_id == uid)].settle_value.values[0]
+        except IndexError:
+            print('inputs: ', date, uid)
+
+        ft = Future(ftmth, ftprice, pdt, shorted=(
+            not shorted), lots=lots, ordering=order)
+
+        # create the options; long one dval call, short on dval put
+        vol_id = pdt + '  ' + opmth + '.' + ftmth
+
+        tau = vdf[(vdf.value_date == date) &
+                  (vdf.vol_id == vol_id)].tau.values[0]
+
+        print('tau found in apply_signal: ', tau)
+
+        c_strike = compute_strike_from_delta(
+            None, delta1=dval, vol=cvol, s=ftprice, tau=tau, char='call', pdt=pdt)
+
+        p_strike = compute_strike_from_delta(
+            None, delta1=dval, vol=pvol, s=ftprice, tau=tau, char='put', pdt=pdt)
+
+        # case where we need to sell, and pf is not empty. remove one call and one put
+        # that have deltas furthest away from dval.
+        toberemoved = []
+        calls = [op for op in pf.OTC_options if op.char ==
+                 'call' and op.shorted == False]
+        puts = [op for op in pf.OTC_options if op.char ==
+                'put' and op.shorted == True]
+
+        if (not pf.empty()) and (sig < 0) and (calls) and (puts):
+            print('selling option')
+            max_call_op = max(calls, key=lambda x: abs(
+                abs(x.delta/x.lots) - dval))
+            max_put_op = max(puts, key=lambda x: abs(
+                abs(x.delta/x.lots) - dval))
+            toberemoved.extend([max_call_op, max_put_op])
+
+            pf.remove_security(toberemoved, 'OTC')
+            for op in toberemoved:
+                print('op removed deltas: ', op, abs(op.delta/op.lots))
+            toberemoved.clear()
+
+        # all other cases; either buy signal, or sell with empty portfolio (i.e
+        # take on short position)
+        else:
+            tobeadded = []
+            for i in range(num_skews):
+                callop = Option(c_strike, tau, 'call', cvol, ft, 'amer',
+                                shorted, opmth, lots=lots, ordering=order)
+                putop = Option(p_strike, tau, 'put', pvol, ft, 'amer',
+                               not shorted, opmth, lots=lots, ordering=order)
+                pf.add_security([callop, putop], 'OTC')
+                tobeadded.extend([callop, putop])
+            for op in tobeadded:
+                print('added op deltas: ', op, abs(op.delta/op.lots))
+            tobeadded.clear()
+        ret = pf
+    print('_________ SIGNAL APPLIED __________')
+    return ret
 
 
 ###############################################################################
@@ -1059,6 +1245,7 @@ if __name__ == '__main__':
     # gv.final_price_path, gv.final_exp_path, gv.cleaned_price
 
     writeflag = 'small' if 'small' in volpath else 'full'
+    print('writeflag: ', writeflag)
 
     if os.path.exists(volpath) and os.path.exists(pricepath)\
             and os.path.exists(exppath)\
@@ -1090,7 +1277,8 @@ if __name__ == '__main__':
     else:
         print('####################################################')
         print('current_dir: ', os.getcwd())
-        print('paths inputted: ', volpath, pricepath, exppath, rollpath)
+        print('paths inputted: ', volpath,
+              pricepath, exppath, rollpath, sigpath)
         print('DATA NOT FOUND. PREPARING... [2/7]')
 
         # full-size data
@@ -1109,20 +1297,22 @@ if __name__ == '__main__':
         signals.value_date = pd.to_datetime(signals.value_date)
 
         vdf, pdf, edf, rolldf = read_data(
-            volpath, pricepath, epath, specpath, signals, test=False,  writeflag=writeflag, start_date=start_date)
+            volpath, pricepath, epath, specpath, signals=signals, test=False,  writeflag=writeflag, start_date=start_date)
 
         signals = pd.read_csv(sigpath)
         signals.value_date = pd.to_datetime(signals.value_date)
+
+    # vdf, pdf = match_to_signals(vdf, pdf, signals)
+
     print('DATA READ-IN COMPLETE. SANITY CHECKING... [3/7]')
     print('READ-IN RUNTIME: ', time.clock() - t)
 
     ######################### check sanity of data ###########################
 
-    # vdf, pdf = vdf[vdf.value_date >= start_date], \
-    #     pdf[pdf.value_date >= start_date]
-
+    # handle data types.
     vdates = pd.to_datetime(sorted(vdf.value_date.unique()))
     pdates = pd.to_datetime(sorted(pdf.value_date.unique()))
+    sig_dates = pd.to_datetime(sorted(signals.value_date.unique()))
 
     # check to see that date ranges are equivalent for both price and vol data
     if not np.array_equal(vdates, pdates):
@@ -1133,12 +1323,27 @@ if __name__ == '__main__':
         raise ValueError(
             'Invalid data sets passed in; vol and price data must have the same date range. Aborting run.')
 
+    if not np.array_equal(sig_dates, vdates):
+        print('v - sig difference: ',
+              [x for x in vdates if x not in sig_dates])
+        print('sig - v difference: ',
+              [x for x in sig_dates if x not in vdates])
+        raise ValueError('signal dates dont match up with vol dates')
+
+    if not np.array_equal(sig_dates, pdates):
+        print('p - sig difference: ',
+              [x for x in pdates if x not in sig_dates])
+        print('sig - v differenceL ',
+              [x for x in sig_dates if x not in pdates])
+        raise ValueError('signal dates dont match up with price dates')
+
     # if end_date specified, check that it makes sense (i.e. is greater than
     # start date)
     if end_date:
         if start_date > end_date or start_date > end_date:
             raise ValueError(
                 'Invalid end_date entered; current end_date is less than start_date')
+
     print('####################################################')
     print('SANITY CHECKING COMPLETE. PREPPING PORTFOLIO... [4/7]')
     ##########################################################################
@@ -1173,7 +1378,7 @@ if __name__ == '__main__':
 
     print('ROLLOVER DATES: ', rollover_dates)
 
-    # run simulation #
+    # # run simulation #
     grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values = run_simulation(
         signals, vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage, slippage=gv.slippage)
 
@@ -1249,56 +1454,3 @@ if __name__ == '__main__':
 #######################################################################
 #######################################################################
 #######################################################################
-
-# code dump
-
-    # proceed to run simulation
-    # pnl_list = []
-
-    # for i in range(10):
-    #     pf, sim_start = prep_portfolio(vdf, pdf, filepath=filepath)
-    #     print(pf)
-    #     vdf, pdf = vdf[vdf.value_date >= sim_start], \
-    #         pdf[pdf.value_date >= sim_start]
-    #     pnl, pf1 = run_simulation(vdf, pdf, edf, pf)
-    #     pnl_list.append(pnl)
-    #     print('run ' + str(i) + ' completed')
-
-    # print('mean pnl: ', np.mean(pnl_list))
-    # print('pnl sd: ', np.std(pnl_list))
-
-    # # Commands upon running the file
-
-# if __name__ == '__main__':
-#     datapath = 'data_loc.txt'
-#     t = time.clock()
-#     vdf, pdf, edf = read_data(datapath)
-#     # check sanity of data
-#     vdates = pd.to_datetime(vdf.value_date.unique())
-#     # print(vdates)
-
-#     pdates = pd.to_datetime(pdf.value_date.unique())
-#     # print(pdates)
-#     if not np.array_equal(vdates, pdates):
-#         raise ValueError(
-#             'Invalid data sets passed in; vol and price data must have the same date range.')
-
-#     # generate portfolio
-#     # filepath = 'specs.csv'
-#     filepath = 'datasets/corn_portfolio_specs.csv'
-#     # filepath = 'datasets/bo_portfolio_specs.csv'
-#     pf, sim_start = prep_portfolio(vdf, pdf, filepath=filepath)
-#     print(pf)
-#     vdf, pdf = vdf[vdf.value_date >= sim_start], \
-#         pdf[pdf.value_date >= sim_start]
-#     print('NUM OPS: ', len(pf.OTC_options))
-#     e1 = time.clock() - t
-#     print('[data & portfolio prep]: ', e1)
-#     # generate hedges
-#     hedge_path = 'hedging.csv'
-#     hedges = generate_hedges(hedge_path)
-#     print(hedges)
-#     pnl, pf1 = run_simulation(vdf, pdf, edf, pf, hedges=hedges)
-
-#     e2 = time.clock() - e1
-#     print('[simulation]: ', e2)
