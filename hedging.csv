@@ -1,4 +1,4 @@
 greek,flag,cond,freq,subcond,tau
-delta,roll,60,1,"(35,100)",
+delta,roll,25,1,"(20,35)",
 delta,static,zero,1,,
 gamma,bound,"(-5000, 5000)",1,,

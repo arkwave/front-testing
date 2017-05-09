@@ -1,2 +1,1 @@
 Type,strike,vol_id,call_put_id,optiontype,barriertype,direction,knockin,knockout,bullet,shorted,hedgeorOTC,lots
-Option,370,C  Z7.Z7,call,amer,,,,,TRUE,FALSE,OTC,1000

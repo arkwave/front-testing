@@ -567,18 +567,15 @@ Historical Simulator TODOS:
 	- figure out why delta of new option isn't exactly 25 delta.                  [Done]
 		- due to the strike being rounded up/down to the nearest 10.  
 
-
-
 > refactor get_min_start_date so that it depends on portfolio rather than on the dataframe. [Done]
-> refactor simulation loop so that it buys/sells according to signal provided.
 
+> refactor simulation loop so that it buys/sells according to signal provided.
 
 	- keep loop to be in terms of voldata dates
 		- change dates in signals df to account for SOD/EOD difference; signals are given a the start
 		of the day <=> eod of the previous day. 
 
 		- make changes to simulation functions to accomodate empty portfolio
-
 			> added in .empty() method to portfolio that checks if self.OTC and self.hedge dictionaries are
 			empty. Preferred checking dictionaries rather than just OTC dict to distinguish between portfolio state
 			when all OTCs have expired vs an initially empty portfolio with no signal yet. 
@@ -586,27 +583,43 @@ Historical Simulator TODOS:
 			> changed get_min_start_date to reflect min between signals and voldata, with a bunch of extra conditions
 			so that it can be applied unchanged to both prep_portfolio and prep_data with the same results.
 
-	
-	- need to figure out how to specify a particular month's contract even if initial portfolio is empty.
-		- for now, add in vol_id flag into the signals dataframe, default to C  N7.N7 
+	- [Done] need to figure out how to specify a particular month's contract even if initial portfolio is empty.
+		+ for now, add in vol_id flag into the signals dataframe, default to C  N7.N7 
 
 	- include handling logic for rollover upon crossing expiry buffer.
 
-	- sort out the inconsistency in dates between signals and voldata
+
+
+
+
+8/5
+	
+	- [DONE] sort out the inconsistency in dates between signals and voldata
 		> need to somehow cross reference dates in voldata and signals such that signals_date - numdays = vdf.date
 		> prelimiary steps in diagnostic. 
+		+ solution was to roll all dates reported on sunday to the previous friday. introduced match_to_signals function in prep_data.py 
+
+	- added in match_to_signals function to implement aforementioned change
+	- debugged problems in prep_data when dealing with product names that had more than 1 letter --> checks to standardize the two space convention in vol_id and underlying_id. 
 
 	- function to parse signal input:
 		- date | 25d call vol | 25d put vol | signal
 		- for each day:
 			1) 
 
+	- TODO: figure out why timestep isn't working
+		> solution: created the option objects individually. my guess is that objects were being overwritten when added as part of one large list, but honestly not sure. 
 
 
 
-Next week:
-	> discuss with Ujjwal and interface software. 
-
+9/5
+	- finish interfacing (done)
+	- solve timestep issue (done)
+	- fix rounding strike per commodity (done)
+	- change order of simulation loop to rebalance after signal (done)
+	- ensure pnl computation only considers comparable portfolios (done)
+	
+	- logging to csv
 
 
 

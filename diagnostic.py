@@ -5,6 +5,7 @@ from math import log, sqrt, exp
 import pandas as pd
 from ast import literal_eval
 from collections import OrderedDict
+from pandas.tseries.holiday import USFederalHolidayCalendar as calendar
 
 multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
@@ -84,16 +85,49 @@ contract_mths = {
 }
 
 
-vdf = pd.read_csv('datasets/small_data/final_vols.csv')
-pdf = pd.read_csv('datasets/small_data/final_price.csv')
-pdf.value_date = pd.to_datetime(pdf.value_date)
-vdf.value_date = pd.to_datetime(vdf.value_date)
-signals = pd.read_csv('datasets/signals.csv')
-signals.value_date = pd.to_datetime(signals.value_date)
+# vdf = pd.read_csv('datasets/ct_data/ct_vols.csv')
+# pdf = pd.read_csv('datasets/ct_data/ct_prices.csv')
+# signals = pd.read_csv('datasets/signals.csv')
+# signals.value_date = pd.to_datetime(signals.value_date)
 
-pv_dates = pd.Series(pdf.value_date.unique())
-df = pd.DataFrame(pv_dates, columns=['s'])
-df['s1'] = df.s.shift(-1)
-df['numdays'] = (df.s1 - df.s).dt.days
-df = df.fillna(0)
-df.numdays = df.numdays.astype(int)
+# pdf.value_date = pd.to_datetime(pdf.value_date)
+# vdf.value_date = pd.to_datetime(vdf.value_date)
+# # getting rid of sunday/friday reporting errors.
+# vdf['sunday'] = vdf.value_date.dt.weekday == 6
+# pdf['sunday'] = pdf.value_date.dt.weekday == 6
+
+# vdf.loc[vdf.sunday == True, 'value_date'] -= pd.Timedelta('2 days')
+# pdf.loc[pdf.sunday == True, 'value_date'] -= pd.Timedelta('2 days')
+
+# cal = calendar()
+# holidays = cal.holidays(start=pd.Timestamp('2017-01-02'), end='2017-03-31')
+
+# # filtering relevant dates
+# vdf = vdf[(vdf.value_date > pd.Timestamp('2017-01-02')) &
+#           (vdf.value_date < pd.Timestamp('2017-04-02'))]
+# pdf = pdf[(pdf.value_date > pd.Timestamp('2017-01-02')) &
+#           (pdf.value_date < pd.Timestamp('2017-04-02'))]
+
+
+# d1 = [x for x in vdf.value_date.unique() if x not in signals.value_date.unique()]
+# d1 = pd.to_datetime(d1)
+# d2 = [x for x in pdf.value_date.unique() if x not in signals.value_date.unique()]
+# d2 = pd.to_datetime(d2)
+
+# d3 = [x for x in signals.value_date.unique() if x not in vdf.value_date.unique()]
+# d3 = pd.to_datetime(d3)
+# d4 = [x for x in signals.value_date.unique() if x not in pdf.value_date.unique()]
+# d4 = pd.to_datetime(d4)
+
+# d3_days = ['Friday' for x in d3 if x.weekday() == 4]
+
+# ht1 = [(x in holidays) or (x.weekday() in [5, 6]) for x in d1]
+# ht2 = [(x in holidays) or (x.weekday() in [5, 6]) for x in d2]
+
+
+# # mask = signals.value_date.isin(d3)
+# vmask = vdf.value_date.isin(d1)
+# pmask = pdf.value_date.isin(d2)
+
+# vdf = vdf[~vmask]
+# pdf = pdf[~pmask]
