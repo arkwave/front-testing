@@ -613,15 +613,13 @@ Historical Simulator TODOS:
 
 
 9/5
-	- finish interfacing (done)
 	- solve timestep issue (done)
 	- fix rounding strike per commodity (done)
 	- change order of simulation loop to rebalance after signal (done)
 	- ensure pnl computation only considers comparable portfolios (done)
-	
-	- logging to csv
+	- logging to csv (done)
 
-
+	- finish interfacing (done)
 
 
 
