@@ -379,6 +379,10 @@ class Option:
         self.expired = ret
         return ret
 
+    def update_lots(self, lots):
+        self.lots = lots
+        self.update_greeks()
+
     def get_properties(self):
         return {'month': self.month, 'barrier': self.barrier, 'payoff': self.payoff,
                 'underlying': self.underlying, 'lots': self.lots, 'ki': self.ki,
@@ -463,3 +467,6 @@ class Future:
         ret = True if self.ordering == 0 else False
         self.expired = ret
         return ret
+
+    def update_lots(self, lots):
+        self.lots = lots

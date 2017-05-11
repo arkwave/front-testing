@@ -111,18 +111,37 @@ class Portfolio:
         hedgeops = [op.__str__() for op in self.hedge_options]
         hedgeft = [op.__str__() for op in self.hedge_futures]
         nets = self.net_greeks
-        # OTC_full = self.OTC
-        # hedge_full = self.hedges
 
         r_dict = {'OTC Options': otcops,
                   'OTC Futures': otcft,
                   'Hedge Options': hedgeops,
                   'Hedge Futures': hedgeft,
                   'Net Greeks': nets}
-        # 'OTC Dict': OTC_full,
-        # 'Hedge Dict': hedge_full}
 
         return str(pprint.pformat(r_dict))
+
+    def update_sec_lots(self, sec, flag, lots):
+        """Updates the lots of a given security, updates the dictionary it is contained in, and 
+        updates net_greeks 
+
+        Args:
+            sec (list): list of securities whose lots are being updated
+            flag (TYPE): indicates if this security is an OTC or hedge option
+            lots (TYPE): list of lot values, where lots[i] corresponds to the new lot value of sec[i]
+        """
+        ops = self.OTC_options if flag == 'OTC' else self.hedge_futures
+        fts = self.OTC_futures if flag == 'OTC' else self.hedge_futures
+        for s in sec:
+            # sanity checks: make sure the security is present in the relevant
+            # list selected by flag
+            if s.desc == 'Option' and s not in ops:
+                raise ValueError('This option is not in the portfolio.')
+            elif s.desc == 'Future' and s not in fts:
+                raise ValueError('This future is not in the portfolio.')
+            else:
+                s.update_lots(lots[sec.index(s)])
+
+        self.update_sec_by_month(False, flag, update=True)
 
     def empty(self):
         return (len(self.OTC) == 0) and (len(self.hedges) == 0)
@@ -427,8 +446,6 @@ class Portfolio:
             self.compute_net_greeks()
 
     def recompute(self, lst, flag):
-        # if lst:
-            # print('recomputing ' + flag + ' ' + str(lst[0].get_desc()))
         for sec in lst:
             pdt = sec.get_product()
             month = sec.get_month()
