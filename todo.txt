@@ -611,7 +611,6 @@ Historical Simulator TODOS:
 		> solution: created the option objects individually. my guess is that objects were being overwritten when added as part of one large list, but honestly not sure. 
 
 
-
 9/5
 	- solve timestep issue (done)
 	- fix rounding strike per commodity (done)
@@ -621,6 +620,44 @@ Historical Simulator TODOS:
 
 	- finish interfacing (done)
 
+
+
+10/5
+	- notes:
+		1) currently apply_signal not taking any brokerage/slippage/cost of options into count since all of this happens after prev PnL computation and before next feed. 
+	Further todos:
+	
+	> figure out how to intelligently sell the equivalent of 25 skew pos using current-day values. 
+		- more specifically: vega amount specified in signal. figure out how to sell off that much vega from current position using various methods such as:
+			1) first-in-last-out
+			2) furthest from 25delta 
+
+	> Notes for Ujjwal:
+		- generate signal using historical data. 
+		- multipliers on the buy/sell signal on the basis of skew percentile compared to history.
+		- rolling bands; perhaps some sort of rolling weighted average based on historical analysis. 
+
+
+
+11/5:
+
+	> [Done] double check if changing lots changes greeks [high priority]
+		- if not, add in new method decrement_lots that updates greeks after decrementing lots 
+	> [Done] finish implementing close_off_delta 
+	> [Done] testing
+	> [Done] liquidation logic
+	> conceptualize filo implementation.  
+
+
+Things left to finish off HistoricSimulator:
+2) port over globalvars conventions
+
+
+
+
+Future work:
+> figure out how to effectively create option composites using mutiple options in a way that doesn't break portfolio object/require much refactoring. 
+	
 
 
 
