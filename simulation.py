@@ -98,45 +98,48 @@ np.random.seed(seed)
 ############## Main Simulation Loop #################
 #####################################################
 
-def run_simulation(signals, voldata, pricedata, expdata, pf, hedges, rollover_dates, end_date=None, brokerage=None, slippage=None):
-    """Each run of the simulation consists of 5 steps:
+def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_date=None, brokerage=None, slippage=None, signals=None):
+    """
+    Each run of the simulation consists of 5 steps:
+        1) Feed data into the portfolio.
 
-    1) Feed data into the portfolio.
+        2) Compute:
+                > change in greeks from price and vol update
+                > change in overall value of portfolio from price and vol update.
+                > Check for expiry/exercise/knock-in/knock-out. Expiry can be due to barriers or tau = 0. Record changes to:
+                        - futures bought/sold as the result of exercise. [PnL]
+                        - changes in monthly greeks from options expiring. [PnL]
+                        - total number of securities in the portfolio; remove expired options.
 
-    2) Compute:
-            > change in greeks from price and vol update
-            > change in overall value of portfolio from price and vol update.
-            > Check for expiry/exercise/knock-in/knock-out. Expiry can be due to barriers or tau = 0. Record changes to:
-                    - futures bought/sold as the result of exercise. [PnL]
-                    - changes in monthly greeks from options expiring. [PnL]
-                    - total number of securities in the portfolio; remove expired options.
+        3) Handle the options component:
+                > Check if option is bullet or daily.
+                > handle exericse appropriately.
 
-    3) Handle the options component:
-            > Check if option is bullet or daily.
-            > handle exericse appropriately.
+        4) PnL calculation. Components include:
+                > PnL contribution from changes in price/vols.
+                > PnL Contribution from Options
+                > PnL from shorting straddles (gamma/vega hedging)
 
-    4) PnL calculation. Components include:
-            > PnL contribution from changes in price/vols.
-            > PnL Contribution from Options
-            > PnL from shorting straddles (gamma/vega hedging)
+        5) Rebalance the Greeks
+                > buy/sell options to hedge gamma/vega according to conditions
+                > buy/sell futures to zero delta (if required)
 
-    5) Rebalance the Greeks
-            > buy/sell options to hedge gamma/vega according to conditions
-            > buy/sell futures to zero delta (if required)
+        Process then repeats from step 1 for the next input.
 
-    Process then repeats from step 1 for the next input.
+    Args:
+        signals (TYPE): Description
+        voldata (TYPE): Description
+        pricedata (TYPE): Description
+        expdata (TYPE): Description
+        pf (TYPE): Description
+        hedges (TYPE): Description
+        rollover_dates (TYPE): Description
+        end_date (None, optional): Description
+        brokerage (None, optional): Description
+        slippage (None, optional): Description
 
-    Inputs:
-    1) voldata   : dataframe containing price and vol series for all futures.
-    2) pricedata : Portfolio object.
-    3) expdata   :
-    4) pf        :
-    5) hedges    :
-
-    Outputs:
-    1) Graph of daily PnL
-    2) Graph of cumulative PnL
-    3) Various summary statistics.
+    Returns:
+        TYPE: Description
 
     """
     t = time.clock()
@@ -207,9 +210,11 @@ def run_simulation(signals, voldata, pricedata, expdata, pf, hedges, rollover_da
         # print('Vegas: ', [(str(op), op.vega) for op in pf.OTC_options])
 
     # Step 5: Apply signal
-        roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
-            'delta'][i][0] == 'roll'][0]
-        pf = apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond)
+        if signals:
+            roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
+                'delta'][i][0] == 'roll'][0]
+            pf = apply_signal(pf, vdf, pdf, signals,
+                              date, next_date, roll_cond)
 
     # Step 6: Hedge.
         # cost = 0
@@ -340,6 +345,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, brokerage=None, slippage=None):
         pf (portfolio object): portfolio specified by portfolio_specs.txt
         dic (dictionary): dictionary of rollover dates, in the format
                 {product_i: [c_1 rollover, c_2 rollover, ... c_n rollover]}
+        prev_date (TYPE): Description
         brokerage (int, optional): brokerage fees per lot.
         slippage (int, optional): slippage cost
 
@@ -463,16 +469,18 @@ def feed_data(voldf, pdf, pf, dic, prev_date, brokerage=None, slippage=None):
 
 
 def handle_exercise(pf, brokerage=None, slippage=None):
-    """ Handles option exercise, as well as bullet vs daily payoff.
+    """Handles option exercise, as well as bullet vs daily payoff.
+
     Args:
-        pf (Portfolio object) : the portfolio being run through the simulator.
+        pf (Portfolio object): the portfolio being run through the simulator.
+        brokerage (None, optional): Description
+        slippage (None, optional): Description
 
     Returns:
         tuple: the combined PnL from exercising (if appropriate) and daily/bullet payoffs, as well as the updated portfolio.
 
     Notes on implementation:
-
-    1) options are exercised if less than or equal to 2 days to maturity, and option is in the money. Futures obtained are immediately sold and profit is locked in.
+        1) options are exercised if less than or equal to 2 days to maturity, and option is in the money. Futures obtained are immediately sold and profit is locked in.
 
     """
     if pf.empty():
@@ -539,17 +547,21 @@ def handle_exercise(pf, brokerage=None, slippage=None):
 ###############################################################################
 
 def rebalance(vdf, pdf, pf, hedges, counters, brokerage=None, slippage=None):
-    """ Function that handles EOD greek hedging. Calls hedge_delta and hedge_gamma_vega.
+    """Function that handles EOD greek hedging. Calls hedge_delta and hedge_gamma_vega.
+
     Notes:
-    1) hedging gamma and vega done by buying/selling ATM straddles. No liquidity constraints assumed.
-    2) hedging delta done by shorting/buying -delta * lots futures.
-    3)
+        1) hedging gamma and vega done by buying/selling ATM straddles. No liquidity constraints assumed.
+        2) hedging delta done by shorting/buying -delta * lots futures.
+        3)
 
     Args:
         vdf (pandas dataframe): Dataframe of volatilities
         pdf (pandas dataframe): Dataframe of prices
         pf (object): portfolio object
         hedges (dict): Dictionary of hedging conditions
+        counters (TYPE): Description
+        brokerage (None, optional): Description
+        slippage (None, optional): Description
 
     Returns:
         tuple: portfolio, counters
@@ -677,7 +689,7 @@ def gen_hedge_inputs(hedges, vdf, pdf, month, pf, product, ordering, flag):
         flag (string): gamma, vega or theta
 
     Returns:
-        list : inputs required to construct atm straddles.
+        list: inputs required to construct atm straddles.
     """
     net_greeks = pf.get_net_greeks()
     greeks = net_greeks[product][month]
@@ -730,15 +742,19 @@ def gen_hedge_inputs(hedges, vdf, pdf, month, pf, product, ordering, flag):
 
 
 def hedge(pf, inputs, product, month, flag, brokerage=None, slippage=None):
-    """This function does the following:
-    1) constructs atm straddles with the inputs from _inputs_
-    2) hedges the greek in question (specified by flag) with the straddles.
+    """
+    This function does the following:
+        1) constructs atm straddles with the inputs from _inputs_
+        2) hedges the greek in question (specified by flag) with the straddles.
 
     Args:
         pf (portfolio object): portfolio object
         inputs (list): list of inputs reqd to construct straddle objects
         product (string): the product being hedged
         month (string): month being hedged
+        flag (TYPE): Description
+        brokerage (None, optional): Description
+        slippage (None, optional): Description
 
     Returns:
         tuple: cost of the hedge, and the updated portfolio
@@ -884,12 +900,18 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering, brokerage=None, sl
         cond (string): condition for delta hedging
         vdf (dataframe): Dataframe of volatilities
         pdf (dataframe): Dataframe of prices
-        net (list): greeks associated with net_greeks[product][month]
-        month (str): month of underlying future.
         pf (portfolio): portfolio object specified by portfolio_specs.txt
+        month (str): month of underlying future.
+        product (TYPE): Description
+        ordering (TYPE): Description
+        brokerage (None, optional): Description
+        slippage (None, optional): Description
 
     Returns:
         tuple: hedging costs and final portfolio with hedges added.
+
+    Deleted Parameters:
+        net (list): greeks associated with net_greeks[product][month]
 
     """
     # print('cond: ', cond)
@@ -1569,7 +1591,7 @@ if __name__ == '__main__':
 
     # # run simulation #
     grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values = run_simulation(
-        signals, vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage, slippage=gv.slippage)
+        vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage, slippage=gv.slippage, signals=signals)
 
     print('####################################################')
     print('SIMULATION COMPLETE. PRINTING RELEVANT OUTPUT... [7/7]')
