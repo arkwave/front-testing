@@ -1068,25 +1068,25 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
         handle_calls, handle_puts = True, True
         # Case 2-1: Adding to empty portfolio.
         if net_call_vega == 0 and net_put_vega == 0:
-            pf = add_skew(pf, vdf, pdf, inputs, date, next_date, roll_cond)
+            pf = add_skew(pf, vdf, pdf, inputs, date, next_date, dval)
             ret = pf
         else:
-            # Case 2-2: Target vegas are within bounds: do nothing.
+            # check if call vegas are within bounds
             if abs(net_call_vega - target_call_vega) < tol:
                 handle_calls = False
-
+            # check if put vegas are within bounds
             if abs(net_put_vega - target_put_vega) < tol:
                 handle_puts = False
 
             if handle_calls:
                 calls = [op for op in pf.OTC_options if op.char == 'call']
                 pf = liquidate_pos('calls', target_call_vega,
-                                   net_put_vega, dval, calls, pf, strat, tol)
+                                   net_put_vega, dval, calls, pf, strat, tol, vdf, pdf, inputs, date, next_date, dval)
 
             if handle_puts:
                 puts = [op for op in pf.OTC_options if op.char == 'put']
                 pf = liquidate_pos('puts', target_put_vega,
-                                   net_put_vega, dval, puts, pf, strat, tol)
+                                   net_put_vega, dval, puts, pf, strat, tol, vdf, pdf, inputs, date, next_date, dval)
 
         ret = pf
 
@@ -1186,21 +1186,31 @@ def add_skew(pf, vdf, pdf, inputs, date, dval):
 # FIXME; figure out if this needs to handle multiple products.
 
 
-def liquidate_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol):
+def liquidate_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol, vdf, pdf, inputs, date, next_date):
     """
     Notes:
         - for readability: vpl = vega per lot.
 
     Args:
         char (TYPE): Description
-        vega_req (TYPE): total amount of vega to be liquidated.
+        target_vega (TYPE): Description
         curr_vega (TYPE): Description
+        dval (TYPE): Description
         ops (TYPE): Description
         pf (TYPE): portfolio object being subjected to the signal.
         strat (TYPE): the regime used to determine which skew positions are liquidated first.
+        tol (TYPE): Description
+        vdf (TYPE): Description
+        pdf (TYPE): Description
+        inputs (TYPE): Description
+        date (TYPE): Description
+        next_date (TYPE): Description
 
     Returns:
         portfolio: the updated portfolio with the appropriate equivalent position liquidated.
+
+    Deleted Parameters:
+        vega_req (TYPE): total amount of vega to be liquidated.
     """
     print('HANDLING ' + char.upper())
     toberemoved = []
@@ -1225,15 +1235,8 @@ def liquidate_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol):
         if buy:
             # Case 1-1: negative to positive pos. (e.g. -30,000 -> 10,000)
             if curr_vega < 0 and target_vega > 0:
-                print('calls - short to long pos')
-                max_op.shorted = False
-                vega = max_op.greeks()[3]
-                vega_req = target_vega - vega
-                vpl = max_op.vega / max_op.lots
-                newlots = max_op.lots - round(vega_req / vpl)
-                print('calls - newlots: ', newlots)
-                max_op.update_lots(newlots)
-                break
+                pf = Portfolio()
+                pf = add_skew(pf, vdf, pdf, inputs, date, dval)
             # case 1-2: nonnegative to positive pos (e.g. 10,000 -> 20,000)
             else:
                 print('calls - increasing long pos')
@@ -1250,6 +1253,12 @@ def liquidate_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol):
                 vpl = max_op.vega / max_op.lots
                 newlots = max_op.lots + round(vega_req/vpl)
                 print('calls - newlots: ', newlots)
+                max_op.update_lots(newlots)
+                break
+            # Case 2-2: positive to negative.
+            else:
+                pf = Portfolio()
+                pf = add_skew(pf, vdf, pdf, inputs, date, dval)
 
         else:
             print(
