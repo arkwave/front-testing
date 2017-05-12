@@ -38,6 +38,7 @@ multipliers = {
 from operator import add
 import pprint
 import numpy as np
+from collections import deque
 
 seed = 7
 np.random.seed(seed)
@@ -84,8 +85,8 @@ class Portfolio:
 
     def __init__(self):
 
-        self.OTC_options = []
-        self.hedge_options = []
+        self.OTC_options = deque()
+        self.hedge_options = deque()
         self.OTC_futures = []
         self.hedge_futures = []
 
@@ -214,7 +215,6 @@ class Portfolio:
             # finding unique months within this product.
             OTC_unique_mths = set(
                 OTCdata.keys()) - common_months
-            # print(OTC_unique_mths)
             hedges_unique_mths = set(
                 hedgedata.keys()) - common_months
             # dealing with common months
@@ -222,10 +222,7 @@ class Portfolio:
                 OTC_greeks = OTCdata[month][2:]
                 # print('DEBUG: OTC greeks: ', OTC_greeks)
                 hedge_greeks = hedgedata[month][2:]
-                # print('DEBUG: Hedge greeks: ', hedge_greeks)
-                # net = list(map(sub, OTC_greeks, hedge_greeks))
                 net = list(map(add, OTC_greeks, hedge_greeks))
-                # print('DEBUG: Net Greeks: ', net)
                 final_dic[product][month] = net
             # dealing with non overlapping months
             for month in OTC_unique_mths:
@@ -278,7 +275,7 @@ class Portfolio:
         for sec in security:
             if sec.get_desc() == 'option':
                 try:
-                    op.append(sec)
+                    op.appendleft(sec)
                 except UnboundLocalError:
                     print('flag: ', flag)
             elif sec.get_desc() == 'future':
@@ -652,3 +649,10 @@ class Portfolio:
             s = next(iter(data[1]))
             order = s.get_ordering()
         return order
+
+    def net_vega_pos(self):
+        # vega = 0
+        all_ops = self.get_all_options()
+        call_op_vega = sum([op.vega for op in all_ops if op.char == 'call'])
+        put_op_vega = sum([op.vega for op in all_ops if op.char == 'put'])
+        return call_op_vega, put_op_vega
