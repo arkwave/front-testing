@@ -11,21 +11,17 @@ Description    : Overall script that runs the simulation
 ################################ imports ###################################
 import numpy as np
 import pandas as pd
-# from scripts.calc import get_barrier_vol
 from scripts.portfolio import Portfolio
 from scripts.classes import Option, Future
-# from scripts.calc import find_vol_change
 from scripts.prep_data import read_data, prep_portfolio, get_rollover_dates, generate_hedges, find_cdist
 from collections import OrderedDict
 from scripts.calc import compute_strike_from_delta
-# from math import ceil
 import copy
 import time
 import matplotlib.pyplot as plt
 import pprint
 import scripts.global_vars as gv
 import os
-from collections import deque
 
 ###########################################################################
 ######################## initializing variables ###########################
@@ -287,7 +283,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
 
         print('Net vega pos: ', pf.net_vega_pos())
 
-    # Step 9: Plotting results/data viz
+    # Step 11: Plotting results/data viz
 
     # appending 25d vol changes and price changes
     signals['underlying_id'] = signals.pdt + '  ' + signals.ftmth
@@ -1622,8 +1618,6 @@ def check_roll_status(pf, hedges):
 if __name__ == '__main__':
 
     #################### initializing default params ##########################
-    # filepath to datasets #
-    # datapath = 'data_loc.txt'
 
     # fix portfolio start date #
     start_date = None
@@ -1638,7 +1632,6 @@ if __name__ == '__main__':
     # internal_date = gv.internal_date
 
     # fix end date of simulation #
-    # end_date = gv.end_date
     end_date = None
 
     # path to hedging conditions #

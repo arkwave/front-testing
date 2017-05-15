@@ -74,8 +74,8 @@ portfolio_path = 'datasets/corn_portfolio_specs.csv'
 
 
 # simulation settings
-start_date = Timestamp('2014-08-07')
-# start_date = Timestamp('2017-01-01')
+# start_date = Timestamp('2014-08-07')
+start_date = Timestamp('2017-01-01')
 # end_date =
 
 brokerage = 0
