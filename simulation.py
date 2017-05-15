@@ -307,6 +307,16 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
                             '25d_call_change', '25d_put_change']], on=['value_date'])
 
     log.to_csv('log.csv', index=False)
+
+    # plotting greeks
+    plt.figure()
+    plt.plot(log.value_date, log.delta, c='c', label='delta')
+    plt.plot(log.value_date, log.gamma, c='g', label='gamma')
+    plt.plot(log.value_date, log.theta, c='r', label='theta')
+    plt.plot(log.value_date, log.vega, c='k', label='vega')
+    plt.legend()
+    plt.show()
+
     elapsed = time.clock() - t
 
     print('Time elapsed: ', elapsed)
@@ -316,7 +326,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
     print('################# Portfolio: ###################')
     print(pf)
 
-    return grosspnl, netpnl, pf, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values
+    return grosspnl, netpnl, pf, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log
 
 
 ##########################################################################
@@ -1792,7 +1802,7 @@ if __name__ == '__main__':
     print('ROLLOVER DATES: ', rollover_dates)
 
     # # run simulation #
-    grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values = run_simulation(
+    grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log = run_simulation(
         vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage, slippage=gv.slippage, signals=signals)
 
     print('####################################################')
@@ -1853,6 +1863,35 @@ if __name__ == '__main__':
     plt.title('net pnl daily')
     plt.legend()
     plt.show()
+
+    # plotting greeks with pnl
+    plt.figure()
+    # plt.plot(xvals, net_cumul_values, c='k', alpha=0.8, label='net cumulative pnl')
+    plt.plot(log.value_date, log.delta, c='y', alpha=0.8, label='delta')
+    plt.plot(log.value_date, log.gamma, c='g', alpha=0.8, label='gamma')
+    plt.plot(log.value_date, log.theta, c='b', alpha=0.8, label='theta')
+    plt.plot(log.value_date, log.vega, c='r', alpha=0.8, label='vega')
+    plt.plot(log.value_date, log.cu_pnl_net, c='k',
+             alpha=0.6, label='cumulative pnl')
+    plt.legend()
+    plt.show()
+
+    plt.figure()
+    y = (log.cu_pnl_net - log.cu_pnl_net.mean()) / \
+        (log.cu_pnl_net.max() - log.cu_pnl_net.min())
+    y1 = log['25d_call_change'] - log['25d_put_change']
+    plt.plot(log.value_date, y, c='k',
+             alpha=0.8, label='cumulative pnl')
+    plt.plot(log.value_date, y1,
+             c='c', alpha=0.7, label='25d_c_vol - 25d_p_vol')
+    # plt.plot(log.value_date, log['25d_put_change'],
+    #          c='m', alpha=0.5, label='25 Delta Put Vol Change')
+    plt.plot(log.value_date, log.price_change,
+             c='b', alpha=0.4, label='Price change')
+
+    plt.legend()
+    plt.show()
+
 
 #######################################################################
 #######################################################################
