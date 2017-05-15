@@ -650,24 +650,22 @@ Historical Simulator TODOS:
 
 12/5:
 	> [Done] filo implementation: change OTC_options, hedge_options, OTC_futures and hedge_futures into deques, which have the same functionality as lists. 
-	
 	> update liqudation such that we always have vega_req * num_skews on each leg, regardless.
-		- [] if there isn't enough on the putop side, close callop too. 
-		- [] if there isnt enough on the callop side, close putop too. 
 		- [Done] if insufficient, let it go to an empty portfolio
-		- 
-
-
-	> update apply_signal, liquidate_skew_pos, close out deltas to include multiple products
 
 
 
+
+15/5: 
 	> run test with two different products in portfolio. 
-
 	> update coding documentation
+	> flow chart for Historic/PortfolioVARModule
+	> [Done] make sure generate_skew_op works with:
+		- negative vega 
+		- call and put flags 
 
-	> start work on flow chart 
-
+	> [Done] implement liquidation logic. 
+	> [Done] debug 
 
 
 
@@ -677,9 +675,7 @@ Historical Simulator TODOS:
 
 Future work:
 > figure out how to effectively create option composites using mutiple options in a way that doesn't break portfolio object/require much refactoring. 
-> flow chart for Historic/PortfolioVARModule
 
-FROM MONDAY: Start working on monte carlo generation of price and vol series. 	
 
 
 
