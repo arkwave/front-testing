@@ -1,1 +1,4 @@
 *.pyc
+*.csv
+datasets/
+*.txt
