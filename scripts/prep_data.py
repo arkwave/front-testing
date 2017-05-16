@@ -1167,7 +1167,7 @@ def get_min_start_date(vdf, pdf, lst, signals=None):
         # start_date = max(valid_start_dates)
         return sig_date
 
-    elif lst:
+    elif len(lst) > 0:
         # print('lst: ', lst)
         # print('vdf volid: ', vdf.vol_id.unique()[0])
         # print('vdf test: ', vdf.vol_id.unique()[0] == 'CT  N7.N7')

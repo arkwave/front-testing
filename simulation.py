@@ -162,7 +162,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
     for i in range(len(date_range)):
         # get the current date
         date = date_range[i]
-
+        dailycost = 0
     # Steps 1 & 2: Error checks to prevent useless simulation runs.
         # broken = True if there is missing data.
         if broken:
@@ -212,25 +212,27 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         if signals is not None:
             roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
                 'delta'][i][0] == 'roll'][0]
-            pf = apply_signal(pf, vdf, pdf, signals,
-                              date, next_date, roll_cond, strat='filo')
+            pf, cost = apply_signal(pf, vdf, pdf, signals, date, next_date,
+                                    roll_cond, strat='filo', brokerage=brokerage, slippage=slippage)
+            dailycost += cost
 
     # Step 6: Hedge.
         # cost = 0
         pf, counters, cost, roll_hedged = rebalance(
             vdf, pdf, pf, hedges, counters, brokerage=brokerage, slippage=slippage)
+        dailycost += cost
 
     # Step 7: Subtract brokerage/slippage costs from rebalancing. Append to
     # relevant lists.
         gross_daily_values.append(dailypnl)
-        net_daily_values.append(dailypnl - cost)
+        net_daily_values.append(dailypnl - dailycost)
         grosspnl += dailypnl
         gross_cumul_values.append(grosspnl)
         netpnl += (dailypnl - cost)
         net_cumul_values.append(netpnl)
 
         print('[10]   EOD PNL (GROSS): ', dailypnl)
-        print('[10.1] EOD PNL (NET) :', dailypnl - cost)
+        print('[10.1] EOD PNL (NET) :', dailypnl - dailycost)
         print('[10.2] Cumulative PNL (GROSS): ', grosspnl)
         print('[10.3] Cumulative PNL (net): ', netpnl)
 
@@ -239,14 +241,19 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         print('[13]  EOD PORTFOLIO: ', pf)
 
     # Step 9: computing stuff to be logged
-        lst = [date, dailypnl, dailypnl-cost, grosspnl, netpnl, roll_hedged]
+        lst = [date, dailypnl, dailypnl-dailycost,
+               grosspnl, netpnl, roll_hedged]
         dic = pf.get_net_greeks()
         call_vega, put_vega = 0, 0
         cols = ['value_date', 'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross',
                 'cu_pnl_net', 'delta_rolled', 'pdt', 'month', 'delta', 'gamma',
-                'theta', 'vega', 'net_call_vega', 'net_put_vega', 'net_ft_pos']
+                'theta', 'vega', 'net_call_vega', 'net_put_vega', 'net_ft_pos', 'b/s']
         for pdt in dic:
+            print('one: ', dic[pdt])
             for mth in dic[pdt]:
+                print('mth: ', mth)
+                print('dic: ', dic)
+                print('two: ', dic[pdt][mth])
                 # getting net greeks
                 delta, gamma, theta, vega = dic[pdt][mth]
                 ops = pf.OTC[pdt][mth][0]
@@ -262,9 +269,9 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
                 call_vega = sum([op.vega for op in calls])
                 put_vega = sum([op.vega for op in puts])
                 lst.extend([pdt, mth, delta, gamma, theta,
-                            vega, call_vega, put_vega, ftpos])
-                dic = OrderedDict(zip(cols, lst))
-                loglist.append(dic)
+                            vega, call_vega, put_vega, ftpos, dailycost])
+                l_dic = OrderedDict(zip(cols, lst))
+                loglist.append(l_dic)
 
     # Step 10: Decrement timestep after all computation steps
 
@@ -285,37 +292,40 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
 
     # Step 11: Plotting results/data viz
 
-    # appending 25d vol changes and price changes
-    signals['underlying_id'] = signals.pdt + '  ' + signals.ftmth
-    signals['vol_id'] = signals.pdt + '  ' + \
-        signals.opmth + '.' + signals.ftmth
-
-    df = pd.merge(signals, pricedata[['value_date', 'underlying_id', 'settle_value']], on=[
-                  'value_date', 'underlying_id'])
-    df = df.drop_duplicates()
-    df['price_change'] = df.settle_value.shift(-1) - df.settle_value
-    df['25d_call_change'] = df.delta_call_25_a.shift(-1) - df.delta_call_25_a
-    df['25d_put_change'] = df.delta_put_25_b.shift(-1) - df.delta_put_25_b
-    df['25d_call_change'] = df['25d_call_change'].shift(1)
-    df['25d_put_change'] = df['25d_put_change'].shift(1)
-
-    df = df.fillna(0)
     log = pd.DataFrame(loglist)
 
-    # merge the log and the vol/price changes
-    log = pd.merge(log, df[['value_date', 'vol_id', 'price_change',
-                            '25d_call_change', '25d_put_change']], on=['value_date'])
+    # appending 25d vol changes and price changes
+    if signals is not None:
+        signals['underlying_id'] = signals.pdt + '  ' + signals.ftmth
+        signals['vol_id'] = signals.pdt + '  ' + \
+            signals.opmth + '.' + signals.ftmth
+
+        df = pd.merge(signals, pricedata[['value_date', 'underlying_id', 'settle_value']], on=[
+                      'value_date', 'underlying_id'])
+        df = df.drop_duplicates()
+        df['price_change'] = df.settle_value.shift(-1) - df.settle_value
+        df['25d_call_change'] = df.delta_call_25_a.shift(
+            -1) - df.delta_call_25_a
+        df['25d_put_change'] = df.delta_put_25_b.shift(-1) - df.delta_put_25_b
+        df['25d_call_change'] = df['25d_call_change'].shift(1)
+        df['25d_put_change'] = df['25d_put_change'].shift(1)
+        df = df.fillna(0)
+        log = pd.merge(log, df[['value_date', 'vol_id', 'price_change',
+                                '25d_call_change', '25d_put_change']], on=['value_date'])
 
     log.to_csv('log.csv', index=False)
 
-    # plotting greeks
-    plt.figure()
-    plt.plot(log.value_date, log.delta, c='c', label='delta')
-    plt.plot(log.value_date, log.gamma, c='g', label='gamma')
-    plt.plot(log.value_date, log.theta, c='r', label='theta')
-    plt.plot(log.value_date, log.vega, c='k', label='vega')
-    plt.legend()
-    plt.show()
+    # merge the log and the vol/price changes
+
+    # # plotting greeks
+    # plt.figure()
+    # plt.plot(log.value_date, log.delta, c='c', label='delta')
+    # plt.plot(log.value_date, log.gamma, c='g', label='gamma')
+    # plt.plot(log.value_date, log.theta, c='r', label='theta')
+    # plt.plot(log.value_date, log.vega, c='k', label='vega')
+    # plt.title('net greeks over simulation period')
+    # plt.legend()
+    # plt.show()
 
     elapsed = time.clock() - t
 
@@ -886,9 +896,16 @@ def hedge(pf, inputs, product, month, flag, brokerage=None, slippage=None):
         if brokerage:
             fees = brokerage * 2 * lots_req
 
-        # TODO: determine if slippage by vol or slippage by ticksize
         if slippage:
-            fees += (slippage * 2 * lots_req)
+            ttm = callop.tau * 365
+            if ttm < 60:
+                s_val = slippage[0]
+            elif ttm >= 60 and ttm < 120:
+                s_val = slippage[1]
+            else:
+                s_val = slippage[-1]
+            fees += (s_val * lots_req * 2)
+            # fees += (slippage * 2 * lots_req)
 
         pf.add_security(callops, 'hedge')
         pf.add_security(putops, 'hedge')
@@ -950,9 +967,6 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering, brokerage=None, sl
             pf.add_security([ft], 'hedge')
     if brokerage:
         fees = brokerage * num_lots_needed
-    if slippage:
-        # TODO
-        pass
     print('hedging fees - delta: ', fees)
     print('>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<')
     return pf, ft, fees
@@ -1026,17 +1040,27 @@ def hedge_delta_roll(pf, roll_cond, pdf, brokerage=None, slippage=None):
 
             if brokerage:
                 cost += (brokerage * (op.lots + newop.lots))
+
+            if slippage:
+                ttm = newop.tau * 365
+                if ttm < 60:
+                    s_val = slippage[0]
+                elif ttm >= 60 and ttm < 120:
+                    s_val = slippage[1]
+                else:
+                    s_val = slippage[-1]
+                cost += (s_val * (newop.lots + op.lots))
+
     for op in tobeadded:
         print('roll hedging - op added: ', op)
         print('roll hedging - op delta: ', abs(op.delta/op.lots))
     pf.remove_security(toberemoved, 'OTC')
     pf.add_security(tobeadded, 'OTC')
-    # print('final portfolio: ', pf)
-    # print('initial copy (pfx): ', pfx)
+
     return pf, cost
 
 
-def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist', tol=1000):
+def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist', tol=1000, brokerage=None, slippage=None):
     """Applies the signal generated by the recommendation program to the portfolio.
     Args:
         pf (object): portfolio
@@ -1054,6 +1078,8 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
 
     # identifying relevant columns; hardcoded due to formatting, change if
     # necessary.
+
+    cost = 0
     cols = ['delta_call_25_a', 'delta_put_25_b',
             'signal', 'opmth', 'ftmth', 'pdt', 'lots', 'vega']
     # getting inputs from signals dataframe
@@ -1061,7 +1087,7 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
 
     if next_date is None:
         print('reached end of signal period')
-        return pf
+        return pf, 0
 
     cvol, pvol, sig, opmth, ftmth, pdt, lots, vega_req = \
         signals.loc[signals.value_date == next_date, cols].values[0]
@@ -1074,20 +1100,25 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
 
     # Case 1: flatten signal
     if sig == 0:
-        ret = Portfolio()
+        ret, cost = Portfolio(), 0
     # Case 2: Nonzero signal
     else:
+        # grab delta value we want each leg of the skew to have.
         dval = roll_cond[1]/100
+        # identify the net vega position on each leg of the skew.
         net_call_vega, net_put_vega = pf.net_vega_pos()
         print('net call/put vega: ', net_call_vega, net_put_vega)
+        # get the target vega position we want on each leg
         target_call_vega, target_put_vega = vega_req * sig,  -vega_req * sig
         print('target call/put vega: ', target_call_vega, target_put_vega)
+        # boolean placeholders.
         handle_calls, handle_puts = True, True
         # Case 2-1: Adding to empty portfolio.
         if net_call_vega == 0 and net_put_vega == 0:
             print('empty portfolio; adding skews')
-            pf = add_skew(pf, vdf, pdf, inputs, date, dval)
-            ret = pf
+            pf, cost = add_skew(pf, vdf, pdf, inputs, date,
+                                dval, brokerage=brokerage, slippage=slippage)
+            ret, cost = pf, cost
         # Case 2-2: Adding to nonempty portfolio
         else:
             # check if call vegas are within bounds
@@ -1101,38 +1132,40 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
 
             if handle_calls:
                 calls = [op for op in pf.OTC_options if op.char == 'call']
-                # update_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol, vdf, pdf, inputs, date)
-                pf = update_pos('call', target_call_vega,
-                                net_call_vega, dval, calls, pf, strat, tol, vdf, pdf, inputs, date)
+                # update_pos(char, target_vega, curr_vega, dval, ops, pf,
+                # strat, tol, vdf, pdf, inputs, date)
+                pf, cost = update_pos('call', target_call_vega,
+                                      net_call_vega, dval, calls, pf, strat, tol, vdf, pdf, inputs, date, brokerage=brokerage, slippage=slippage)
 
             if handle_puts:
                 puts = [op for op in pf.OTC_options if op.char == 'put']
-                pf = update_pos('put', target_put_vega,
-                                net_put_vega, dval, puts, pf, strat, tol, vdf, pdf, inputs, date)
+                pf, cost = update_pos('put', target_put_vega,
+                                      net_put_vega, dval, puts, pf, strat, tol, vdf, pdf, inputs, date, brokerage=brokerage, slippage=slippage)
 
-        ret = pf
+        ret, cost = pf, cost
 
     print('________SIGNAL APPLIED _________')
-    return ret
+    return ret, cost
 
 
 ###############################################################################
 ############################ Helper functions #################################
 ###############################################################################
 
-def generate_skew_op(char, vdf, pdf, inputs, date, dval):
+def generate_skew_op(char, vdf, pdf, inputs, date, dval, brokerage=None, slippage=None):
     """Helper function that generates the options comprising the skew position, based on inputs passed in.
-    Used when dealing with individual legs of the skew position, not when dealing with adding skews as a whole. 
+    Used when dealing with individual legs of the skew position, not when dealing with adding skews as a whole.
 
     Args:
-        char (str): 'call' or 'put'. 
+        char (str): 'call' or 'put'.
         vdf (pd dataframe): dataframe of vols
-        pdf (pd dataframe): dataframe of prices 
-        inputs (list): 
+        pdf (pd dataframe): dataframe of prices
+        inputs (list):
         date (pd Timestamp): Description
         dval (double): Description
     """
     # unpack inputs
+    cost = 0
     vol, sig, opmth, ftmth, pdt, vega_req = inputs
     print('generate_skew_ops inputs: ')
     print('vol: ', vol)
@@ -1197,22 +1230,36 @@ def generate_skew_op(char, vdf, pdf, inputs, date, dval):
                 shorted, opmth, lots=lots_req, ordering=order)
     print('generate_skew_op - total vega: ', op.vega)
 
-    return op
+    if brokerage:
+        cost += brokerage * lots_req
+
+    if slippage:
+        ttm = op.tau * 365
+        if ttm < 60:
+            s_val = slippage[0]
+        elif ttm >= 60 and ttm < 120:
+            s_val = slippage[1]
+        else:
+            s_val = slippage[-1]
+        cost += s_val * lots_req
+
+    return op, cost
 
 
-def add_skew(pf, vdf, pdf, inputs, date, dval):
+def add_skew(pf, vdf, pdf, inputs, date, dval, brokerage=None, slippage=None):
     """Helper method that adds a skew position based on the inputs provided.
 
     Args:
-        pf (TYPE): portfolio being hedged. 
-        vdf (TYPE): vol dataframe with info pertaining to date. 
+        pf (TYPE): portfolio being hedged.
+        vdf (TYPE): vol dataframe with info pertaining to date.
         pdf (TYPE): price dataframe with info pertaining to date.
         inputs (TYPE): list corresponding to values in signals.loc[date = next_date]
-        date (TYPE): current date in the simulation 
-        dval (TYPE): the delta value of the skew desired. 
+        date (TYPE): current date in the simulation
+        dval (TYPE): the delta value of the skew desired.
     """
 
     # unpack inputs
+    cost = 0
     cvol, pvol, sig, opmth, ftmth, pdt, lots, vega_req = inputs
     print('add_skew inputs: ')
     print('cvol: ', cvol)
@@ -1281,19 +1328,31 @@ def add_skew(pf, vdf, pdf, inputs, date, dval):
     pf.add_security([callop, putop], 'OTC')
     tobeadded.extend([callop, putop])
 
-    # debug statement.
+    if brokerage:
+        cost += brokerage * lots_req * 2
 
+    if slippage:
+        ttm = callop.tau * 365
+        if ttm < 60:
+            s_val = slippage[0]
+        elif ttm >= 60 and ttm < 120:
+            s_val = slippage[1]
+        else:
+            s_val = slippage[-1]
+        cost += s_val * lots_req * 2
+
+    # debug statement.
     for op in tobeadded:
         print('added op deltas: ', op, abs(op.delta/op.lots))
     tobeadded.clear()
 
-    return pf
+    return pf, cost
 
 
-def update_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol, vdf, pdf, inputs, date):
+def update_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol, vdf, pdf, inputs, date, brokerage=None, slippage=None):
     """
     Helper function that updates individual legs of the skew position in question. Two major cases are handled:
-    1) Increasing current position. I.e. negative to negative, positive to positive, negative to positive, positive to negative. 
+    1) Increasing current position. I.e. negative to negative, positive to positive, negative to positive, positive to negative.
 
     2) Liquidating positions. Negative to larger negative (i.e. -30,000 -> -10,000), positive to smaller positive (30,000 -> 10,000)
 
@@ -1301,24 +1360,24 @@ def update_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol, vdf, pdf
         - for readability: vpl = vega per lot.
 
     Args:
-        char (TYPE): leg of the skew being handled. 
-        target_vega (TYPE): target vega for this leg. 
-        curr_vega (TYPE): current vega of this leg. 
-        dval (TYPE): delta value required. 
-        ops (TYPE): relevant options; when handling call leg, all call options passed in. vice versa for puts. 
+        char (TYPE): leg of the skew being handled.
+        target_vega (TYPE): target vega for this leg.
+        curr_vega (TYPE): current vega of this leg.
+        dval (TYPE): delta value required.
+        ops (TYPE): relevant options; when handling call leg, all call options passed in. vice versa for puts.
         pf (TYPE): portfolio object being subjected to the signal
         strat (TYPE): the regime used to determine which skew positions are liquidated first.
-        tol (TYPE): tolerance value within which portfolio is left alone. 
+        tol (TYPE): tolerance value within which portfolio is left alone.
         vdf (TYPE): dataframe of volatilities
         pdf (TYPE): dataframe of prices
         inputs (TYPE): row corresponding to signal.loc[index]
-        date (TYPE): current date in the simulation. 
+        date (TYPE): current date in the simulation.
 
     Returns:
         portfolio: the updated portfolio with the appropriate equivalent position liquidated.
 
     """
-
+    cost = 0
     cvol, pvol, sig, opmth, ftmth, pdt, lots = inputs[:-1]
 
     vol = cvol if char == 'call' else pvol
@@ -1348,21 +1407,25 @@ def update_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol, vdf, pdf
             # create input list
             op_inputs = [vol, sig, opmth, ftmth, pdt, vega_req]
             # generate option
-            op = generate_skew_op(char, vdf, pdf, op_inputs, date, dval)
+            op, cost = generate_skew_op(
+                char, vdf, pdf, op_inputs, date, dval, brokerage=brokerage, slippage=slippage)
             tobeadded.append(op)
+            # total_cost += cost
             # case 1-2: nonnegative to positive pos (e.g. 10,000 -> 20,000)
         elif curr_vega > 0 and target_vega > 0:
             print(char.upper() + ' - increasing long pos')
             vega_req = target_vega - curr_vega
             op_inputs = [vol, sig, opmth, ftmth, pdt, vega_req]
-            op = generate_skew_op(char, vdf, pdf, op_inputs, date, dval)
+            op, cost = generate_skew_op(
+                char, vdf, pdf, op_inputs, date, dval, brokerage=brokerage, slippage=slippage)
             tobeadded.append(op)
         elif curr_vega < 0 and target_vega < 0:
             print('liquidating short positions - buying ' + char + ' leg')
             shortops = [op for op in ops if op.shorted]
             resid_vega = abs(curr_vega - target_vega)
             # print('resid_vega: ', resid_vega)
-            pf = liquidate_pos(char, resid_vega, shortops, pf, strat, dval)
+            pf, cost = liquidate_pos(
+                char, resid_vega, shortops, pf, strat, dval, brokerage=brokerage, slippage=slippage)
 
     # Case 2: Need to sell vega from this leg.
     else:
@@ -1371,7 +1434,8 @@ def update_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol, vdf, pdf
             print(char.upper() + ' - increasing short pos')
             vega_req = target_vega - curr_vega
             op_inputs = op_inputs = [vol, sig, opmth, ftmth, pdt, vega_req]
-            op = generate_skew_op(char, vdf, pdf, op_inputs, date, dval)
+            op, cost = generate_skew_op(
+                char, vdf, pdf, op_inputs, date, dval, brokerage=brokerage, slippage=slippage)
             tobeadded.append(op)
         # positive to negative - same as negative to positive.
         elif curr_vega > 0 and target_vega < 0:
@@ -1385,14 +1449,16 @@ def update_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol, vdf, pdf
             vega_req = target_vega - curr_vega
             op_inputs = [vol, sig, opmth, ftmth, pdt, vega_req]
             # generate option
-            op = generate_skew_op(char, vdf, pdf, op_inputs, date, dval)
+            op, cost = generate_skew_op(
+                char, vdf, pdf, op_inputs, date, dval, brokerage=brokerage, slippage=slippage)
             tobeadded.append(op)
 
         elif curr_vega > 0 and target_vega > 0:
             print('liquidating long positions - selling ' + char + ' leg')
             longops = [op for op in ops if not op.shorted]
             resid_vega = curr_vega - target_vega
-            pf = liquidate_pos(char, resid_vega, longops, pf, strat, dval)
+            pf, cost = liquidate_pos(
+                char, resid_vega, longops, pf, strat, dval, brokerage=brokerage, slippage=slippage)
 
     # add any securities that need adding.
     pf.add_security(tobeadded, 'OTC')
@@ -1405,14 +1471,14 @@ def update_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol, vdf, pdf
         print('op removed deltas: ', op, abs(op.delta/op.lots))
     toberemoved.clear()
     # print('pf afte: ', pf)
-    return pf
+    return pf, cost
 
 
-def liquidate_pos(char, resid_vega, ops, pf, strat, dval):
-    """Buys/Sells (vega_req * num_req) worth of dval skew composites. For example 
-       if vega = 10000, num_skews =1 and dval = 25, then the function figures out 
-       how to liquidate 10,000 vega worth of that day's 25 Delta skew positions ON 
-       EACH LEG (i.e. a Long 25 Delta Call and a Short 25 Delta Put) from the 
+def liquidate_pos(char, resid_vega, ops, pf, strat, dval, brokerage=None, slippage=None):
+    """Buys/Sells (vega_req * num_req) worth of dval skew composites. For example
+       if vega = 10000, num_skews =1 and dval = 25, then the function figures out
+       how to liquidate 10,000 vega worth of that day's 25 Delta skew positions ON
+       EACH LEG (i.e. a Long 25 Delta Call and a Short 25 Delta Put) from the
        currently held position.
 
     Does so by selecting  a skew position to liquidate based on strat;
@@ -1455,7 +1521,7 @@ def liquidate_pos(char, resid_vega, ops, pf, strat, dval):
     """
 
     toberemoved = []
-
+    cost = 0
     # handling puts
     print('HANDLING ' + char.upper())
     # print('resid_vega: ', resid_vega)
@@ -1491,6 +1557,18 @@ def liquidate_pos(char, resid_vega, ops, pf, strat, dval):
                 newlots = max_op.lots - lots_req
                 max_op.update_lots(newlots)
                 print('puts - new lots: ', newlots)
+                if brokerage:
+                    cost += brokerage * lots_req
+                if slippage:
+                    ttm = max_op.tau * 365
+                    if ttm < 60:
+                        s_val = slippage[0]
+                    elif ttm >= 60 and ttm < 120:
+                        s_val = slippage[1]
+                    else:
+                        s_val = slippage[-1]
+                    cost += s_val * lots_req
+                    # cost += slippage * lots_req
                 # break
 
             # Case 2: lots required > lots available.
@@ -1499,6 +1577,18 @@ def liquidate_pos(char, resid_vega, ops, pf, strat, dval):
                 resid_vega -= max_op.lots * vpl
                 toberemoved.append(max_op)
                 ops.remove(max_op)
+                if brokerage:
+                    cost += brokerage * max_op.lots
+                if slippage:
+                    ttm = max_op.tau * 365
+                    if ttm < 60:
+                        s_val = slippage[0]
+                    elif ttm >= 60 and ttm < 120:
+                        s_val = slippage[1]
+                    else:
+                        s_val = slippage[-1]
+                    cost += s_val * lots_req
+                    # cost += slippage * max_op.lots
         else:
             print(
                 'cannot liquidate existing positions any further. continuing to handle calls..')
@@ -1515,17 +1605,17 @@ def liquidate_pos(char, resid_vega, ops, pf, strat, dval):
         print('op removed deltas: ', op, abs(op.delta/op.lots))
     toberemoved.clear()
     print('pf after liquidation: ', pf)
-    return pf
+    return pf, cost
 
 
 # TODO: turn this into a dictionary of prices.
 def close_out_deltas(pf, price):
     """Checks to see if the portfolio is closed out, but with residual deltas. Closes out all remaining
-    future positions, resulting in an empty portfolio. 
+    future positions, resulting in an empty portfolio.
 
     Args:
         pf (portfolio object): Description
-        price (float): price of the underlying commodity 
+        price (float): price of the underlying commodity
 
     Returns
         tuple: updated portfolio, and cost of closing out deltas
@@ -1633,8 +1723,8 @@ if __name__ == '__main__':
     start_date = None
 
     # filepath to portfolio specs. #
-    # specpath = gv.portfolio_path
-    specpath = 'specs.csv'
+    specpath = gv.portfolio_path
+    # specpath = 'specs.csv'
     # specpath = 'datasets/bo_portfolio_specs.csv'
 
     # fix portfolio internal date #
@@ -1670,10 +1760,14 @@ if __name__ == '__main__':
     writeflag = 'small' if 'small' in volpath else 'full'
     print('writeflag: ', writeflag)
 
+    signals = None if sigpath is None else pd.read_csv(sigpath)
+    if signals is not None:
+        signals.value_date = pd.to_datetime(signals.value_date)
+
     if os.path.exists(volpath) and os.path.exists(pricepath)\
             and os.path.exists(exppath)\
-            and os.path.exists(rollpath) \
-            and os.path.exists(sigpath):
+            and os.path.exists(rollpath):
+            # and os.path.exists(sigpath):
         print('####################################################')
         print('DATA EXISTS. READING IN... [2/7]')
         print('datasets listed below: ')
@@ -1681,16 +1775,16 @@ if __name__ == '__main__':
         print('pricepath: ', pricepath)
         print('exppath: ', exppath)
         print('rollpath: ', rollpath)
-        print('signals: ', sigpath)
-        print('####################################################')
 
         vdf, pdf, edf = pd.read_csv(volpath), pd.read_csv(
             pricepath), pd.read_csv(exppath)
         rolldf = pd.read_csv(rollpath)
-        signals = pd.read_csv(sigpath)
+        if signals is not None:
+            print('sigpath: ', sigpath)
+
+        print('####################################################')
 
         # sorting out date types
-        signals.value_date = pd.to_datetime(signals.value_date)
         rolldf.value_date, rolldf.expdate = pd.to_datetime(
             rolldf.value_date), pd.to_datetime(rolldf.expdate)
         vdf.value_date = pd.to_datetime(vdf.value_date)
@@ -1716,14 +1810,17 @@ if __name__ == '__main__':
         # print('rollpath: ', rollpath)
         print('####################################################')
 
-        signals = pd.read_csv(sigpath)
-        signals.value_date = pd.to_datetime(signals.value_date)
+        if sigpath:
+            signals = pd.read_csv(sigpath)
+            signals.value_date = pd.to_datetime(signals.value_date)
+        else:
+            signals = None
 
         vdf, pdf, edf, rolldf = read_data(
             volpath, pricepath, epath, specpath, signals=signals, test=False,  writeflag=writeflag, start_date=start_date)
 
-        signals = pd.read_csv(sigpath)
-        signals.value_date = pd.to_datetime(signals.value_date)
+        # signals = pd.read_csv(sigpath)
+        # signals.value_date = pd.to_datetime(signals.value_date)
 
     # vdf, pdf = match_to_signals(vdf, pdf, signals)
 
@@ -1735,7 +1832,8 @@ if __name__ == '__main__':
     # handle data types.
     vdates = pd.to_datetime(sorted(vdf.value_date.unique()))
     pdates = pd.to_datetime(sorted(pdf.value_date.unique()))
-    sig_dates = pd.to_datetime(sorted(signals.value_date.unique()))
+    if signals is not None:
+        sig_dates = pd.to_datetime(sorted(signals.value_date.unique()))
 
     # check to see that date ranges are equivalent for both price and vol data
     if not np.array_equal(vdates, pdates):
@@ -1745,20 +1843,20 @@ if __name__ == '__main__':
         print('difference 2: ', [x for x in pdates if x not in vdates])
         raise ValueError(
             'Invalid data sets passed in; vol and price data must have the same date range. Aborting run.')
+    if signals is not None:
+        if not np.array_equal(sig_dates, vdates):
+            print('v - sig difference: ',
+                  [x for x in vdates if x not in sig_dates])
+            print('sig - v difference: ',
+                  [x for x in sig_dates if x not in vdates])
+            raise ValueError('signal dates dont match up with vol dates')
 
-    if not np.array_equal(sig_dates, vdates):
-        print('v - sig difference: ',
-              [x for x in vdates if x not in sig_dates])
-        print('sig - v difference: ',
-              [x for x in sig_dates if x not in vdates])
-        raise ValueError('signal dates dont match up with vol dates')
-
-    if not np.array_equal(sig_dates, pdates):
-        print('p - sig difference: ',
-              [x for x in pdates if x not in sig_dates])
-        print('sig - v differenceL ',
-              [x for x in sig_dates if x not in pdates])
-        raise ValueError('signal dates dont match up with price dates')
+        if not np.array_equal(sig_dates, pdates):
+            print('p - sig difference: ',
+                  [x for x in pdates if x not in sig_dates])
+            print('sig - v differenceL ',
+                  [x for x in sig_dates if x not in pdates])
+            raise ValueError('signal dates dont match up with price dates')
 
     # if end_date specified, check that it makes sense (i.e. is greater than
     # start date)
@@ -1844,25 +1942,26 @@ if __name__ == '__main__':
     plt.figure()
     colors = ['c' if x >= 0 else 'r' for x in gross_daily_values]
     xvals = list(range(1, len(gross_daily_values) + 1))
-    plt.bar(xvals, gross_daily_values, align='center',
-            color=colors, alpha=0.6, label='gross daily values')
-    plt.plot(xvals, gross_cumul_values, c='k',
+    plt.bar(xvals, net_daily_values, align='center',
+            color=colors, alpha=0.6, label='net daily values')
+    plt.plot(xvals, gross_cumul_values, c='b',
              alpha=0.8, label='gross cumulative pnl')
-    plt.title('gross pnl daily')
+    plt.plot(xvals, net_cumul_values, c='r',
+             alpha=0.8, label='net cumulative pnl')
+    plt.title('gross/net pnl daily')
     plt.legend()
     plt.show()
 
     # plotting net pnl values
-    plt.figure()
-    colors = ['c' if x >= 0 else 'r' for x in net_daily_values]
-    xvals = list(range(1, len(net_daily_values) + 1))
-    plt.bar(xvals, net_daily_values, align='center',
-            color=colors, alpha=0.6, label='net daily values')
-    plt.plot(xvals, net_cumul_values, c='k',
-             alpha=0.8, label='net cumulative pnl')
-    plt.title('net pnl daily')
-    plt.legend()
-    plt.show()
+    # plt.figure()
+    # colors = ['c' if x >= 0 else 'r' for x in net_daily_values]
+    # xvals = list(range(1, len(net_daily_values) + 1))
+    # plt.bar(xvals, net_daily_values, align='center',
+    #         color=colors, alpha=0.6, label='net daily values')
+
+    # plt.title('net pnl daily')
+    # plt.legend()
+    # plt.show()
 
     # plotting greeks with pnl
     plt.figure()
@@ -1874,21 +1973,33 @@ if __name__ == '__main__':
     plt.plot(log.value_date, log.cu_pnl_net, c='k',
              alpha=0.6, label='cumulative pnl')
     plt.legend()
+    plt.title('Greeks over simulation period')
     plt.show()
 
-    plt.figure()
-    y = (log.cu_pnl_net - log.cu_pnl_net.mean()) / \
-        (log.cu_pnl_net.max() - log.cu_pnl_net.min())
-    y1 = log['25d_call_change'] - log['25d_put_change']
-    plt.plot(log.value_date, y, c='k',
-             alpha=0.8, label='cumulative pnl')
-    plt.plot(log.value_date, y1,
-             c='c', alpha=0.7, label='25d_c_vol - 25d_p_vol')
-    # plt.plot(log.value_date, log['25d_put_change'],
-    #          c='m', alpha=0.5, label='25 Delta Put Vol Change')
-    plt.plot(log.value_date, log.price_change,
-             c='b', alpha=0.4, label='Price change')
+    if signals is not None:
+        plt.figure()
+        y = (log.cu_pnl_net - log.cu_pnl_net.mean()) / \
+            (log.cu_pnl_net.max() - log.cu_pnl_net.min())
+        y1 = log['25d_call_change'] - log['25d_put_change']
+        plt.plot(log.value_date, y, c='k',
+                 alpha=0.8, label='cumulative pnl')
+        plt.plot(log.value_date, y1,
+                 c='c', alpha=0.7, label='25d_c_vol - 25d_p_vol')
+        # plt.plot(log.value_date, log['25d_put_change'],
+        #          c='m', alpha=0.5, label='25 Delta Put Vol Change')
+        plt.plot(log.value_date, log.price_change,
+                 c='b', alpha=0.4, label='Price change')
+        plt.title('Norm PnL, Vol Diff & Price Change')
+        plt.legend()
+        plt.show()
 
+    plt.figure()
+    plt.plot(log.value_date, log.net_ft_pos, c='k',
+             alpha=0.7, label='net future position (lots)')
+    normed_daily = (log.eod_pnl_net) / 100
+    plt.plot(log.value_date, normed_daily, c='c',
+             alpha=0.7, label='scaled daily pnl (1/100)')
+    plt.title('normed daily pnl & net future position')
     plt.legend()
     plt.show()
 

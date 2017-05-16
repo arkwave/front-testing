@@ -68,18 +68,20 @@ hedge_path = 'hedging.csv'
 
 # signal path
 signal_path = folder + 'signals.csv'
+# signal_path = None
 
 # portfolio location
-portfolio_path = 'datasets/corn_portfolio_specs.csv'
-
+# portfolio_path = 'datasets/corn_portfolio_specs.csv'
+portfolio_path = 'specs.csv'
 
 # simulation settings
 # start_date = Timestamp('2014-08-07')
 start_date = Timestamp('2017-01-01')
 # end_date =
 
-brokerage = 0
-slippage = None
+brokerage = 1
+# > 60 days, 60 < x < 120, > 120.
+slippage = [0.05, 0.10, 0.15]
 
 
 # separate variables for testing-related files.
