@@ -86,6 +86,6 @@ slippage = [0.05, 0.10, 0.15]
 
 # separate variables for testing-related files.
 test_start_date = Timestamp('2017-01-15')
-test_vol_data = 'datasets/small_data/corn_vols.csv'
-test_price_data = 'datasets/small_data/corn_prices.csv'
+test_vol_data = 'datasets/small_c/c_vols.csv'
+test_price_data = 'datasets/small_c/c_prices.csv'
 test_exp_data = 'datasets/option_expiry.csv'
