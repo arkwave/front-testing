@@ -2,7 +2,7 @@
 File Name      : simulation.py
 Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
-Last Modified  : 9/5/2017
+Last Modified  : 17/5/2017
 Python version : 3.5
 Description    : Overall script that runs the simulation
 
@@ -249,11 +249,11 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
                 'cu_pnl_net', 'delta_rolled', 'pdt', 'month', 'delta', 'gamma',
                 'theta', 'vega', 'net_call_vega', 'net_put_vega', 'net_ft_pos', 'b/s']
         for pdt in dic:
-            print('one: ', dic[pdt])
+            # print('one: ', dic[pdt])
             for mth in dic[pdt]:
-                print('mth: ', mth)
-                print('dic: ', dic)
-                print('two: ', dic[pdt][mth])
+                # print('mth: ', mth)
+                # print('dic: ', dic)
+                # print('two: ', dic[pdt][mth])
                 # getting net greeks
                 delta, gamma, theta, vega = dic[pdt][mth]
                 ops = pf.OTC[pdt][mth][0]
