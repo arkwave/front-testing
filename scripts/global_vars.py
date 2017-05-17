@@ -4,7 +4,7 @@ import os
 
 
 # change these accordingly.
-pdt = 'CT'
+pdt = 'S'
 size = 'small'
 folder = None
 
@@ -27,6 +27,8 @@ elif pdt == 'CT':
     folder = ct_folder_full if size == 'full' else ct_folder_small
 elif pdt == 'BO':
     folder = bo_folder_full if size == 'full' else bo_folder_small
+elif pdt == 'S':
+    folder = 'datasets/' + size + '_' + pdt.lower() + '/'
 
 
 # full datasets - processed
@@ -71,8 +73,8 @@ signal_path = folder + 'signals.csv'
 # signal_path = None
 
 # portfolio location
-# portfolio_path = 'datasets/corn_portfolio_specs.csv'
-portfolio_path = 'specs.csv'
+portfolio_path = 'datasets/corn_portfolio_specs.csv'
+# portfolio_path = 'specs.csv'
 
 # simulation settings
 # start_date = Timestamp('2014-08-07')
@@ -87,5 +89,5 @@ slippage = [0.05, 0.10, 0.15]
 # separate variables for testing-related files.
 test_start_date = Timestamp('2017-01-15')
 test_vol_data = 'datasets/small_c/c_vols.csv'
-test_price_data = 'datasets/small_c/c_prices.csv'
+test_price_data = 'datasets/small_c/c_prices.cs v'
 test_exp_data = 'datasets/option_expiry.csv'

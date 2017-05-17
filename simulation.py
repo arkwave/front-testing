@@ -313,7 +313,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         log = pd.merge(log, df[['value_date', 'vol_id', 'price_change',
                                 '25d_call_change', '25d_put_change']], on=['value_date'])
 
-    log.to_csv('log.csv', index=False)
+    log.to_csv(gv.folder + '/log.csv', index=False)
 
     # merge the log and the vol/price changes
 

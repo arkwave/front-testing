@@ -223,6 +223,8 @@ def read_data(volpath, pricepath, epath, specpath, signals=None, start_date=None
 
         vid_list = specs[specs.Type == 'Option'].vol_id.unique()
 
+        print('vid list: ', vid_list)
+
         if start_date is None:
             # print('SIGNALS: ', signals)
             start_date = get_min_start_date(
@@ -272,7 +274,9 @@ def read_data(volpath, pricepath, epath, specpath, signals=None, start_date=None
             writestr = 'small_' + gvpdt.lower()
         else:
             writestr = 'full_' + gvpdt.lower()
-    print('writestr: ', writestr)
+
+        print('writestr: ', writestr)
+
     if not test:
         vbd = vol_by_delta(final_vol, final_price)
 
@@ -1160,18 +1164,14 @@ def get_min_start_date(vdf, pdf, lst, signals=None):
     if signals is not None:
         signals.value_date = pd.to_datetime(signals.value_date)
         sig_date = min(signals.value_date)
-        # print('sig_date: ', sig_date)
-        # dates = pd.to_datetime(vdf.value_date.unique())
-        # print('dates: ', dates)
-        # valid_start_dates = [x for x in dates if x < sig_date]
-        # start_date = max(valid_start_dates)
         return sig_date
 
     elif len(lst) > 0:
-        # print('lst: ', lst)
-        # print('vdf volid: ', vdf.vol_id.unique()[0])
+        print('lst: ', lst)
+        print('vdf volid: ', vdf.vol_id.unique()[0])
         # print('vdf test: ', vdf.vol_id.unique()[0] == 'CT  N7.N7')
         for vid in lst:
+            print('vid: ', vid)
             df = vdf[vdf.vol_id == vid]
             dates.append(min(df.value_date))
         return max(dates)
