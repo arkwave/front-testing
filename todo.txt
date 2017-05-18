@@ -669,12 +669,43 @@ Historical Simulator TODOS:
 
 
 
+18/5:
 
+High priority:
+	
+	> finalize data processing pipeline and storage of files [Done]
+	
+	> determining start date/end date given:	             [Done]
+		1. user inputs
+		2. signals 
+	
+	> saving files 
+
+	> easy creation of certain positions (skew, straddle, etc) given delta values. 
+	
+	> run the soybean atm straddle 
+
+	
+
+Low Priority:
+	> portfolio-wide hedging as a flag 
+	> multiple signals per day 
+	
 
 
 
 Future work:
 > figure out how to effectively create option composites using mutiple options in a way that doesn't break portfolio object/require much refactoring. 
+
+> generalize skew pos
+
+> hedging on the level of portfolio rather than on contract -> flag. 
+
+> refactor global vars to make it less complicated; standardize file names.
+
+
+
+
 
 
 
