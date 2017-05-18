@@ -82,11 +82,24 @@ def match_to_signals(vdf, pdf, signals):
     Returns:
         tuple: vol and price dataframes with prices updated/removed accordingly.
     """
-    vdf['sunday'] = vdf.value_date.dt.weekday == 6
-    pdf['sunday'] = pdf.value_date.dt.weekday == 6
+    # vdf.value_date -= pd.Timedelta('2 day')
+    # pdf.value_date -= pd.Timedelta('2 day')
 
-    vdf.loc[vdf.sunday == True, 'value_date'] -= pd.Timedelta('2 days')
-    pdf.loc[pdf.sunday == True, 'value_date'] -= pd.Timedelta('2 days')
+    v_dates = pd.to_datetime(vdf.value_date.unique())
+    # p_dates = pd.to_datetime(pdf.value_date.unique())
+
+    print('v_check 1: ', pd.Timestamp('2017-02-20') in v_dates)
+    print('v_check 2: ', pd.Timestamp('2017-01-16') in v_dates)
+
+    vdf['monday'] = vdf.value_date.dt.weekday == 0
+    # pdf['monday'] = pdf.value_date.dt.weekday == 0
+
+    vdf.loc[vdf.monday == True, 'value_date'] -= pd.Timedelta('3 day')
+    # pdf.loc[pdf.monday == True, 'value_date'] -= pd.Timedelta('3 day')
+    vdf.loc[vdf.monday == False, 'value_date'] -= pd.Timedelta('1 day')
+    # pdf.loc[pdf.monday == False, 'value_date'] -= pd.Timedelta('1 day')
+
+    # vdf.value_date -= pd.Timedelta('1 day')
 
     # filtering relevant dates
     vdf = vdf[(vdf.value_date > pd.Timestamp('2017-01-02')) &
@@ -222,10 +235,13 @@ def read_data(epath, specpath, signals=None, start_date=None, end_date=None, tes
 
         print('vid list: ', vid_list)
 
-        # if start_date is None:
-        # print('SIGNALS: ', signals)
-        start_date = get_min_start_date(
+        # get effective start date, pick whichever is max
+        dataset_start_date = get_min_start_date(
             volDF, priceDF, vid_list, signals=signals)
+
+        dataset_start_date = pd.to_datetime(dataset_start_date)
+
+        start_date = dataset_start_date if dataset_start_date > start_date else start_date
 
         print('prep_data start_date: ', start_date)
 
@@ -598,10 +614,10 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
     df.reset_index(drop=True, inplace=True)
     df = df.dropna()
 
-    writestr = 'small_' + gvpdt.lower() if writeflag == 'small' else 'full_' + \
-        gvpdt.lower()
-    df.to_csv('datasets/' + writestr + '/cleaned_' +
-              flag + '.csv', index=False)
+    # writestr = 'small_' + gvpdt.lower() if writeflag == 'small' else 'full_' + \
+    #     gvpdt.lower()
+    # df.to_csv('datasets/' + writestr + '/cleaned_' +
+    #           flag + '.csv', index=False)
 
     return df
 

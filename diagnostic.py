@@ -79,10 +79,10 @@ sigpath = 'datasets/small_ct/signals.csv'
 signals = pd.read_csv(sigpath)
 
 t = time.clock()
-# vdf, pdf, edf, priceDF = read_data(
-#     epath, specpath, signals=signals, test=False, write=False)
+vdf, pdf, edf, priceDF = read_data(
+    epath, specpath, signals=signals, test=False, write=False)
 # pdf, vdf = pull_relevant_data(signals=signals)
-pdf, vdf = pull_relevant_data(pf_path=specpath)
+# pdf, vdf = pull_relevant_data(pf_path=specpath)
 elapsed = time.clock() - t
 print('elapsed: ', elapsed)
 print('dates equal: ', np.array_equal(

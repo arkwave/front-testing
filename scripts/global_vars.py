@@ -2,18 +2,18 @@
 # @Author: Ananth
 # @Date:   2017-05-12 13:32:49
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-05-18 17:13:39
+# @Last Modified time: 2017-05-18 20:17:52
 import pandas as pd
 
 
 ################ CHANGE THESE #################
-pdt = 'C'
+pdt = 'S'
 size = 'small'
 signals = False
-start_date = None  # pd.Timestamp('2017-01-01')
-end_date = None  # pd.Timestamp('2017-03-31')
-brokerage = 1
-slippage = [0.05, 0.10, 0.15]
+start_date = pd.Timestamp('2016-05-01')
+end_date = pd.Timestamp('2016-07-30')
+brokerage = 0
+slippage = None  # [0.05, 0.10, 0.15]
 ###############################################
 
 

@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-05-18 17:04:14
+# @Last Modified time: 2017-05-18 20:11:37
 
 ################################ imports ###################################
 import numpy as np
@@ -308,6 +308,9 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         df = df.fillna(0)
         log = pd.merge(log, df[['value_date', 'vol_id', 'price_change',
                                 '25d_call_change', '25d_put_change']], on=['value_date'])
+
+    if not os.path.isdir(gv.folder):
+        os.mkdir(gv.folder)
 
     log.to_csv(gv.folder + '/log.csv', index=False)
 
@@ -1797,7 +1800,7 @@ if __name__ == '__main__':
             signals = None
 
         vdf, pdf, edf, rolldf = read_data(
-            epath, specpath, signals=signals, test=False,  writeflag=writeflag, start_date=start_date)
+            epath, specpath, signals=signals, test=False,  writeflag=writeflag, start_date=start_date, end_date=end_date)
 
     print('DATA READ-IN COMPLETE. SANITY CHECKING... [3/7]')
     print('READ-IN RUNTIME: ', time.clock() - t)
@@ -1824,6 +1827,7 @@ if __name__ == '__main__':
                   [x for x in vdates if x not in sig_dates])
             print('sig - v difference: ',
                   [x for x in sig_dates if x not in vdates])
+            print('vdates: ', pd.to_datetime(vdates))
             raise ValueError('signal dates dont match up with vol dates')
 
         if not np.array_equal(sig_dates, pdates):
@@ -1845,7 +1849,7 @@ if __name__ == '__main__':
     ##########################################################################
 
     # generate portfolio #
-    pf, start_date = prep_portfolio(vdf, pdf, filepath=specpath)
+    pf, _ = prep_portfolio(vdf, pdf, filepath=specpath)
 
     print('--------------------------------------------------------')
     print('PORTFOLIO PREPARED. GENERATING HEDGES... [5/7]')
@@ -1896,8 +1900,9 @@ if __name__ == '__main__':
     print('VaR [gross]: ', gvar)
     print('VaR [net]: ', cvar)
     # calculate max drawdown
-    print('Max Drawdown [gross]: ', min(np.diff(gross_daily_values)))
-    print('Max Drawdown [net]: ', min(np.diff(net_daily_values)))
+    if len(gross_daily_values) > 1:
+        print('Max Drawdown [gross]: ', min(np.diff(gross_daily_values)))
+        print('Max Drawdown [net]: ', min(np.diff(net_daily_values)))
 
     # time elapsed 2 #
     e2 = time.clock() - e1

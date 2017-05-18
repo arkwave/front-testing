@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-05-18 17:04:31
+# @Last Modified time: 2017-05-18 19:46:18
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -117,11 +117,11 @@ def pull_relevant_data(pf_path=None, sigpath=None, signals=None, start_date=None
     diff_vdf = [x for x in vdf.value_date.unique(
     ) if x not in pdf.value_date.unique()]
 
-    vmask = vdf.value_date.isin(diff_vdf)
-    pmask = pdf.value_date.isin(diff_pdf)
+    # vmask = vdf.value_date.isin(diff_vdf)
+    # pmask = pdf.value_date.isin(diff_pdf)
 
-    vdf = vdf[~vmask]
-    pdf = pdf[~pmask]
+    # vdf = vdf[~vmask]
+    # pdf = pdf[~pmask]
 
     # sorting by date
     pdf = pdf.sort_values('value_date')
