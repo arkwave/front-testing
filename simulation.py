@@ -1,12 +1,8 @@
-"""
-File Name      : simulation.py
-Author         : Ananth Ravi Kumar
-Date created   : 7/3/2017
-Last Modified  : 17/5/2017
-Python version : 3.5
-Description    : Overall script that runs the simulation
-
-"""
+# -*- coding: utf-8 -*-
+# @Author: Ananth Ravi Kumar
+# @Date:   2017-03-07 21:31:13
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-05-18 17:04:14
 
 ################################ imports ###################################
 import numpy as np
@@ -1717,48 +1713,41 @@ def check_roll_status(pf, hedges):
 
 if __name__ == '__main__':
 
-    #################### initializing default params ##########################
+    #################### initializing default params ###################
 
     # fix portfolio start date #
-    start_date = None
+    start_date = gv.start_date
 
     # filepath to portfolio specs. #
     specpath = gv.portfolio_path
-    # specpath = 'specs.csv'
-    # specpath = 'datasets/bo_portfolio_specs.csv'
-
-    # fix portfolio internal date #
-    # internal_date = pd.Timestamp('2014-08-21')
-    # internal_date = gv.internal_date
 
     # fix end date of simulation #
-    end_date = None
+    end_date = gv.end_date
 
     # path to hedging conditions #
     hedge_path = gv.hedge_path
 
-    print('####################################################')
+    # final paths to datasets #
+    volpath, pricepath, exppath, rollpath, sigpath = gv.final_paths
+
+    # raw paths
+    epath = gv.raw_exp_path
+
+    ####################################################################
+
+    print('--------------------------------------------------------')
     print('DEFAULT PARAMETERS INITIALIZED. READING IN DATA... [1/7]')
     ##########################################################################
 
     t = time.clock()
 
-    # reading in data. check to see if cleaned dfs exist, if not generate from
-    # scratch #
-
-    ### small data ###
-    volpath, pricepath, exppath, rollpath, sigpath = gv.small_final_vol_path,\
-        gv.small_final_price_path,\
-        gv.small_final_exp_path,\
-        gv.small_cleaned_price,\
-        gv.signal_path
-
-    ### full data ###
-    # volpath, pricepath, exppath, rollpath = gv.final_vol_path,
-    # gv.final_price_path, gv.final_exp_path, gv.cleaned_price
-
     writeflag = 'small' if 'small' in volpath else 'full'
     print('writeflag: ', writeflag)
+
+    print('vol: ', os.path.exists(volpath))
+    print('price: ', os.path.exists(pricepath))
+    print('exp: ', os.path.exists(exppath))
+    print('roll: ', os.path.exists(rollpath))
 
     signals = None if sigpath is None else pd.read_csv(sigpath)
     if signals is not None:
@@ -1767,8 +1756,7 @@ if __name__ == '__main__':
     if os.path.exists(volpath) and os.path.exists(pricepath)\
             and os.path.exists(exppath)\
             and os.path.exists(rollpath):
-            # and os.path.exists(sigpath):
-        print('####################################################')
+        print('--------------------------------------------------------')
         print('DATA EXISTS. READING IN... [2/7]')
         print('datasets listed below: ')
         print('voldata : ', volpath)
@@ -1782,7 +1770,7 @@ if __name__ == '__main__':
         if signals is not None:
             print('sigpath: ', sigpath)
 
-        print('####################################################')
+        print('--------------------------------------------------------')
 
         # sorting out date types
         rolldf.value_date, rolldf.expdate = pd.to_datetime(
@@ -1792,23 +1780,15 @@ if __name__ == '__main__':
         edf.expiry_date = pd.to_datetime(edf.expiry_date)
 
     else:
-        print('####################################################')
+        print('--------------------------------------------------------')
         print('current_dir: ', os.getcwd())
-        print('paths inputted: ', volpath,
-              pricepath, exppath, rollpath, sigpath)
         print('DATA NOT FOUND. PREPARING... [2/7]')
 
-        # full-size data
-        # volpath, pricepath, epath = gv.raw_vol_path, gv.raw_price_path, gv.raw_exp_path
-        # small-size data
-        volpath, pricepath, epath = gv.small_vol_path, gv.small_price_path, gv.raw_exp_path
-
-        print('datasets listed below: ')
+        print('paths inputted: ')
         print('voldata : ', volpath)
         print('pricepath: ', pricepath)
         print('exppath: ', epath)
-        # print('rollpath: ', rollpath)
-        print('####################################################')
+        print('--------------------------------------------------------')
 
         if sigpath:
             signals = pd.read_csv(sigpath)
@@ -1817,12 +1797,7 @@ if __name__ == '__main__':
             signals = None
 
         vdf, pdf, edf, rolldf = read_data(
-            volpath, pricepath, epath, specpath, signals=signals, test=False,  writeflag=writeflag, start_date=start_date)
-
-        # signals = pd.read_csv(sigpath)
-        # signals.value_date = pd.to_datetime(signals.value_date)
-
-    # vdf, pdf = match_to_signals(vdf, pdf, signals)
+            epath, specpath, signals=signals, test=False,  writeflag=writeflag, start_date=start_date)
 
     print('DATA READ-IN COMPLETE. SANITY CHECKING... [3/7]')
     print('READ-IN RUNTIME: ', time.clock() - t)
@@ -1865,14 +1840,14 @@ if __name__ == '__main__':
             raise ValueError(
                 'Invalid end_date entered; current end_date is less than start_date')
 
-    print('####################################################')
+    print('--------------------------------------------------------')
     print('SANITY CHECKING COMPLETE. PREPPING PORTFOLIO... [4/7]')
     ##########################################################################
 
     # generate portfolio #
     pf, start_date = prep_portfolio(vdf, pdf, filepath=specpath)
 
-    print('####################################################')
+    print('--------------------------------------------------------')
     print('PORTFOLIO PREPARED. GENERATING HEDGES... [5/7]')
 
     # generate hedges #
@@ -1894,7 +1869,7 @@ if __name__ == '__main__':
     print('Hedge Conditions: ', hedges)
     print('Brokerage: ', gv.brokerage)
     print('Slippage: ', gv.slippage)
-    print('####################################################')
+    print('--------------------------------------------------------')
     print('HEDGES GENERATED. RUNNING SIMULATION... [6/7]')
 
     print('ROLLOVER DATES: ', rollover_dates)
@@ -1903,7 +1878,7 @@ if __name__ == '__main__':
     grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log = run_simulation(
         vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage, slippage=gv.slippage, signals=signals)
 
-    print('####################################################')
+    print('--------------------------------------------------------')
     print('SIMULATION COMPLETE. PRINTING RELEVANT OUTPUT... [7/7]')
 
     print('############################ PNLS ############################')

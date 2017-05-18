@@ -24,6 +24,7 @@ from ast import literal_eval
 from collections import OrderedDict
 import os as osf
 from .global_vars import pdt as gvpdt
+from .fetch_data import pull_relevant_data
 
 seed = 7
 np.random.seed(seed)
@@ -167,7 +168,7 @@ def generate_hedges(filepath):
     return hedges
 
 
-def read_data(volpath, pricepath, epath, specpath, signals=None, start_date=None, end_date=None, test=False, writeflag=None):
+def read_data(epath, specpath, signals=None, start_date=None, end_date=None, test=False, writeflag=None, write=False):
     """Wrapper method that handles all read-in and preprocessing. This function does the following:
     1) reads in path to volatility, price and expiry tables from portfolio_specs.txt
     2) reads in dataframes from said paths
@@ -200,16 +201,12 @@ def read_data(volpath, pricepath, epath, specpath, signals=None, start_date=None
 
     try:
         # get paths
-        volpath, pricepath, epath, specpath = str(
-            volpath), str(pricepath), str(epath), str(specpath)
-
-        print('vol: ', osf.path.exists(volpath))
-        print('price: ', osf.path.exists(pricepath))
         print('exp: ', osf.path.exists(epath))
         print('specs: ', osf.path.exists(specpath))
 
-        volDF = pd.read_csv(volpath).dropna()
-        priceDF = pd.read_csv(pricepath).dropna()
+        priceDF, volDF = pull_relevant_data(
+            pf_path=specpath, signals=signals, start_date=start_date, end_date=end_date)
+
         edf = pd.read_csv(epath).dropna()
         specs = pd.read_csv(specpath)
 
@@ -225,10 +222,10 @@ def read_data(volpath, pricepath, epath, specpath, signals=None, start_date=None
 
         print('vid list: ', vid_list)
 
-        if start_date is None:
-            # print('SIGNALS: ', signals)
-            start_date = get_min_start_date(
-                volDF, priceDF, vid_list, signals=signals)
+        # if start_date is None:
+        # print('SIGNALS: ', signals)
+        start_date = get_min_start_date(
+            volDF, priceDF, vid_list, signals=signals)
 
         print('prep_data start_date: ', start_date)
 
@@ -247,7 +244,8 @@ def read_data(volpath, pricepath, epath, specpath, signals=None, start_date=None
         if (volDF.empty or priceDF.empty):
             raise ValueError(
                 '[scripts/prep_data.read_data] : Improper start date entered; resultant dataframes are empty')
-
+        print('pdf: ', priceDF)
+        print('vdf: ', volDF)
         # clean dataframes
         edf = clean_data(edf, 'exp', writeflag=writeflag)
         volDF = clean_data(volDF, 'vol', date=start_date,
@@ -261,8 +259,6 @@ def read_data(volpath, pricepath, epath, specpath, signals=None, start_date=None
 
     except FileNotFoundError:
         print('files not found! printing paths below...')
-        print(volpath)
-        print(pricepath)
         print(epath)
         import os
         print(os.getcwd())
@@ -295,7 +291,7 @@ def read_data(volpath, pricepath, epath, specpath, signals=None, start_date=None
             + '  ' + final_vol.vol_id.str.split().str[1]
         final_price.vol_id = final_price.vol_id.str.split().str[0]\
             + '  ' + final_price.vol_id.str.split().str[1]
-
+    if write:
         final_vol.to_csv('datasets/' + writestr +
                          '/final_vols.csv', index=False)
         final_price.to_csv('datasets/' + writestr +
@@ -1157,10 +1153,12 @@ def get_min_start_date(vdf, pdf, lst, signals=None):
     Returns:
         pd.Timestamp: smallest date that satisfies all the conditions.
     """
-    dates = []
+    v_dates = []
+    p_dates = []
     # test = pdf.merge(vdf, on=['pdt', 'value_date', 'underlying_id', 'order'])
     # test.to_csv('datasets/merged.csv', index=False)
     sig_date = None
+    p_lst = pdf.underlying_id.unique()
     if signals is not None:
         signals.value_date = pd.to_datetime(signals.value_date)
         sig_date = min(signals.value_date)
@@ -1168,13 +1166,18 @@ def get_min_start_date(vdf, pdf, lst, signals=None):
 
     elif len(lst) > 0:
         print('lst: ', lst)
+        print('p_lst: ', p_lst)
         print('vdf volid: ', vdf.vol_id.unique()[0])
         # print('vdf test: ', vdf.vol_id.unique()[0] == 'CT  N7.N7')
         for vid in lst:
             print('vid: ', vid)
             df = vdf[vdf.vol_id == vid]
-            dates.append(min(df.value_date))
-        return max(dates)
+            v_dates.append(min(df.value_date))
+        for uid in p_lst:
+            df = pdf[pdf.underlying_id == uid]
+            p_dates.append(df.value_date.min())
+
+        return max(max(v_dates), max(p_dates))
 
     else:
         raise ValueError(
