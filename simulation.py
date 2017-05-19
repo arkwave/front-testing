@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-05-18 20:11:37
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-05-19 19:27:06
 
 ################################ imports ###################################
 import numpy as np
 import pandas as pd
 from scripts.portfolio import Portfolio
 from scripts.classes import Option, Future
-from scripts.prep_data import read_data, prep_portfolio, get_rollover_dates, generate_hedges, find_cdist
+from scripts.prep_data import read_data, prep_portfolio, get_rollover_dates, generate_hedges, find_cdist, sanity_check
 from collections import OrderedDict
 from scripts.calc import compute_strike_from_delta
 import copy
@@ -36,7 +36,7 @@ multipliers = {
     'CT':  [22.046, 22.679851, 0.01, 1, 500],
     'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
     'W':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'S':   [0.3674333, 136.07911, 0.25, 10, 50],
+    'S':   [0.3674333, 136.07911, 0.25, 20, 50],
     'C':   [0.3936786, 127.00717, 0.25, 10, 50],
     'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
     'LC':  [22.046, 18.143881, 0.025, 1, 400],
@@ -136,10 +136,18 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         TYPE: Description
 
     """
+    e1 = time.clock()
     t = time.clock()
     # rollover_dates = get_rollover_dates(pricedata)
     grosspnl = 0
     netpnl = 0
+    vegapnl = 0
+    gammapnl = 0
+
+    gamma_pnl_daily = []
+    vega_pnl_daily = []
+    gamma_pnl_cumul = []
+    vega_pnl_cumul = []
 
     gross_daily_values = []
     gross_cumul_values = []
@@ -196,12 +204,14 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         print('SOD Vega Pos: ', pf.net_vega_pos())
 
     # Step 3: Feed data into the portfolio.
-        raw_change, pf, broken = feed_data(
-            vdf, pdf, pf, rollover_dates, prev_date, brokerage=brokerage, slippage=slippage)
+        pf, broken, gamma_pnl, vega_pnl = feed_data(
+            vdf, pdf, pf, rollover_dates, prev_date, init_val, brokerage=brokerage, slippage=slippage)
 
     # Step 4: Compute pnl for the day
         updated_val = pf.compute_value()
         dailypnl = updated_val - init_val if init_val != 0 else 0
+        # print('dailypnl: ', dailypnl)
+
         # print('Vegas: ', [(str(op), op.vega) for op in pf.OTC_options])
 
     # Step 5: Apply signal
@@ -220,6 +230,14 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
 
     # Step 7: Subtract brokerage/slippage costs from rebalancing. Append to
     # relevant lists.
+        # gamma/vega pnls
+        gamma_pnl_daily.append(gamma_pnl)
+        vega_pnl_daily.append(vega_pnl)
+        gammapnl += gamma_pnl
+        vegapnl += vega_pnl
+        gamma_pnl_cumul.append(gammapnl)
+        vega_pnl_cumul.append(vegapnl)
+        # gross/net pnls
         gross_daily_values.append(dailypnl)
         net_daily_values.append(dailypnl - dailycost)
         grosspnl += dailypnl
@@ -228,9 +246,13 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         net_cumul_values.append(netpnl)
 
         print('[10]   EOD PNL (GROSS): ', dailypnl)
-        print('[10.1] EOD PNL (NET) :', dailypnl - dailycost)
-        print('[10.2] Cumulative PNL (GROSS): ', grosspnl)
-        print('[10.3] Cumulative PNL (net): ', netpnl)
+        print('[10.1] EOD Vega PNL: ', vega_pnl)
+        print('[10.2] EOD Gamma PNL: ', gamma_pnl)
+        print('[10.3] EOD PNL (NET) :', dailypnl - dailycost)
+        print('[10.4] Cumulative PNL (GROSS): ', grosspnl)
+        print('[10.5] Cumulative Vega PNL: ', vegapnl)
+        print('[10.6] Cumulative Gamma PNL: ', gammapnl)
+        print('[10.7] Cumulative PNL (net): ', netpnl)
 
     # Step 8: Initialize init_val to be used in the next loop.
         init_val = pf.compute_value()
@@ -238,18 +260,15 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
 
     # Step 9: computing stuff to be logged
         lst = [date, dailypnl, dailypnl-dailycost,
-               grosspnl, netpnl, roll_hedged]
+               grosspnl, netpnl, gamma_pnl, gammapnl, vega_pnl, vegapnl, roll_hedged]
         dic = pf.get_net_greeks()
         call_vega, put_vega = 0, 0
         cols = ['value_date', 'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross',
-                'cu_pnl_net', 'delta_rolled', 'pdt', 'month', 'delta', 'gamma',
+                'cu_pnl_net', 'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl',
+                'cu_vega_pnl', 'delta_rolled', 'pdt', 'month', 'delta', 'gamma',
                 'theta', 'vega', 'net_call_vega', 'net_put_vega', 'net_ft_pos', 'b/s']
         for pdt in dic:
-            # print('one: ', dic[pdt])
             for mth in dic[pdt]:
-                # print('mth: ', mth)
-                # print('dic: ', dic)
-                # print('two: ', dic[pdt][mth])
                 # getting net greeks
                 delta, gamma, theta, vega = dic[pdt][mth]
                 ops = pf.OTC[pdt][mth][0]
@@ -288,6 +307,11 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
 
     # Step 11: Plotting results/data viz
 
+##########################################################################
+##########################################################################
+##########################################################################
+
+    ######################### PRINTING OUTPUT ###########################
     log = pd.DataFrame(loglist)
 
     # appending 25d vol changes and price changes
@@ -314,26 +338,133 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
 
     log.to_csv(gv.folder + '/log.csv', index=False)
 
-    # merge the log and the vol/price changes
-
-    # # plotting greeks
-    # plt.figure()
-    # plt.plot(log.value_date, log.delta, c='c', label='delta')
-    # plt.plot(log.value_date, log.gamma, c='g', label='gamma')
-    # plt.plot(log.value_date, log.theta, c='r', label='theta')
-    # plt.plot(log.value_date, log.vega, c='k', label='vega')
-    # plt.title('net greeks over simulation period')
-    # plt.legend()
-    # plt.show()
-
     elapsed = time.clock() - t
 
     print('Time elapsed: ', elapsed)
     print('##################### PNL: #####################')
     print('gross pnl: ', grosspnl)
+    print('vega pnl: ', vegapnl)
+    print('gamma pnl: ', gammapnl)
     print('net pnl: ', netpnl)
+
     print('################# Portfolio: ###################')
     print(pf)
+
+    print('SIMULATION COMPLETE. PRINTING RELEVANT OUTPUT... [7/7]')
+    print('--------------------------------------------------------')
+    print('daily pnls     [gross]: ', gross_daily_values)
+    print('daily pnls     [net]: ', net_daily_values)
+    print('cumulative pnl [gross]: ', gross_cumul_values)
+    print('cumulative pnl [net]: ', net_cumul_values)
+    print('##############################################################')
+
+    gvar = np.percentile(gross_daily_values, 5)
+    cvar = np.percentile(net_daily_values, 5)
+
+    print('VaR [gross]: ', gvar)
+    print('VaR [net]: ', cvar)
+    # calculate max drawdown
+    if len(gross_daily_values) > 1:
+        print('Max Drawdown [gross]: ', min(np.diff(gross_daily_values)))
+        print('Max Drawdown [net]: ', min(np.diff(net_daily_values)))
+
+    # time elapsed 2 #
+    e2 = time.clock() - e1
+    print('SIMULATION RUNTIME: ', e2)
+
+    # plotting histogram of daily pnls
+    plt.figure()
+    plt.hist(gross_daily_values, bins=20,
+             alpha=0.6, label='gross pnl distribution')
+    plt.hist(net_daily_values, bins=20,
+             alpha=0.6, label='net pnl distribution')
+    plt.title('PnL Distribution: Gross/Net')
+    plt.legend()
+    plt.show()
+
+    # plotting gross pnl values
+    plt.figure()
+    colors = ['c' if x >= 0 else 'r' for x in gross_daily_values]
+    xvals = list(range(1, len(gross_daily_values) + 1))
+    plt.bar(xvals, net_daily_values, align='center',
+            color=colors, alpha=0.6, label='net daily values')
+    plt.plot(xvals, gross_cumul_values, c='b',
+             alpha=0.8, label='gross cumulative pnl')
+    plt.plot(xvals, net_cumul_values, c='r',
+             alpha=0.8, label='net cumulative pnl')
+    plt.plot(xvals, gamma_pnl_cumul, c='g', alpha=0.5, label='cu. gamma pnl')
+    plt.plot(xvals, vega_pnl_cumul, c='y', alpha=0.5, label='cu. vega pnl')
+    plt.title('gross/net pnl daily')
+    plt.legend()
+    plt.show()
+
+    # cumulative gamma/vega/cumulpnl values
+    plt.figure()
+    # colors = ['c' if x >= 0 else 'r' for x in gamma_pnl_daily]
+    plt.plot(log.value_date, log.cu_gamma_pnl, color='c',
+             alpha=0.6, label='cu. gamma pnl')
+    plt.plot(log.value_date, log.cu_vega_pnl,
+             color='m', alpha=0.6, label='cu. vega pnl')
+    plt.plot(log.value_date, log.cu_pnl_gross, color='k',
+             alpha=0.8, label='gross pnl')
+    plt.title('gamma/vega/cumulative pnls')
+    plt.legend()
+    plt.show()
+
+    # net values
+    plt.figure()
+    # colors = ['c' if x >= 0 else 'r' for x in gamma_pnl_daily]
+    plt.plot(log.value_date, log.eod_gamma_pnl, color='c',
+             alpha=0.6, label='eod gamma pnl')
+    plt.plot(log.value_date, log.eod_vega_pnl,
+             color='m', alpha=0.6, label='eod vega pnl')
+    plt.plot(log.value_date, log.eod_pnl_gross, color='k',
+             alpha=0.8, label='eod pnl')
+    plt.title('gamma/vega/daily eod pnls')
+    plt.legend()
+    plt.show()
+
+    # plotting greeks with pnl
+    plt.figure()
+    # plt.plot(xvals, net_cumul_values, c='k',
+    #          alpha=0.8, label='net cumulative pnl')
+    plt.plot(log.value_date, log.delta, c='y', alpha=0.8, label='delta')
+    plt.plot(log.value_date, log.gamma, c='g', alpha=0.8, label='gamma')
+    plt.plot(log.value_date, log.theta, c='b', alpha=0.8, label='theta')
+    plt.plot(log.value_date, log.vega, c='r', alpha=0.8, label='vega')
+    plt.plot(log.value_date, log.cu_pnl_net, c='k',
+             alpha=0.6, label='cumulative pnl')
+    plt.legend()
+    plt.title('Greeks over simulation period')
+    plt.show()
+
+    if signals is not None:
+        plt.figure()
+        y = (log.cu_pnl_net - np.mean(log.cu_pnl_net)) / \
+            (log.cu_pnl_net.max() - log.cu_pnl_net.min())
+
+        y1 = log['25d_call_change'] - log['25d_put_change']
+        plt.plot(log.value_date, y, c='k',
+                 alpha=0.8, label='cumulative pnl')
+        plt.plot(log.value_date, y1,
+                 c='c', alpha=0.7, label='25d_c_vol - 25d_p_vol')
+        # plt.plot(log.value_date, log['25d_put_change'],
+        #          c='m', alpha=0.5, label='25 Delta Put Vol Change')
+        plt.plot(log.value_date, log.price_change,
+                 c='b', alpha=0.4, label='Price change')
+        plt.title('Norm PnL, Vol Diff & Price Change')
+        plt.legend()
+        plt.show()
+
+    plt.figure()
+    plt.plot(log.value_date, log.net_ft_pos, c='k',
+             alpha=0.7, label='net future position (lots)')
+    normed_daily = (log.eod_pnl_net) / 100
+    plt.plot(log.value_date, normed_daily, c='c',
+             alpha=0.7, label='scaled daily pnl (1/100)')
+    plt.title('normed daily pnl & net future position')
+    plt.legend()
+    plt.show()
 
     return grosspnl, netpnl, pf, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log
 
@@ -347,8 +478,9 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
 ########################## Helper functions ##############################
 ##########################################################################
 
-
-def feed_data(voldf, pdf, pf, dic, prev_date, brokerage=None, slippage=None):
+# TODO: add expenditure flag to this so that expenditure from handling
+# exercise can be taken into account
+def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage=None):
     """
     This function does the following:
         1) Computes current value of portfolio.
@@ -375,7 +507,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, brokerage=None, slippage=None):
         ValueError: Raised if voldf is empty.
     """
     broken = False
-
+    raw_diff = 0
     # sanity checks
     if pf.empty():
         return 0, pf, False
@@ -384,13 +516,17 @@ def feed_data(voldf, pdf, pf, dic, prev_date, brokerage=None, slippage=None):
         raise ValueError('vol df is empty!')
 
     date = voldf.value_date.unique()[0]
-    raw_diff = 0
 
     # 1) initial value of the portfolio before updates, and handling exercises
     # before feeding data.
-    prev_val = pf.compute_value()
+    # prev_val = pf.compute_value()
     expenditure, pf = handle_exercise(pf, brokerage, slippage)
     raw_diff += expenditure
+
+    # yesterday's price and vols timestepped to today.
+    # prev_val = pf.compute_value()
+
+    print('handle exercise expenditure: ', expenditure)
 
     curr_date = pd.to_datetime(pdf.value_date.unique()[0])
     # print('curr_date: ', curr_date)
@@ -419,6 +555,31 @@ def feed_data(voldf, pdf, pf, dic, prev_date, brokerage=None, slippage=None):
     # print('pf after rollovers and expiries: ', pf)
 
     # 3)  update prices of futures, underlying & portfolio alike.
+    if not broken:
+        for ft in pf.get_all_futures():
+            pdt, ordering = ft.get_product(), ft.get_ordering()
+            try:
+                uid = ft.get_product() + '  ' + ft.get_month()
+                val = pdf[(pdf.pdt == pdt) &
+                          (pdf.underlying_id == uid)].settle_value.values[0]
+                # print('UPDATED - new price: ', val)
+                ft.update_price(val)
+
+            # index error would occur only if data is missing.
+            except IndexError:
+                print('###### PRICE DATA MISSING #######')
+                print('ordering: ', ordering)
+                print('uid: ', uid)
+                print('pdt: ', pdt)
+                print('debug 1: ', pdf[(pdf.pdt == pdt) &
+                                       (pdf.order == ordering)])
+                broken = True
+                break
+
+    # (today's price, yesterday's vols) - (yesterday's price, yesterday's vols)
+    intermediate_val = pf.compute_value()
+    gamma_pnl = intermediate_val - init_val if init_val is not 0 else 0
+
     # update option attributes by feeding in vol.
     if not broken:
         for op in pf.get_all_options():
@@ -430,7 +591,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, brokerage=None, slippage=None):
             # interpolate or round? currently rounding, interpolation easy.
             ticksize = multipliers[op.get_product()][-2]
             # get strike corresponding to closest available ticksize.
-            # print('feed_data - ticksize: ', ticksize, op.get_product())
+            print('feed_data - ticksize: ', ticksize, op.get_product())
             strike = round(round(strike/ticksize) * ticksize, 2)
             try:
                 vid = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
@@ -453,27 +614,10 @@ def feed_data(voldf, pdf, pf, dic, prev_date, brokerage=None, slippage=None):
             # print(str(op) + ' OP VALUE AFTER FEED: ', op.compute_price())
             # print('OP GREEKS: ', op.greeks())
 
-    if not broken:
-        for ft in pf.get_all_futures():
-            pdt, ordering = ft.get_product(), ft.get_ordering()
-            try:
-                uid = ft.get_product() + '  ' + ft.get_month()
-                val = pdf[(pdf.pdt == pdt) &
-                          (pdf.underlying_id == uid)].settle_value.values[0]
-                # print('UPDATED - new price: ', val)
-                ft.update_price(val)
+    # (today's price, today's vol) - (today's price, yesterday's vol)
+    vega_pnl = pf.compute_value() - intermediate_val
 
-            # index error would occur only if data is missing.
-            except IndexError:
-                print('###### PRICE DATA MISSING #######')
-                print('ordering: ', ordering)
-                print('uid: ', uid)
-                print('pdt: ', pdt)
-                print('debug 1: ', pdf[(pdf.pdt == pdt) &
-                                       (pdf.order == ordering)])
-                broken = True
-                break
-
+    # gamma_pnl = pf.compute_value() - vega_pnl - prev_val
     # updating portfolio after modifying underlying objects
     pf.update_sec_by_month(None, 'OTC', update=True)
     pf.update_sec_by_month(None, 'hedge', update=True)
@@ -481,10 +625,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, brokerage=None, slippage=None):
     # print('Portfolio After Feed: ', pf)
     print('[7]  NET GREEKS: ', str(pprint.pformat(pf.net_greeks)))
 
-    # 5) computing new value
-    new_val = pf.compute_value()
-    raw_diff = new_val - prev_val
-    return raw_diff, pf, broken
+    return pf, broken, gamma_pnl, vega_pnl
 
 
 def handle_exercise(pf, brokerage=None, slippage=None):
@@ -1714,25 +1855,26 @@ def check_roll_status(pf, hedges):
 #######################################################################
 
 
+# Steps that are run when simulation.py is run explicitly. In this case,
+# parameters are assumed to be defined in scripts/global_vars.py rather
+# than passed into to the simulation function. If calling simulation.py
+# functions in an external scripts, global vars is not intrisically
+# relevant, but can be used to specify filepaths which are then called.
+
 if __name__ == '__main__':
 
     #################### initializing default params ###################
 
     # fix portfolio start date #
     start_date = gv.start_date
-
     # filepath to portfolio specs. #
     specpath = gv.portfolio_path
-
     # fix end date of simulation #
     end_date = gv.end_date
-
     # path to hedging conditions #
     hedge_path = gv.hedge_path
-
     # final paths to datasets #
     volpath, pricepath, exppath, rollpath, sigpath = gv.final_paths
-
     # raw paths
     epath = gv.raw_exp_path
 
@@ -1747,15 +1889,18 @@ if __name__ == '__main__':
     writeflag = 'small' if 'small' in volpath else 'full'
     print('writeflag: ', writeflag)
 
+    # printing existence of the paths
     print('vol: ', os.path.exists(volpath))
     print('price: ', os.path.exists(pricepath))
     print('exp: ', os.path.exists(exppath))
     print('roll: ', os.path.exists(rollpath))
 
+    # error check in case signals are not being used this sim
     signals = None if sigpath is None else pd.read_csv(sigpath)
     if signals is not None:
         signals.value_date = pd.to_datetime(signals.value_date)
 
+    # if data exists/has been prepared/saved, reads it in.
     if os.path.exists(volpath) and os.path.exists(pricepath)\
             and os.path.exists(exppath)\
             and os.path.exists(rollpath):
@@ -1782,6 +1927,7 @@ if __name__ == '__main__':
         pdf.value_date = pd.to_datetime(pdf.value_date)
         edf.expiry_date = pd.to_datetime(edf.expiry_date)
 
+    # if data does not exist as specified, reads in the relevant data.
     else:
         print('--------------------------------------------------------')
         print('current_dir: ', os.getcwd())
@@ -1814,35 +1960,7 @@ if __name__ == '__main__':
         sig_dates = pd.to_datetime(sorted(signals.value_date.unique()))
 
     # check to see that date ranges are equivalent for both price and vol data
-    if not np.array_equal(vdates, pdates):
-        print('vol_dates: ', vdates)
-        print('price_dates: ', pdates)
-        print('difference: ', [x for x in vdates if x not in pdates])
-        print('difference 2: ', [x for x in pdates if x not in vdates])
-        raise ValueError(
-            'Invalid data sets passed in; vol and price data must have the same date range. Aborting run.')
-    if signals is not None:
-        if not np.array_equal(sig_dates, vdates):
-            print('v - sig difference: ',
-                  [x for x in vdates if x not in sig_dates])
-            print('sig - v difference: ',
-                  [x for x in sig_dates if x not in vdates])
-            print('vdates: ', pd.to_datetime(vdates))
-            raise ValueError('signal dates dont match up with vol dates')
-
-        if not np.array_equal(sig_dates, pdates):
-            print('p - sig difference: ',
-                  [x for x in pdates if x not in sig_dates])
-            print('sig - v differenceL ',
-                  [x for x in sig_dates if x not in pdates])
-            raise ValueError('signal dates dont match up with price dates')
-
-    # if end_date specified, check that it makes sense (i.e. is greater than
-    # start date)
-    if end_date:
-        if start_date > end_date or start_date > end_date:
-            raise ValueError(
-                'Invalid end_date entered; current end_date is less than start_date')
+    sanity_check(vdates, pdates, start_date, end_date, signals=signals)
 
     print('--------------------------------------------------------')
     print('SANITY CHECKING COMPLETE. PREPPING PORTFOLIO... [4/7]')
@@ -1866,7 +1984,6 @@ if __name__ == '__main__':
     ###############################################################
     # print statements for informational purposes #
     print('START DATE: ', start_date)
-    # print('INTERNAL_DATE: ', internal_date)
     print('END DATE: ', end_date)
     print('Portfolio: ', pf)
     print('NUM OPS: ', len(pf.OTC_options))
@@ -1881,107 +1998,6 @@ if __name__ == '__main__':
     # # run simulation #
     grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log = run_simulation(
         vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage, slippage=gv.slippage, signals=signals)
-
-    print('--------------------------------------------------------')
-    print('SIMULATION COMPLETE. PRINTING RELEVANT OUTPUT... [7/7]')
-
-    print('############################ PNLS ############################')
-    print('net pnl: ', netpnl)
-    print('gross pnl: ', grosspnl)
-    print('daily pnls     [gross]: ', gross_daily_values)
-    print('daily pnls     [net]: ', net_daily_values)
-    print('cumulative pnl [gross]: ', gross_cumul_values)
-    print('cumulative pnl [net]: ', net_cumul_values)
-    print('##############################################################')
-
-    gvar = np.percentile(gross_daily_values, 5)
-    cvar = np.percentile(net_daily_values, 5)
-
-    print('VaR [gross]: ', gvar)
-    print('VaR [net]: ', cvar)
-    # calculate max drawdown
-    if len(gross_daily_values) > 1:
-        print('Max Drawdown [gross]: ', min(np.diff(gross_daily_values)))
-        print('Max Drawdown [net]: ', min(np.diff(net_daily_values)))
-
-    # time elapsed 2 #
-    e2 = time.clock() - e1
-    print('SIMULATION RUNTIME: ', e2)
-
-    # plotting histogram of daily pnls
-    plt.figure()
-    plt.hist(gross_daily_values, bins=20,
-             alpha=0.6, label='gross pnl distribution')
-    plt.hist(net_daily_values, bins=20,
-             alpha=0.6, label='net pnl distribution')
-    plt.title('PnL Distribution: Gross/Net')
-    plt.legend()
-    plt.show()
-
-    # plotting gross pnl values
-    plt.figure()
-    colors = ['c' if x >= 0 else 'r' for x in gross_daily_values]
-    xvals = list(range(1, len(gross_daily_values) + 1))
-    plt.bar(xvals, net_daily_values, align='center',
-            color=colors, alpha=0.6, label='net daily values')
-    plt.plot(xvals, gross_cumul_values, c='b',
-             alpha=0.8, label='gross cumulative pnl')
-    plt.plot(xvals, net_cumul_values, c='r',
-             alpha=0.8, label='net cumulative pnl')
-    plt.title('gross/net pnl daily')
-    plt.legend()
-    plt.show()
-
-    # plotting net pnl values
-    # plt.figure()
-    # colors = ['c' if x >= 0 else 'r' for x in net_daily_values]
-    # xvals = list(range(1, len(net_daily_values) + 1))
-    # plt.bar(xvals, net_daily_values, align='center',
-    #         color=colors, alpha=0.6, label='net daily values')
-
-    # plt.title('net pnl daily')
-    # plt.legend()
-    # plt.show()
-
-    # plotting greeks with pnl
-    plt.figure()
-    # plt.plot(xvals, net_cumul_values, c='k', alpha=0.8, label='net cumulative pnl')
-    plt.plot(log.value_date, log.delta, c='y', alpha=0.8, label='delta')
-    plt.plot(log.value_date, log.gamma, c='g', alpha=0.8, label='gamma')
-    plt.plot(log.value_date, log.theta, c='b', alpha=0.8, label='theta')
-    plt.plot(log.value_date, log.vega, c='r', alpha=0.8, label='vega')
-    plt.plot(log.value_date, log.cu_pnl_net, c='k',
-             alpha=0.6, label='cumulative pnl')
-    plt.legend()
-    plt.title('Greeks over simulation period')
-    plt.show()
-
-    if signals is not None:
-        plt.figure()
-        y = (log.cu_pnl_net - log.cu_pnl_net.mean()) / \
-            (log.cu_pnl_net.max() - log.cu_pnl_net.min())
-        y1 = log['25d_call_change'] - log['25d_put_change']
-        plt.plot(log.value_date, y, c='k',
-                 alpha=0.8, label='cumulative pnl')
-        plt.plot(log.value_date, y1,
-                 c='c', alpha=0.7, label='25d_c_vol - 25d_p_vol')
-        # plt.plot(log.value_date, log['25d_put_change'],
-        #          c='m', alpha=0.5, label='25 Delta Put Vol Change')
-        plt.plot(log.value_date, log.price_change,
-                 c='b', alpha=0.4, label='Price change')
-        plt.title('Norm PnL, Vol Diff & Price Change')
-        plt.legend()
-        plt.show()
-
-    plt.figure()
-    plt.plot(log.value_date, log.net_ft_pos, c='k',
-             alpha=0.7, label='net future position (lots)')
-    normed_daily = (log.eod_pnl_net) / 100
-    plt.plot(log.value_date, normed_daily, c='c',
-             alpha=0.7, label='scaled daily pnl (1/100)')
-    plt.title('normed daily pnl & net future position')
-    plt.legend()
-    plt.show()
 
 
 #######################################################################
@@ -1998,3 +2014,4 @@ if __name__ == '__main__':
 #######################################################################
 #######################################################################
 ###############
+#

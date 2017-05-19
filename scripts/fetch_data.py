@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-05-18 19:46:18
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-05-19 21:03:23
 
 import pandas as pd
 from sqlalchemy import create_engine
 
 
-def pull_relevant_data(pf_path=None, sigpath=None, signals=None, start_date=None, end_date=None):
+def pull_relevant_data(pf_path=None, sigpath=None, signals=None, start_date=None, end_date=None, pdt=None, opmth=None, ftmth=None):
     """
     Pulls relevant data based on one of two conditions:
             1. Securities specified in the portfolio, or 
@@ -21,6 +21,12 @@ def pull_relevant_data(pf_path=None, sigpath=None, signals=None, start_date=None
     Args:
         pf_path (str, optional): path to a csv specifiying portfolio
         sigpath (str, optional): path to a csv specifying signals to be applied. 
+        signals (None, optional): Description
+        start_date (None, optional): Description
+        end_date (None, optional): Description
+        pdt (None, optional): Description
+        opmth (None, optional): Description
+        ftmth (None, optional): Description
 
     Returns:
         tuple: price and volatility dataframes. 
@@ -29,7 +35,13 @@ def pull_relevant_data(pf_path=None, sigpath=None, signals=None, start_date=None
         ValueError: Raised if neither pf_path nor sigpath are specified. 
     """
     uids, volids = None, None
-    if pf_path is not None and not pd.read_csv(pf_path).empty:
+
+    if not any(i is None for i in [pdt, opmth, ftmth]):
+        print('pulling based on product, opmth and ftmth')
+        uids = [pdt + '  ' + ftmth]
+        volids = [pdt + '  ' + opmth + '.' + ftmth]
+
+    elif pf_path is not None and not pd.read_csv(pf_path).empty:
         pf = pd.read_csv(pf_path)
         if not pf.empty:
             print('pulling from pf_path')
@@ -112,10 +124,10 @@ def pull_relevant_data(pf_path=None, sigpath=None, signals=None, start_date=None
     vdf.value_date = pd.to_datetime(vdf.value_date)
 
     # filter dates that are not common to both dataframes
-    diff_pdf = [x for x in pdf.value_date.unique(
-    ) if x not in vdf.value_date.unique()]
-    diff_vdf = [x for x in vdf.value_date.unique(
-    ) if x not in pdf.value_date.unique()]
+    # diff_pdf = [x for x in pdf.value_date.unique(
+    # ) if x not in vdf.value_date.unique()]
+    # diff_vdf = [x for x in vdf.value_date.unique(
+    # ) if x not in pdf.value_date.unique()]
 
     # vmask = vdf.value_date.isin(diff_vdf)
     # pmask = pdf.value_date.isin(diff_pdf)
@@ -184,3 +196,7 @@ def construct_queries(uids, volids, start_date=None, end_date=None):
     print('vol query: ', vol_query)
 
     return price_query, vol_query
+
+
+def fetch_alt_data_table():
+    pass

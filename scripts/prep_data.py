@@ -67,6 +67,28 @@ contract_mths = {
 }
 
 
+multipliers = {
+    'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
+    'LSU': [1, 50, 0.1, 10, 50],
+    'LCC': [1.2153, 10, 1, 25, 12.153],
+    'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
+    'CC':  [1, 10, 1, 50, 10],
+    'CT':  [22.046, 22.679851, 0.01, 1, 500],
+    'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
+    'W':   [0.3674333, 136.07911, 0.25, 10, 50],
+    'S':   [0.3674333, 136.07911, 0.25, 10, 50],
+    'C':   [0.393678571428571, 127.007166832986, 0.25, 10, 50],
+    'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
+    'LC':  [22.046, 18.143881, 0.025, 1, 400],
+    'LRC': [1, 10, 1, 50, 10],
+    'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
+    'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
+    'COM': [1.0604, 50, 0.25, 2.5, 53.02],
+    'OBM': [1.0604, 50, 0.25, 1, 53.02],
+    'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
+}
+
+
 ###############################################################
 ################## Data Read-in Functions #####################
 ###############################################################
@@ -181,7 +203,7 @@ def generate_hedges(filepath):
     return hedges
 
 
-def read_data(epath, specpath, signals=None, start_date=None, end_date=None, test=False, writeflag=None, write=False):
+def read_data(epath, specpath, signals=None, start_date=None, end_date=None, test=False, writeflag=None, write=False, pdt=None, opmth=None, ftmth=None):
     """Wrapper method that handles all read-in and preprocessing. This function does the following:
     1) reads in path to volatility, price and expiry tables from portfolio_specs.txt
     2) reads in dataframes from said paths
@@ -211,37 +233,45 @@ def read_data(epath, specpath, signals=None, start_date=None, end_date=None, tes
     """
 
     t = time.clock()
-
+    vid_list = []
     try:
         # get paths
         print('exp: ', osf.path.exists(epath))
         print('specs: ', osf.path.exists(specpath))
 
         priceDF, volDF = pull_relevant_data(
-            pf_path=specpath, signals=signals, start_date=start_date, end_date=end_date)
-
+            pf_path=specpath, signals=signals, start_date=start_date, end_date=end_date, pdt=pdt, opmth=opmth, ftmth=ftmth)
         edf = pd.read_csv(epath).dropna()
-        specs = pd.read_csv(specpath)
+
+        if osf.path.exists(specpath):
+            specs = pd.read_csv(specpath)
+            vid_list = specs[specs.Type == 'Option'].vol_id.unique()
 
         # fixing datetimes
         volDF.value_date = pd.to_datetime(volDF.value_date)
         priceDF.value_date = pd.to_datetime(priceDF.value_date)
 
+        # case 1: drawing based on portfolio.
         if signals is not None:
             signals.value_date = pd.to_datetime(signals.value_date)
             volDF, priceDF = match_to_signals(volDF, priceDF, signals)
 
-        vid_list = specs[specs.Type == 'Option'].vol_id.unique()
-
         print('vid list: ', vid_list)
 
         # get effective start date, pick whichever is max
+
+        # case 2: drawing based on pdt, ft and opmth
+        if not any(i is None for i in [pdt, opmth, ftmth]):
+            vid_list = [pdt + '  ' + opmth + '.' + ftmth]
+
         dataset_start_date = get_min_start_date(
             volDF, priceDF, vid_list, signals=signals)
+        print('datasets start date: ', dataset_start_date)
 
         dataset_start_date = pd.to_datetime(dataset_start_date)
 
-        start_date = dataset_start_date if dataset_start_date > start_date else start_date
+        start_date = dataset_start_date if (start_date is None) or \
+            ((start_date is not None) and (dataset_start_date > start_date)) else start_date
 
         print('prep_data start_date: ', start_date)
 
@@ -272,6 +302,16 @@ def read_data(epath, specpath, signals=None, start_date=None, end_date=None, tes
         # final preprocessing steps
         final_price = ciprice(priceDF)
         final_vol = civols(volDF, final_price)
+
+        print('sanity checking date ranges')
+        if not np.array_equal(pd.to_datetime(final_vol.value_date.unique()),
+                              pd.to_datetime(final_price.value_date.unique())):
+            vmask = final_vol.value_date.isin([x for x in final_vol.value_date.unique()
+                                               if x not in final_price.value_date.unique()])
+            pmask = final_price.value_date.isin([x for x in final_price.value_date.unique()
+                                                 if x not in final_vol.value_date.unique()])
+            final_vol = final_vol[~vmask]
+            final_price = final_price[~pmask]
 
     except FileNotFoundError:
         print('files not found! printing paths below...')
@@ -317,7 +357,6 @@ def read_data(epath, specpath, signals=None, start_date=None, end_date=None, tes
     return final_vol, final_price, edf, priceDF
 
 
-# NOTE: might want to eliminate any dependence on vol_id and underlying_id
 def prep_portfolio(voldata, pricedata, filepath):
     """Constructs the portfolio from the requisite CSV file that specifies the details of
     each security in the portfolio.
@@ -389,11 +428,36 @@ def prep_portfolio(voldata, pricedata, filepath):
             ftlist[flag].append(ft)
 
         elif data.Type == 'Option':
-            strike = float(data.strike)
+
+            # basic option info
+            t
             volid = str(data.vol_id)
             opmth = volid.split()[1].split('.')[0]
             char = str(data.call_put_id)
             volflag = 'C' if char == 'call' else 'P'
+
+            # handle underlying construction
+            f_mth = volid.split()[1].split('.')[1]
+            f_name = volid.split()[0]
+            mths = contract_mths[f_name]
+            ordering = find_cdist(curr_sym, f_mth, mths)
+            # print('ordering inputs: ', curr_sym, f_mth)
+            u_name = f_name + '  ' + volid.split('.')[1]
+
+            try:
+                f_price = pricedata[(pricedata['value_date'] == sim_start) &
+                                    (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
+            except IndexError:
+                print('vol_id: ', volid)
+                print('f_name: ', f_name)
+                print('value_date: ', sim_start)
+                print('underlying_id: ', u_name)
+
+            underlying = Future(f_mth, f_price, f_name, ordering=ordering)
+            ticksize = multipliers[f_name][-2]
+
+            strike = round(round(f_price / ticksize) * ticksize,
+                           2) if data.strike == 'atm' else float(data.strike)
 
             # get tau from data+
             try:
@@ -441,27 +505,12 @@ def prep_portfolio(voldata, pricedata, filepath):
             # lots
             lots = 1000 if data.lots == 'None' else int(data.lots)
 
-            # handle underlying construction
-            f_mth = volid.split()[1].split('.')[1]
-            f_name = volid.split()[0]
-            mths = contract_mths[f_name]
-            ordering = find_cdist(curr_sym, f_mth, mths)
-            # print('ordering inputs: ', curr_sym, f_mth)
-            u_name = f_name + '  ' + volid.split('.')[1]
-            try:
-                f_price = pricedata[(pricedata['value_date'] == sim_start) &
-                                    (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
-            except IndexError:
-                print('vol_id: ', volid)
-                print('f_name: ', f_name)
-                print('value_date: ', sim_start)
-                print('underlying_id: ', u_name)
-
-            underlying = Future(f_mth, f_price, f_name, ordering=ordering)
             opt = Option(strike, tau, char, vol, underlying,
                          payoff, shorted=shorted, month=opmth, direc=direc,
                          barrier=barriertype, lots=lots, bullet=bullet,
                          ki=ki, ko=ko, ordering=ordering)
+            # greek value
+
             oplist[flag].append(opt)
 
     # handling bullet options
@@ -551,7 +600,7 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
     if flag == 'exp':
         # cleaning expiry data, handling datatypes
         df['expiry_date'] = pd.to_datetime(df['expiry_date'])
-        df = df[(df['year'] > 10)]
+        df = df[(df['year'] >= 10)]
         s = df['opmth'].copy()
         # taking years mod 10, i.e. S17 --> S7.
         df.ix[:, 'opmth'] = s.str[0] + \
@@ -1198,6 +1247,56 @@ def get_min_start_date(vdf, pdf, lst, signals=None):
     else:
         raise ValueError(
             'neither signals nor lst is valid. No start date to be found. ')
+
+
+def sanity_check(vdates, pdates, start_date, end_date, signals=None,):
+    """Helper function that checks date ranges of vol/price/signal data and ensures
+    that start/end dates passed into the simulation are consistent. 
+
+    Args:
+        vdates (TYPE): Dataframe of volatilities
+        pdates (TYPE): Dataframe of prices
+        start_date (TYPE): start date of the simulation
+        end_date (TYPE): end date of the simulation
+        signals (None, optional): dataframe of signals 
+
+    Raises:
+        ValueError: raised if date ranges of any of the dataframes do not line up, or if start/end dates passed in are inconsistent/require time travel. 
+
+    """
+    if not np.array_equal(vdates, pdates):
+        print('vol_dates: ', vdates)
+        print('price_dates: ', pdates)
+        print('difference: ', [x for x in vdates if x not in pdates])
+        print('difference 2: ', [x for x in pdates if x not in vdates])
+        raise ValueError(
+            'Invalid data sets passed in; vol and price data must have the same date range. Aborting run.')
+    if signals is not None:
+        sig_dates = signals.value_date.unique()
+        if not np.array_equal(sig_dates, vdates):
+            print('v - sig difference: ',
+                  [x for x in vdates if x not in sig_dates])
+            print('sig - v difference: ',
+                  [x for x in sig_dates if x not in vdates])
+            print('vdates: ', pd.to_datetime(vdates))
+            raise ValueError('signal dates dont match up with vol dates')
+
+        if not np.array_equal(sig_dates, pdates):
+            print('p - sig difference: ',
+                  [x for x in pdates if x not in sig_dates])
+            print('sig - v differenceL ',
+                  [x for x in sig_dates if x not in pdates])
+            raise ValueError('signal dates dont match up with price dates')
+
+    # if end_date specified, check that it makes sense (i.e. is greater than
+    # start date)
+    if all(i is not None for i in [start_date, end_date]):
+        if start_date > end_date:
+            raise ValueError(
+                'Invalid end_date entered; current end_date is less than start_date')
+
+    print('DATA INTEGRITY VERIFIED!')
+    return
 
 
 ##########################################################################
