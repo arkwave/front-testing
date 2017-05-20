@@ -8,6 +8,29 @@ import pandas as pd
 from sqlalchemy import create_engine
 
 
+contract_mths = {
+
+    'LH':  ['G', 'J', 'K', 'M', 'N', 'Q', 'V', 'Z'],
+    'LSU': ['H', 'K', 'Q', 'V', 'Z'],
+    'LCC': ['H', 'K', 'N', 'U', 'Z'],
+    'SB':  ['H', 'K', 'N', 'V'],
+    'CC':  ['H', 'K', 'N', 'U', 'Z'],
+    'CT':  ['H', 'K', 'N', 'Z'],
+    'KC':  ['H', 'K', 'N', 'U', 'Z'],
+    'W':   ['H', 'K', 'N', 'U', 'Z'],
+    'S':   ['F', 'H', 'K', 'N', 'Q', 'U', 'X'],
+    'C':   ['H', 'K', 'N', 'U', 'Z'],
+    'BO':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
+    'LC':  ['G', 'J', 'M', 'Q', 'V' 'Z'],
+    'LRC': ['F', 'H', 'K', 'N', 'U', 'X'],
+    'KW':  ['H', 'K', 'N', 'U', 'Z'],
+    'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
+    'COM': ['G', 'K', 'Q', 'X'],
+    'OBM': ['H', 'K', 'U', 'Z'],
+    'MW':  ['H', 'K', 'N', 'U', 'Z']
+}
+
+
 def pull_relevant_data(pf_path=None, sigpath=None, signals=None, start_date=None, end_date=None, pdt=None, opmth=None, ftmth=None):
     """
     Pulls relevant data based on one of two conditions:
@@ -38,8 +61,14 @@ def pull_relevant_data(pf_path=None, sigpath=None, signals=None, start_date=None
 
     if not any(i is None for i in [pdt, opmth, ftmth]):
         print('pulling based on product, opmth and ftmth')
-        uids = [pdt + '  ' + ftmth]
-        volids = [pdt + '  ' + opmth + '.' + ftmth]
+        # NOTE: Currently defaults to pulling ALL contract-month options prior to the current contract month in the same year. 
+        ft_month = ftmth[0]
+        ft_yr = ftmth[1]
+        index = contract_mths[pdt].index(ft_month)
+        relevant_uids = contract_mths[pdt][:(index + 1)]
+
+        uids = [pdt + '  ' + x + ft_yr for x in relevant_uids]
+        volids = [pdt + '  ' + x + ft_yr + '.' + x + ft_yr for x in relevant_uids]
 
     elif pf_path is not None and not pd.read_csv(pf_path).empty:
         pf = pd.read_csv(pf_path)

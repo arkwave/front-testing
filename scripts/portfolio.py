@@ -656,3 +656,8 @@ class Portfolio:
         call_op_vega = sum([op.vega for op in all_ops if op.char == 'call'])
         put_op_vega = sum([op.vega for op in all_ops if op.char == 'put'])
         return call_op_vega, put_op_vega
+
+    def net_gamma_pos(self):
+        all_ops = self.get_all_options() 
+        net_gamma = sum([op.gamma for op in all_ops])
+        return net_gamma 

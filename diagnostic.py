@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import scripts.global_vars as gv
 from simulation import run_simulation
-from scripts.util import create_portfolio, prep_datasets
+from scripts.util import create_portfolio, prep_datasets, pull_alt_data
 
 
 multipliers = {
@@ -72,52 +72,97 @@ hedgepath = 'hedging.csv'
 
 
 pdt = 'S'
-ftmth = 'X2'
-opmth = 'X2'
-alt = True
+symlst = ['N', 'Q', 'U', 'X']
+yr = 6 
+# ftmth = 'X2'
+# opmth = 'X2'
 
-pricedump = 'datasets/small_s/cleaned_price_dump.csv'
-voldump = 'datasets/small_s/cleaned_vol_dump.csv'
+alt = False 
 
-start_date = pd.Timestamp('2012-05-01')
-end_date = pd.Timestamp('2012-07-30')
+pricedump = 'datasets/data_dump/s_price_dump.csv'
+voldump = 'datasets/data_dump/s_vol_dump.csv'
+
+start_date = pd.Timestamp('2016-05-01')
+end_date = pd.Timestamp('2016-06-10')
+
+print('pulling data')
+# vdf, pdf, df = pull_alt_data() 
+print('finished pulling data')
 
 if alt:
     edf = pd.read_csv(epath)
-    uid = pdt + '  ' + ftmth
+    uids = [pdt + '  ' + u + str(yr) for u in symlst]
+    print('uids: ', uids)
+    volids  = [pdt + '  ' + u + str(yr) + '.' + u + str(yr) for u in symlst]
+    print('volids: ', volids)
     pdf = pd.read_csv(pricedump)
     pdf.value_date = pd.to_datetime(pdf.value_date)
     # cleaning prices
-    pdf = pdf[pdf.underlying_id == uid]
-
+    pmask = pdf.underlying_id.isin(uids)
+    pdf = pdf[pmask]
     vdf = pd.read_csv(voldump)
-    volid = pdt + '  ' + opmth + '.' + ftmth
-    vdf = vdf[vdf.vol_id == volid]
+    # volid = pdt + '  ' + opmth + '.' + ftmth
+    vmask = vdf.vol_id.isin(volids)
+    vdf = vdf[vmask]
     vdf.value_date = pd.to_datetime(vdf.value_date)
-
+    # filter datasets before prep
+    vdf = vdf[(vdf.value_date >= start_date) & (vdf.value_date <= end_date)]
+    pdf = pdf[(pdf.value_date >= start_date) & (pdf.value_date <= end_date)]
     vdf, pdf, edf, priceDF = prep_datasets(vdf, pdf, edf, start_date, end_date)
 
 
 else:
+    opmth = 'X' + str(yr)
+    ftmth = 'X' + str(yr)
     vdf, pdf, edf, priceDF = read_data(
         epath, '', pdt=pdt, opmth=opmth, ftmth=ftmth, start_date=start_date, end_date=end_date)
 
-
+print('sanity checking data')
 # sanity check date ranges
 sanity_check(vdf.value_date.unique(),
              pdf.value_date.unique(), start_date, end_date)
 
 
+
+print('voldata: ', vdf)
+print('pricedf: ', pdf)
+
+print('creating portfolio')
 # create 130,000 vega atm straddles
+
+hedge_specs = {'pdt': 'S', \
+               'opmth': 'N6', \
+               'ftmth': 'N6', \
+               'type': 'straddle', \
+               'strike': 'atm',
+               'shorted': True,
+               'greek':'gamma', \
+               'greekval': 'portfolio'}
+
+
+opmth = 'X' + str(yr)
+ftmth = 'X' + str(yr)
+
 pf = create_portfolio(pdt, opmth, ftmth, 'straddle', vdf, pdf, chars=[
-    'call', 'put'], shorted=False, atm=True, greek='vega', greekval='130000')
+    'call', 'put'], shorted=False, atm=True, greek='vega', greekval='130000', hedges = hedge_specs)
 
-# specify hedging logic
-hedges = generate_hedges(hedgepath)
+print('portfolio: ', pf)
+print('start_date: ', start_date)
+print('end_date: ', end_date)
 
-# get rollover dates according to opex
-rollover_dates = get_rollover_dates(priceDF)
 
-# run the simulation
-grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log = run_simulation(
-    vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage, slippage=gv.slippage)
+# print('specifying hedging logic')
+# # specify hedging logic
+# hedges = generate_hedges(hedgepath)
+
+# print('getting rollover dates')
+# # get rollover dates according to opex
+# rollover_dates = get_rollover_dates(priceDF)
+
+# print('running simulation')
+# # run the simulation
+# grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log = run_simulation(
+#     vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage, slippage=gv.slippage)
+
+
+
