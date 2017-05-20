@@ -686,11 +686,25 @@ High priority:
 19/5:
 	> [Done] run the soybean atm straddle  - data constraints = only 2015 and 2016 can be run. 
 	> [Done] fetch_data and prep_data should accept (pdt opmth ftmth) as inputs for drawing data --> would allow for quick creation of positions 
-	> data cleaning from alternate table would be useful; would allow that table to be used and integrated rather than depending on the opera one. 
-		- at the very least nail down the transformation logic, give to Ujjwal 
+	> [Done] data cleaning from alternate table would be useful; would allow that table to be used and integrated rather than depending on the opera one. 
+		- at the very least nail down the transformation logic, give to Ujjwal  [Done]
 
-	> easy creation of certain positions (skew, straddle, etc) given relevant information. 
+	
+
+
+
+20/5:
+	> [Done] defining hedges in create_portfolio 
+	> [Straddle - Done] 
+		easy creation of certain positions (skew, straddle, etc) given relevant information. 
 		- either update prep_portfolio, or make it easy to specify somehow. 	
+	> [Done] hedge rolling logic
+	> [Done] change sql queries to draw all data <= current contract month value. 
+		- done for pdt/opmth/ftmth draws, not for others. 
+
+
+
+	
 
 
 
@@ -702,6 +716,14 @@ Low Priority:
 
 
 Future work:
+> update all documentation. 
+> missing data for soybean N/U5 
+> take stock of all work that has been done so far - cut out redundancies and refactor as necessary. 
+	- crucial :
+		1. prep_portfolio vs create portfolio. (latter honestly seems superior/more flexible for composite structures (e.g. straddles, etc))
+		2. util functions; where do they fit into everything?
+		3. ciprice/civols - necessary for historical? don't think so. 
+
 > figure out how to effectively create option composites using mutiple options in a way that doesn't break portfolio object/require much refactoring. 
 > generalize skew pos
 > hedging on the level of portfolio rather than on contract -> flag. 
