@@ -256,6 +256,9 @@ def read_data(epath, specpath, signals=None, start_date=None, end_date=None, tes
             signals.value_date = pd.to_datetime(signals.value_date)
             volDF, priceDF = match_to_signals(volDF, priceDF, signals)
 
+        print('prep_data.read_data - pdf dates: ', pd.to_datetime(priceDF.value_date.unique()))
+
+
         print('vid list: ', vid_list)
 
         # get effective start date, pick whichever is max
@@ -286,6 +289,8 @@ def read_data(epath, specpath, signals=None, start_date=None, end_date=None, tes
             if end_date \
             else priceDF[(priceDF.value_date >= start_date)]
 
+        print('prep_data.read_data - pdf dates: ', pd.to_datetime(priceDF.value_date.unique()))
+
         # catch errors
         if (volDF.empty or priceDF.empty):
             raise ValueError(
@@ -294,14 +299,15 @@ def read_data(epath, specpath, signals=None, start_date=None, end_date=None, tes
         print('vdf: ', volDF)
         # clean dataframes
         edf = clean_data(edf, 'exp', writeflag=writeflag)
-        volDF = clean_data(volDF, 'vol', date=start_date,
+        final_vol = clean_data(volDF, 'vol', date=start_date,
                            edf=edf, writeflag=writeflag)
-        priceDF = clean_data(priceDF, 'price', date=start_date,
+        final_price = clean_data(priceDF, 'price', date=start_date,
                              edf=edf, writeflag=writeflag)
 
+        print('prep_data.read_data - pdf dates: ', pd.to_datetime(priceDF.value_date.unique()))
         # final preprocessing steps
-        final_price = ciprice(priceDF)
-        final_vol = civols(volDF, final_price)
+        # final_price = ciprice(priceDF)
+        # final_vol = civols(volDF, final_price)
 
         print('sanity checking date ranges')
         if not np.array_equal(pd.to_datetime(final_vol.value_date.unique()),

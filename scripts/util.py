@@ -158,6 +158,57 @@ def create_underlying(pdt, ftmth, pdf, date):
     return ft , ftprice
 
 
+
+def create_vanilla_option(vdf, pdf, ft, strike, lots, volid, char, payoff, shorted, mth, date=None):
+    """Utility method that creates an option from the info passed in. 
+    
+    Args:
+        vdf (TYPE): Description
+        pdf (TYPE): Description
+        ft (TYPE): Description
+        strike (TYPE): Description
+        lots (TYPE): Description
+        volid (TYPE): Description
+        cpi (TYPE): Description
+        date (None, optional): Description
+    
+    Returns:
+        TYPE: Description
+    
+    Deleted Parameters:
+        vol_id (TYPE): Description
+        call_put_id (TYPE): Description
+    """
+    # get tau 
+    date = vdf.value_date.unique()[0] if date is None else date 
+    cpi = 'C' if char == 'call' else 'P'
+    try:
+        tau = vdf[(vdf.value_date == date) &
+              (vdf.vol_id == volid)].tau.values[0]
+
+    except IndexError:
+        print('util.create_vanilla_option - cannot find tau.')
+        print('inputs: ', date, volid)
+    # get vol 
+    try:
+        vol = vdf[(vdf.value_date == date) &
+                   (vdf.vol_id == volid) &
+                   (vdf.call_put_id == cpi) &
+                   (vdf.strike == strike)].settle_vol.values[0]
+    except IndexError:
+        print('util.create_straddle - vol1 not found, inputs below: ')
+        print('date: ', date)
+        print('vol_id: ', volid)
+        print('call_put_id: ', cpi)
+        print('strike: ', strike)
+    
+    # (self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=1000, bullet=True, ki=None, ko=None, rebate=0, ordering=1e5, settlement='cash')
+    newop = Option(strike, tau, char, vol, ft, payoff, shorted, mth, lots=lots, ordering=ft.get_ordering())
+    return newop 
+
+
+
+
 def create_straddle(volid, vdf, pdf, ft, date, shorted, strike, kwargs, pf=None):
     """Utility function that creates straddle given dataframes and arguments.
     
