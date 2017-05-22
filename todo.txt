@@ -705,32 +705,45 @@ High priority:
 
 
 	
+22/5:
+> take stock of all work that has been done so far - cut out redundancies and refactor as necessary. 
+	- crucial :
+		1. prep_portfolio vs create portfolio. (latter honestly seems superior/more flexible for composite structures (e.g. straddles, etc))
+
+		Notes: 
+			CSV --> List of dictionaries --> create portfolio
+			split into OTC and hedges
+				> define each option individually in its own row
+				> create all OTCs, then generate hedges so that hedges can use OTC values as inputs. 
+				> some kind of linkage between a hedge and the thing it is hedging? 
+				> specify a greek value OR lots, depending. 
 
 
+		2. util functions; where do they fit into everything?
+			> left to develop: 
+				- butterflies
+				- spreads 
 
-Low Priority:
-	> portfolio-wide hedging as a flag 
+		3. hedge upon percentage/absolute move. 
+			> take in a value, the greek to hedge, and how to hedge.
+
+
+23/5:
+	> finish util implementations and double check 
+	> new read method csv --> dict --> portfolio. Try to keep current work intact 
+	> portfolio-wide hedging as a flag --> how does this work? numerical equivalent? 
 	> multiple signals per day 
-
 
 
 
 Future work:
 > update all documentation. 
 > missing data for soybean N/U5 
-> take stock of all work that has been done so far - cut out redundancies and refactor as necessary. 
-	- crucial :
-		1. prep_portfolio vs create portfolio. (latter honestly seems superior/more flexible for composite structures (e.g. straddles, etc))
-		2. util functions; where do they fit into everything?
-		3. ciprice/civols - necessary for historical? don't think so. 
+
 
 > figure out how to effectively create option composites using mutiple options in a way that doesn't break portfolio object/require much refactoring. 
 > generalize skew pos
 > hedging on the level of portfolio rather than on contract -> flag. 
-
-
-
-
 
 
 
