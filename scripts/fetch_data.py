@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-05-19 21:03:23
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-05-22 17:40:13
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -59,16 +59,19 @@ def pull_relevant_data(pf_path=None, sigpath=None, signals=None, start_date=None
     """
     uids, volids = None, None
 
+    # FIXME: make sure this works for len(pdt) > 1
     if not any(i is None for i in [pdt, opmth, ftmth]):
         print('pulling based on product, opmth and ftmth')
-        # NOTE: Currently defaults to pulling ALL contract-month options prior to the current contract month in the same year. 
+        # NOTE: Currently defaults to pulling ALL contract-month options prior
+        # to the current contract month in the same year.
         ft_month = ftmth[0]
         ft_yr = ftmth[1]
         index = contract_mths[pdt].index(ft_month)
         relevant_uids = contract_mths[pdt][:(index + 1)]
 
         uids = [pdt + '  ' + x + ft_yr for x in relevant_uids]
-        volids = [pdt + '  ' + x + ft_yr + '.' + x + ft_yr for x in relevant_uids]
+        volids = [pdt + '  ' + x + ft_yr + '.' +
+                  x + ft_yr for x in relevant_uids]
 
     elif pf_path is not None and not pd.read_csv(pf_path).empty:
         pf = pd.read_csv(pf_path)

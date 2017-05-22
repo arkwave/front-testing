@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-05-22 13:44:13
+# @Last Modified time: 2017-05-22 20:36:39
 
 ################################ imports ###################################
 import numpy as np
@@ -204,12 +204,18 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         print('SOD Vega Pos: ', pf.net_vega_pos())
 
     # Step 3: Feed data into the portfolio.
-        pf, broken, gamma_pnl, vega_pnl = feed_data(
+        pf, broken, gamma_pnl, vega_pnl, profit = feed_data(
             vdf, pdf, pf, rollover_dates, prev_date, init_val, brokerage=brokerage, slippage=slippage)
+
+        dailycost -= profit
+        print('cost after feed data: ', dailycost)
 
     # Step 4: Compute pnl for the day
         updated_val = pf.compute_value()
-        dailypnl = updated_val - init_val if init_val != 0 else 0
+        print('updated pnl after feed: ', updated_val)
+        print('init val: ', init_val)
+        dailypnl = updated_val - \
+            init_val if (init_val != 0 and updated_val != 0) else 0
         # print('dailypnl: ', dailypnl)
 
         # print('Vegas: ', [(str(op), op.vega) for op in pf.OTC_options])
@@ -249,6 +255,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         netpnl += (dailypnl - cost)
         net_cumul_values.append(netpnl)
 
+        stradcost = sum([op.compute_price() for op in pf.OTC_options])
+        print('cost of straddle: ', stradcost)
         print('[10]   EOD PNL (GROSS): ', dailypnl)
         print('[10.1] EOD Vega PNL: ', vega_pnl)
         print('[10.2] EOD Gamma PNL: ', gamma_pnl)
@@ -262,12 +270,21 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         init_val = pf.compute_value()
         print('[13]  EOD PORTFOLIO: ', pf)
 
+        if len(pf.OTC_options) > 0:
+            ftprice = pf.OTC_options[0].underlying.get_price()
+        elif pf.hedge_options:
+            ftprice = pf.hedge_options[0].get_price()
+        else:
+            ftprice = 0
+
+        oplots = pf.OTC_options[0].lots if pf.OTC_options else 0
+
     # Step 9: computing stuff to be logged
-        lst = [date, dailypnl, dailypnl-dailycost,
+        lst = [date, stradcost, oplots, ftprice, dailypnl, dailypnl-dailycost,
                grosspnl, netpnl, gamma_pnl, gammapnl, vega_pnl, vegapnl, roll_hedged]
         dic = pf.get_net_greeks()
         call_vega, put_vega = 0, 0
-        cols = ['value_date', 'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross',
+        cols = ['value_date', 'straddle_value', 'option_lottage', 'future price', 'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross',
                 'cu_pnl_net', 'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl',
                 'cu_vega_pnl', 'delta_rolled', 'pdt', 'month', 'delta', 'gamma',
                 'theta', 'vega', 'net_call_vega', 'net_put_vega', 'net_ft_pos', 'b/s']
@@ -327,7 +344,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
             signals.opmth + '.' + signals.ftmth
 
         df = pd.merge(signals, pricedata[['value_date', 'underlying_id', 'settle_value']], on=[
-                      'value_date', 'underlying_id'])
+            'value_date', 'underlying_id'])
         df = df.drop_duplicates()
         df['price_change'] = df.settle_value.shift(-1) - df.settle_value
         df['25d_call_change'] = df.delta_call_25_a.shift(
@@ -342,7 +359,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
     if not os.path.isdir(gv.folder):
         os.mkdir(gv.folder)
 
-    log.to_csv(gv.folder + '/log.csv', index=False)
+    # log.to_csv(gv.folder + '/log.csv', index=False)
 
     elapsed = time.clock() - t
 
@@ -403,6 +420,17 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
     plt.title('gross/net pnl daily')
     plt.legend()
     plt.show()
+
+    # plt.figure()
+    # plt.plot(xvals, gross_cumul_values, c='b',
+    #          alpha=0.8, label='gross cumulative pnl')
+    # plt.plot(xvals, net_cumul_values, c='r',
+    #          alpha=0.8, label='net cumulative pnl')
+    # plt.plot(xvals, gamma_pnl_cumul, c='g', alpha=0.5, label='cu. gamma pnl')
+    # plt.plot(xvals, vega_pnl_cumul, c='y', alpha=0.5, label='cu. vega pnl')
+    # plt.title('gross/net pnl cumulative')
+    # plt.legend()
+    # plt.show()
 
     # cumulative gamma/vega/cumulpnl values
     plt.figure()
@@ -484,8 +512,6 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
 ########################## Helper functions ##############################
 ##########################################################################
 
-# TODO: add expenditure flag to this so that expenditure from handling
-# exercise can be taken into account
 def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage=None):
     """
     This function does the following:
@@ -513,52 +539,50 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
         ValueError: Raised if voldf is empty.
     """
     broken = False
-    raw_diff = 0
     # sanity checks
     if pf.empty():
-        return 0, pf, False
+        # pf, broken, gamma_pnl, vega_pnl, profit
+        return pf, False, 0, 0, 0
 
     if voldf.empty:
         raise ValueError('vol df is empty!')
 
-    date = voldf.value_date.unique()[0]
-
     # 1) initial value of the portfolio before updates, and handling exercises
     # before feeding data.
     # prev_val = pf.compute_value()
-    expenditure, pf = handle_exercise(pf, brokerage, slippage)
-    raw_diff += expenditure
+    profit, pf = handle_exercise(pf, brokerage, slippage)
 
     # yesterday's price and vols timestepped to today.
     # prev_val = pf.compute_value()
 
-    print('handle exercise expenditure: ', expenditure)
+    print('handle exercise profit: ', profit)
 
-    curr_date = pd.to_datetime(pdf.value_date.unique()[0])
     # print('curr_date: ', curr_date)
     prev_date = pd.to_datetime(prev_date)
 
     # 2) Check for rollovers and expiries rollovers
-    for product in dic:
-        ro_dates = dic[product]
-        # rollover date for this particular product
-        if prev_date is None:
-            if date in ro_dates:
-                print('ROLLOVER DETECTED; DECREMENTING ORDERING')
-                pf.decrement_ordering(product, 1)
-        else:
-            relevant_rollovers = [x for x in ro_dates if (
-                x.month == prev_date.month) and (x.year == prev_date.year)]
-            for date in relevant_rollovers:
-                # rollover in between dates
-                if date.day < curr_date.day and date.day > prev_date.day:
-                    print('ROLLOVER DETECTED; DECREMENTING ORDERING')
-                    pf.decrement_ordering(product, 1)
+    # for product in dic:
+    #     ro_dates = dic[product]
+    #     # rollover date for this particular product
+    #     if prev_date is None:
+    #         if date in ro_dates:
+    #             print('ROLLOVER DETECTED; DECREMENTING ORDERING')
+    #             pf.decrement_ordering(product, 1)
+    #     else:
+    #         relevant_rollovers = [x for x in ro_dates if (
+    #             x.month == prev_date.month) and (x.year == prev_date.year)]
+    #         for date in relevant_rollovers:
+    #             # rollover in between dates
+    #             if date.day < curr_date.day and date.day > prev_date.day:
+    #                 print('ROLLOVER DETECTED; DECREMENTING ORDERING')
+    #                 pf.decrement_ordering(product, 1)
 
     # expiries; also removes options for which ordering = 0
     pf.remove_expired()
 
-    # print('pf after rollovers and expiries: ', pf)
+    print('pf after rollovers and expiries: ', pf)
+
+    # sanity check: if all options have expired, close out deltas
 
     # 3)  update prices of futures, underlying & portfolio alike.
     if not broken:
@@ -568,7 +592,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
                 uid = ft.get_product() + '  ' + ft.get_month()
                 val = pdf[(pdf.pdt == pdt) &
                           (pdf.underlying_id == uid)].settle_value.values[0]
-                # print('UPDATED - new price: ', val)
+                print('UPDATED - new price: ', val)
                 ft.update_price(val)
 
             # index error would occur only if data is missing.
@@ -582,9 +606,24 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
                 broken = True
                 break
 
+    # sanity check: if no active options, close out entire portfolio.
+    if not pf.OTC_options and not pf.hedge_options:
+        print('all options have expired - removing hedge futures')
+        deltas_to_close = set()
+        for ft in pf.hedge_futures:
+            pdt = ft.get_product()
+            mth = ft.get_month()
+            price = ft.get_price()
+            iden = (pdt, mth, price)
+            deltas_to_close.add(iden)
+        print('feed_data - dtc: ', deltas_to_close)
+        pf, cost = close_out_deltas(pf, deltas_to_close)
+        profit -= cost
+
     # (today's price, yesterday's vols) - (yesterday's price, yesterday's vols)
     intermediate_val = pf.compute_value()
-    gamma_pnl = intermediate_val - init_val if init_val is not 0 else 0
+    gamma_pnl = intermediate_val - \
+        init_val if (init_val != 0 and intermediate_val != 0) else 0
 
     # update option attributes by feeding in vol.
     if not broken:
@@ -606,7 +645,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
                 df_tau = min(val.tau, key=lambda x: abs(x-tau))
                 val = val[val.tau == df_tau].settle_vol.values[0]
                 op.update_greeks(vol=val)
-                # print('UPDATED - new vol: ', val)
+                print('UPDATED - new vol: ', val)
             except (IndexError, ValueError):
                 print('### VOLATILITY DATA MISSING ###')
                 print('product: ', product)
@@ -631,7 +670,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
     # print('Portfolio After Feed: ', pf)
     print('[7]  NET GREEKS: ', str(pprint.pformat(pf.net_greeks)))
 
-    return pf, broken, gamma_pnl, vega_pnl
+    return pf, broken, gamma_pnl, vega_pnl, profit
 
 
 def handle_exercise(pf, brokerage=None, slippage=None):
@@ -659,6 +698,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
     # all_ops = pf.get_all_options()
     otc_ops = pf.OTC_options
     hedge_ops = pf.hedge_options
+    toberemoved = []
     for op in otc_ops:
         if op.tau < tol:
             if op.exercise():
@@ -678,6 +718,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
                     pf.exercise_option(op, 'OTC')
             else:
                 print('letting OTC op ' + str(op) + ' expire.')
+                toberemoved.append((op, 'OTC'))
 
     for op in hedge_ops:
         if op.tau < tol:
@@ -697,6 +738,10 @@ def handle_exercise(pf, brokerage=None, slippage=None):
                     pf.exercise_option(op, 'hedge')
             else:
                 print('letting hedge op ' + str(op) + ' expire.')
+                toberemoved.append((op, 'hedge'))
+
+    for op, flag in toberemoved:
+        pf.remove_security([op], flag)
 
     print(' ### net exercise profit: ', profit)
     print('handle expiry time: ', time.clock() - t)
@@ -715,7 +760,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
 def roll_over_hedges(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=10):
     """Utility method that checks expiries of options currently being used for hedging. If ttm < ttm_tol,
     closes out that position (and all accumulated deltas), saves lot size/strikes, and rolls it over into the
-    next month. 
+    next month.
 
     Args:
         pf (TYPE): portfolio being hedged
@@ -723,7 +768,7 @@ def roll_over_hedges(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=
         pdf (TYPE): price dataframe
         brokerage (TYPE, optional): brokerage amount
         slippage (TYPE, optional): slippage amount
-        ttm_tol (int, optional): tolerance level for time to maturity. 
+        ttm_tol (int, optional): tolerance level for time to maturity.
 
     Returns:
         tuple: updated portfolio and cost of operations undertaken
@@ -762,7 +807,8 @@ def roll_over_hedges(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=
             # create_vanilla_option(vdf, pdf, ft, strike, lots, vol_id,
             # call_put_id):
             strike, lots = op.K, op.lots
-            # create_vanilla_option(vdf, pdf, ft, strike, lots, volid, char, payoff, shorted, mth, date=None)
+            # create_vanilla_option(vdf, pdf, ft, strike, lots, volid, char,
+            # payoff, shorted, mth, date=None)
             newop = create_vanilla_option(vdf, pdf, new_ft, strike, lots, new_vol_id,
                                           op.char, op.payoff, op.shorted, new_ft.get_month())
             tobeadded.append(newop)
@@ -1299,8 +1345,8 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
         print('reached end of signal period')
         return pf, 0
 
-    cvol, pvol, sig, opmth, ftmth, pdt, lots, vega_req = \
-        signals.loc[signals.value_date == next_date, cols].values[0]
+    cvol, pvol, sig, opmth, ftmth, pdt, lots, vega_req = signals.loc[
+        signals.value_date == next_date, cols].values[0]
 
     inputs = [cvol, pvol, sig, opmth, ftmth, pdt, lots, vega_req]
 
@@ -1826,7 +1872,7 @@ def close_out_deltas(pf, dtc):
         pf (portfolio object): The portfolio being handles
         dtc (TYPE): deltas to close; tuple of (pdt, month, price)
         Returns
-            tuple: updated portfolio, and cost of closing out deltas. money is spent to close short pos, and gained by selling long pos. 
+            tuple: updated portfolio, and cost of closing out deltas. money is spent to close short pos, and gained by selling long pos.
     """
     print('closing out deltas')
     cost = 0
@@ -1842,6 +1888,7 @@ def close_out_deltas(pf, dtc):
             toberemoved.append(ft)
 
     pf.remove_security(toberemoved, 'hedge')
+    print('cost of closing out deltas: ', cost)
     return pf, cost
 
 
@@ -2076,4 +2123,6 @@ if __name__ == '__main__':
 #######################################################################
 #######################################################################
 ###############
+#
+###
 #

@@ -872,7 +872,10 @@ def compute_strike_from_delta(option, delta1=None, vol=None, s=None, tau=None, c
     s = option.underlying.get_price() if option else s
     tau = option.tau if option else tau
     vol = option.vol if vol is None else vol
-    strike = s/(exp((vol*sqrt(tau) * D) - ((vol**2)*tau)/2))
+    try:
+        strike = s/(exp((vol*sqrt(tau) * D) - ((vol**2)*tau)/2))
+    except TypeError:
+        print(s, vol, tau, D)
     # getting ticksize, and rounding raw strike to closest available ticksize
     pdt = option.get_product() if pdt is None else pdt
     ticksize = multipliers[pdt][-2]
