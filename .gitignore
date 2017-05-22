@@ -2,3 +2,6 @@
 *.csv
 datasets/
 *.txt
+results/
+Corn HS - Figures/
+Cotton Skew - Figures/
