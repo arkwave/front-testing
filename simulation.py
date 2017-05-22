@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-05-19 19:27:06
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-05-22 13:44:13
 
 ################################ imports ###################################
 import numpy as np
@@ -224,8 +224,9 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
 
     # Step 6: Hedge - consists of rolling over hedges (if necessary), and controlling greek levels of hedges
         # cost = 0
-        pf, cost = roll_over_hedges(pf, vdf, pdf, date, brokerage=brokerage, slippage=slippage)
-        dailycost += cost 
+        pf, cost = roll_over_hedges(
+            pf, vdf, pdf, date, brokerage=brokerage, slippage=slippage)
+        dailycost += cost
 
         pf, counters, cost, roll_hedged = rebalance(
             vdf, pdf, pf, hedges, counters, brokerage=brokerage, slippage=slippage)
@@ -275,7 +276,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
                 # getting net greeks
                 print('log writing - pdt, mth: ', pdt, mth)
                 delta, gamma, theta, vega = dic[pdt][mth]
-                ops = pf.OTC[pdt][mth][0] if mth in pf.OTC[pdt] else pf.hedges[pdt][mth][0]
+                ops = pf.OTC[pdt][mth][0] if mth in pf.OTC[
+                    pdt] else pf.hedges[pdt][mth][0]
                 ftpos = 0
                 # net future position
                 ft = pf.hedges[pdt][mth][1]
@@ -436,8 +438,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
     plt.plot(log.value_date, log.gamma, c='g', alpha=0.8, label='gamma')
     plt.plot(log.value_date, log.theta, c='b', alpha=0.8, label='theta')
     plt.plot(log.value_date, log.vega, c='r', alpha=0.8, label='vega')
-    plt.plot(log.value_date, log.cu_pnl_net, c='k',
-             alpha=0.6, label='cumulative pnl')
+    # plt.plot(log.value_date, log.cu_pnl_net, c='k',
+    #          alpha=0.6, label='cumulative pnl')
     plt.legend()
     plt.title('Greeks over simulation period')
     plt.show()
@@ -722,13 +724,13 @@ def roll_over_hedges(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=
         brokerage (TYPE, optional): brokerage amount
         slippage (TYPE, optional): slippage amount
         ttm_tol (int, optional): tolerance level for time to maturity. 
-    
+
     Returns:
         tuple: updated portfolio and cost of operations undertaken
     """
-    total_cost = 0 
+    total_cost = 0
 
-    hedge_ops = pf.hedge_options 
+    hedge_ops = pf.hedge_options
 
     deltas_to_close = set()
     tobeadded = []
@@ -739,13 +741,13 @@ def roll_over_hedges(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=
             print('$$$ ROLLING HEDGES TO NEXT MONTH $$$')
             print(str(op) + ' nearing expiry. rolling over to next month')
             toberemoved.append(op)
-            # creating the underlying future object 
+            # creating the underlying future object
             pdt = op.get_product()
             ftmth = op.underlying.get_month()
-            # deltas_to_close.add(iden)  
+            # deltas_to_close.add(iden)
             ft_month, ft_yr = ftmth[0], ftmth[1]
-            index = contract_mths[pdt].index(ft_month) + 1 
-            new_ft_month = contract_mths[pdt][index] + ft_yr 
+            index = contract_mths[pdt].index(ft_month) + 1
+            new_ft_month = contract_mths[pdt][index] + ft_yr
             print('old ft month: ', ftmth)
             print('new ft month: ', new_ft_month)
             new_ft, ftprice = create_underlying(pdt, new_ft_month, pdf, date)
@@ -753,29 +755,25 @@ def roll_over_hedges(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=
             iden = (pdt, ftmth, ftprice)
             print('simulation.roll_over_hedges - iden: ', iden)
             deltas_to_close.add(iden)
-            # creating the new options object - getting the tau and vol  
-            new_vol_id = pdt + '  ' + new_ft_month + '.' + new_ft_month 
+            # creating the new options object - getting the tau and vol
+            new_vol_id = pdt + '  ' + new_ft_month + '.' + new_ft_month
             print('new vol_id: ', new_vol_id)
 
-            # create_vanilla_option(vdf, pdf, ft, strike, lots, vol_id, call_put_id):
-            strike, lots = op.K, op.lots 
+            # create_vanilla_option(vdf, pdf, ft, strike, lots, vol_id,
+            # call_put_id):
+            strike, lots = op.K, op.lots
             # create_vanilla_option(vdf, pdf, ft, strike, lots, volid, char, payoff, shorted, mth, date=None)
-            newop = create_vanilla_option(vdf, pdf ,new_ft, strike, lots, new_vol_id, \
-                                            op.char, op.payoff, op.shorted, new_ft.get_month())
+            newop = create_vanilla_option(vdf, pdf, new_ft, strike, lots, new_vol_id,
+                                          op.char, op.payoff, op.shorted, new_ft.get_month())
             tobeadded.append(newop)
-
-
 
     pf.remove_security(toberemoved, 'hedge')
     pf.add_security(tobeadded, 'hedge')
 
     pf, cost = close_out_deltas(pf, deltas_to_close)
-    total_cost += cost 
+    total_cost += cost
 
     return pf, total_cost
-
-
-
 
 
 def rebalance(vdf, pdf, pf, hedges, counters, brokerage=None, slippage=None):
@@ -1823,7 +1821,7 @@ def liquidate_pos(char, resid_vega, ops, pf, strat, dval, brokerage=None, slippa
 def close_out_deltas(pf, dtc):
     """Checks to see if the portfolio is closed out, but with residual deltas. Closes out all remaining
     future positions, resulting in an empty portfolio.
-    
+
     Args:
         pf (portfolio object): The portfolio being handles
         dtc (TYPE): deltas to close; tuple of (pdt, month, price)
@@ -1831,20 +1829,20 @@ def close_out_deltas(pf, dtc):
             tuple: updated portfolio, and cost of closing out deltas. money is spent to close short pos, and gained by selling long pos. 
     """
     print('closing out deltas')
-    cost = 0 
+    cost = 0
     toberemoved = []
     print('simulation.close_out_deltas - dtc: ', dtc)
     for pdt, mth, price in dtc:
         futures = pf.hedges[pdt][mth][1]
         toberemoved = []
         for ft in futures:
-            # need to spend to buy back 
-            val = price if ft.shorted else -price 
-            cost += val 
+            # need to spend to buy back
+            val = price if ft.shorted else -price
+            cost += val
             toberemoved.append(ft)
 
     pf.remove_security(toberemoved, 'hedge')
-    return pf, cost 
+    return pf, cost
 
 
 def hedges_satisfied(pf, hedges):

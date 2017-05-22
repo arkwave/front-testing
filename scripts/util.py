@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-05-19 21:28:46
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-05-22 13:36:23
 
 
 from .portfolio import Portfolio
@@ -12,7 +12,7 @@ from sqlalchemy import create_engine
 import pandas as pd
 import numpy as np
 import os
-import time 
+import time
 
 
 multipliers = {
@@ -101,41 +101,42 @@ def create_portfolio(pdt, opmth, ftmth, optype, vdf, pdf, **kwargs):
 
     if optype == 'straddle':
         shorted = kwargs['shorted']
-        op1, op2 = create_straddle(volid, vdf, pdf, ft, date, shorted, strike, kwargs)
+        op1, op2 = create_straddle(
+            volid, vdf, pdf, ft, date, shorted, strike, kwargs)
 
-    pf.add_security([op1, op2], 'OTC')    
+    pf.add_security([op1, op2], 'OTC')
 
     if 'hedges' in kwargs:
         print('creating hedges')
         dic = kwargs['hedges']
         if dic['type'] == 'straddle':
-            # identifying the essentials 
+            # identifying the essentials
             pdt, ftmth, opmth = dic['pdt'], dic['ftmth'], dic['opmth']
             volid = pdt + '  ' + opmth + '.' + ftmth
             shorted = dic['shorted']
-            # create the underlying future object 
+            # create the underlying future object
             h_ft, h_price = create_underlying(pdt, ftmth, pdf, date)
-            h_strike = round(round(h_price/ ticksize) * ticksize, 2) if dic['strike'] == 'atm' else dic['strike']
-            # create_straddle(volid, vdf, pdf, ft, date, shorted, strike, kwargs):
-            h1, h2 = create_straddle(volid, vdf, pdf, h_ft, date, shorted, h_strike, dic, pf=pf)
+            h_strike = round(round(h_price / ticksize) * ticksize,
+                             2) if dic['strike'] == 'atm' else dic['strike']
+            # create_straddle(volid, vdf, pdf, ft, date, shorted, strike,
+            # kwargs):
+            h1, h2 = create_straddle(
+                volid, vdf, pdf, h_ft, date, shorted, h_strike, dic, pf=pf)
 
         pf.add_security([h1, h2], 'hedge')
 
-    
-    
     return pf
-
 
 
 def create_underlying(pdt, ftmth, pdf, date):
     """Utility method that creates the underlying future object given a product, month, price data and date. 
-    
+
     Args:
         pdt (TYPE): product (e.g. 'S')
         ftmth (TYPE): month (e.g. N7)
         pdf (TYPE): Dataframe of prices 
         date (TYPE): Date 
-    
+
     Returns:
         tuple: future object, and price. 
     """
@@ -147,7 +148,7 @@ def create_underlying(pdt, ftmth, pdf, date):
         print('util.create_underlying: cannot find price. printing outputs: ')
         print('uid: ', uid)
         print('date: ', date)
-        return 
+        return
     curr_mth = date.month
     curr_mth_sym = month_to_sym[curr_mth]
     curr_yr = date.year % (2000 + decade)
@@ -155,13 +156,12 @@ def create_underlying(pdt, ftmth, pdf, date):
     order = find_cdist(curr_sym, ftmth, contract_mths[pdt])
     ft = Future(ftmth, ftprice, pdt, shorted=False, ordering=order)
 
-    return ft , ftprice
-
+    return ft, ftprice
 
 
 def create_vanilla_option(vdf, pdf, ft, strike, lots, volid, char, payoff, shorted, mth, date=None):
     """Utility method that creates an option from the info passed in. 
-    
+
     Args:
         vdf (TYPE): Description
         pdf (TYPE): Description
@@ -171,47 +171,46 @@ def create_vanilla_option(vdf, pdf, ft, strike, lots, volid, char, payoff, short
         volid (TYPE): Description
         cpi (TYPE): Description
         date (None, optional): Description
-    
+
     Returns:
         TYPE: Description
-    
+
     Deleted Parameters:
         vol_id (TYPE): Description
         call_put_id (TYPE): Description
     """
-    # get tau 
-    date = vdf.value_date.unique()[0] if date is None else date 
+    # get tau
+    date = vdf.value_date.unique()[0] if date is None else date
     cpi = 'C' if char == 'call' else 'P'
     try:
         tau = vdf[(vdf.value_date == date) &
-              (vdf.vol_id == volid)].tau.values[0]
+                  (vdf.vol_id == volid)].tau.values[0]
 
     except IndexError:
         print('util.create_vanilla_option - cannot find tau.')
         print('inputs: ', date, volid)
-    # get vol 
+    # get vol
     try:
         vol = vdf[(vdf.value_date == date) &
-                   (vdf.vol_id == volid) &
-                   (vdf.call_put_id == cpi) &
-                   (vdf.strike == strike)].settle_vol.values[0]
+                  (vdf.vol_id == volid) &
+                  (vdf.call_put_id == cpi) &
+                  (vdf.strike == strike)].settle_vol.values[0]
     except IndexError:
         print('util.create_straddle - vol1 not found, inputs below: ')
         print('date: ', date)
         print('vol_id: ', volid)
         print('call_put_id: ', cpi)
         print('strike: ', strike)
-    
+
     # (self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=1000, bullet=True, ki=None, ko=None, rebate=0, ordering=1e5, settlement='cash')
-    newop = Option(strike, tau, char, vol, ft, payoff, shorted, mth, lots=lots, ordering=ft.get_ordering())
-    return newop 
-
-
+    newop = Option(strike, tau, char, vol, ft, payoff, shorted,
+                   mth, lots=lots, ordering=ft.get_ordering())
+    return newop
 
 
 def create_straddle(volid, vdf, pdf, ft, date, shorted, strike, kwargs, pf=None):
     """Utility function that creates straddle given dataframes and arguments.
-    
+
     Args:
         volid (string): vol_id of the straddle
         vdf (dataframe): Dataframe of vols
@@ -222,14 +221,14 @@ def create_straddle(volid, vdf, pdf, ft, date, shorted, strike, kwargs, pf=None)
         strike (float): Strike of this straddle
         kwargs (dict): dictionary of parameters. contains info regarding greek value of straddle. 
         pf (portfolio, optional): Portfolio object. Used to determine lot-sizes of hedges on the fly. 
-    
+
     Returns:
         TYPE: Description
     """
 
     opmth = volid.split('.')[0].split()[1]
     pdt = volid.split()[0]
-    order = ft.get_ordering() 
+    order = ft.get_ordering()
     char1, char2 = 'call', 'put'
     tau = vdf[(vdf.value_date == date) &
               (vdf.vol_id == volid)].tau.values[0]
@@ -260,12 +259,10 @@ def create_straddle(volid, vdf, pdf, ft, date, shorted, strike, kwargs, pf=None)
         print('call_put_id: ', cpi2)
         print('strike: ', strike)
 
-
     op1 = Option(strike, tau, char1, vol1, ft, 'amer',
                  shorted, opmth, ordering=order)
     op2 = Option(strike, tau, char2, vol2, ft, 'amer',
                  shorted, opmth, ordering=order)
-
 
     # determine number of lots based on greek and greekvalue
     if kwargs['greek'] == 'vega':
@@ -276,28 +273,26 @@ def create_straddle(volid, vdf, pdf, ft, date, shorted, strike, kwargs, pf=None)
         v1 = (op1.vega * 100) / (op1.lots * dm * lm)
         v2 = (op2.vega * 100) / (op2.lots * dm * lm)
         lots_req = round((abs(vega_req) * 100) / ((v1 + v2) * lm * dm))
-    
+
     elif kwargs['greek'] == 'gamma':
         if pf is not None and kwargs['greekval'] == 'portfolio':
             gamma_req = -pf.net_gamma_pos()
-        else: 
+        else:
             gamma_req = float(kwargs['greekval'])
         print('gamma req: ', gamma_req)
         lm, dm = multipliers[pdt][1], multipliers[pdt][0]
         # gamma = (gamma1*lots*lm)/(dm)
         g1 = (op1.gamma * dm) / (op1.lots * lm)
-        g2 = (op2.gamma * dm) / (op2.lots * lm) 
-        lots_req = round(((gamma_req) * dm) / ((g1+ g2) * lm))
+        g2 = (op2.gamma * dm) / (op2.lots * lm)
+        lots_req = round(((gamma_req) * dm) / ((g1 + g2) * lm))
 
     elif kwargs['greek'] == 'theta':
-        pass 
-
+        pass
 
     op1.update_lots(lots_req)
     op2.update_lots(lots_req)
 
-    return op1, op2 
-
+    return op1, op2
 
 
 def prep_datasets(vdf, pdf, edf, start_date, end_date, specpath='', signals=None, test=False, write=False):
@@ -311,9 +306,9 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, specpath='', signals=None
     # edf = pd.read_csv(epath).dropna()
 
     vid_list = vdf.vol_id.unique()
-    p_list = pdf.underlying_id.unique() 
+    p_list = pdf.underlying_id.unique()
 
-    print('util.prep_datasets - vid_list: ' , vid_list)
+    print('util.prep_datasets - vid_list: ', vid_list)
     print('util.prep_datasets - p_list: ', p_list)
 
     if os.path.exists(specpath):
@@ -408,11 +403,9 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, specpath='', signals=None
     return final_vol, final_price, edf, pdf
 
 
-
-
 def pull_alt_data():
     """Utility function that draws/cleans data from the alternate data table. 
-    
+
     Returns:
         TYPE: Description
     """
@@ -428,46 +421,53 @@ def pull_alt_data():
     df = pd.read_sql_query(query, connection)
 
     print('finished pulling data')
-    print('elapsed: ' ,time.clock() - t)
+    print('elapsed: ', time.clock() - t)
 
-    # cleans up data 
+    # cleans up data
     df['vol_id'] = df.security_id.str[:9]
-    df['call_put_id'] = df.security_id.str[9:11].str.strip() 
+    df['call_put_id'] = df.security_id.str[9:11].str.strip()
     # getting 'S' from 'S Q17.Q17'
     df['pdt'] = df.vol_id.str.split().str[0].str.strip()
-    
+
     # getting opmth
-    df['opmth'] = df.vol_id.str.split('.').str[0].str.split().str[1].str.strip()
-    df.opmth = df.opmth.str[0] + (df.opmth.str[1:].astype(int) % 10).astype(str)
+    df['opmth'] = df.vol_id.str.split(
+        '.').str[0].str.split().str[1].str.strip()
+    df.opmth = df.opmth.str[0] + \
+        (df.opmth.str[1:].astype(int) % 10).astype(str)
 
     df['strike'] = df.security_id.str[10:].astype(float)
 
-    df['implied_vol'] = df.implied_vol / 100 
+    df['implied_vol'] = df.implied_vol / 100
 
     # Q17 -> Q7
     df['ftmth'] = df.vol_id.str.split('.').str[1].str.strip()
-    df.ftmth = df.ftmth.str[0] + (df.ftmth.str[1:].astype(int) % 10).astype(str)
+    df.ftmth = df.ftmth.str[0] + \
+        (df.ftmth.str[1:].astype(int) % 10).astype(str)
 
     # creating underlying_id and vol_id
     df.vol_id = df.pdt + '  ' + df.opmth + '.' + df.ftmth
     df['underlying_id'] = df.pdt + '  ' + df.ftmth
 
-    # selecting 
-    vdf = df[['settlement_date', 'vol_id', 'call_put_id', 'strike', 'implied_vol']]
+    # selecting
+    vdf = df[['settlement_date', 'vol_id',
+              'call_put_id', 'strike', 'implied_vol']]
     pdf = df[['settlement_date', 'underlying_id', 'future_settlement_value']]
 
-    vdf.columns = ['value_date', 'vol_id', 'call_put_id', 'strike', 'settle_vol']
+    vdf.columns = ['value_date', 'vol_id',
+                   'call_put_id', 'strike', 'settle_vol']
     pdf.columns = ['value_date', 'underlying_id', 'settle_value']
 
-    # removing duplicates, resetting indices 
-    pdf = pdf.drop_duplicates() 
-    vdf = vdf.drop_duplicates() 
+    # removing duplicates, resetting indices
+    pdf = pdf.drop_duplicates()
+    vdf = vdf.drop_duplicates()
 
     pdf.reset_index(drop=True, inplace=True)
     vdf.reset_index(drop=True, inplace=True)
 
+    if not os.path.isdir('datasets/data_dump'):
+        os.mkdir('datasets/data_dump')
+
     vdf.to_csv('datasets/data_dump/s_vol_dump.csv', index=False)
     pdf.to_csv('datasets/data_dump/s_price_dump.csv', index=False)
 
-    return vdf, pdf, df 
-
+    return vdf, pdf, df
