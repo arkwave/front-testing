@@ -4,7 +4,8 @@ import numpy as np
 import pandas as pd
 import scripts.global_vars as gv
 from simulation import run_simulation
-from scripts.util import create_portfolio, prep_datasets, pull_alt_data
+from scripts.util import create_portfolio, prep_datasets, pull_alt_data, create_underlying, create_vanilla_option
+from scripts.portfolio import Portfolio
 
 
 multipliers = {
@@ -70,35 +71,40 @@ specpath = 'specs.csv'
 sigpath = 'datasets/small_ct/signals.csv'
 hedgepath = 'hedging.csv'
 
-yrs = [2]
+yrs = [5]
 pnls = []
 
-# vdf, pdf, df = pull_alt_data('KC')
-log = None
-target = 'N'
+# vdf, pdf, df = pull_alt_data('W')
+
+target = 'U'
 
 for yr in yrs:
-    pdt = 'CT'
-    symlst = ['H', 'K', 'N', 'Z']
+    pdt = 'W'
+    ftlist = ['U']
+    oplist = ['Q', 'U']
     # ftmth = 'X2'
     # opmth = 'X2'
 
-    alt = True  # if yr >= 5 else True
+    alt = True
+    # alt = True if yr >= 5 else True
 
     pricedump = 'datasets/data_dump/' + pdt.lower() + '_price_dump.csv'
     voldump = 'datasets/data_dump/' + pdt.lower() + '_vol_dump.csv'
 
-    start_date = pd.Timestamp('201' + str(yr) + '-05-22')
-    end_date = pd.Timestamp('201' + str(yr) + '-06-15')
+    start_date = pd.Timestamp('201' + str(yr) + '-05-23')
+    end_date = pd.Timestamp('201' + str(yr) + '-08-31')
 
     # vdf, pdf, df = pull_alt_data()
 
     if alt:
+        # uids = 'U' + str(yr)
+        # opmths = []
         print('pulling data')
         edf = pd.read_csv(epath)
-        uids = [pdt + '  ' + u + str(yr) for u in symlst]
+        uids = [pdt + '  ' + u + str(yr) for u in ftlist]
         print('uids: ', uids)
-        volids = [pdt + '  ' + u + str(yr) + '.' + u + str(yr) for u in symlst]
+        volids = [pdt + '  ' + i + str(yr) + '.' + u + str(yr)
+                        for i in oplist for u in ftlist]
         print('volids: ', volids)
         pdf = pd.read_csv(pricedump)
         pdf.value_date = pd.to_datetime(pdf.value_date)
@@ -148,11 +154,36 @@ for yr in yrs:
     #                'greek': 'gamma',
     #                'greekval': 'portfolio'}
 
-    opmth = target + str(yr)
+    opmth1 = target + str(yr)
+    opmth2 = 'Q' + str(yr)
     ftmth = target + str(yr)
 
-    pf = create_portfolio(pdt, opmth, ftmth, 'straddle', vdf, pdf, chars=[
-        'call', 'put'], shorted=False, atm=True, greek='theta', greekval='-20000')
+    volid1 = pdt + '  ' + opmth1 + '.' + ftmth  # W UX.UX
+    volid2 = pdt + '  ' + opmth2 + '.' + ftmth  # W QX.UX
+
+    ft, ftprice = create_underlying(pdt, ftmth, pdf, start_date)
+    print('underlying: ', ft)
+
+    op1 = create_vanilla_option(
+        vdf, pdf, ft, 430, volid2, 'put', 'amer', False, opmth2, lots=900)
+    op2 = create_vanilla_option(
+        vdf, pdf, ft, 440, volid2, 'put', 'amer', False, opmth2, lots=500)
+    op3 = create_vanilla_option(
+        vdf, pdf, ft, 450, volid1, 'call', 'amer', False, opmth1, lots=450)
+    op4 = create_vanilla_option(
+        vdf, pdf, ft, 460, volid1, 'call', 'amer', False, opmth1, lots=175)
+    op5 = create_vanilla_option(
+        vdf, pdf, ft, 480, volid1, 'call', 'amer', True, opmth1, lots=231)
+    fts, _ = create_underlying(pdt, ftmth, pdf, start_date, lots=509)
+
+    pf = Portfolio()
+    ops = [op1, op2, op3, op4, op5]
+    fts = [fts]
+    pf.add_security(ops, 'OTC')
+    pf.add_security(fts, 'hedge')
+
+    # pf = create_portfolio(pdt, opmth, ftmth, 'skew', vdf, pdf, chars=[
+    #     'call', 'put'], shorted=True, delta=25, greek='vega', greekval='25000')
 
     # pf = create_portfolio(pdt, opmth, ftmth, 'straddle', vdf, pdf, chars=[
     #     'call', 'put'], shorted=False, atm=True, greek='vega', greekval='130000', hedges=hedge_specs)
@@ -180,6 +211,7 @@ for yr in yrs:
 
     pnls.append(netpnl)
 
+# bound = '_20_30'
+# bound = '_10_40'
+# log.to_csv('results/kc/201' + str(yr) + bound + '_log.csv', index=False)
 print(pnls)
-
-log.to_csv('results/cotton/log.csv', index=False)

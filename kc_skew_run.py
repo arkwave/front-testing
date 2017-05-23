@@ -70,16 +70,16 @@ specpath = 'specs.csv'
 sigpath = 'datasets/small_ct/signals.csv'
 hedgepath = 'hedging.csv'
 
-yrs = [2]
+yrs = [5]
 pnls = []
 
 # vdf, pdf, df = pull_alt_data('KC')
-log = None
-target = 'N'
+
+target = 'Z'
 
 for yr in yrs:
-    pdt = 'CT'
-    symlst = ['H', 'K', 'N', 'Z']
+    pdt = 'KC'
+    symlst = ['H', 'K', 'N', 'U', 'Z']
     # ftmth = 'X2'
     # opmth = 'X2'
 
@@ -88,8 +88,8 @@ for yr in yrs:
     pricedump = 'datasets/data_dump/' + pdt.lower() + '_price_dump.csv'
     voldump = 'datasets/data_dump/' + pdt.lower() + '_vol_dump.csv'
 
-    start_date = pd.Timestamp('201' + str(yr) + '-05-22')
-    end_date = pd.Timestamp('201' + str(yr) + '-06-15')
+    start_date = pd.Timestamp('201' + str(yr) + '-06-01')
+    end_date = pd.Timestamp('201' + str(yr) + '-08-31')
 
     # vdf, pdf, df = pull_alt_data()
 
@@ -151,8 +151,8 @@ for yr in yrs:
     opmth = target + str(yr)
     ftmth = target + str(yr)
 
-    pf = create_portfolio(pdt, opmth, ftmth, 'straddle', vdf, pdf, chars=[
-        'call', 'put'], shorted=False, atm=True, greek='theta', greekval='-20000')
+    pf = create_portfolio(pdt, opmth, ftmth, 'skew', vdf, pdf, chars=[
+        'call', 'put'], shorted=True, delta=25, greek='vega', greekval='25000')
 
     # pf = create_portfolio(pdt, opmth, ftmth, 'straddle', vdf, pdf, chars=[
     #     'call', 'put'], shorted=False, atm=True, greek='vega', greekval='130000', hedges=hedge_specs)
@@ -180,6 +180,7 @@ for yr in yrs:
 
     pnls.append(netpnl)
 
-print(pnls)
-
-log.to_csv('results/cotton/log.csv', index=False)
+# bound = '_20_30'
+bound = '_10_40'
+log.to_csv('results/kc/201' + str(yr) + bound + '_log.csv', index=False)
+# print(pnls)

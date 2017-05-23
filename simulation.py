@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-05-22 20:36:39
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-05-23 17:06:39
 
 ################################ imports ###################################
 import numpy as np
@@ -280,14 +280,20 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         oplots = pf.OTC_options[0].lots if pf.OTC_options else 0
 
     # Step 9: computing stuff to be logged
-        lst = [date, stradcost, oplots, ftprice, dailypnl, dailypnl-dailycost,
+        lst = [date, stradcost, oplots, ftprice,
+               dailypnl, dailypnl-dailycost,
                grosspnl, netpnl, gamma_pnl, gammapnl, vega_pnl, vegapnl, roll_hedged]
+
         dic = pf.get_net_greeks()
+
         call_vega, put_vega = 0, 0
-        cols = ['value_date', 'straddle_value', 'option_lottage', 'future price', 'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross',
-                'cu_pnl_net', 'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl',
-                'cu_vega_pnl', 'delta_rolled', 'pdt', 'month', 'delta', 'gamma',
-                'theta', 'vega', 'net_call_vega', 'net_put_vega', 'net_ft_pos', 'b/s']
+
+        cols = ['value_date', 'straddle_value', 'option_lottage', 'future price',
+                'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross', 'cu_pnl_net',
+                'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl', 'cu_vega_pnl',
+                'delta_rolled', 'pdt', 'month', 'delta', 'gamma', 'theta',
+                'vega', 'net_call_vega', 'net_put_vega', 'net_ft_pos', 'b/s']
+
         for pdt in dic:
             for mth in dic[pdt]:
                 # getting net greeks
@@ -336,6 +342,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
 
     ######################### PRINTING OUTPUT ###########################
     log = pd.DataFrame(loglist)
+    # log.to_csv('log.csv')
+    log['vol_id'] = log.pdt + '  ' + log.month + '.' + log.month
 
     # appending 25d vol changes and price changes
     if signals is not None:
@@ -355,9 +363,30 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         df = df.fillna(0)
         log = pd.merge(log, df[['value_date', 'vol_id', 'price_change',
                                 '25d_call_change', '25d_put_change']], on=['value_date'])
+    # case where signals are None; in this case get 25d vol changes from pdf
+    elif signals is None:
+        rel_prices = pricedata[['value_date', 'vol_id', 'call_put_id', '25d']]
+        calls = rel_prices[rel_prices.call_put_id == 'C'][
+            ['vol_id', 'value_date', '25d']]
+        calls.columns = ['vol_id', 'value_date', '25d_c']
 
-    if not os.path.isdir(gv.folder):
-        os.mkdir(gv.folder)
+        puts = rel_prices[rel_prices.call_put_id == 'P'][
+            ['vol_id', 'value_date', '25d']]
+        puts.columns = ['vol_id', 'value_date', '25d_p']
+
+        log = pd.merge(log, calls, on=['vol_id', 'value_date'])
+        log = pd.merge(log, puts, on=['vol_id', 'value_date'])
+
+        print('columns after merge: ', log.columns)
+        log['25d_c'] = (log['25d_c'].shift(-1) - log['25d_c']).shift(1)
+        log['25d_p'] = (log['25d_p'].shift(-1) - log['25d_p']).shift(1)
+
+        log['future price'] = (
+            log['future price'].shift(-1) - log['future price']).shift(1)
+
+    # log.to_csv('log.csv')
+    # if not os.path.isdir(gv.folder):
+    #     os.mkdir(gv.folder)
 
     # log.to_csv(gv.folder + '/log.csv', index=False)
 
@@ -420,17 +449,6 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
     plt.title('gross/net pnl daily')
     plt.legend()
     plt.show()
-
-    # plt.figure()
-    # plt.plot(xvals, gross_cumul_values, c='b',
-    #          alpha=0.8, label='gross cumulative pnl')
-    # plt.plot(xvals, net_cumul_values, c='r',
-    #          alpha=0.8, label='net cumulative pnl')
-    # plt.plot(xvals, gamma_pnl_cumul, c='g', alpha=0.5, label='cu. gamma pnl')
-    # plt.plot(xvals, vega_pnl_cumul, c='y', alpha=0.5, label='cu. vega pnl')
-    # plt.title('gross/net pnl cumulative')
-    # plt.legend()
-    # plt.show()
 
     # cumulative gamma/vega/cumulpnl values
     plt.figure()
