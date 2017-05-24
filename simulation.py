@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-05-23 17:06:39
+# @Last Modified time: 2017-05-24 18:38:43
 
 ################################ imports ###################################
 import numpy as np
@@ -1355,7 +1355,7 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
 
     cost = 0
     cols = ['delta_call_25_a', 'delta_put_25_b',
-            'signal', 'opmth', 'ftmth', 'pdt', 'lots', 'vega']
+            'signal', 'opmth', 'ftmth', 'pdt', 'vega']
     # getting inputs from signals dataframe
     print('next_date: ', next_date)
 
@@ -1363,12 +1363,13 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
         print('reached end of signal period')
         return pf, 0
 
-    cvol, pvol, sig, opmth, ftmth, pdt, lots, vega_req = signals.loc[
+    cvol, pvol, sig, opmth, ftmth, pdt, vega_req = signals.loc[
         signals.value_date == next_date, cols].values[0]
 
-    inputs = [cvol, pvol, sig, opmth, ftmth, pdt, lots, vega_req]
+    inputs = [cvol, pvol, sig, opmth, ftmth, pdt, vega_req]
 
     print('________APPLYING SIGNAL_______: ', sig)
+    print('Inputs: ', inputs)
     ret = None
     next_date = pd.to_datetime(next_date)
 
@@ -1440,6 +1441,7 @@ def generate_skew_op(char, vdf, pdf, inputs, date, dval, brokerage=None, slippag
     """
     # unpack inputs
     cost = 0
+    #
     vol, sig, opmth, ftmth, pdt, vega_req = inputs
     print('generate_skew_ops inputs: ')
     print('vol: ', vol)
@@ -1486,12 +1488,13 @@ def generate_skew_op(char, vdf, pdf, inputs, date, dval, brokerage=None, slippag
               (vdf.vol_id == vol_id)].tau.values[0]
 
     # computing strikes
+    print('genrate_skew_op: csd inputs: ', dval, vol, ftprice, tau, char, pdt)
     strike = compute_strike_from_delta(
         None, delta1=dval, vol=vol, s=ftprice, tau=tau, char=char, pdt=pdt)
 
     op = Option(strike, tau, char, vol, ft, 'amer',
                 shorted, opmth, ordering=order)
-
+    print('generate_skew_op - option generated: ', op)
     pnl_mult = multipliers[pdt][-1]
     op_vega = (op.vega * 100) / (op.lots * pnl_mult)
     print(char + ' vega: ', op_vega)
@@ -1652,7 +1655,7 @@ def update_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol, vdf, pdf
 
     """
     cost = 0
-    cvol, pvol, sig, opmth, ftmth, pdt, lots = inputs[:-1]
+    cvol, pvol, sig, opmth, ftmth, pdt, vega = inputs
 
     vol = cvol if char == 'call' else pvol
 
