@@ -6,6 +6,7 @@ import scripts.global_vars as gv
 from simulation import run_simulation
 from scripts.util import create_portfolio, prep_datasets, pull_alt_data, create_underlying, create_vanilla_option
 from scripts.portfolio import Portfolio
+import os
 
 
 multipliers = {
@@ -71,7 +72,7 @@ specpath = 'specs.csv'
 sigpath = 'datasets/small_ct/signals.csv'
 hedgepath = 'hedging.csv'
 
-yrs = [5]
+yrs = [0]
 pnls = []
 
 # vdf, pdf, df = pull_alt_data('W')
@@ -116,15 +117,25 @@ for yr in yrs:
         vmask = vdf.vol_id.isin(volids)
         vdf = vdf[vmask]
         vdf.value_date = pd.to_datetime(vdf.value_date)
-        # filter datasets before prep
-        # vdf = vdf[(vdf.value_date >= start_date)
-        #           & (vdf.value_date <= end_date)]
-        # pdf = pdf[(pdf.value_date >= start_date)
-        #           & (pdf.value_date <= end_date)]
 
-        vdf, pdf, edf, priceDF = prep_datasets(
+        # filter datasets before prep
+        vdf = vdf[(vdf.value_date >= start_date)
+                  & (vdf.value_date <= end_date)]
+        pdf = pdf[(pdf.value_date >= start_date)
+                  & (pdf.value_date <= end_date)]
+
+        vdf, pdf, edf, priceDF, start_date = prep_datasets(
             vdf, pdf, edf, start_date, end_date)
+
+        print('w_position - start date: ', start_date)
+
+        if not os.path.isdir('datasets/' + pdt.lower()):
+            os.mkdir('datasets/' + pdt.lower())
         print('finished pulling data')
+
+        vdf.to_csv('datasets/' + pdt.lower() + '/debug_vols.csv', index=False)
+        pdf.to_csv('datasets/' + pdt.lower() +
+                   '/debug_prices.csv', index=False)
 
     else:
         opmth = target + str(yr)
@@ -210,8 +221,9 @@ for yr in yrs:
         slippage=gv.slippage)
 
     pnls.append(netpnl)
+    log.to_csv('results/w/201' + str(yr) + '_log.csv', index=False)
 
 # bound = '_20_30'
 # bound = '_10_40'
-# log.to_csv('results/kc/201' + str(yr) + bound + '_log.csv', index=False)
+
 print(pnls)
