@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-05-23 19:09:30
+# @Last Modified time: 2017-05-24 14:13:01
 
 
 from .portfolio import Portfolio
@@ -678,7 +678,7 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, specpath='', signals=None
         final_price.vol_id = final_price.vol_id.str.split().str[0]\
             + '  ' + final_price.vol_id.str.split().str[1]
 
-    return final_vol, final_price, edf, pdf
+    return final_vol, final_price, edf, pdf, start_date
 
 
 def pull_alt_data(pdt):
