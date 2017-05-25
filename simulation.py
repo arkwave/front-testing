@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-05-24 18:38:43
+# @Last Modified time: 2017-05-25 15:45:24
 
 ################################ imports ###################################
 import numpy as np
@@ -204,21 +204,22 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         print('SOD Vega Pos: ', pf.net_vega_pos())
 
     # Step 3: Feed data into the portfolio.
-        pf, broken, gamma_pnl, vega_pnl, profit = feed_data(
+        pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures = feed_data(
             vdf, pdf, pf, rollover_dates, prev_date, init_val, brokerage=brokerage, slippage=slippage)
 
-        dailycost -= profit
-        print('cost after feed data: ', dailycost)
+        # dailycost -= profit
+        # print('cost after feed data: ', dailycost)
 
     # Step 4: Compute pnl for the day
         updated_val = pf.compute_value()
         print('updated pnl after feed: ', updated_val)
         print('init val: ', init_val)
-        dailypnl = updated_val - \
-            init_val if (init_val != 0 and updated_val != 0) else 0
-        # print('dailypnl: ', dailypnl)
+        dailypnl = (updated_val -
+                    init_val) + exercise_profit if (init_val != 0 and updated_val != 0) else 0
 
-        # print('Vegas: ', [(str(op), op.vega) for op in pf.OTC_options])
+    # Detour: add in exercise futures if required.
+        if exercise_futures:
+            pf.add_security(exercise_futures, 'OTC')
 
     # Step 5: Apply signal
         if signals is not None:
@@ -556,24 +557,15 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
     Raises:
         ValueError: Raised if voldf is empty.
     """
+    exercise_futures = []
     broken = False
     # sanity checks
     if pf.empty():
         # pf, broken, gamma_pnl, vega_pnl, profit
-        return pf, False, 0, 0, 0
+        return pf, False, 0, 0, 0, []
 
     if voldf.empty:
         raise ValueError('vol df is empty!')
-
-    # 1) initial value of the portfolio before updates, and handling exercises
-    # before feeding data.
-    # prev_val = pf.compute_value()
-    profit, pf = handle_exercise(pf, brokerage, slippage)
-
-    # yesterday's price and vols timestepped to today.
-    # prev_val = pf.compute_value()
-
-    print('handle exercise profit: ', profit)
 
     # print('curr_date: ', curr_date)
     prev_date = pd.to_datetime(prev_date)
@@ -596,11 +588,6 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
     #                 pf.decrement_ordering(product, 1)
 
     # expiries; also removes options for which ordering = 0
-    pf.remove_expired()
-
-    print('pf after rollovers and expiries: ', pf)
-
-    # sanity check: if all options have expired, close out deltas
 
     # 3)  update prices of futures, underlying & portfolio alike.
     if not broken:
@@ -610,7 +597,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
                 uid = ft.get_product() + '  ' + ft.get_month()
                 val = pdf[(pdf.pdt == pdt) &
                           (pdf.underlying_id == uid)].settle_value.values[0]
-                print('UPDATED - new price: ', val)
+                # print('UPDATED - new price: ', val)
                 ft.update_price(val)
 
             # index error would occur only if data is missing.
@@ -623,6 +610,11 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
                                        (pdf.order == ordering)])
                 broken = True
                 break
+
+    profit, pf, exercised, exercise_futures = handle_exercise(
+        pf, brokerage, slippage)
+    print('handle exercise profit: ', profit)
+    pf.remove_expired()
 
     # sanity check: if no active options, close out entire portfolio.
     if not pf.OTC_options and not pf.hedge_options:
@@ -638,10 +630,17 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
         pf, cost = close_out_deltas(pf, deltas_to_close)
         profit -= cost
 
-    # (today's price, yesterday's vols) - (yesterday's price, yesterday's vols)
+    # calculating gamma pnl
     intermediate_val = pf.compute_value()
-    gamma_pnl = intermediate_val - \
-        init_val if (init_val != 0 and intermediate_val != 0) else 0
+
+    print('intermediate value: ', intermediate_val)
+    if exercised:
+        gamma_pnl = (intermediate_val + profit) - init_val
+    else:
+        gamma_pnl = intermediate_val - init_val \
+            if (init_val != 0 and intermediate_val != 0) else 0
+
+    print('pf after rollovers and expiries: ', pf)
 
     # update option attributes by feeding in vol.
     if not broken:
@@ -663,7 +662,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
                 df_tau = min(val.tau, key=lambda x: abs(x-tau))
                 val = val[val.tau == df_tau].settle_vol.values[0]
                 op.update_greeks(vol=val)
-                print('UPDATED - new vol: ', val)
+                # print('UPDATED - new vol: ', val)
             except (IndexError, ValueError):
                 print('### VOLATILITY DATA MISSING ###')
                 print('product: ', product)
@@ -688,7 +687,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
     # print('Portfolio After Feed: ', pf)
     print('[7]  NET GREEKS: ', str(pprint.pformat(pf.net_greeks)))
 
-    return pf, broken, gamma_pnl, vega_pnl, profit
+    return pf, broken, gamma_pnl, vega_pnl, profit, exercise_futures
 
 
 def handle_exercise(pf, brokerage=None, slippage=None):
@@ -707,8 +706,8 @@ def handle_exercise(pf, brokerage=None, slippage=None):
 
     """
     if pf.empty():
-        return 0, pf
-
+        return 0, pf, False
+    exercised = False
     t = time.clock()
     profit = 0
     tol = 1/365
@@ -716,54 +715,73 @@ def handle_exercise(pf, brokerage=None, slippage=None):
     # all_ops = pf.get_all_options()
     otc_ops = pf.OTC_options
     hedge_ops = pf.hedge_options
-    toberemoved = []
+
+    tobeadded = []
     for op in otc_ops:
-        if op.tau < tol:
-            if op.exercise():
+        if op.tau <= tol:
+            exer = op.exercise()
+            op.tau = 0
+            if exer:
+                print("exercising OTC op " + str(op))
                 if op.settlement == 'cash':
                     print("----- CASH SETTLEMENT: OTC OP ------")
-                    print("exercising OTC op " + str(op))
-                    op.update_tau(op.tau)
-                    product = op.get_product()
-                    pnl_mult = multipliers[product][-1]
-                    oppnl = op.lots * op.get_price()*pnl_mult
-                    print('profit on this exercise: ', oppnl)
-                    print("-------------------------------------")
-
-                    profit += oppnl  # - fees
                 elif op.settlement == 'futures':
                     print('----- FUTURE SETTLEMENT: OTC OP ------')
-                    pf.exercise_option(op, 'OTC')
+                    ft = op.get_underlying()
+                    ft.update_lots(op.lots)
+                    print('future added - ', str(ft))
+                    print('lots: ', op.lots, ft.lots)
+                    tobeadded.append(ft)
+
+                # calculating the net profit from this exchange.
+                product = op.get_product()
+                pnl_mult = multipliers[product][-1]
+                # op.get_price() defaults to max(k-s,0 ) or max(s-k, 0)
+                # since op.tau = 0
+                oppnl = op.lots * op.get_price()*pnl_mult
+                print('profit on this exercise: ', oppnl)
+                print("-------------------------------------")
+                profit += oppnl
+                exercised = True
+
             else:
                 print('letting OTC op ' + str(op) + ' expire.')
-                toberemoved.append((op, 'OTC'))
 
     for op in hedge_ops:
-        if op.tau < tol:
-            if op.exercise():
+        if op.tau <= tol:
+            exer = op.exercise()
+            op.tau = 0
+            if exer:
+                print('exercising hedge op ' + str(op))
                 if op.settlement == 'cash':
                     print("----- CASH SETTLEMENT: HEDGE OPS ------")
-                    print('exercising hedge op ' + str(op))
-                    op.update_tau(op.tau)
-                    product = op.get_product()
-                    pnl_mult = multipliers[product][-1]
-                    oppnl = op.lots * op.get_price()*pnl_mult
-                    print('profit on this exercise: ', oppnl)
-                    print('---------------------------------------')
-                    profit += oppnl
                 elif op.settlement == 'futures':
-                    print('----- FUTURE SETTLEMENT: HEDGE OPS ------')
-                    pf.exercise_option(op, 'hedge')
+                    if op.settlement == 'futures':
+                        print('----- FUTURE SETTLEMENT: HEDGE OPS ------')
+                        ft = op.get_underlying()
+                        ft.update_lots(op.lots)
+                        print('future added - ', str(ft))
+                        print('lots: ', op.lots, ft.lots)
+                        tobeadded.append(ft)
+
+                # calculating the net profit from this exchange.
+                pnl_mult = multipliers[op.get_product()][-1]
+                # op.get_price() defaults to max(k-s,0 ) or max(s-k, 0)
+                # since op.tau = 0
+                oppnl = op.lots * op.get_price()*pnl_mult
+                print('profit on this exercise: ', oppnl)
+                print('---------------------------------------')
+                profit += oppnl
+                exercised = True
             else:
                 print('letting hedge op ' + str(op) + ' expire.')
-                toberemoved.append((op, 'hedge'))
 
-    for op, flag in toberemoved:
-        pf.remove_security([op], flag)
-
+    # debug statement:
+    print('tobeadded: ', [str(x) for x in tobeadded])
+    print('options exercised: ', exercised)
     print(' ### net exercise profit: ', profit)
     print('handle expiry time: ', time.clock() - t)
-    return profit, pf
+    return profit, pf, exercised, tobeadded
 
 
 ###############################################################################

@@ -68,7 +68,7 @@ class Option:
     21) get_properties : returns a dictionary containing all the non-default properties of the option. Used for daily to bullet conversion. 
     """
 
-    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=1000, bullet=True, ki=None, ko=None, rebate=0, ordering=1e5, settlement='cash'):
+    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=1000, bullet=True, ki=None, ko=None, rebate=0, ordering=1e5, settlement='futures'):
         self.month = month
         self.barrier = barrier
         self.payoff = payoff
@@ -303,7 +303,7 @@ class Option:
 
     def get_price(self):
         # check for expiry case
-        if self.tau <= 0:
+        if self.tau <= 0 or np.isclose(self.tau, 0):
             mult = -1 if self.shorted else 1
             s = self.underlying.get_price()
             k = self.K
@@ -347,6 +347,7 @@ class Option:
         if self.knockedout:
             return None
         self.active = active
+        print('active: ', active)
         if active:
             s = self.underlying.get_price()
             # at the money
@@ -360,6 +361,8 @@ class Option:
                 else:
                     return -1
             elif self.char == 'put':
+                print('putop')
+                print(self.K, s)
                 # ITM
                 if self.K > s:
                     return 1
@@ -374,8 +377,7 @@ class Option:
         self.delta, self.gamma, self.theta, self.vega = 0, 0, 0, 0
 
     def check_expired(self):
-        ret = True if (np.isclose(self.tau, 0) or self.tau <=
-                       0 or self.ordering <= 0) else False
+        ret = True if (self.tau <= 0 or self.ordering <= 0) else False
         self.expired = ret
         return ret
 
@@ -470,3 +472,5 @@ class Future:
 
     def update_lots(self, lots):
         self.lots = lots
+        mult = -1 if self.shorted else 1
+        self.delta = 1 * lots * mult

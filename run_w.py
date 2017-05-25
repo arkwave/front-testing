@@ -72,7 +72,7 @@ specpath = 'specs.csv'
 sigpath = 'datasets/small_ct/signals.csv'
 hedgepath = 'hedging.csv'
 
-yrs = [0]
+yrs = [6]
 pnls = []
 
 # vdf, pdf, df = pull_alt_data('W')
@@ -172,26 +172,58 @@ for yr in yrs:
     volid1 = pdt + '  ' + opmth1 + '.' + ftmth  # W UX.UX
     volid2 = pdt + '  ' + opmth2 + '.' + ftmth  # W QX.UX
 
-    ft, ftprice = create_underlying(pdt, ftmth, pdf, start_date)
-    print('underlying: ', ft)
+    # creating underlying futures
+    ft1, ftprice1 = create_underlying(pdt, ftmth, pdf, start_date)
+    ft2, ftprice2 = create_underlying(pdt, ftmth, pdf, start_date)
+    ft3, ftprice3 = create_underlying(pdt, ftmth, pdf, start_date)
+    ft4, ftprice4 = create_underlying(pdt, ftmth, pdf, start_date)
+    ft5, ftprice5 = create_underlying(pdt, ftmth, pdf, start_date)
+    ft6, ftprice6 = create_underlying(pdt, ftmth, pdf, start_date)
+    ft7, ftprice7 = create_underlying(pdt, ftmth, pdf, start_date)
+    ft8, ftprice8 = create_underlying(pdt, ftmth, pdf, start_date)
+    ft9, ftprice9 = create_underlying(pdt, ftmth, pdf, start_date)
 
+    print('underlying: ', ft1)
+
+    # W Qx.Ux Put 430 900 lots
     op1 = create_vanilla_option(
-        vdf, pdf, ft, 430, volid2, 'put', 'amer', False, opmth2, lots=900)
+        vdf, pdf, ft1, 430, volid2, 'put', 'amer', False, opmth2, lots=900)
+    # W Qx.Ux Put 440 500 lots
     op2 = create_vanilla_option(
-        vdf, pdf, ft, 440, volid2, 'put', 'amer', False, opmth2, lots=500)
+        vdf, pdf, ft2, 440, volid2, 'put', 'amer', False, opmth2, lots=500)
+    # W Qx.Ux 490 call -1180 lots
     op3 = create_vanilla_option(
-        vdf, pdf, ft, 450, volid1, 'call', 'amer', False, opmth1, lots=450)
+        vdf, pdf, ft3, 490, volid2, 'call', 'amer', True, opmth2, lots=1180)
+    # W Qx.Ux 490 call -750 lots
     op4 = create_vanilla_option(
-        vdf, pdf, ft, 460, volid1, 'call', 'amer', False, opmth1, lots=175)
+        vdf, pdf, ft4, 500, volid2, 'call', 'amer', True, opmth2, lots=750)
+    # W Qx.Ux 475 call 450 lots
     op5 = create_vanilla_option(
-        vdf, pdf, ft, 480, volid1, 'call', 'amer', True, opmth1, lots=231)
-    fts, _ = create_underlying(pdt, ftmth, pdf, start_date, lots=509)
+        vdf, pdf, ft5, 475, volid2, 'call', 'amer', False, opmth2, lots=450)
+
+    # W Ux.Ux call 450 lots
+    op6 = create_vanilla_option(
+        vdf, pdf, ft6, 450, volid1, 'call', 'amer', False, opmth1, lots=450)
+    # W Ux.Ux 460 call 175 lots
+    op7 = create_vanilla_option(
+        vdf, pdf, ft7, 460, volid1, 'call', 'amer', False, opmth1, lots=175)
+    # W Ux.Ux 480 call -231 lots
+    op8 = create_vanilla_option(
+        vdf, pdf, ft8, 480, volid1, 'call', 'amer', True, opmth1, lots=231)
+    # W Ux.Ux 500 call -500 lots
+    op9 = create_vanilla_option(
+        vdf, pdf, ft9, 500, volid1, 'call', 'amer', True, opmth1, lots=500)
+
+    fts, ftprice2 = create_underlying(
+        pdt, ftmth, pdf, start_date, shorted=False, lots=546)
 
     pf = Portfolio()
-    ops = [op1, op2, op3, op4, op5]
-    fts = [fts]
+    ops = [op1, op2, op3, op4, op5, op6, op7, op8, op9]
     pf.add_security(ops, 'OTC')
+    fts = [fts]
     pf.add_security(fts, 'hedge')
+
+    # print(ftprice1, ftprice2)
 
     # pf = create_portfolio(pdt, opmth, ftmth, 'skew', vdf, pdf, chars=[
     #     'call', 'put'], shorted=True, delta=25, greek='vega', greekval='25000')
@@ -215,7 +247,7 @@ for yr in yrs:
     print('rollover dates: ', rollover_dates)
 
     print('running simulation')
-    # run the simulation
+    # # # run the simulation
     grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log = run_simulation(
         vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage,
         slippage=gv.slippage)

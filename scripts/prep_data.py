@@ -256,8 +256,8 @@ def read_data(epath, specpath, signals=None, start_date=None, end_date=None, tes
             signals.value_date = pd.to_datetime(signals.value_date)
             volDF, priceDF = match_to_signals(volDF, priceDF, signals)
 
-        print('prep_data.read_data - pdf dates: ', pd.to_datetime(priceDF.value_date.unique()))
-
+        print('prep_data.read_data - pdf dates: ',
+              pd.to_datetime(priceDF.value_date.unique()))
 
         print('vid list: ', vid_list)
 
@@ -289,7 +289,8 @@ def read_data(epath, specpath, signals=None, start_date=None, end_date=None, tes
             if end_date \
             else priceDF[(priceDF.value_date >= start_date)]
 
-        print('prep_data.read_data - pdf dates: ', pd.to_datetime(priceDF.value_date.unique()))
+        print('prep_data.read_data - pdf dates: ',
+              pd.to_datetime(priceDF.value_date.unique()))
 
         # catch errors
         if (volDF.empty or priceDF.empty):
@@ -300,11 +301,12 @@ def read_data(epath, specpath, signals=None, start_date=None, end_date=None, tes
         # clean dataframes
         edf = clean_data(edf, 'exp', writeflag=writeflag)
         final_vol = clean_data(volDF, 'vol', date=start_date,
-                           edf=edf, writeflag=writeflag)
+                               edf=edf, writeflag=writeflag)
         final_price = clean_data(priceDF, 'price', date=start_date,
-                             edf=edf, writeflag=writeflag)
+                                 edf=edf, writeflag=writeflag)
 
-        print('prep_data.read_data - pdf dates: ', pd.to_datetime(priceDF.value_date.unique()))
+        print('prep_data.read_data - pdf dates: ',
+              pd.to_datetime(priceDF.value_date.unique()))
         # final preprocessing steps
         # final_price = ciprice(priceDF)
         # final_vol = civols(volDF, final_price)
@@ -436,7 +438,6 @@ def prep_portfolio(voldata, pricedata, filepath):
         elif data.Type == 'Option':
 
             # basic option info
-            t
             volid = str(data.vol_id)
             opmth = volid.split()[1].split('.')[0]
             char = str(data.call_put_id)
@@ -459,7 +460,10 @@ def prep_portfolio(voldata, pricedata, filepath):
                 print('value_date: ', sim_start)
                 print('underlying_id: ', u_name)
 
-            underlying = Future(f_mth, f_price, f_name, ordering=ordering)
+            # lots
+            lots = 1000 if data.lots == 'None' else int(data.lots)
+            underlying = Future(f_mth, f_price, f_name,
+                                ordering=ordering, lots=lots)
             ticksize = multipliers[f_name][-2]
 
             strike = round(round(f_price / ticksize) * ticksize,
@@ -508,8 +512,6 @@ def prep_portfolio(voldata, pricedata, filepath):
             flag = str(data.hedgeorOTC)
             # short or long position on this option.
             shorted = True if data.shorted else False
-            # lots
-            lots = 1000 if data.lots == 'None' else int(data.lots)
 
             opt = Option(strike, tau, char, vol, underlying,
                          payoff, shorted=shorted, month=opmth, direc=direc,

@@ -493,6 +493,7 @@ class Portfolio:
 
         elif sec.get_desc() == 'future':
             delta = sec.delta
+            # print('FT DELTA: ', delta)
             if added:
                 data[2] += delta
             else:
@@ -550,6 +551,8 @@ class Portfolio:
         Returns:
             None         : Updates data structures in-place, returns nothing.
         """
+        toberemoved = []
+        tobeadded = []
         if flag == 'OTC':
             op = self.OTC_options
         else:
@@ -558,8 +561,11 @@ class Portfolio:
             if option.moneyness() == 1:
                 # convert into a future.
                 underlying = option.get_underlying()
-                self.remove_security([option], flag)
-                self.add_security([underlying], flag)
+                underlying.update_lots(option.lots)
+                tobeadded.append(underlying)
+                toberemoved.append(option)
+        self.remove_security(toberemoved, flag)
+        self.add_security(tobeadded, flag)
 
 ############### getter/utility methods #################
 
@@ -658,6 +664,6 @@ class Portfolio:
         return call_op_vega, put_op_vega
 
     def net_gamma_pos(self):
-        all_ops = self.get_all_options() 
+        all_ops = self.get_all_options()
         net_gamma = sum([op.gamma for op in all_ops])
-        return net_gamma 
+        return net_gamma
