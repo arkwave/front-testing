@@ -72,190 +72,190 @@ specpath = 'specs.csv'
 sigpath = 'datasets/small_ct/signals.csv'
 hedgepath = 'hedging.csv'
 
-yrs = [6]
+yr = 6
 pnls = []
 
 # vdf, pdf, df = pull_alt_data('W')
 
 target = 'U'
 
-for yr in yrs:
-    pdt = 'W'
-    ftlist = ['U']
-    oplist = ['Q', 'U']
-    # ftmth = 'X2'
-    # opmth = 'X2'
+# for yr in yrs:
+pdt = 'W'
+ftlist = ['U']
+oplist = ['Q', 'U']
+# ftmth = 'X2'
+# opmth = 'X2'
 
-    alt = True
-    # alt = True if yr >= 5 else True
+alt = True
+# alt = True if yr >= 5 else True
 
-    pricedump = 'datasets/data_dump/' + pdt.lower() + '_price_dump.csv'
-    voldump = 'datasets/data_dump/' + pdt.lower() + '_vol_dump.csv'
+pricedump = 'datasets/data_dump/' + pdt.lower() + '_price_dump.csv'
+voldump = 'datasets/data_dump/' + pdt.lower() + '_vol_dump.csv'
 
-    start_date = pd.Timestamp('201' + str(yr) + '-05-23')
-    end_date = pd.Timestamp('201' + str(yr) + '-08-31')
+start_date = pd.Timestamp('201' + str(yr) + '-05-23')
+end_date = pd.Timestamp('201' + str(yr) + '-08-31')
 
-    # vdf, pdf, df = pull_alt_data()
+# vdf, pdf, df = pull_alt_data()
 
-    if alt:
-        # uids = 'U' + str(yr)
-        # opmths = []
-        print('pulling data')
-        edf = pd.read_csv(epath)
-        uids = [pdt + '  ' + u + str(yr) for u in ftlist]
-        print('uids: ', uids)
-        volids = [pdt + '  ' + i + str(yr) + '.' + u + str(yr)
-                        for i in oplist for u in ftlist]
-        print('volids: ', volids)
-        pdf = pd.read_csv(pricedump)
-        pdf.value_date = pd.to_datetime(pdf.value_date)
-        # cleaning prices
-        pmask = pdf.underlying_id.isin(uids)
-        pdf = pdf[pmask]
-        vdf = pd.read_csv(voldump)
-        # volid = pdt + '  ' + opmth + '.' + ftmth
-        vmask = vdf.vol_id.isin(volids)
-        vdf = vdf[vmask]
-        vdf.value_date = pd.to_datetime(vdf.value_date)
+if alt:
+    # uids = 'U' + str(yr)
+    # opmths = []
+    print('pulling data')
+    edf = pd.read_csv(epath)
+    uids = [pdt + '  ' + u + str(yr) for u in ftlist]
+    print('uids: ', uids)
+    volids = [pdt + '  ' + i + str(yr) + '.' + u + str(yr)
+                    for i in oplist for u in ftlist]
+    print('volids: ', volids)
+    pdf = pd.read_csv(pricedump)
+    pdf.value_date = pd.to_datetime(pdf.value_date)
+    # cleaning prices
+    pmask = pdf.underlying_id.isin(uids)
+    pdf = pdf[pmask]
+    vdf = pd.read_csv(voldump)
+    # volid = pdt + '  ' + opmth + '.' + ftmth
+    vmask = vdf.vol_id.isin(volids)
+    vdf = vdf[vmask]
+    vdf.value_date = pd.to_datetime(vdf.value_date)
 
-        # filter datasets before prep
-        vdf = vdf[(vdf.value_date >= start_date)
-                  & (vdf.value_date <= end_date)]
-        pdf = pdf[(pdf.value_date >= start_date)
-                  & (pdf.value_date <= end_date)]
+    # filter datasets before prep
+    vdf = vdf[(vdf.value_date >= start_date)
+              & (vdf.value_date <= end_date)]
+    pdf = pdf[(pdf.value_date >= start_date)
+              & (pdf.value_date <= end_date)]
 
-        vdf, pdf, edf, priceDF, start_date = prep_datasets(
-            vdf, pdf, edf, start_date, end_date)
+    vdf, pdf, edf, priceDF, start_date = prep_datasets(
+        vdf, pdf, edf, start_date, end_date)
 
-        print('w_position - start date: ', start_date)
+    print('w_position - start date: ', start_date)
 
-        if not os.path.isdir('datasets/' + pdt.lower()):
-            os.mkdir('datasets/' + pdt.lower())
-        print('finished pulling data')
+    if not os.path.isdir('datasets/' + pdt.lower()):
+        os.mkdir('datasets/' + pdt.lower())
+    print('finished pulling data')
 
-        vdf.to_csv('datasets/' + pdt.lower() + '/debug_vols.csv', index=False)
-        pdf.to_csv('datasets/' + pdt.lower() +
-                   '/debug_prices.csv', index=False)
+    vdf.to_csv('datasets/' + pdt.lower() + '/debug_vols.csv', index=False)
+    pdf.to_csv('datasets/' + pdt.lower() +
+               '/debug_prices.csv', index=False)
 
-    else:
-        opmth = target + str(yr)
-        ftmth = target + str(yr)
-        print('pulling data')
-        vdf, pdf, edf, priceDF = read_data(
-            epath, '', pdt=pdt, opmth=opmth, ftmth=ftmth, start_date=start_date, end_date=end_date)
-        print('finished pulling data')
-
-    print('sanity checking data')
-    # sanity check date ranges
-    sanity_check(vdf.value_date.unique(),
-                 pdf.value_date.unique(), start_date, end_date)
-
-    print('voldata: ', vdf)
-    print('pricedf: ', pdf)
-
-    print('creating portfolio')
-    # create 130,000 vega atm straddles
-
-    # hedge_specs = {'pdt': 'S',
-    #                'opmth': 'N' + str(yr),
-    #                'ftmth': 'N' + str(yr),
-    #                'type': 'straddle',
-    #                'strike': 'atm',
-    #                'shorted': True,
-    #                'greek': 'gamma',
-    #                'greekval': 'portfolio'}
-
-    opmth1 = target + str(yr)
-    opmth2 = 'Q' + str(yr)
+else:
+    opmth = target + str(yr)
     ftmth = target + str(yr)
+    print('pulling data')
+    vdf, pdf, edf, priceDF = read_data(
+        epath, '', pdt=pdt, opmth=opmth, ftmth=ftmth, start_date=start_date, end_date=end_date)
+    print('finished pulling data')
 
-    volid1 = pdt + '  ' + opmth1 + '.' + ftmth  # W UX.UX
-    volid2 = pdt + '  ' + opmth2 + '.' + ftmth  # W QX.UX
+print('sanity checking data')
+# sanity check date ranges
+sanity_check(vdf.value_date.unique(),
+             pdf.value_date.unique(), start_date, end_date)
 
-    # creating underlying futures
-    ft1, ftprice1 = create_underlying(pdt, ftmth, pdf, start_date)
-    ft2, ftprice2 = create_underlying(pdt, ftmth, pdf, start_date)
-    ft3, ftprice3 = create_underlying(pdt, ftmth, pdf, start_date)
-    ft4, ftprice4 = create_underlying(pdt, ftmth, pdf, start_date)
-    ft5, ftprice5 = create_underlying(pdt, ftmth, pdf, start_date)
-    ft6, ftprice6 = create_underlying(pdt, ftmth, pdf, start_date)
-    ft7, ftprice7 = create_underlying(pdt, ftmth, pdf, start_date)
-    ft8, ftprice8 = create_underlying(pdt, ftmth, pdf, start_date)
-    ft9, ftprice9 = create_underlying(pdt, ftmth, pdf, start_date)
+print('voldata: ', vdf)
+print('pricedf: ', pdf)
 
-    print('underlying: ', ft1)
+print('creating portfolio')
+# create 130,000 vega atm straddles
 
-    # W Qx.Ux Put 430 900 lots
-    op1 = create_vanilla_option(
-        vdf, pdf, ft1, 430, volid2, 'put', 'amer', False, opmth2, lots=900)
-    # W Qx.Ux Put 440 500 lots
-    op2 = create_vanilla_option(
-        vdf, pdf, ft2, 440, volid2, 'put', 'amer', False, opmth2, lots=500)
-    # W Qx.Ux 490 call -1180 lots
-    op3 = create_vanilla_option(
-        vdf, pdf, ft3, 490, volid2, 'call', 'amer', True, opmth2, lots=1180)
-    # W Qx.Ux 490 call -750 lots
-    op4 = create_vanilla_option(
-        vdf, pdf, ft4, 500, volid2, 'call', 'amer', True, opmth2, lots=750)
-    # W Qx.Ux 475 call 450 lots
-    op5 = create_vanilla_option(
-        vdf, pdf, ft5, 475, volid2, 'call', 'amer', False, opmth2, lots=450)
+# hedge_specs = {'pdt': 'S',
+#                'opmth': 'N' + str(yr),
+#                'ftmth': 'N' + str(yr),
+#                'type': 'straddle',
+#                'strike': 'atm',
+#                'shorted': True,
+#                'greek': 'gamma',
+#                'greekval': 'portfolio'}
 
-    # W Ux.Ux call 450 lots
-    op6 = create_vanilla_option(
-        vdf, pdf, ft6, 450, volid1, 'call', 'amer', False, opmth1, lots=450)
-    # W Ux.Ux 460 call 175 lots
-    op7 = create_vanilla_option(
-        vdf, pdf, ft7, 460, volid1, 'call', 'amer', False, opmth1, lots=175)
-    # W Ux.Ux 480 call -231 lots
-    op8 = create_vanilla_option(
-        vdf, pdf, ft8, 480, volid1, 'call', 'amer', True, opmth1, lots=231)
-    # W Ux.Ux 500 call -500 lots
-    op9 = create_vanilla_option(
-        vdf, pdf, ft9, 500, volid1, 'call', 'amer', True, opmth1, lots=500)
+opmth1 = target + str(yr)
+opmth2 = 'Q' + str(yr)
+ftmth = target + str(yr)
 
-    fts, ftprice2 = create_underlying(
-        pdt, ftmth, pdf, start_date, shorted=False, lots=546)
+volid1 = pdt + '  ' + opmth1 + '.' + ftmth  # W UX.UX
+volid2 = pdt + '  ' + opmth2 + '.' + ftmth  # W QX.UX
 
-    pf = Portfolio()
-    ops = [op1, op2, op3, op4, op5, op6, op7, op8, op9]
-    pf.add_security(ops, 'OTC')
-    fts = [fts]
-    pf.add_security(fts, 'hedge')
+# creating underlying futures
+# ft1, ftprice1 = create_underlying(pdt, ftmth, pdf, start_date)
+# ft2, ftprice2 = create_underlying(pdt, ftmth, pdf, start_date)
+# ft3, ftprice3 = create_underlying(pdt, ftmth, pdf, start_date)
+# ft4, ftprice4 = create_underlying(pdt, ftmth, pdf, start_date)
+# ft5, ftprice5 = create_underlying(pdt, ftmth, pdf, start_date)
+# ft6, ftprice6 = create_underlying(pdt, ftmth, pdf, start_date)
+# ft7, ftprice7 = create_underlying(pdt, ftmth, pdf, start_date)
+# ft8, ftprice8 = create_underlying(pdt, ftmth, pdf, start_date)
+# ft9, ftprice9 = create_underlying(pdt, ftmth, pdf, start_date)
 
-    # print(ftprice1, ftprice2)
 
-    # pf = create_portfolio(pdt, opmth, ftmth, 'skew', vdf, pdf, chars=[
-    #     'call', 'put'], shorted=True, delta=25, greek='vega', greekval='25000')
+# W Qx.Ux Put 430 900 lots
+op1 = create_vanilla_option(
+    vdf, pdf, volid2, 'put', False, start_date, lots=900, strike=430)
+# W Qx.Ux Put 440 500 lots
+op2 = create_vanilla_option(
+    vdf, pdf, volid2, 'put', False, start_date, lots=500, strike=440)
+# W Qx.Ux 490 call -1180 lots
+op3 = create_vanilla_option(
+    vdf, pdf, volid2, 'call', True, start_date, lots=1180, strike=490)
+# W Qx.Ux 500 call -750 lots
+op4 = create_vanilla_option(
+    vdf, pdf, volid2, 'call', True, start_date, lots=750, strike=500)
+# W Qx.Ux 475 call 450 lots
+op5 = create_vanilla_option(
+    vdf, pdf, volid2, 'call', False, start_date, lots=450, strike=475)
 
-    # pf = create_portfolio(pdt, opmth, ftmth, 'straddle', vdf, pdf, chars=[
-    #     'call', 'put'], shorted=False, atm=True, greek='vega', greekval='130000', hedges=hedge_specs)
 
-    print('portfolio: ', pf)
-    print('deltas: ', [op.delta/op.lots for op in pf.OTC_options])
-    print('vegas: ', pf.net_vega_pos())
-    print('start_date: ', start_date)
-    print('end_date: ', end_date)
+# W Ux.Ux call 450 lots
+op6 = create_vanilla_option(
+    vdf, pdf, volid1, 'call', False, start_date, lots=450, strike=450)
+# W Ux.Ux 460 call 175 lots
+op7 = create_vanilla_option(
+    vdf, pdf, volid1, 'call', False, start_date, lots=175, strike=460)
+# W Ux.Ux 480 call -231 lots
+op8 = create_vanilla_option(
+    vdf, pdf, volid1, 'call', True, start_date, lots=231, strike=480)
+# W Ux.Ux 500 call -500 lots
+op9 = create_vanilla_option(
+    vdf, pdf, volid1, 'call', True, start_date, lots=500, strike=500)
 
-    print('specifying hedging logic')
-    # specify hedging logic
-    hedges = generate_hedges(hedgepath)
+fts, ftprice2 = create_underlying(
+    pdt, ftmth, pdf, start_date, shorted=False, lots=546)
 
-    print('getting rollover dates')
-    # get rollover dates according to opex
-    rollover_dates = get_rollover_dates(priceDF)
-    print('rollover dates: ', rollover_dates)
+pf = Portfolio()
+ops = [op1, op2, op3, op4, op5, op6, op7, op8, op9]
+pf.add_security(ops, 'OTC')
+fts = [fts]
+pf.add_security(fts, 'hedge')
 
-    print('running simulation')
-    # # # run the simulation
-    grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log = run_simulation(
-        vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage,
-        slippage=gv.slippage)
+# print(ftprice1, ftprice2)
 
-    pnls.append(netpnl)
-    log.to_csv('results/w/201' + str(yr) + '_log.csv', index=False)
+# pf = create_portfolio(pdt, opmth, ftmth, 'skew', vdf, pdf, chars=[
+#     'call', 'put'], shorted=True, delta=25, greek='vega', greekval='25000')
 
-# bound = '_20_30'
-# bound = '_10_40'
+# pf = create_portfolio(pdt, opmth, ftmth, 'straddle', vdf, pdf, chars=[
+#     'call', 'put'], shorted=False, atm=True, greek='vega', greekval='130000', hedges=hedge_specs)
 
-print(pnls)
+print('portfolio: ', pf)
+print('deltas: ', [op.delta/op.lots for op in pf.OTC_options])
+print('vegas: ', pf.net_vega_pos())
+print('start_date: ', start_date)
+print('end_date: ', end_date)
+
+print('specifying hedging logic')
+# specify hedging logic
+hedges = generate_hedges(hedgepath)
+
+print('getting rollover dates')
+# get rollover dates according to opex
+rollover_dates = get_rollover_dates(priceDF)
+print('rollover dates: ', rollover_dates)
+
+print('running simulation')
+# # # run the simulation
+grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log = run_simulation(
+    vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage,
+    slippage=gv.slippage)
+
+pnls.append(netpnl)
+log.to_csv('results/w/201' + str(yr) + '_log.csv', index=False)
+
+# # bound = '_20_30'
+# # bound = '_10_40'
+
+# print(pnls)
