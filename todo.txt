@@ -742,8 +742,15 @@ High priority:
 
 25/5:
 	URGENT:
-		- creating separate underlying for each option created. CANNOT USE SAME UNDERLYING FOR DIFFERENT OPTIONS. -> done. 
-		- finish up util implementations -> butterfly left to do; finalize kwarg inputs for other composites. 
+		- creating separate underlying for each option created. CANNOT USE SAME UNDERLYING FOR DIFFERENT OPTIONS. -> Done. 
+		
+		- finish up util implementations -> butterfly left to do; finalize kwarg inputs for other composites.
+			> Straddles: Done. 
+			> Strangles: Done. 
+			> skews/fences: Done
+			> butterfly: TODO. 
+			> spreads: Done
+
 
 	Less Urgent:
 	PVM:
@@ -754,12 +761,15 @@ High priority:
 		- download and store data for PVM
 		- run VAR on all products 
 
+
+
 	Least Urgent:
 	HSIM:
 		- creating complex portfolios from csv file. wheat portfolio as an example. 
 
 
 Future work:
+> DEBUG THE FUCKING LOG FILE 
 > update all documentation. 
 > missing data for soybean N/U5 
 > hedging on the level of portfolio rather than on contract -> flag. 
