@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-05-25 15:45:24
+# @Last Modified time: 2017-05-25 15:56:17
 
 ################################ imports ###################################
 import numpy as np
@@ -706,7 +706,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
 
     """
     if pf.empty():
-        return 0, pf, False
+        return 0, pf, False, []
     exercised = False
     t = time.clock()
     profit = 0
