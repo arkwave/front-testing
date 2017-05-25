@@ -172,17 +172,6 @@ ftmth = target + str(yr)
 volid1 = pdt + '  ' + opmth1 + '.' + ftmth  # W UX.UX
 volid2 = pdt + '  ' + opmth2 + '.' + ftmth  # W QX.UX
 
-# creating underlying futures
-# ft1, ftprice1 = create_underlying(pdt, ftmth, pdf, start_date)
-# ft2, ftprice2 = create_underlying(pdt, ftmth, pdf, start_date)
-# ft3, ftprice3 = create_underlying(pdt, ftmth, pdf, start_date)
-# ft4, ftprice4 = create_underlying(pdt, ftmth, pdf, start_date)
-# ft5, ftprice5 = create_underlying(pdt, ftmth, pdf, start_date)
-# ft6, ftprice6 = create_underlying(pdt, ftmth, pdf, start_date)
-# ft7, ftprice7 = create_underlying(pdt, ftmth, pdf, start_date)
-# ft8, ftprice8 = create_underlying(pdt, ftmth, pdf, start_date)
-# ft9, ftprice9 = create_underlying(pdt, ftmth, pdf, start_date)
-
 
 # W Qx.Ux Put 430 900 lots
 op1 = create_vanilla_option(
