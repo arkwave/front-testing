@@ -704,6 +704,7 @@ High priority:
 
 
 
+
 	
 22/5:
 > take stock of all work that has been done so far - cut out redundancies and refactor as necessary. 
@@ -728,22 +729,44 @@ High priority:
 			> take in a value, the greek to hedge, and how to hedge.
 
 
+
 23/5:
-	> finish util implementations and double check 
 	> new read method csv --> dict --> portfolio. Try to keep current work intact 
 	> portfolio-wide hedging as a flag --> how does this work? numerical equivalent? 
 	> multiple signals per day 
 
 
 
+
+>>> DOUBLE CHECK LOTS FOR UNDERLYINGS <<< 
+
+25/5:
+	URGENT:
+		- creating separate underlying for each option created. CANNOT USE SAME UNDERLYING FOR DIFFERENT OPTIONS. -> done. 
+		- finish up util implementations -> butterfly left to do; finalize kwarg inputs for other composites. 
+
+	Less Urgent:
+	PVM:
+		- port over:
+			1. exercise changes and 
+			2. alt data access functions 
+		  to PVM. 
+		- download and store data for PVM
+		- run VAR on all products 
+
+	Least Urgent:
+	HSIM:
+		- creating complex portfolios from csv file. wheat portfolio as an example. 
+
+
 Future work:
 > update all documentation. 
 > missing data for soybean N/U5 
+> hedging on the level of portfolio rather than on contract -> flag. 
+> monte carlo for VAR module. 
 
 
 > figure out how to effectively create option composites using mutiple options in a way that doesn't break portfolio object/require much refactoring. 
-> generalize skew pos
-> hedging on the level of portfolio rather than on contract -> flag. 
 
 
 
