@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-05-25 17:18:05
+# @Last Modified time: 2017-05-25 21:57:56
 
 
 from .portfolio import Portfolio
@@ -96,7 +96,7 @@ def create_portfolio(pdt, opmth, ftmth, optype, vdf, pdf, **kwargs):
     # create the underlying future
     ticksize = multipliers[pdt][-2]
     date = max(vdf.value_date.min(), pdf.value_date.min())
-    ft, ftprice = create_underlying(pdt, ftmth, pdf, date, shorted=False)
+    _, ftprice = create_underlying(pdt, ftmth, pdf, date, shorted=False)
 
     # create the relevant options; get all relevant information
     volid = pdt + '  ' + opmth + '.' + ftmth
@@ -107,70 +107,68 @@ def create_portfolio(pdt, opmth, ftmth, optype, vdf, pdf, **kwargs):
 
     if optype == 'straddle':
         op1, op2 = create_straddle(
-            volid, vdf, pdf, ft, date, shorted, strike, kwargs)
+            volid, vdf, pdf, date, shorted, strike, kwargs)
         ops = [op1, op2]
 
     elif optype == 'skew':
         delta = kwargs['delta']
-        op1, op2 = create_skew(volid, vdf, pdf, ft, date,
-                               shorted, delta, kwargs)
+        op1, op2 = create_skew(volid, vdf, pdf, date,
+                               shorted, delta, ftprice, kwargs)
         ops = [op1, op2]
 
     elif optype == 'vanilla':
-        strike = kwargs['strike']
+        strike = kwargs['strike'] if 'strike' in kwargs else None
         char = kwargs['char']
-        op1 = create_vanilla_option(vdf, pdf, ft, strike, volid,
-                                    char, 'amer', shorted, opmth,
-                                    date=date, kwargs=kwargs)
+        delta = kwargs['delta'] if 'delta' in kwargs else None
+        lots = kwargs['lots'] if 'lots' in kwargs else None
+        op1 = create_vanilla_option(vdf, pdf, volid, char, shorted,
+                                    date, lots=lots, delta=delta, strike=strike, kwargs=kwargs)
         ops = [op1]
 
     elif optype == 'spread':
         char = kwargs['char']
         op1, op2 = create_spread(
-            char, volid, vdf, pdf, ft, date, shorted, strike, kwargs)
-        pass
+            char, volid, vdf, pdf, date, shorted, kwargs)
+        ops = [op1, op2]
 
     elif optype == 'fence':
         delta = kwargs['delta']
-        op1, op2 = create_skew(volid, vdf, pdf, ft, date,
+        op1, op2 = create_skew(volid, vdf, pdf, date,
                                not shorted, delta, kwargs)
         ops = [op1, op2]
 
     elif optype == 'strangle':
-        strike1, strike2 = kwargs['strike']
-        op1, op2 = create_strangle(volid, vdf, pdf, ft, date,
-                                   shorted, strike1, strike2, kwargs)
+        op1, op2 = create_strangle(volid, vdf, pdf, date, shorted, kwargs)
         ops = [op1, op2]
 
-    # do tomorrow.
     elif optype == 'butterfly':
         char = kwargs['char']
         strike1, strike2, strike3, strike4 = kwargs['strike']
-        op1, op2, op3, op4 = create_butterfly(char, volid, pdf, ft, date, shorted,
+        op1, op2, op3, op4 = create_butterfly(char, volid, pdf, date, shorted,
                                               strike1, strike2, strike3, strike4, kwargs)
         ops = [op1, op2, op3, op4]
 
     pf.add_security(ops, 'OTC')
 
-    if 'hedges' in kwargs:
-        print('creating hedges')
-        dic = kwargs['hedges']
-        if dic['type'] == 'straddle':
-            # identifying the essentials
-            pdt, ftmth, opmth = dic['pdt'], dic['ftmth'], dic['opmth']
-            volid = pdt + '  ' + opmth + '.' + ftmth
-            shorted = dic['shorted']
-            # create the underlying future object
-            h_ft, h_price = create_underlying(
-                pdt, ftmth, pdf, date, shorted=False)
-            h_strike = round(round(h_price / ticksize) * ticksize, 2) \
-                if dic['strike'] == 'atm' else dic['strike']
-            # create_straddle(volid, vdf, pdf, ft, date, shorted, strike,
-            # kwargs):
-            h1, h2 = create_straddle(volid, vdf, pdf, h_ft, date,
-                                     shorted, h_strike, dic, pf=pf)
+    # if 'hedges' in kwargs:
+    #     print('creating hedges')
+    #     dic = kwargs['hedges']
+    #     if dic['type'] == 'straddle':
+    #         # identifying the essentials
+    #         pdt, ftmth, opmth = dic['pdt'], dic['ftmth'], dic['opmth']
+    #         volid = pdt + '  ' + opmth + '.' + ftmth
+    #         shorted = dic['shorted']
+    #         # create the underlying future object
+    #         h_ft, h_price = create_underlying(
+    #             pdt, ftmth, pdf, date, shorted=False)
+    #         h_strike = round(round(h_price / ticksize) * ticksize, 2) \
+    #             if dic['strike'] == 'atm' else dic['strike']
+    #         # create_straddle(volid, vdf, pdf, ft, date, shorted, strike,
+    #         # kwargs):
+    #         h1, h2 = create_straddle(volid, vdf, pdf, h_ft, date,
+    #                                  shorted, h_strike, dic, pf=pf)
 
-        pf.add_security([h1, h2], 'hedge')
+    #     pf.add_security([h1, h2], 'hedge')
 
     return pf
 
@@ -183,6 +181,8 @@ def create_underlying(pdt, ftmth, pdf, date, shorted=False, lots=None):
         ftmth (TYPE): month (e.g. N7)
         pdf (TYPE): Dataframe of prices 
         date (TYPE): Date 
+        shorted (bool, optional): indicates if the future is shorted or not
+        lots (None, optional): lot size to use for this future. 
 
     Returns:
         tuple: future object, and price. 
@@ -208,7 +208,7 @@ def create_underlying(pdt, ftmth, pdf, date, shorted=False, lots=None):
     return ft, ftprice
 
 
-def create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', lots=None, kwargs=None, delta=None, strike=None):
+def create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', lots=None, kwargs=None, delta=None, strike=None, vol=None):
     """Utility method that creates an option from the info passed in. Each option is instantiated with its own future underlying object. 
 
     Args:
@@ -216,21 +216,31 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', l
         pdf (dataframe): dataframe of prices and vols by delta
         volid (string): vol_id of the option
         char (string): call or put
-        payoff (string): american or european payoff
         shorted (bool): True or False
-        mth (string): month of the option, e.g. N7
         date (pd.Timestamp, optional): date to use when selecting vol
+        payoff (string): american or european payoff
         lots (int, optional): number of lots 
         kwargs (dict, optional): dictionary containing extra delimiting factors, e.g. greek/greekvalue. 
         delta (float, optional): Delta of this option as an alternative to strike. 
         strike (float): strike of the option
+        vol (float, optional): volatility of the option
 
     Returns:
         object: Option created according to the parameters passed in. 
 
 
+    Deleted Parameters:
+        mth (string): month of the option, e.g. N7
+
+    Raises:
+        ValueError: Description
+
+
     """
     # sanity checks
+    print('util.create_vanilla_option - inputs: ',
+          volid, char, shorted, lots, delta, strike, vol)
+
     if delta is None and strike is None:
         raise ValueError(
             'neither delta nor strike passed in; aborting construction.')
@@ -245,8 +255,10 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', l
 
     # create the underlying future
     ft_shorted = shorted if char == 'call' else not shorted
+    # print('util.create_vanilla_option - pdf.columns: ', pdf.columns)
     ft, ftprice = create_underlying(pdt, ftmth, pdf, date,
                                     shorted=ft_shorted, lots=lots)
+
     # get tau
     try:
         tau = vdf[(vdf.value_date == date) &
@@ -254,27 +266,47 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', l
     except IndexError:
         print('util.create_vanilla_option - cannot find tau.')
         print('inputs: ', date, volid)
-    # get vol
-    try:
-        vol = vdf[(vdf.value_date == date) &
-                  (vdf.vol_id == volid) &
-                  (vdf.call_put_id == cpi) &
-                  (vdf.strike == strike)].settle_vol.values[0]
-    except IndexError:
-        print('util.create_vanilla_option - vol1 not found, inputs below: ')
-        print('date: ', date)
-        print('vol_id: ', volid)
-        print('call_put_id: ', cpi)
-        print('strike: ', strike)
+
+    # Case 1 : Vol is None, but strike is specified.
+    if vol is None and strike is not None:
+        # get vol
+        try:
+            vol = vdf[(vdf.value_date == date) &
+                      (vdf.vol_id == volid) &
+                      (vdf.call_put_id == cpi) &
+                      (vdf.strike == strike)].settle_vol.values[0]
+        except IndexError:
+            print('util.create_vanilla_option - vol1 not found, inputs below: ')
+            print('date: ', date)
+            print('vol_id: ', volid)
+            print('call_put_id: ', cpi)
+            print('strike: ', strike)
+
+    # Case 2: Option construction is basis delta. vol and strike are None.
+    elif vol is None and strike is None:
+        try:
+            col = str(int(delta)) + 'd'
+            vol = pdf[(pdf.vol_id == volid) &
+                      (pdf.value_date == date) &
+                      (pdf.call_put_id == 'C')][col].values[0]
+        except IndexError:
+            print('util.create_vanilla_option - cannot find vol1')
+            print('vol_id: ', volid)
+            print('date: ', date)
+            print('cpi: ', 'C')
 
     # if delta specified, compute strike appropriate to that delta
     if delta is not None:
+        delta = delta/100
         strike = compute_strike_from_delta(
-            None, delta1=delta, vol=vol, s=ft.get_price(), char=char, pdt=ft.get_product())
+            None, delta1=delta, vol=vol, s=ft.get_price(), char=char, pdt=ft.get_product(), tau=tau)
+        print('util.create_vanilla_option - strike: ', strike)
 
     # specifying option with information gathered thus far.
     newop = Option(strike, tau, char, vol, ft, payoff, shorted,
                    opmth, lots=lots_req, ordering=ft.get_ordering())
+
+    # handling additional greek requirements for options.
     pdt = ft.get_product()
     if kwargs is not None and 'greek' in kwargs:
         lots_req = 0
@@ -316,41 +348,47 @@ def create_butterfly(char, volid, pdf, ft, date, shorted, strike1, strike2, stri
     pass
 
 
-def create_spread(char, volid, vdf, pdf, ft, date, shorted, kwargs, payoff='amer'):
+def create_spread(char, volid, vdf, pdf, date, shorted, kwargs):
     """Utility method that creates a callspread 
 
     Args:
-        char (str): call or put, indicating if this is a callspread or ap utspread. 
+        char (str): call or put, indicating if this is a callspread or a putspread. 
         volid (string): vol_id of the straddle
         vdf (dataframe): Dataframe of vols
         pdf (dataframe): Dataframe of prices
-        ft (Future object): Future object underlying this straddle
         date (pd Timestamp): start date of simulation
         shorted (bool): self-explanatory. 
         kwargs (dict): dictionary of the form {'chars': ['call', 'put'], 'strike': [strike1, strike2], 'greek':(gamma theta or vega), 'greekval': the value used to determine lot size, 'lots': lottage if greek not specified.}
+
+    Deleted Parameters:
+        ft (Future object): Future object underlying this straddle
+
+    Returns:
+        TYPE: Description
     """
     # identify if this spread is created with explicit strikes or with delta
     # values
     delta1, delta2, strike1, strike2 = None, None, None, None
     if 'delta' in kwargs:
         delta1, delta2 = kwargs['delta']
+        # delta1, delta2 = delta1/100, delta2/100
     elif 'strike' in kwargs:
         strike1, strike2 = kwargs['strike']
     pdt = volid.split()[0]
-    char1, char2 = kwargs['chars']
 
     lm, dm = multipliers[pdt][1], multipliers[pdt][0]
 
     # long call spread : buy itm call, sell otm call.
     # short call spread: sell itm call, buy otm call
-    # long put spread: buy otm put, sell itm put/
-    # short put spread: sell otm put, buy itm put.
+
+    # long put spread:   sell itm put, buy otm put,
+    # short put spread:  buy itm put,  sell otm put,
     # make sure inputs are organized in the appropriate order.
 
     op1 = create_vanilla_option(
-        vdf, pdf, volid, char1, shorted, date, delta=delta1, strike=strike1)
+        vdf, pdf, volid, char, shorted, date, delta=delta1, strike=strike1)
     op2 = create_vanilla_option(
-        vdf, pdf, volid, char2, not shorted, date, delta=delta2, strike=strike2)
+        vdf, pdf, volid, char, not shorted, date, delta=delta2, strike=strike2)
 
     if 'greek' in kwargs:
         val = kwargs['greekval']
@@ -364,19 +402,26 @@ def create_spread(char, volid, vdf, pdf, ft, date, shorted, kwargs, payoff='amer
     return op1, op2
 
 
-def create_strangle(volid, vdf, pdf, ft, date, shorted, kwargs, pf=None):
+def create_strangle(volid, vdf, pdf, date, shorted, kwargs, pf=None):
     """Utility method that creates a strangle (long or short).
 
     Args:
         volid (string): vol_id of the straddle
         vdf (dataframe): Dataframe of vols
         pdf (dataframe): Dataframe of prices
-        ft (Future object): Future object underlying this straddle
         date (pd Timestamp): start date of simulation
         shorted (bool): self-explanatory. 
         kwargs (dict): dictionary of the form {'chars': ['call', 'put'], 'strike': [strike1, strike2], 'greek':(gamma theta or vega), 'greekval': the value used to determine lot size, 'lots': lottage if greek not specified.}
+        pf (portfolio, optional): Portfolio object. 
+
+    Deleted Parameters:
+        ft (Future object): Future object underlying this straddle
+
+    Returns:
+        TYPE: Description
 
     """
+    lot1, lot2 = None, None
     pdt = volid.split()[0]
     char1, char2 = kwargs['chars']
     lm, dm = multipliers[pdt][1], multipliers[pdt][0]
@@ -384,8 +429,10 @@ def create_strangle(volid, vdf, pdf, ft, date, shorted, kwargs, pf=None):
     if 'strike' in kwargs:
         strike1, strike2 = kwargs['strike']
 
-    lot1, lot2 = kwargs['lots'] if 'lots' in kwargs else None, None
+    if 'lots' in kwargs:
+        lot1, lot2 = kwargs['lots']
 
+    print('util.create_strangle - lot1, lot2: ', lot1, lot2)
     op1 = create_vanilla_option(
         vdf, pdf, volid, char1, shorted, date, strike=strike1, lots=lot1)
     op2 = create_vanilla_option(
@@ -401,8 +448,9 @@ def create_strangle(volid, vdf, pdf, ft, date, shorted, kwargs, pf=None):
             print('vega req: ', vega_req)
             v1 = (op1.vega * 100) / (op1.lots * dm * lm)
             v2 = (op2.vega * 100) / (op2.lots * dm * lm)
-            lots_req = round((abs(vega_req) * 100) / ((v1 + v2) * lm * dm))
-
+            print('v1 + v2: ', v1+v2)
+            lots_req = round((vega_req * 100) / ((v1 + v2) * lm * dm))
+            print('lots_req: ', lots_req)
         elif kwargs['greek'] == 'gamma':
             if pf is not None and kwargs['greekval'] == 'portfolio':
                 gamma_req = -pf.net_gamma_pos()
@@ -431,18 +479,24 @@ def create_strangle(volid, vdf, pdf, ft, date, shorted, kwargs, pf=None):
     return op1, op2
 
 
-def create_skew(volid, vdf, pdf, ft, date, shorted, delta, kwargs):
+def create_skew(volid, vdf, pdf, date, shorted, delta, ftprice, kwargs):
     """Utility function that creates a skew position given dataframes and arguments. 
 
     Args:
-        volid (TYPE): vol_id, e.g. CT N7.N7
-        vdf (TYPE): dataframe of strikewise vols
-        pdf (TYPE): dataframe of prices and delta-wise vols
-        ft (TYPE): underlying future object
-        date (TYPE): date 
-        shorted (TYPE): True or False
-        delta (TYPE): delta value of this skew
-        kwargs (TYPE): dictionary containing 1) greek and 2) greekvalue to specify lots. 
+        volid (string): vol_id, e.g. CT N7.N7
+        vdf (dataframe): dataframe of strikewise vols
+        pdf (dataframe): dataframe of prices and delta-wise vols
+        date (pd Timestamp): initialization date 
+        shorted (bool): True or False
+        delta (float): delta value of this skew
+        ftprice (float): Future price on DATE
+        kwargs (dict): dictionary containing 1) greek and 2) greekvalue to specify lots. 
+
+    Deleted Parameters:
+        ft (object): underlying future object
+
+    Returns:
+        Tuple: Two options constituting a skew position (reverse fence). 
     """
     col = str(int(delta)) + 'd'
     delta = delta/100
@@ -471,9 +525,9 @@ def create_skew(volid, vdf, pdf, ft, date, shorted, delta, kwargs):
         print('date: ', date)
         print('cpi: ', 'P')
 
-    strike1 = compute_strike_from_delta(None, delta1=delta, vol=vol1, s=ft.get_price(),
+    strike1 = compute_strike_from_delta(None, delta1=delta, vol=vol1, s=ftprice,
                                         tau=tau, char='call', pdt=pdt)
-    strike2 = compute_strike_from_delta(None,  delta1=delta, vol=vol2, s=ft.get_price(),
+    strike2 = compute_strike_from_delta(None,  delta1=delta, vol=vol2, s=ftprice,
                                         tau=tau, char='put', pdt=pdt)
 
     # create_vanilla_option(vdf, pdf, ft, strike, lots, volid, char, payoff, shorted, mth, date=None)
@@ -500,14 +554,13 @@ def create_skew(volid, vdf, pdf, ft, date, shorted, delta, kwargs):
     return op1, op2
 
 
-def create_straddle(volid, vdf, pdf, ft, date, shorted, strike, kwargs, pf=None):
+def create_straddle(volid, vdf, pdf, date, shorted, strike, kwargs, pf=None):
     """Utility function that creates straddle given dataframes and arguments.
 
     Args:
         volid (string): vol_id of the straddle
         vdf (dataframe): Dataframe of vols
         pdf (dataframe): Dataframe of prices
-        ft (Future object): Future object underlying this straddle
         date (pd Timestamp): start date of simulation
         shorted (bool): self-explanatory. 
         strike (float): Strike of this straddle
@@ -515,7 +568,10 @@ def create_straddle(volid, vdf, pdf, ft, date, shorted, strike, kwargs, pf=None)
         pf (portfolio, optional): Portfolio object. Used to determine lot-sizes of hedges on the fly. 
 
     Returns:
-        TYPE: Description
+        Tuple: Two options constituting a straddle
+
+    Deleted Parameters:
+        ft (Future object): Future object underlying this straddle
     """
     pdt = volid.split()[0]
     char1, char2 = 'call', 'put'
@@ -527,13 +583,15 @@ def create_straddle(volid, vdf, pdf, ft, date, shorted, strike, kwargs, pf=None)
     op2 = create_vanilla_option(
         vdf, pdf, volid, char2, shorted, date, strike=strike)
 
+    lots_req = op1.lots
+
     # determine number of lots based on greek and greekvalue
     if kwargs['greek'] == 'vega':
         if pf is not None and kwargs['greekval'] == 'portfolio':
             vega_req = -pf.net_theta_pos()
         else:
             vega_req = float(kwargs['greekval'])
-        print('vega req: ', vega_req)
+        print('util.create_straddle - vega req: ', vega_req)
         v1 = (op1.vega * 100) / (op1.lots * dm * lm)
         v2 = (op2.vega * 100) / (op2.lots * dm * lm)
         lots_req = round((abs(vega_req) * 100) / ((v1 + v2) * lm * dm))
@@ -543,7 +601,7 @@ def create_straddle(volid, vdf, pdf, ft, date, shorted, strike, kwargs, pf=None)
             gamma_req = -pf.net_gamma_pos()
         else:
             gamma_req = float(kwargs['greekval'])
-        print('gamma req: ', gamma_req)
+        print('util.create_straddle - gamma req: ', gamma_req)
         g1 = (op1.gamma * dm) / (op1.lots * lm)
         g2 = (op2.gamma * dm) / (op2.lots * lm)
         lots_req = round(((gamma_req) * dm) / ((g1 + g2) * lm))
@@ -553,15 +611,16 @@ def create_straddle(volid, vdf, pdf, ft, date, shorted, strike, kwargs, pf=None)
             theta_req = -pf.net_theta_pos()
         else:
             theta_req = float(kwargs['greekval'])
-        print('theta req: ', theta_req)
+        print('util.create_straddle - theta req: ', theta_req)
         t1 = (op1.theta * 365)/(op1.lots * lm * dm)
         t2 = (op2.theta * 365) / (op2.lots * lm * dm)
         lots_req = round(((theta_req) * 365) / ((t1 + t2) * lm * dm))
 
-        op1.update_lots(lots_req)
-        op2.update_lots(lots_req)
-        op1.get_underlying().update_lots(lots_req)
-        op2.get_underlying().update_lots(lots_req)
+    print('util.create_straddle - lots_req: ', lots_req)
+    op1.update_lots(lots_req)
+    op2.update_lots(lots_req)
+    op1.get_underlying().update_lots(lots_req)
+    op2.get_underlying().update_lots(lots_req)
 
     return op1, op2
 
@@ -570,9 +629,21 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, specpath='', signals=None
     """Utility function that does everything prep_data does, but to full datasets rather than things drawn from the database. Made because i was lazy. 
 
     Args:
-        vdf (TYPE): Dataframe of vols
-        pdf (TYPE): Datafrane of prices
-        edf (TYPE): Dataframe of option expiries 
+        vdf (dataframe): Dataframe of vols
+        pdf (dataframe): Datafrane of prices
+        edf (dataframe): Dataframe of option expiries 
+        start_date (pd Timestamp): start date of the simulation
+        end_date (pd Timestamp): end date of the simulation
+        specpath (str, optional): path to a portfolio specs csv
+        signals (None, optional): path to a signals dataframe
+        test (bool, optional): flag that indicates if dataframes should be written.
+        write (bool, optional): Descriptio
+
+    Returns:
+        Tuple: vol, price, expiry, cleaned_price and start date. 
+
+    Raises:
+        ValueError: Description
     """
     # edf = pd.read_csv(epath).dropna()
 

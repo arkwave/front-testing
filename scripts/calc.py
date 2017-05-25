@@ -871,7 +871,7 @@ def compute_strike_from_delta(option, delta1=None, vol=None, s=None, tau=None, c
             print('[dvol 3] put delta: ', delta)
     s = option.underlying.get_price() if option else s
     tau = option.tau if option else tau
-    vol = option.vol if vol is None else vol
+    vol = option.vol if (vol is None and option is not None) else vol
     try:
         strike = s/(exp((vol*sqrt(tau) * D) - ((vol**2)*tau)/2))
     except TypeError:
@@ -927,7 +927,8 @@ def newton_raphson(option, s, k, c, tau, r, num_iter=100):
 def greeks_scaled(delta1, gamma1, theta1, vega1, product, lots):
     """Summary: Scaling method to bring greeks into reportable units.
     """
-
+    # print('scripts.calc.greeks_scaled - inputs: ',
+    # delta1, gamma1, theta1, vega1, product, lots)
     lots = lots
     lm = multipliers[product][1]
     dm = multipliers[product][0]

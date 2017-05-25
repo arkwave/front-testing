@@ -173,29 +173,37 @@ volid1 = pdt + '  ' + opmth1 + '.' + ftmth  # W UX.UX
 volid2 = pdt + '  ' + opmth2 + '.' + ftmth  # W QX.UX
 
 
+#### W Qx.Ux - Long Positions ####
 # W Qx.Ux Put 430 900 lots
 op1 = create_vanilla_option(
     vdf, pdf, volid2, 'put', False, start_date, lots=900, strike=430)
 # W Qx.Ux Put 440 500 lots
 op2 = create_vanilla_option(
     vdf, pdf, volid2, 'put', False, start_date, lots=500, strike=440)
+# W Qx.Ux 475 call 450 lots
+op5 = create_vanilla_option(
+    vdf, pdf, volid2, 'call', False, start_date, lots=450, strike=475)
+
+
+#### W Qx.Ux - Short Positions ####
 # W Qx.Ux 490 call -1180 lots
 op3 = create_vanilla_option(
     vdf, pdf, volid2, 'call', True, start_date, lots=1180, strike=490)
 # W Qx.Ux 500 call -750 lots
 op4 = create_vanilla_option(
     vdf, pdf, volid2, 'call', True, start_date, lots=750, strike=500)
-# W Qx.Ux 475 call 450 lots
-op5 = create_vanilla_option(
-    vdf, pdf, volid2, 'call', False, start_date, lots=450, strike=475)
 
 
+#### W Ux.Ux - Long Positions ####
 # W Ux.Ux call 450 lots
 op6 = create_vanilla_option(
     vdf, pdf, volid1, 'call', False, start_date, lots=450, strike=450)
 # W Ux.Ux 460 call 175 lots
 op7 = create_vanilla_option(
     vdf, pdf, volid1, 'call', False, start_date, lots=175, strike=460)
+
+
+#### W Ux.Ux - Short Positions ####
 # W Ux.Ux 480 call -231 lots
 op8 = create_vanilla_option(
     vdf, pdf, volid1, 'call', True, start_date, lots=231, strike=480)
@@ -203,8 +211,11 @@ op8 = create_vanilla_option(
 op9 = create_vanilla_option(
     vdf, pdf, volid1, 'call', True, start_date, lots=500, strike=500)
 
+
+### Outstanding Future Position ###
 fts, ftprice2 = create_underlying(
     pdt, ftmth, pdf, start_date, shorted=False, lots=546)
+
 
 pf = Portfolio()
 ops = [op1, op2, op3, op4, op5, op6, op7, op8, op9]
