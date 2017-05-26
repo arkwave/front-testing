@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-05-25 21:57:56
+# @Last Modified time: 2017-05-26 14:42:19
 
 
 from .portfolio import Portfolio
@@ -144,31 +144,29 @@ def create_portfolio(pdt, opmth, ftmth, optype, vdf, pdf, **kwargs):
     elif optype == 'butterfly':
         char = kwargs['char']
         strike1, strike2, strike3, strike4 = kwargs['strike']
-        op1, op2, op3, op4 = create_butterfly(char, volid, pdf, date, shorted,
-                                              strike1, strike2, strike3, strike4, kwargs)
+        op1, op2, op3, op4 = create_butterfly(
+            char, volid, pdf, date, shorted, kwargs)
         ops = [op1, op2, op3, op4]
 
     pf.add_security(ops, 'OTC')
 
-    # if 'hedges' in kwargs:
-    #     print('creating hedges')
-    #     dic = kwargs['hedges']
-    #     if dic['type'] == 'straddle':
-    #         # identifying the essentials
-    #         pdt, ftmth, opmth = dic['pdt'], dic['ftmth'], dic['opmth']
-    #         volid = pdt + '  ' + opmth + '.' + ftmth
-    #         shorted = dic['shorted']
-    #         # create the underlying future object
-    #         h_ft, h_price = create_underlying(
-    #             pdt, ftmth, pdf, date, shorted=False)
-    #         h_strike = round(round(h_price / ticksize) * ticksize, 2) \
-    #             if dic['strike'] == 'atm' else dic['strike']
-    #         # create_straddle(volid, vdf, pdf, ft, date, shorted, strike,
-    #         # kwargs):
-    #         h1, h2 = create_straddle(volid, vdf, pdf, h_ft, date,
-    #                                  shorted, h_strike, dic, pf=pf)
+    if 'hedges' in kwargs:
+        print('creating hedges')
+        dic = kwargs['hedges']
+        if dic['type'] == 'straddle':
+            # identifying the essentials
+            pdt, ftmth, opmth = dic['pdt'], dic['ftmth'], dic['opmth']
+            volid = pdt + '  ' + opmth + '.' + ftmth
+            shorted = dic['shorted']
+            # create the underlying future object
+            h_ft, h_price = create_underlying(
+                pdt, ftmth, pdf, date, shorted=False)
+            h_strike = round(round(h_price / ticksize) * ticksize, 2) \
+                if dic['strike'] == 'atm' else dic['strike']
+            h1, h2 = create_straddle(
+                volid, vdf, pdf, date, shorted, h_strike, dic, pf=pf)
 
-    #     pf.add_security([h1, h2], 'hedge')
+        pf.add_security([h1, h2], 'hedge')
 
     return pf
 
@@ -329,23 +327,68 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', l
     return newop
 
 
-def create_butterfly(char, volid, pdf, ft, date, shorted, strike1, strike2, strike3, strike4, kwargs):
+def create_butterfly(char, volid, vdf, pdf, date, shorted, kwargs):
     """Utility method that creates a butterfly position. 
 
     Args:
-        char (TYPE): Description
-        volid (TYPE): Description
-        pdf (TYPE): Description
-        ft (TYPE): Description
-        date (TYPE): Description
-        shorted (TYPE): Description
+        char (str): 'call' or 'put', specifies if this is a call or put butterfly.
+        volid (str): volid of options comprising the butterfly, e.g. C  N7.N7
+        vdf (pandas dataframe): dataframe of vols
+        pdf (pandas dataframe): detaframe of prices
+        date (pandas Timestamp): initialization date. 
+        shorted (bool): determines if this is a short or long butterfly. 
+        kwargs (dic): dictionary of specifications must include the following:
+            > 3 strikes OR one delta and one diff 
+            > 3 lot sizes. 
+
+    Notes:
+        1) Construction requires either:
+            > 3 strikes. 
+            > One delta and a spread. 
+
+    Deleted Parameters:
         strike1 (TYPE): Description
         strike2 (TYPE): Description
         strike3 (TYPE): Description
         strike4 (TYPE): Description
-        kwargs (TYPE): Description
+        ft (TYPE): Description
+
     """
-    pass
+    # create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', lots=None, kwargs=None, delta=None, strike=None, vol=None):
+    # checks if strikes are passed in, and if there are 3 strikes.
+    lower_strike, mid_strike, upper_strike, mid_delta, dist = [None] * 5
+
+    lot1, lot2, lot3, lot4 = kwargs['lots']
+
+    if 'strike' not in kwargs and 'delta' not in kwargs:
+        raise ValueError(
+            'neither strike nor mid-delta specified. aborting construction.')
+
+    if 'strike' in kwargs and len(kwargs['strike']) == 3:
+        lower_strike, mid_strike, upper_strike = kwargs['strike']
+
+    elif 'delta' in kwargs and 'dist' in kwargs:
+        mid_delta = kwargs['delta']
+        dist = kwargs['dist']
+
+    mid_op1 = create_vanilla_option(
+        vdf, pdf, volid, char, not shorted, date, delta=mid_delta, strike=mid_strike, lots=lot2)
+
+    mid_op2 = create_vanilla_option(
+        vdf, pdf, volid, char, not shorted, date, delta=mid_delta, strike=mid_strike, lots=lot3)
+    print('mid strikes: ', mid_op1.K, mid_op2.K)
+
+    if dist is not None:
+        lower_strike = mid_op2.K - dist
+        upper_strike = mid_op2.K + dist
+
+    lower_op = create_vanilla_option(
+        vdf, pdf, volid, char, shorted, date, strike=lower_strike, lots=lot1)
+
+    upper_op = create_vanilla_option(
+        vdf, pdf, volid, char, shorted, date, strike=upper_strike, lots=lot4)
+
+    return lower_op, mid_op1, mid_op2, upper_op
 
 
 def create_spread(char, volid, vdf, pdf, date, shorted, kwargs):
@@ -389,15 +432,6 @@ def create_spread(char, volid, vdf, pdf, date, shorted, kwargs):
         vdf, pdf, volid, char, shorted, date, delta=delta1, strike=strike1)
     op2 = create_vanilla_option(
         vdf, pdf, volid, char, not shorted, date, delta=delta2, strike=strike2)
-
-    if 'greek' in kwargs:
-        val = kwargs['greekval']
-        if kwargs['greek'] == 'gamma':
-            pass
-        elif kwargs['greek'] == 'vega':
-            pass
-        elif kwargs['theta'] == 'theta':
-            pass
 
     return op1, op2
 

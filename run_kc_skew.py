@@ -70,7 +70,7 @@ specpath = 'specs.csv'
 sigpath = 'datasets/small_ct/signals.csv'
 hedgepath = 'hedging.csv'
 
-yr = 6
+yr = 5
 pnls = []
 
 # vdf, pdf, df = pull_alt_data('KC')
@@ -191,8 +191,9 @@ print('creating portfolio')
 opmth = target + str(yr)
 ftmth = target + str(yr)
 
-pf = create_portfolio(pdt, opmth, ftmth, 'skew', vdf, pdf, chars=[
-    'call', 'put'], shorted=True, delta=25, greek='vega', greekval='25000')
+
+pf = create_portfolio(pdt, opmth, ftmth, 'skew', vdf, pdf,
+                      delta=25, shorted=True, greek='vega', greekval=25000)
 
 # pf = create_portfolio(pdt, opmth, ftmth, 'straddle', vdf, pdf, chars=[
 #     'call', 'put'], shorted=False, atm=True, greek='vega', greekval='130000', hedges=hedge_specs)

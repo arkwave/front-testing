@@ -204,7 +204,7 @@ print('###################################')
 print('5. Creating Bull Callspread')
 # pf5 - bull callspread
 pf5 = create_portfolio(pdt, opmth, ftmth, 'spread', vdf, pdf,
-                       shorted=False, char='call', delta=[75, 25])
+                       shorted=False, char='call', delta=[75, 25], greek='vega', greekval=25000)
 print('########### Bull Callspread ############')
 print(pf5)
 print('########################################')
@@ -237,15 +237,25 @@ print(pf8)
 print('########################################')
 
 # pf9 - long call butterfly
+print('9. Creating Long Butterfly')
+pf9 = create_portfolio(pdt, opmth, ftmth, 'butterfly', vdf, pdf,
+                       char='call', shorted=False, lots=[200, 200, 200], delta=50, diff=2)
+print('########### Long Call Butterfly #############')
+print(pf9)
+print('#############################################')
+
 
 # pf10 - long put butterfly
+pf10 = create_portfolio(pdt, opmth, ftmth, 'butterfly', vdf, pdf,
+                        char='put', shorted=False, lots=[200, 200, 200], strikes=[58, 60, 62])
 
 # pf11 - short call butterfly
 
 # pf12 - short put butterfly
 
+
 # pf13 - fence
-print('9. Creating Fence')
+print('13. Creating Fence')
 pf13 = create_portfolio(pdt, opmth, ftmth, 'skew', vdf, pdf,
                         delta=25, shorted=True, greek='vega', greekval=25000)
 print('########### Fence ############')
