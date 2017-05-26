@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-05-26 14:42:19
+# @Last Modified time: 2017-05-26 15:15:14
 
 
 from .portfolio import Portfolio
@@ -143,9 +143,8 @@ def create_portfolio(pdt, opmth, ftmth, optype, vdf, pdf, **kwargs):
 
     elif optype == 'butterfly':
         char = kwargs['char']
-        strike1, strike2, strike3, strike4 = kwargs['strike']
         op1, op2, op3, op4 = create_butterfly(
-            char, volid, pdf, date, shorted, kwargs)
+            char, volid, vdf, pdf, date, shorted, kwargs)
         ops = [op1, op2, op3, op4]
 
     pf.add_security(ops, 'OTC')
@@ -338,7 +337,7 @@ def create_butterfly(char, volid, vdf, pdf, date, shorted, kwargs):
         date (pandas Timestamp): initialization date. 
         shorted (bool): determines if this is a short or long butterfly. 
         kwargs (dic): dictionary of specifications must include the following:
-            > 3 strikes OR one delta and one diff 
+            > 3 strikes OR one delta and one dist 
             > 3 lot sizes. 
 
     Notes:
@@ -356,21 +355,31 @@ def create_butterfly(char, volid, vdf, pdf, date, shorted, kwargs):
     """
     # create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', lots=None, kwargs=None, delta=None, strike=None, vol=None):
     # checks if strikes are passed in, and if there are 3 strikes.
+
+    print('kwargs: ', kwargs)
     lower_strike, mid_strike, upper_strike, mid_delta, dist = [None] * 5
 
     lot1, lot2, lot3, lot4 = kwargs['lots']
 
-    if 'strike' not in kwargs and 'delta' not in kwargs:
+    # print('delta in kwargs: ', 'delta' in kwargs)
+    # print('strikes in kwargs: ', 'strikes' in kwargs)
+
+    if ('strikes' not in kwargs) and ('delta' not in kwargs):
         raise ValueError(
             'neither strike nor mid-delta specified. aborting construction.')
 
-    if 'strike' in kwargs and len(kwargs['strike']) == 3:
-        lower_strike, mid_strike, upper_strike = kwargs['strike']
+    if 'strikes' in kwargs and len(kwargs['strikes']) == 3:
+        print('explicit strikes construction')
+        lower_strike, mid_strike, upper_strike = kwargs['strikes']
 
     elif 'delta' in kwargs and 'dist' in kwargs:
+        print('delta/dist construction')
         mid_delta = kwargs['delta']
+        # mid_delta = mid_delta/100
         dist = kwargs['dist']
 
+    print('mid delta: ', mid_delta)
+    print('lots: ', lot1, lot2, lot3, lot4)
     mid_op1 = create_vanilla_option(
         vdf, pdf, volid, char, not shorted, date, delta=mid_delta, strike=mid_strike, lots=lot2)
 

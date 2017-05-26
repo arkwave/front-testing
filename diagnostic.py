@@ -237,22 +237,38 @@ print(pf8)
 print('########################################')
 
 # pf9 - long call butterfly
-print('9. Creating Long Butterfly')
+print('9. Creating Long Call Butterfly')
 pf9 = create_portfolio(pdt, opmth, ftmth, 'butterfly', vdf, pdf,
-                       char='call', shorted=False, lots=[200, 200, 200], delta=50, diff=2)
+                       char='call', shorted=False, lots=[200, 200, 200, 200], delta=50, dist=2)
 print('########### Long Call Butterfly #############')
 print(pf9)
 print('#############################################')
 
 
 # pf10 - long put butterfly
+print('10. Creating Long Put Butterfly')
 pf10 = create_portfolio(pdt, opmth, ftmth, 'butterfly', vdf, pdf,
-                        char='put', shorted=False, lots=[200, 200, 200], strikes=[58, 60, 62])
+                        char='put', shorted=False, lots=[200, 200, 200, 200], strikes=[58, 60, 62])
+print('########### Long Put Butterfly #############')
+print(pf10)
+print('#############################################')
+
 
 # pf11 - short call butterfly
+print('11. Creating short call butterfly')
+pf11 = create_portfolio(pdt, opmth, ftmth, 'butterfly', vdf, pdf,
+                        char='call', shorted=True, lots=[200, 200, 200, 200], strikes=[58, 60, 62])
+print('########### Short Call Butterfly #############')
+print(pf11)
+print('##############################################')
 
 # pf12 - short put butterfly
-
+print('12. Creating short put butterfly')
+pf12 = create_portfolio(pdt, opmth, ftmth, 'butterfly', vdf, pdf,
+                        char='put', shorted=True, lots=[200, 200, 200, 200], strikes=[58, 60, 62])
+print('########### Short Call Butterfly #############')
+print(pf12)
+print('##############################################')
 
 # pf13 - fence
 print('13. Creating Fence')
