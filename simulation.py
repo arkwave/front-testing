@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-05-25 15:56:17
+# @Last Modified time: 2017-05-26 20:05:00
 
 ################################ imports ###################################
 import numpy as np
@@ -1381,61 +1381,60 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
         print('reached end of signal period')
         return pf, 0
 
-    cvol, pvol, sig, opmth, ftmth, pdt, vega_req = signals.loc[
-        signals.value_date == next_date, cols].values[0]
+    relevant_signals = signals[signals.value_date == next_date][cols]
+    for _, row in relevant_signals.iterrows():
+        cvol, pvol, sig, opmth, ftmth, pdt, vega_req = row.values
+        inputs = [cvol, pvol, sig, opmth, ftmth, pdt, vega_req]
+        print('________APPLYING SIGNAL_______: ', sig)
+        print('Inputs: ', inputs)
+        ret = None
+        next_date = pd.to_datetime(next_date)
 
-    inputs = [cvol, pvol, sig, opmth, ftmth, pdt, vega_req]
-
-    print('________APPLYING SIGNAL_______: ', sig)
-    print('Inputs: ', inputs)
-    ret = None
-    next_date = pd.to_datetime(next_date)
-
-    # Case 1: flatten signal
-    if sig == 0:
-        ret, cost = Portfolio(), 0
-    # Case 2: Nonzero signal
-    else:
-        # grab delta value we want each leg of the skew to have.
-        dval = roll_cond[1]/100
-        # identify the net vega position on each leg of the skew.
-        net_call_vega, net_put_vega = pf.net_vega_pos()
-        print('net call/put vega: ', net_call_vega, net_put_vega)
-        # get the target vega position we want on each leg
-        target_call_vega, target_put_vega = vega_req * sig,  -vega_req * sig
-        print('target call/put vega: ', target_call_vega, target_put_vega)
-        # boolean placeholders.
-        handle_calls, handle_puts = True, True
-        # Case 2-1: Adding to empty portfolio.
-        if net_call_vega == 0 and net_put_vega == 0:
-            print('empty portfolio; adding skews')
-            pf, cost = add_skew(pf, vdf, pdf, inputs, date,
-                                dval, brokerage=brokerage, slippage=slippage)
-            ret, cost = pf, cost
-        # Case 2-2: Adding to nonempty portfolio
+        # Case 1: flatten signal
+        if sig == 0:
+            ret, cost = Portfolio(), 0
+        # Case 2: Nonzero signal
         else:
-            # check if call vegas are within bounds
-            if abs(net_call_vega - target_call_vega) < tol:
-                print('call vega within bounds. Skipping handling.')
-                handle_calls = False
-            # check if put vegas are within bounds
-            if abs(net_put_vega - target_put_vega) < tol:
-                print('put vega within bounds. Skipping handling.')
-                handle_puts = False
+            # grab delta value we want each leg of the skew to have.
+            dval = roll_cond[1]/100
+            # identify the net vega position on each leg of the skew.
+            net_call_vega, net_put_vega = pf.net_vega_pos()
+            print('net call/put vega: ', net_call_vega, net_put_vega)
+            # get the target vega position we want on each leg
+            target_call_vega, target_put_vega = vega_req * sig,  -vega_req * sig
+            print('target call/put vega: ', target_call_vega, target_put_vega)
+            # boolean placeholders.
+            handle_calls, handle_puts = True, True
+            # Case 2-1: Adding to empty portfolio.
+            if net_call_vega == 0 and net_put_vega == 0:
+                print('empty portfolio; adding skews')
+                pf, cost = add_skew(pf, vdf, pdf, inputs, date,
+                                    dval, brokerage=brokerage, slippage=slippage)
+                ret, cost = pf, cost
+            # Case 2-2: Adding to nonempty portfolio
+            else:
+                # check if call vegas are within bounds
+                if abs(net_call_vega - target_call_vega) < tol:
+                    print('call vega within bounds. Skipping handling.')
+                    handle_calls = False
+                # check if put vegas are within bounds
+                if abs(net_put_vega - target_put_vega) < tol:
+                    print('put vega within bounds. Skipping handling.')
+                    handle_puts = False
 
-            if handle_calls:
-                calls = [op for op in pf.OTC_options if op.char == 'call']
-                # update_pos(char, target_vega, curr_vega, dval, ops, pf,
-                # strat, tol, vdf, pdf, inputs, date)
-                pf, cost = update_pos('call', target_call_vega,
-                                      net_call_vega, dval, calls, pf, strat, tol, vdf, pdf, inputs, date, brokerage=brokerage, slippage=slippage)
+                if handle_calls:
+                    calls = [op for op in pf.OTC_options if op.char == 'call']
+                    # update_pos(char, target_vega, curr_vega, dval, ops, pf,
+                    # strat, tol, vdf, pdf, inputs, date)
+                    pf, cost = update_pos('call', target_call_vega,
+                                          net_call_vega, dval, calls, pf, strat, tol, vdf, pdf, inputs, date, brokerage=brokerage, slippage=slippage)
 
-            if handle_puts:
-                puts = [op for op in pf.OTC_options if op.char == 'put']
-                pf, cost = update_pos('put', target_put_vega,
-                                      net_put_vega, dval, puts, pf, strat, tol, vdf, pdf, inputs, date, brokerage=brokerage, slippage=slippage)
+                if handle_puts:
+                    puts = [op for op in pf.OTC_options if op.char == 'put']
+                    pf, cost = update_pos('put', target_put_vega,
+                                          net_put_vega, dval, puts, pf, strat, tol, vdf, pdf, inputs, date, brokerage=brokerage, slippage=slippage)
 
-        ret, cost = pf, cost
+            ret, cost = pf, cost
 
     print('________SIGNAL APPLIED _________')
     return ret, cost
@@ -2148,9 +2147,9 @@ if __name__ == '__main__':
         vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage, slippage=gv.slippage, signals=signals)
 
 
-#######################################################################
-#######################################################################
-#######################################################################
+##########################################################################
+##########################################################################
+##########################################################################
 
 
 ##########################################################################
@@ -2158,10 +2157,6 @@ if __name__ == '__main__':
 ##########################################################################
 
 
-#######################################################################
-#######################################################################
-#######################################################################
-###############
-#
-###
-#
+##########################################################################
+##########################################################################
+##########################################################################

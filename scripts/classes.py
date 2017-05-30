@@ -126,6 +126,7 @@ class Option:
         string += ' ' + str(int(self.lots))
         string += ' ' + str(round(self.tau * 365))
         string += ' [c_' + str(self.ordering) + ']'
+        string += ' ' + str(round(abs(self.delta/self.lots), 2))
         return string
 
     def set_ordering(self, val):
