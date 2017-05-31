@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-05-26 15:15:14
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-05-31 14:47:20
 
 
 from .portfolio import Portfolio
@@ -324,6 +324,81 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', l
         newop.update_lots(lots_req)
         newop.underlying.update_lots(lots_req)
     return newop
+
+
+# def __init__(self, strike, tau, char, vol, underlying, payoff, shorted,
+# month, direc=None, barrier=None, lots=1000, bullet=True, ki=None,
+# ko=None, rebate=0, ordering=1e5, settlement='futures')
+
+def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriertype, direction, ki, ko, bullet, rebate=0, payoff='amer', lots=None, kwargs=None, delta=None, vol=None):
+    """Summary
+
+    Args:
+        vdf (TYPE): Description
+        pdf (TYPE): Description
+        volid (TYPE): Description
+        char (TYPE): Description
+        shorted (TYPE): Description
+        date (TYPE): Description
+        payoff (str, optional): Description
+        lots (None, optional): Description
+        kwargs (None, optional): Description
+        delta (None, optional): Description
+        strike (None, optional): Description
+        vol (None, optional): Description
+
+    Raises:
+        ValueError: Description
+    """
+    print('util.create_vanilla_option - inputs: ',
+          volid, char, shorted, lots, delta, strike, vol)
+
+    if delta is None and strike is None:
+        raise ValueError(
+            'neither delta nor strike passed in; aborting construction.')
+
+    lots_req = lots if lots is not None else 1000
+
+    # naming conventions
+    ftmth = volid.split('.')[1]
+    pdt = volid.split()[0]
+    opmth = volid.split()[1].split('.')[0]
+    cpi = 'C' if char == 'call' else 'P'
+
+    # create the underlying future
+    ft_shorted = shorted if char == 'call' else not shorted
+    # print('util.create_vanilla_option - pdf.columns: ', pdf.columns)
+    ft, ftprice = create_underlying(pdt, ftmth, pdf, date,
+                                    shorted=ft_shorted, lots=lots_req)
+
+    # get tau
+    try:
+        tau = vdf[(vdf.value_date == date) &
+                  (vdf.vol_id == volid)].tau.values[0]
+    except IndexError:
+        print('util.create_vanilla_option - cannot find tau.')
+        print('inputs: ', date, volid)
+
+    # Case 1 : Vol is None, but strike is specified.
+    if vol is None and strike is not None:
+        # get vol
+        try:
+            vol = vdf[(vdf.value_date == date) &
+                      (vdf.vol_id == volid) &
+                      (vdf.call_put_id == cpi) &
+                      (vdf.strike == strike)].settle_vol.values[0]
+        except IndexError:
+            print('util.create_vanilla_option - vol1 not found, inputs below: ')
+            print('date: ', date)
+            print('vol_id: ', volid)
+            print('call_put_id: ', cpi)
+            print('strike: ', strike)
+
+    op1 = Option(strike, tau, char, vol, ft, payoff, shorted, opmth,
+                 direc=direction, barrier=barriertype, lots=lots_req,
+                 bullet=bullet, ki=ki, ko=ko, rebate=rebate, ordering=ft.get_ordering())
+
+    return op1
 
 
 def create_butterfly(char, volid, vdf, pdf, date, shorted, kwargs):

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-05-26 20:05:00
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-05-31 15:56:22
 
 ################################ imports ###################################
 import numpy as np
@@ -11,7 +11,7 @@ from scripts.portfolio import Portfolio
 from scripts.classes import Option, Future
 from scripts.prep_data import read_data, prep_portfolio, get_rollover_dates, generate_hedges, find_cdist, sanity_check
 from scripts.util import create_underlying, create_straddle, create_vanilla_option
-from scripts.calc import compute_strike_from_delta
+from scripts.calc import compute_strike_from_delta, get_barrier_vol
 import copy
 import time
 import matplotlib.pyplot as plt
@@ -200,6 +200,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         # filter data specific to the current day of the simulation.
         vdf = voldata[voldata.value_date == date]
         pdf = pricedata[pricedata.value_date == date]
+        print('Active Options: ', [
+              str(op) for op in pf.get_all_options() if op.check_active()])
         print('Portfolio before any ops: ', pf)
         print('SOD Vega Pos: ', pf.net_vega_pos())
 
@@ -256,8 +258,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         netpnl += (dailypnl - cost)
         net_cumul_values.append(netpnl)
 
-        stradcost = sum([op.compute_price() for op in pf.OTC_options])
-        print('cost of straddle: ', stradcost)
+        # stradcost = sum([op.compute_price() for op in pf.OTC_options])
+        # print('cost of straddle: ', stradcost)
         print('[10]   EOD PNL (GROSS): ', dailypnl)
         print('[10.1] EOD Vega PNL: ', vega_pnl)
         print('[10.2] EOD Gamma PNL: ', gamma_pnl)
@@ -271,53 +273,69 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         init_val = pf.compute_value()
         print('[13]  EOD PORTFOLIO: ', pf)
 
-        if len(pf.OTC_options) > 0:
-            ftprice = pf.OTC_options[0].underlying.get_price()
-        elif pf.hedge_options:
-            ftprice = pf.hedge_options[0].get_price()
-        else:
-            ftprice = 0
+    # Step 9: Logging relevant output to csv
+    ##########################################################################
 
-        oplots = pf.OTC_options[0].lots if pf.OTC_options else 0
-
-    # Step 9: computing stuff to be logged
-        lst = [date, stradcost, oplots, ftprice,
-               dailypnl, dailypnl-dailycost,
-               grosspnl, netpnl, gamma_pnl, gammapnl, vega_pnl, vegapnl, roll_hedged]
-
+        # Portfolio-wide information
         dic = pf.get_net_greeks()
 
-        call_vega, put_vega = 0, 0
+        call_vega = sum([op.vega for op in pf.get_all_options()
+                         if op.K >= op.underlying.get_price()])
 
-        cols = ['value_date', 'straddle_value', 'option_lottage', 'future price',
-                'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross', 'cu_pnl_net',
-                'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl', 'cu_vega_pnl',
-                'delta_rolled', 'pdt', 'month', 'delta', 'gamma', 'theta',
-                'vega', 'net_call_vega', 'net_put_vega', 'net_ft_pos', 'b/s']
+        put_vega = sum([op.vega for op in pf.get_all_options()
+                        if op.K < op.underlying.get_price()])
 
-        for pdt in dic:
-            for mth in dic[pdt]:
-                # getting net greeks
-                print('log writing - pdt, mth: ', pdt, mth)
-                delta, gamma, theta, vega = dic[pdt][mth]
-                ops = pf.OTC[pdt][mth][0] if mth in pf.OTC[
-                    pdt] else pf.hedges[pdt][mth][0]
-                ftpos = 0
-                # net future position
-                ft = pf.hedges[pdt][mth][1]
-                for f in ft:
-                    val = f.lots if not f.shorted else -f.lots
-                    ftpos += val
-                calls = [op for op in ops if op.char == 'call']
-                puts = [op for op in ops if op.char == 'put']
-                # net call vega, net put vega
-                call_vega = sum([op.vega for op in calls])
-                put_vega = sum([op.vega for op in puts])
-                lst.extend([pdt, mth, delta, gamma, theta,
-                            vega, call_vega, put_vega, ftpos, dailycost])
-                l_dic = OrderedDict(zip(cols, lst))
-                loglist.append(l_dic)
+        # option specific information
+        for op in pf.OTC_options:
+            ftprice = op.underlying.get_price()
+            op_value = op.get_price()
+            oplots = op.lots
+            opvol = op.vol
+            strike = op.K
+            pdt, ftmth, opmth = op.get_product(), op.get_month(), op.get_op_month()
+            vol_id = pdt + '  ' + opmth + '.' + ftmth
 
+            lst = [date, vol_id, op_value, oplots,
+                   ftprice, strike, opvol,
+                   dailypnl, dailypnl-dailycost, grosspnl, netpnl,
+                   gamma_pnl, gammapnl, vega_pnl, vegapnl, roll_hedged]
+
+            cols = ['value_date', 'vol_id', 'option_value', 'option_lottage',
+                    'future price', 'strike', 'vol',
+                    'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross', 'cu_pnl_net',
+                    'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl', 'cu_vega_pnl',
+                    'delta_rolled']
+
+            adcols = ['pdt', 'ft_month', 'op_month', 'delta', 'gamma', 'theta',
+                      'vega', 'net_call_vega', 'net_put_vega', 'net_ft_pos', 'b/s']
+
+            if op.barrier is not None:
+                cpi = 'C' if op.char == 'call' else 'P'
+                barlevel = op.ki if op.ki is not None else op.ko
+                bvol = get_barrier_vol(
+                    vdf, op.get_product(), op.tau, cpi, barlevel)
+                knockedin = op.knockedin
+                knockedout = op.knockedout
+                lst.extend([barlevel, bvol, knockedin, knockedout])
+                cols.extend(['barlevel', 'barrier_vol',
+                             'knockedin', 'knockedout'])
+            cols.extend(adcols)
+
+            # getting net greeks
+            delta, gamma, theta, vega = dic[pdt][ftmth]
+            ftpos = 0
+            # net future position
+            ft = pf.hedges[pdt][ftmth][1]
+            for f in ft:
+                val = f.lots if not f.shorted else -f.lots
+                ftpos += val
+            lst.extend([pdt, ftmth, opmth, delta, gamma, theta,
+                        vega, call_vega, put_vega, ftpos, dailycost])
+
+            l_dic = OrderedDict(zip(cols, lst))
+            loglist.append(l_dic)
+
+    ##########################################################################
     # Step 10: Decrement timestep after all computation steps
 
         # calculate number of days to step
@@ -344,7 +362,10 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
     ######################### PRINTING OUTPUT ###########################
     log = pd.DataFrame(loglist)
     # log.to_csv('log.csv')
-    log['vol_id'] = log.pdt + '  ' + log.month + '.' + log.month
+    # log['vol_id'] = log.pdt + '  ' + log.month + '.' + log.month
+
+
+# Appending data relevant to skew simulations. Not relevant in this case.
 
     # appending 25d vol changes and price changes
     if signals is not None:
@@ -364,6 +385,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         df = df.fillna(0)
         log = pd.merge(log, df[['value_date', 'vol_id', 'price_change',
                                 '25d_call_change', '25d_put_change']], on=['value_date'])
+
     # case where signals are None; in this case get 25d vol changes from pdf
     elif signals is None:
         rel_prices = pricedata[['value_date', 'vol_id', 'call_put_id', '25d']]
@@ -381,9 +403,6 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         print('columns after merge: ', log.columns)
         log['25d_c'] = (log['25d_c'].shift(-1) - log['25d_c']).shift(1)
         log['25d_p'] = (log['25d_p'].shift(-1) - log['25d_p']).shift(1)
-
-        log['future price'] = (
-            log['future price'].shift(-1) - log['future price']).shift(1)
 
     # log.to_csv('log.csv')
     # if not os.path.isdir(gv.folder):
@@ -677,7 +696,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
             # print('OP GREEKS: ', op.greeks())
 
     # (today's price, today's vol) - (today's price, yesterday's vol)
-    vega_pnl = pf.compute_value() - intermediate_val
+    vega_pnl = pf.compute_value() - intermediate_val if init_val != 0 else 0
 
     # gamma_pnl = pf.compute_value() - vega_pnl - prev_val
     # updating portfolio after modifying underlying objects
