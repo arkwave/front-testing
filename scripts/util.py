@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-05-31 14:47:20
+# @Last Modified time: 2017-05-31 19:54:57
 
 
 from .portfolio import Portfolio
@@ -170,7 +170,7 @@ def create_portfolio(pdt, opmth, ftmth, optype, vdf, pdf, **kwargs):
     return pf
 
 
-def create_underlying(pdt, ftmth, pdf, date, shorted=False, lots=None):
+def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=None):
     """Utility method that creates the underlying future object given a product, month, price data and date. 
 
     Args:
@@ -185,14 +185,15 @@ def create_underlying(pdt, ftmth, pdf, date, shorted=False, lots=None):
         tuple: future object, and price. 
     """
     uid = pdt + '  ' + ftmth
-    try:
-        ftprice = pdf[(pdf.underlying_id == uid) &
-                      (pdf.value_date == date)].settle_value.values[0]
-    except IndexError:
-        print('util.create_underlying: cannot find price. printing outputs: ')
-        print('uid: ', uid)
-        print('date: ', date)
-        return
+    if ftprice is None:
+        try:
+            ftprice = pdf[(pdf.underlying_id == uid) &
+                          (pdf.value_date == date)].settle_value.values[0]
+        except IndexError:
+            print('util.create_underlying: cannot find price. printing outputs: ')
+            print('uid: ', uid)
+            print('date: ', date)
+
     curr_mth = date.month
     curr_mth_sym = month_to_sym[curr_mth]
     curr_yr = date.year % (2000 + decade)
@@ -817,8 +818,8 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, specpath='', signals=None
     if (vdf.empty or pdf.empty):
         raise ValueError(
             '[scripts/prep_data.read_data] : Improper start date entered; resultant dataframes are empty')
-    print('pdf: ', pdf)
-    print('vdf: ', vdf)
+    # print('pdf: ', pdf)
+    # print('vdf: ', vdf)
     # clean dataframes
     edf = clean_data(edf, 'exp')
     vdf = clean_data(vdf, 'vol', date=start_date,
@@ -828,7 +829,7 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, specpath='', signals=None
 
     # final preprocessing steps
     final_price = ciprice(pdf)
-    print('final price: ', final_price)
+    # print('final price: ', final_price)
     final_vol = civols(vdf, final_price)
 
     print('sanity checking date ranges')

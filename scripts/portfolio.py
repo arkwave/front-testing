@@ -259,6 +259,7 @@ class Portfolio:
                 if data[month][0]:
                     final_dic[product][month] = data[month][2:]
 
+        # print('final_dic: ', final_dic)
         self.net_greeks = final_dic
 
     def add_security(self, security, flag):

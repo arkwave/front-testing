@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-05-31 15:56:22
+# @Last Modified time: 2017-05-31 22:38:27
 
 ################################ imports ###################################
 import numpy as np
@@ -206,8 +206,9 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         print('SOD Vega Pos: ', pf.net_vega_pos())
 
     # Step 3: Feed data into the portfolio.
-        pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures = feed_data(
-            vdf, pdf, pf, rollover_dates, prev_date, init_val, brokerage=brokerage, slippage=slippage)
+        pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
+            = feed_data(vdf, pdf, pf, rollover_dates, prev_date,
+                        init_val, brokerage=brokerage, slippage=slippage)
 
         # dailycost -= profit
         # print('cost after feed data: ', dailycost)
@@ -222,6 +223,9 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
     # Detour: add in exercise futures if required.
         if exercise_futures:
             pf.add_security(exercise_futures, 'OTC')
+        if barrier_futures:
+            pf.add_security(barrier_futures, 'hedge')
+        print('pf after feed: ', pf)
 
     # Step 5: Apply signal
         if signals is not None:
@@ -575,12 +579,20 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
 
     Raises:
         ValueError: Raised if voldf is empty.
+
+    Notes:
+    1) DO NOT ADD SECURITIES INSIDE THIS FUNCTION. Doing so will mess up the PnL calculations and give you vastly overinflated profits or vastly exaggerated losses, due to reliance on the compute_value function. 
+
+    # TODO: figure out whether or not barrier PnL should go into gamma or vega pnl, or treated separately altogether. Tidy up accordingly. 
     """
+    barrier_futures = []
     exercise_futures = []
     broken = False
-    # sanity checks
+    exercise_profit = 0
+    barrier_profit = 0
+
+    # 1) sanity checks
     if pf.empty():
-        # pf, broken, gamma_pnl, vega_pnl, profit
         return pf, False, 0, 0, 0, []
 
     if voldf.empty:
@@ -588,27 +600,9 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
 
     # print('curr_date: ', curr_date)
     prev_date = pd.to_datetime(prev_date)
+    date = pd.to_datetime(pdf.value_date.unique()[0])
 
-    # 2) Check for rollovers and expiries rollovers
-    # for product in dic:
-    #     ro_dates = dic[product]
-    #     # rollover date for this particular product
-    #     if prev_date is None:
-    #         if date in ro_dates:
-    #             print('ROLLOVER DETECTED; DECREMENTING ORDERING')
-    #             pf.decrement_ordering(product, 1)
-    #     else:
-    #         relevant_rollovers = [x for x in ro_dates if (
-    #             x.month == prev_date.month) and (x.year == prev_date.year)]
-    #         for date in relevant_rollovers:
-    #             # rollover in between dates
-    #             if date.day < curr_date.day and date.day > prev_date.day:
-    #                 print('ROLLOVER DETECTED; DECREMENTING ORDERING')
-    #                 pf.decrement_ordering(product, 1)
-
-    # expiries; also removes options for which ordering = 0
-
-    # 3)  update prices of futures, underlying & portfolio alike.
+    # 2)  update prices of futures, underlying & portfolio alike.
     if not broken:
         for ft in pf.get_all_futures():
             pdt, ordering = ft.get_product(), ft.get_ordering()
@@ -617,6 +611,9 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
                 val = pdf[(pdf.pdt == pdt) &
                           (pdf.underlying_id == uid)].settle_value.values[0]
                 # print('UPDATED - new price: ', val)
+                pf, cost, fts = handle_barriers(
+                    voldf, pdf, ft, val, pf, date)
+                barrier_futures.extend(fts)
                 ft.update_price(val)
 
             # index error would occur only if data is missing.
@@ -630,9 +627,43 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
                 broken = True
                 break
 
-    profit, pf, exercised, exercise_futures = handle_exercise(
+        if barrier_futures:
+            for ft in barrier_futures:
+                pdt, ordering = ft.get_product(), ft.get_ordering()
+                pnl_mult = multipliers[pdt][-1]
+                try:
+                    uid = ft.get_product() + '  ' + ft.get_month()
+                    val = pdf[(pdf.pdt == pdt) &
+                              (pdf.underlying_id == uid)].settle_value.values[0]
+                    # calculate difference between ki price and current price
+                    diff = val - ft.get_price()
+                    pnl_diff = diff * ft.lots * pnl_mult
+                    barrier_profit += pnl_diff
+                    # update the price of each future
+                    ft.update_price(val)
+
+                # index error would occur only if data is missing.
+                except IndexError:
+                    print('###### PRICE DATA MISSING #######')
+                    print('ordering: ', ordering)
+                    print('uid: ', uid)
+                    print('pdt: ', pdt)
+                    print('debug 1: ', pdf[(pdf.pdt == pdt) &
+                                           (pdf.order == ordering)])
+                    broken = True
+                    break
+
+            print('barrier future profit: ', barrier_profit)
+            # pf.add_security(barrier_futures, 'hedge')
+
+    exercise_profit, pf, exercised, exercise_futures = handle_exercise(
         pf, brokerage, slippage)
-    print('handle exercise profit: ', profit)
+
+    print('handle exercise profit: ', exercise_profit)
+
+    total_profit = exercise_profit + barrier_profit
+
+    # removing expiries
     pf.remove_expired()
 
     # sanity check: if no active options, close out entire portfolio.
@@ -647,17 +678,19 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
             deltas_to_close.add(iden)
         print('feed_data - dtc: ', deltas_to_close)
         pf, cost = close_out_deltas(pf, deltas_to_close)
-        profit -= cost
+        total_profit -= cost
 
     # calculating gamma pnl
     intermediate_val = pf.compute_value()
 
     print('intermediate value: ', intermediate_val)
     if exercised:
-        gamma_pnl = (intermediate_val + profit) - init_val
+        gamma_pnl = (intermediate_val + exercise_profit) - init_val
     else:
-        gamma_pnl = intermediate_val - init_val \
+        gamma_pnl = intermediate_val + total_profit - init_val \
             if (init_val != 0 and intermediate_val != 0) else 0
+
+    print('gamma pnl: ', gamma_pnl)
 
     print('pf after rollovers and expiries: ', pf)
 
@@ -692,13 +725,11 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
                 print('tau: ', df_tau)
                 broken = True
                 break
-            # print(str(op) + ' OP VALUE AFTER FEED: ', op.compute_price())
-            # print('OP GREEKS: ', op.greeks())
 
     # (today's price, today's vol) - (today's price, yesterday's vol)
-    vega_pnl = pf.compute_value() - intermediate_val if init_val != 0 else 0
+    vega_pnl = pf.compute_value() - intermediate_val \
+        if (init_val != 0 and intermediate_val != 0) else 0
 
-    # gamma_pnl = pf.compute_value() - vega_pnl - prev_val
     # updating portfolio after modifying underlying objects
     pf.update_sec_by_month(None, 'OTC', update=True)
     pf.update_sec_by_month(None, 'hedge', update=True)
@@ -706,7 +737,143 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
     # print('Portfolio After Feed: ', pf)
     print('[7]  NET GREEKS: ', str(pprint.pformat(pf.net_greeks)))
 
-    return pf, broken, gamma_pnl, vega_pnl, profit, exercise_futures
+    return pf, broken, gamma_pnl, vega_pnl, total_profit, exercise_futures, barrier_futures
+
+
+def handle_barriers(vdf, pdf, ft, val, pf, date):
+    """Handles delta differential and spot hedging for knockin/knockout events.
+
+    Args:
+        vdf (TYPE): dataframe of volatilities
+        pdf (TYPE): dataframe of prices
+        ft (TYPE): future object whose price is being updated
+        pf (TYPE): portfolio being simulated. 
+
+    """
+    print('handling barriers...')
+
+    print('future val: ', val)
+
+    step = 0
+    delta_diff = 0
+    ret = None
+    ft_price = 0
+    pdt = ft.get_product()
+    ftmth = ft.get_month()
+
+    op_ticksize = multipliers[pdt][-2]
+    ft_ticksize = multipliers[pdt][2]
+    ops = [op for op in pf.OTC_options if op.underlying == ft]
+
+    print('ops: ', ops)
+    if not ops:
+        return pf, 0, []
+
+    op = ops[0]
+    # opmth = op.get_op_month()
+
+    # base case: option is a vanilla option, or has expired.
+
+    if (op.barrier is None) or (op.check_expired()):
+        print('simulation.handle_barrers - vanilla/expired case ' + str(op))
+        ret = pf, 0
+
+    bar_op = copy.deepcopy(op)
+    # create vanilla option with the same stats as the barrier option AFTER
+    # knockin.
+    vanop = Option(op.K, op.tau, op.char, op.vol, copy.deepcopy(op.underlying),
+                   op.payoff, op.shorted, op.month, lots=op.lots, ordering=op.ordering,
+                   bullet=op.bullet)
+
+    # case 1: knockin case - option is not currently knocked in.
+    if op.ki is not None:
+        print('simulation.handle_barriers - knockin case')
+        # case 1-1: di option, val is below barrier.
+        if op.direc == 'down' and val <= op.ki:
+            print('simulation.handle_barriers - down-in case ' + str(op))
+            step = ft_ticksize
+        elif op.direc == 'up' and val >= op.ki:
+            print('simulation.handle_barriers - up-in case ' + str(op))
+            step = -ft_ticksize
+        # knockin case with no action
+        else:
+            print('barriers handled')
+            return pf, 0, []
+
+        # get delta after converting to vanilla option.
+        # round barrier to closest future ticksize price.
+        ft_price = round(round(op.ki / ft_ticksize) * ft_ticksize, 2)
+        print('ftprice: ', ft_price)
+        vanop.underlying.update_price(ft_price)
+        van_delta = vanop.greeks()[0]
+        # van_delta = vanop.delta
+        print('van_delta: ', van_delta)
+        # get the delta one ticksize above barrier of the current option
+        bar_diff = ft_price + step
+        print('bar_diff: ', bar_diff)
+        bar_op.underlying.update_price(bar_diff)
+
+        barr_delta = bar_op.greeks()[0]
+        print('bar_delta: ', barr_delta)
+        delta_diff = barr_delta - van_delta
+        print('delta diff: ', delta_diff)
+
+        # create the requisite futures.
+        ft_shorted = True if delta_diff < 0 else False
+        lots_req = abs(round(delta_diff))
+        fts, _ = create_underlying(pdt, ftmth, pdf, date, ftprice=ft_price,
+                                   shorted=ft_shorted, lots=lots_req)
+        print('future price: ', ft_price)
+        print('ft added: ', str(fts))
+        # tobeadded.append(fts)
+        # pf.add_security([fts], 'hedge')
+
+        # TODO: implement slippage and brokerage
+        ret = pf, 0, [fts]
+
+    # case 2: knockout.
+    elif op.ko is not None:
+        print('simulation.handle_barriers - knockout case')
+        if op.knockedout:
+            print('simulation.handle_barriers - knockedout')
+            ret = pf, 0, []
+
+        else:
+            # case 1: updating price to val will initiate a knockout
+            if op.direc == 'up' and val > op.ko:
+                print('simulation.handle_barriers - up-out case ' + str(op))
+                step = -ft_ticksize
+            elif op.direc == 'down' and val < op.ko:
+                print('simulation.handle_barriers - down-out case ' + str(op))
+                step = ft_ticksize
+            else:
+                print('barriers handled')
+                return pf, 0, []
+
+            ft_price = round(
+                round((op.ko + step) / ft_ticksize) * ft_ticksize, 2)
+            bar_op.underlying.update_price(ft_price)
+            print('future price: ', ft_price)
+            delta_diff = bar_op.delta
+            print('delta_diff: ', delta_diff)
+
+            # creating the future object.
+            ft_shorted = True if delta_diff < 0 else False
+            lots_req = abs(round(delta_diff))
+            fts, _ = create_underlying(pdt, ftmth, pdf, date, ftprice=ft_price,
+                                       shorted=ft_shorted, lots=lots_req)
+            # pf.add_security([fts], 'hedge')
+            # tobeadded.append(fts)
+            # TODO: implement slippage/brokerage
+            ret = pf, 0, [fts]
+
+    # regular vanilla option case; do nothing.
+    else:
+        print('simulation.handle_barriers - final else case')
+        ret = pf, 0, []
+
+    print('barriers handled')
+    return ret
 
 
 def handle_exercise(pf, brokerage=None, slippage=None):
@@ -2179,3 +2346,4 @@ if __name__ == '__main__':
 ##########################################################################
 ##########################################################################
 ##########################################################################
+####
