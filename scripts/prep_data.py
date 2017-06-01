@@ -537,6 +537,14 @@ def prep_portfolio(voldata, pricedata, filepath):
 
 
 def handle_dailies(dic):
+    """Summary
+
+    Args:
+        dic (TYPE): Description
+
+    Returns:
+        TYPE: Description
+    """
     for flag in dic:
         lst = dic[flag]
         tmp = lst.copy()
@@ -558,7 +566,7 @@ def handle_dailies(dic):
                         'ki'], params['ko'], params['rebate']
 
                 # creating the bullets corresponding to this daily option.
-                for i in range(1, ttm_range+1):
+                for i in range(1, int(ttm_range+1)):
                     tau = i/365
                     assert tau > 0
                     op_i = Option(strike, tau, char, vol, underlying,

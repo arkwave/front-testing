@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-05-31 22:38:27
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-06-01 16:22:52
 
 ################################ imports ###################################
 import numpy as np
@@ -298,13 +298,14 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
             strike = op.K
             pdt, ftmth, opmth = op.get_product(), op.get_month(), op.get_op_month()
             vol_id = pdt + '  ' + opmth + '.' + ftmth
+            tau = round(op.tau * 365)
 
-            lst = [date, vol_id, op_value, oplots,
+            lst = [date, vol_id, tau, op_value, oplots,
                    ftprice, strike, opvol,
                    dailypnl, dailypnl-dailycost, grosspnl, netpnl,
                    gamma_pnl, gammapnl, vega_pnl, vegapnl, roll_hedged]
 
-            cols = ['value_date', 'vol_id', 'option_value', 'option_lottage',
+            cols = ['value_date', 'vol_id', 'ttm', 'option_value', 'option_lottage',
                     'future price', 'strike', 'vol',
                     'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross', 'cu_pnl_net',
                     'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl', 'cu_vega_pnl',

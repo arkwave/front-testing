@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-05-31 19:54:57
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-06-01 16:17:44
 
 
 from .portfolio import Portfolio
 from .classes import Future, Option
-from .prep_data import find_cdist, match_to_signals, get_min_start_date, clean_data, ciprice, civols, vol_by_delta
+from .prep_data import find_cdist, match_to_signals, get_min_start_date, clean_data, ciprice, civols, vol_by_delta, handle_dailies
 from sqlalchemy import create_engine
 import pandas as pd
 import numpy as np
@@ -206,7 +206,7 @@ def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=N
     return ft, ftprice
 
 
-def create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', lots=None, kwargs=None, delta=None, strike=None, vol=None):
+def create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', lots=None, kwargs=None, delta=None, strike=None, vol=None, bullet=True):
     """Utility method that creates an option from the info passed in. Each option is instantiated with its own future underlying object. 
 
     Args:
@@ -302,7 +302,15 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', l
 
     # specifying option with information gathered thus far.
     newop = Option(strike, tau, char, vol, ft, payoff, shorted,
-                   opmth, lots=lots_req, ordering=ft.get_ordering())
+                   opmth, lots=lots_req, ordering=ft.get_ordering(),
+                   bullet=bullet)
+
+    # handling bullet vs daily
+    if not bullet:
+        tmp = {'OTC': [newop]}
+        ops = handle_dailies(tmp)
+        ops = ops['OTC']
+        return ops
 
     # handling additional greek requirements for options.
     pdt = ft.get_product()
