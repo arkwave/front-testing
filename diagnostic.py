@@ -1,6 +1,7 @@
 
 from scripts.prep_data import read_data, generate_hedges, sanity_check, get_rollover_dates
 # from scripts.classes import Option, Future
+import itertools
 import numpy as np
 import pandas as pd
 import scripts.global_vars as gv
@@ -73,12 +74,15 @@ specpath = 'specs.csv'
 sigpath = 'datasets/small_ct/signals.csv'
 hedgepath = 'hedging.csv'
 
-flag = 'cdi'
 
 yrs = [6]
 pnls = []
+op = None
 
-for yr in yrs:
+# , 'cuo', 'cdi', 'cdo', 'pui', 'puo', 'pdi', 'pdo']
+flags = ['putop']
+
+for yr, flag in itertools.product(yrs, flags):
     # vdf, pdf, df = pull_alt_data('W')
 
     target = 'U'
@@ -178,64 +182,73 @@ for yr in yrs:
 
     #### W Qx.Ux - Long Positions ####
     # W Qx.Ux Put 430 900 lots - 34
-    op1 = create_vanilla_option(
-        vdf, pdf, volid2, 'call', False, start_date, lots=900, delta=34)
+    if flag == 'callop':
+        op = create_vanilla_option(vdf, pdf, volid2, 'call', False,
+                                   start_date, lots=900, delta=34, bullet=False)
 
-    # 500 CUI 520
-    op2 = create_barrier_option(vdf, pdf, volid2, 'call', 500, False,
-                                start_date, 'amer', 'up', ki=520, ko=None,
-                                bullet=True, lots=900)
+    elif flag == 'putop':
+        op = create_vanilla_option(vdf, pdf, volid2, 'put', False,
+                                   start_date, lots=900, delta=34, bullet=False)
 
-    # 500 CUO 520
-    op3 = create_barrier_option(vdf, pdf, volid2, 'call', 500, False,
-                                start_date, 'amer', 'up', ki=None, ko=530,
-                                bullet=True, lots=900)
+    elif flag == 'cui':
+        # 500 CUI 520
+        op = create_barrier_option(vdf, pdf, volid2, 'call', 500, False,
+                                   start_date, 'amer', 'up', ki=520, ko=None,
+                                   bullet=True, lots=900)
+    elif flag == 'cuo':
+        # 500 CUO 520
+        op = create_barrier_option(vdf, pdf, volid2, 'call', 500, False,
+                                   start_date, 'amer', 'up', ki=None, ko=530,
+                                   bullet=True, lots=900)
     # 500 CDI 460
-    op4 = create_barrier_option(vdf, pdf, volid2, 'call', 500, False,
-                                start_date, barriertype='amer', direction='down',
-                                ki=460, ko=None, bullet=True, lots=900)
-    # 500 CDO 460
-    op5 = create_barrier_option(vdf, pdf, volid2, 'call', 500, False,
-                                start_date, barriertype='amer', direction='down',
-                                ki=None, ko=460, bullet=True, lots=900)
-    # 500 PUI 520
-    op6 = create_barrier_option(vdf, pdf, volid2, 'put', 500, False,
-                                start_date, barriertype='amer', direction='up',
-                                ki=520, ko=None, bullet=True, lots=900)
-    # 500 PUO 520
-    op7 = create_barrier_option(vdf, pdf, volid2, 'put', 500, False,
-                                start_date, barriertype='amer', direction='up',
-                                ki=None, ko=520, bullet=True, lots=900)
-    # 500 PDI 460
-    op8 = create_barrier_option(vdf, pdf, volid2, 'put', 500, False,
-                                start_date, barriertype='amer', direction='down',
-                                ki=460, ko=None, bullet=True, lots=900)
-    # 500 PDO 460
-    op9 = create_barrier_option(vdf, pdf, volid2, 'put', 500, False,
-                                start_date, barriertype='amer', direction='down',
-                                ki=None, ko=460, bullet=True, lots=900)
+    elif flag == 'cdi':
+        op = create_barrier_option(vdf, pdf, volid2, 'call', 500, False,
+                                   start_date, barriertype='amer', direction='down',
+                                   ki=460, ko=None, bullet=True, lots=900)
+    elif flag == 'cdo':
+        # 500 CDO 460
+        op = create_barrier_option(vdf, pdf, volid2, 'call', 500, False,
+                                   start_date, barriertype='amer', direction='down',
+                                   ki=None, ko=460, bullet=True, lots=900)
+    elif flag == 'pui':
+        # 500 PUI 520
+        op = create_barrier_option(vdf, pdf, volid2, 'put', 500, False,
+                                   start_date, barriertype='amer', direction='up',
+                                   ki=520, ko=None, bullet=True, lots=900)
+
+    elif flag == 'puo':
+        # 500 PUO 520
+        op = create_barrier_option(vdf, pdf, volid2, 'put', 500, False,
+                                   start_date, barriertype='amer', direction='up',
+                                   ki=None, ko=520, bullet=True, lots=900)
+    elif flag == 'pdi':
+        # 500 PDI 460
+        op = create_barrier_option(vdf, pdf, volid2, 'put', 500, False,
+                                   start_date, barriertype='amer', direction='down',
+                                   ki=460, ko=None, bullet=True, lots=900)
+    elif flag == 'pdo':
+        # 500 PDO 460
+        op = create_barrier_option(vdf, pdf, volid2, 'put', 500, False,
+                                   start_date, barriertype='amer', direction='down',
+                                   ki=None, ko=460, bullet=True, lots=900)
+
     pf = Portfolio()
-    ops = [op4]
+    pf.add_security(op, 'OTC')
+
     # ops = [op1, op2, op3, op4, op5, op6, op7, op8, op9]
-    pf.add_security(ops, 'OTC')
 
     pf_delta = pf.net_greeks['W']['U' + str(yr)][0]
+
     print('net pf delta: ', pf_delta)
+
     shorted = True if pf_delta > 0 else False
+
     ### Outstanding Future Position ###
     fts, ftprice2 = create_underlying(
         pdt, ftmth, pdf, start_date, shorted=shorted, lots=round(abs(pf_delta)))
 
     fts = [fts]
     pf.add_security(fts, 'hedge')
-
-    # print(ftprice1, ftprice2)
-
-    # pf = create_portfolio(pdt, opmth, ftmth, 'skew', vdf, pdf, chars=[
-    #     'call', 'put'], shorted=True, delta=25, greek='vega', greekval='25000')
-
-    # pf = create_portfolio(pdt, opmth, ftmth, 'straddle', vdf, pdf, chars=[
-    #     'call', 'put'], shorted=False, atm=True, greek='vega', greekval='130000', hedges=hedge_specs)
 
     print('portfolio: ', pf)
     print('deltas: ', [op.delta/op.lots for op in pf.OTC_options])
@@ -254,12 +267,13 @@ for yr in yrs:
 
     print('running simulation')
     # # # # run the simulation
-    grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log = run_simulation(
-        vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage,
-        slippage=gv.slippage)
+    # grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log = run_simulation(
+    #     vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage,
+    #     slippage=gv.slippage)
 
-    pnls.append(netpnl)
-    log.to_csv('results/' + flag + '_' + str(yr) + '_newlog.csv', index=False)
+    # pnls.append(netpnl)
+    # log.to_csv('results/' + flag + '_' + str(yr) +
+    #            '_daily_log.csv', index=False)
 
 
-print(pnls)
+# print(pnls)

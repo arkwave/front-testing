@@ -522,7 +522,7 @@ def prep_portfolio(voldata, pricedata, filepath):
             oplist[flag].append(opt)
 
     # handling bullet options
-    bullets = handle_dailies(oplist)
+    bullets = handle_dailies(oplist, sim_start)
     for flag in bullets:
         ops = oplist[flag]
         pf.add_security(ops, flag)
@@ -536,11 +536,12 @@ def prep_portfolio(voldata, pricedata, filepath):
     return pf, sim_start
 
 
-def handle_dailies(dic):
+def handle_dailies(dic, sim_start):
     """Summary
 
     Args:
-        dic (TYPE): Description
+        dic (TYPE): dictionary of the form {'OTC': [list of options], 'hedge':[list of options]}
+        sim_start (TYPE): start_date of the simulation
 
     Returns:
         TYPE: Description
@@ -556,6 +557,11 @@ def handle_dailies(dic):
                 params = op.get_properties()
                 lst.remove(op)
                 ttm_range = round(op.tau * 365)
+                expdate = sim_start + pd.Timedelta(str(ttm_range) + ' days')
+                daterange = pd.bdate_range(sim_start, expdate)
+                print('daterange: ', daterange)
+                taus = [((expdate - b_day).days) /
+                        365 for b_day in daterange if b_day != expdate]
                 strike, char, vol, underlying, payoff, shorted, month, ordering, lots \
                     = params['strike'], params['char'], params['vol'], params['underlying'], \
                     params['payoff'],  params['shorted'], params['month'], \
@@ -566,13 +572,12 @@ def handle_dailies(dic):
                         'ki'], params['ko'], params['rebate']
 
                 # creating the bullets corresponding to this daily option.
-                for i in range(1, int(ttm_range+1)):
-                    tau = i/365
-                    assert tau > 0
+                for tau in taus:
                     op_i = Option(strike, tau, char, vol, underlying,
                                   payoff, shorted, month, direc=direc, barrier=barrier, lots=lots,
                                   bullet=False, ki=ki, ko=ko, rebate=rebate, ordering=ordering)
                     bullets.append(op_i)
+
             lst.extend(bullets)
 
     return dic

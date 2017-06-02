@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-06-01 16:17:44
+# @Last Modified time: 2017-06-01 19:16:43
 
 
 from .portfolio import Portfolio
@@ -308,7 +308,7 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', l
     # handling bullet vs daily
     if not bullet:
         tmp = {'OTC': [newop]}
-        ops = handle_dailies(tmp)
+        ops = handle_dailies(tmp, date)
         ops = ops['OTC']
         return ops
 
