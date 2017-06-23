@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-06-01 19:16:43
+# @Last Modified time: 2017-06-23 14:13:47
 
 
 from .portfolio import Portfolio
@@ -339,32 +339,44 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', l
 # month, direc=None, barrier=None, lots=1000, bullet=True, ki=None,
 # ko=None, rebate=0, ordering=1e5, settlement='futures')
 
-def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriertype, direction, ki, ko, bullet, rebate=0, payoff='amer', lots=None, kwargs=None, delta=None, vol=None):
-    """Summary
+def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriertype, direction, ki, ko, bullet, rebate=0, payoff='amer', lots=None, kwargs=None, vol=None, bvol=None):
+    """Helper method that creates barrier options. 
 
     Args:
-        vdf (TYPE): Description
-        pdf (TYPE): Description
-        volid (TYPE): Description
-        char (TYPE): Description
-        shorted (TYPE): Description
-        date (TYPE): Description
-        payoff (str, optional): Description
-        lots (None, optional): Description
-        kwargs (None, optional): Description
-        delta (None, optional): Description
-        strike (None, optional): Description
-        vol (None, optional): Description
+        vdf (TYPE): dataframe of vols
+        pdf (TYPE): dataframe of prices
+        volid (TYPE): vol_id of this barrier option
+        char (TYPE): call/put
+        strike (TYPE): strike price. 
+        shorted (TYPE): True or False
+        date (TYPE): date of initialization
+        barriertype (TYPE): amer or euro barrier. 
+        direction (TYPE): up or down
+        ki (TYPE): knockin value 
+        ko (TYPE): knockout value
+        bullet (TYPE): True if bullet, false if daily. 
+        rebate (int, optional): rebate value.
+        payoff (str, optional): amer or euro option
+        lots (None, optional): number of lots
+        kwargs (None, optional): additional parameters (greeks, etc)
+        vol (None, optional): vol at strike
+        bvol (None, optional): vol at barrier
 
-    Raises:
+    Deleted Parameters:
+        delta (None, optional): specif
+
+    Returns:
+        TYPE: Description
+
+    No Longer Raises:
         ValueError: Description
     """
-    print('util.create_vanilla_option - inputs: ',
-          volid, char, shorted, lots, delta, strike, vol)
+    print('util.create_barrier_option - inputs: ',
+          volid, char, shorted, lots, strike, vol)
 
-    if delta is None and strike is None:
-        raise ValueError(
-            'neither delta nor strike passed in; aborting construction.')
+    # if delta is None and strike is None:
+    #     raise ValueError(
+    #         'neither delta nor strike passed in; aborting construction.')
 
     lots_req = lots if lots is not None else 1000
 
@@ -403,9 +415,24 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
             print('call_put_id: ', cpi)
             print('strike: ', strike)
 
+    # get barrier vol.
+    barlevel = ko if ko is not None else ki
+    if bvol is None:
+        try:
+            bvol = vdf[(vdf.value_date == date) &
+                       (vdf.vol_id == volid) &
+                       (vdf.call_put_id == cpi) &
+                       (vdf.strike == barlevel)].settle_vol.values[0]
+        except IndexError:
+            print('util.create_barrier_option - bvol not found. inputs below: ')
+            print('date: ', date)
+            print('vol_id: ', volid)
+            print('call_put_id: ', cpi)
+            print('strike: ', barlevel)
+
     op1 = Option(strike, tau, char, vol, ft, payoff, shorted, opmth,
                  direc=direction, barrier=barriertype, lots=lots_req,
-                 bullet=bullet, ki=ki, ko=ko, rebate=rebate, ordering=ft.get_ordering())
+                 bullet=bullet, ki=ki, ko=ko, rebate=rebate, ordering=ft.get_ordering(), bvol=bvol)
 
     return op1
 

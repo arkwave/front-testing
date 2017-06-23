@@ -1,2 +1,2 @@
 Type,strike,vol_id,call_put_id,optiontype,barriertype,direction,knockin,knockout,bullet,shorted,hedgeorOTC,greek,amount
-Option,1000,S  X6.X6,call,amer,,,,,,FALSE,OTC,,
+Option,900,W  Q6.U6,call,amer,,,,,,FALSE,OTC,,

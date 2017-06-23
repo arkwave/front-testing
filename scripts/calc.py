@@ -87,7 +87,7 @@ np.random.seed(seed)
 #####################################################################
 
 
-def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None, barrier=None, d=None, product=None):
+def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None, barrier=None, d=None, product=None, order=None, bvol=None):
     '''Wrapper function that computes value of option.
     Inputs: 1) ki      : Knock in value.
             2) ko      : Knock out value.
@@ -114,7 +114,7 @@ def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None, barrier=No
         if barrier == 'amer':
             return _barrier_amer(char, tau, vol, K, s, r, payoff, d, ki, ko)
         elif barrier == 'euro':
-            return _barrier_euro(char, tau, vol, K, s, r, payoff, d, ki, ko, product)
+            return _barrier_euro(char, tau, vol, K, s, r, payoff, d, ki, ko, product, order=order, bvol=bvol)
 
 
 ################### Vanilla Option Valuation ######################
@@ -168,7 +168,7 @@ def _amer_option(option, tau, vol, K, s, r):
 
 ####################### Barrier Option Valuation ##########################
 
-def get_barrier_vol(df, product, tau, call_put_id, barlevel):
+def get_barrier_vol(df, product, tau, call_put_id, barlevel, order):
     """Gets the barrier volatility associated with this barrier option from the vol surface dataframe.
 
     Args:
@@ -181,18 +181,42 @@ def get_barrier_vol(df, product, tau, call_put_id, barlevel):
     Returns:
         bvol (double)         : implied volatility at the barrier as specified by the vol surface df
     """
+    print('get_barrier_vol called...')
     bvol = 0
     df['product'] = df['vol_id'].str.split().str[0]
     try:
+        bvol_df = df[(df['order'] == order) &
+                     (df['strike'] == barlevel) &
+                     (df['pdt'] == product) &
+                     (df['call_put_id'] == call_put_id)]
 
-        bvol = df[(np.isclose(df['tau'].astype(np.float64), tau, atol=1e-4)) &
-                  (df['call_put_id'] == call_put_id) &
-                  (df['strike'] == barlevel) &
-                  (df['pdt'] == product)]
-        bvol = bvol['settle_vol'].values[0]
-    except TypeError:
+        # print('bvol_df: ', bvol_df)
+        print('inputs: ', order, product, call_put_id, barlevel)
+
+        print('debug 1 - ', df[(df['order'] == order) &
+                               (df['strike'] == barlevel) &
+                               (df['pdt'] == product)])
+
+        print('debug 2 - ', df[(df['order'] == order) &
+                               (df['strike'] == barlevel) &
+                               (df['pdt'] == product) &
+                               (df['call_put_id'] == call_put_id)])
+
+        tau_vals = sorted(list(bvol_df.tau))
+        relevant_tau = min([x for x in tau_vals if x > tau])
+
+        bvol = bvol_df[(bvol_df.tau == relevant_tau)].settle_vol.values[0]
+
+    except (TypeError, IndexError):
+        print('BARRIER VOL NOT FOUND')
         print(type(barlevel))
-        print(type(df['strike'][0]))
+        print('debug - ', df[(df['call_put_id'] == call_put_id) &
+                             (df['strike'] == barlevel) &
+                             (df['pdt'] == product)])
+        print('debug 2 - ', df[(df['call_put_id'] == call_put_id) &
+                               (df['strike'] == barlevel) &
+                               (df['pdt'] == product)] &
+              (np.isclose(df['tau'].astype(np.float64), tau, atol=1e-4)))
         print('barlevel: ', barlevel)
         print('tau_val: ', tau)
         print('Product: ', product)
@@ -202,7 +226,7 @@ def get_barrier_vol(df, product, tau, call_put_id, barlevel):
 
 # NOTE: Currently follows implementation taken from PnP Excel source code,
 # and so only accounts for ECUI, ECUO, EPDI, EPDO options.
-def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, rebate=0, barvol=None):
+def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, order=None, rebate=0, bvol=None):
     """ Pricing model for options with European barriers.
 
     Inputs:
@@ -227,7 +251,7 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, r
     voldf = pd.read_csv(volpath)
     voldf.value_date = pd.to_datetime(voldf.value_date)
     bvol = get_barrier_vol(voldf, product, tau, call_put_id,
-                           barlevel) if barvol is None else barvol
+                           barlevel, order) if bvol is None else bvol
 
     # case when barrier vol is not in vol surface; raise error.
     # if bvol is None:
@@ -557,7 +581,7 @@ def digital_greeks(char, k, tau, vol, s, r, product, payoff, lots):
 #############################################################################
 ##################### Greek-related formulas ################################
 #############################################################################
-def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots, ki=None, ko=None, barrier=None, direction=None):
+def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots, ki=None, ko=None, barrier=None, direction=None, order=None, bvol=None):
     """ Wrapper method. Filters for the necessary condition, and feeds inputs to the relevant computational engine. Computes the greeks of various option profiles. Currently, american and european greeks and pricing are assumed to be the same.
 
     Inputs:  1) char   : call or put
@@ -600,7 +624,7 @@ def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots, ki=None, ko=
         elif barrier == 'euro':
             # print('euro barrier case')
             # greeks for european options with european barrier.
-            return _euro_barrier_euro_greeks(char, tau, vol, K, s, r, payoff, direction, product, ki, ko, lots)
+            return _euro_barrier_euro_greeks(char, tau, vol, K, s, r, payoff, direction, product, ki, ko, lots, order=order, bvol=bvol)
 
     # # american options
     # elif payoff == 'amer':
@@ -762,7 +786,7 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction, produc
 
 
 # NOTE: follows PnP implementation. Only supports ECUO, ECUI, EPDO, EPDI
-def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, lots, rebate=0, barvol=None):
+def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, lots, order=None, rebate=0, bvol=None):
     """Computes greeks of european options with american barriers. 
 
     Args:
@@ -787,7 +811,7 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction, produc
     voldf = pd.read_csv(volpath)
     voldf.value_date = pd.to_datetime(voldf.value_date)
     bvol = get_barrier_vol(voldf, product, tau, call_put_id,
-                           barlevel) if barvol is None else barvol
+                           barlevel, order) if bvol is None else bvol
 
     # case when barrier vol is not in vol surface; raise error.
     # if bvol is None:

@@ -68,7 +68,7 @@ class Option:
     21) get_properties : returns a dictionary containing all the non-default properties of the option. Used for daily to bullet conversion. 
     """
 
-    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=1000, bullet=True, ki=None, ko=None, rebate=0, ordering=1e5, settlement='futures'):
+    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=1000, bullet=True, ki=None, ko=None, rebate=0, ordering=1e5, settlement='futures', bvol=None):
         self.month = month
         self.barrier = barrier
         self.payoff = payoff
@@ -86,12 +86,13 @@ class Option:
         self.K = strike
         self.tau = tau
         self.char = char
+        self.bvol = bvol
         self.vol = vol
         self.r = 0
         self.shorted = shorted
         self.price = self.compute_price()
-        self.init_greeks()
         self.ordering = ordering
+        self.init_greeks()
         self.active = self.check_active()
         self.expired = False  # defaults to false.
         self.rebate = rebate
@@ -99,7 +100,7 @@ class Option:
         self.settlement = settlement
 
     def __str__(self):
-        string = ''
+        string = '<<'
         string += self.product + ' ' + self.month + \
             '.' + self.underlying.get_month() + ' '
 
@@ -123,10 +124,15 @@ class Option:
             string += ' ' + str(self.ko)
         string += ' S ' if self.shorted else ' L '
         string += str(self.underlying.get_price())
-        string += ' ' + str(int(self.lots))
-        string += ' ' + str(round(self.tau * 365))
-        string += ' [c_' + str(self.ordering) + ']'
-        string += ' ' + str(round(abs(self.delta/self.lots), 2))
+        string += ' lots - ' + str(int(self.lots)) + ' |'
+        string += ' ttm - ' + str(round(self.tau * 365)) + ' |'
+        string += ' order - [c_' + str(self.ordering) + '] |'
+        string += ' price - ' + str(self.price) + ' |'
+        string += ' delta - ' + str(abs(self.delta)) + ' |'
+        string += ' vol - ' + str(self.vol) + ' |'
+        string += ' bvol - ' + \
+            str(self.bvol) if self.bvol is not None else 'None'
+        string += '>>'
         return string
 
     def set_ordering(self, val):
@@ -142,6 +148,9 @@ class Option:
 
     def get_op_month(self):
         return self.month
+
+    def update_bvol(self, vol):
+        self.bvol = vol
 
     def check_active(self):
         """Checks to see if this option object is active, i.e. if it has any value/contributes greeks. Cases are as follows:
@@ -225,7 +234,7 @@ class Option:
         try:
             assert self.tau > 0
             delta, gamma, theta, vega = _compute_greeks(
-                self.char, self.K,  self.tau, self.vol, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc)
+                self.char, self.K,  self.tau, self.vol, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc, order=self.ordering, bvol=self.bvol)
         except TypeError:
             print('char: ', self.char)
             print('strike: ', self.K)
@@ -250,22 +259,24 @@ class Option:
         self.vega = vega
         # return delta, gamma, theta, vega
 
-    def update_greeks(self, vol=None):
+    def update_greeks(self, vol=None, bvol=None):
         from .calc import _compute_greeks
         # method that updates greeks given new values of s, vol and tau, and subsequently updates value.
         # used in passage of time step.
-
+        sigma, b_sigma = None, None
         active = self.check_active()
         self.active = active
         if active:
+            sigma = vol
+            b_sigma = bvol
             if vol is None:
                 sigma = self.vol
-            else:
-                sigma = vol
+            if bvol is None:
+                b_sigma = self.bvol
             product = self.get_product()
             s = self.underlying.get_price()
             delta, gamma, theta, vega = _compute_greeks(
-                self.char, self.K, self.tau, sigma, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc)
+                self.char, self.K, self.tau, sigma, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc, order=self.ordering, bvol=b_sigma)
             # account for shorting
             if self.shorted:
                 delta, gamma, theta, vega = -delta, -gamma, -theta, -vega
@@ -332,7 +343,7 @@ class Option:
 
     def exercise(self):
         worth = self.moneyness()
-        if worth > 0:
+        if (worth is not None) and (worth > 0):
             return True
         else:
             return False
@@ -341,7 +352,7 @@ class Option:
         """Checks to see the 'moneyness' of the option.
 
         Returns:
-            int: returns 1, 0, -1 for ITM, ATM and OTM options respectively. 
+            int: returns 1, 0, -1 for ITM, ATM and OTM options respectively, pr None if check_active() returns False 
         """
         active = self.check_active()
         # degenerate case: knocked out.
@@ -391,7 +402,7 @@ class Option:
                 'underlying': self.underlying, 'lots': self.lots, 'ki': self.ki,
                 'ko': self.ko, 'direc': self.direc, 'strike': self.K, 'char': self.char,
                 'vol': self.vol,  'shorted': self.shorted, 'ordering': self.ordering,
-                'rebate': self.rebate}
+                'rebate': self.rebate, 'bvol': self.bvol, 'settlement': self.settlement}
 
 
 class Future:

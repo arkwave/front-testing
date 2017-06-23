@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-06-01 16:22:52
+# @Last Modified time: 2017-06-23 14:40:44
 
 ################################ imports ###################################
 import numpy as np
@@ -220,7 +220,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
         dailypnl = (updated_val -
                     init_val) + exercise_profit if (init_val != 0 and updated_val != 0) else 0
 
-    # Detour: add in exercise futures if required.
+    # Detour: add in exercise & barrier futures if required.
         if exercise_futures:
             pf.add_security(exercise_futures, 'OTC')
         if barrier_futures:
@@ -275,7 +275,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
 
     # Step 8: Initialize init_val to be used in the next loop.
         init_val = pf.compute_value()
-        print('[13]  EOD PORTFOLIO: ', pf)
+        print('[11]  EOD PORTFOLIO: ', pf)
 
     # Step 9: Logging relevant output to csv
     ##########################################################################
@@ -584,7 +584,6 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
     Notes:
     1) DO NOT ADD SECURITIES INSIDE THIS FUNCTION. Doing so will mess up the PnL calculations and give you vastly overinflated profits or vastly exaggerated losses, due to reliance on the compute_value function. 
 
-    # TODO: figure out whether or not barrier PnL should go into gamma or vega pnl, or treated separately altogether. Tidy up accordingly. 
     """
     barrier_futures = []
     exercise_futures = []
@@ -628,6 +627,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
                 broken = True
                 break
 
+    # handling pnl arising from barrier futures.
         if barrier_futures:
             for ft in barrier_futures:
                 pdt, ordering = ft.get_product(), ft.get_ordering()
@@ -663,6 +663,10 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
     print('handle exercise profit: ', exercise_profit)
 
     total_profit = exercise_profit + barrier_profit
+
+    # refresh portfolio after price updates.
+    pf.update_sec_by_month(None, 'OTC', update=True)
+    pf.update_sec_by_month(None, 'hedge', update=True)
 
     # removing expiries
     pf.remove_expired()
@@ -700,6 +704,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
         for op in pf.get_all_options():
             # info reqd: strike, order, product, tau
             strike, order, product, tau = op.K, op.ordering, op.product, op.tau
+            b_vol, strike_vol = None, None
             # print('price: ', op.compute_price())
             # print('OP GREEKS: ', op.greeks())
             cpi = 'C' if op.char == 'call' else 'P'
@@ -708,14 +713,13 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
             # get strike corresponding to closest available ticksize.
             print('feed_data - ticksize: ', ticksize, op.get_product())
             strike = round(round(strike/ticksize) * ticksize, 2)
+            vid = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
             try:
-                vid = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
                 val = voldf[(voldf.pdt == product) & (voldf.strike == strike) &
                             (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
                 df_tau = min(val.tau, key=lambda x: abs(x-tau))
-                val = val[val.tau == df_tau].settle_vol.values[0]
-                op.update_greeks(vol=val)
-                # print('UPDATED - new vol: ', val)
+                strike_vol = val[val.tau == df_tau].settle_vol.values[0]
+                print('UPDATED - new vol: ', val)
             except (IndexError, ValueError):
                 print('### VOLATILITY DATA MISSING ###')
                 print('product: ', product)
@@ -725,8 +729,30 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
                 print('call put id: ', cpi)
                 print('tau: ', df_tau)
                 broken = True
+                strike_vol = op.vol
                 break
 
+            try:
+                if op.barrier is not None:
+                    barlevel = op.ki if op.ki is not None else op.ko
+                    b_val = voldf[(voldf.pdt == product) & (voldf.strike == barlevel) &
+                                  (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
+                    df_tau = min(b_val.tau, key=lambda x: abs(x-tau))
+                    b_vol = val[val.tau == df_tau].settle_vol.values[0]
+                    print('UPDATED - new barrier vol: ', b_vol)
+            except (IndexError, ValueError):
+                print('### BARRIER VOLATILITY DATA MISSING ###')
+                print('product: ', product)
+                print('strike: ', barlevel)
+                print('order: ', order)
+                print('vid: ', vid)
+                print('call put id: ', cpi)
+                print('tau: ', df_tau)
+                broken = True
+                b_vol = op.bvol
+                break
+
+            op.update_greeks(vol=strike_vol, bvol=b_vol)
     # (today's price, today's vol) - (today's price, yesterday's vol)
     vega_pnl = pf.compute_value() - intermediate_val \
         if (init_val != 0 and intermediate_val != 0) else 0
@@ -736,7 +762,7 @@ def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage
     pf.update_sec_by_month(None, 'hedge', update=True)
 
     # print('Portfolio After Feed: ', pf)
-    print('[7]  NET GREEKS: ', str(pprint.pformat(pf.net_greeks)))
+    # print('[7]  NET GREEKS: ', str(pprint.pformat(pf.net_greeks)))
 
     return pf, broken, gamma_pnl, vega_pnl, total_profit, exercise_futures, barrier_futures
 
@@ -2090,8 +2116,7 @@ def liquidate_pos(char, resid_vega, ops, pf, strat, dval, brokerage=None, slippa
 
 
 def close_out_deltas(pf, dtc):
-    """Checks to see if the portfolio is closed out, but with residual deltas. Closes out all remaining
-    future positions, resulting in an empty portfolio.
+    """Checks to see if the portfolio is emtpty but with residual deltas. Closes out all remaining future positions, resulting in an empty portfolio.
 
     Args:
         pf (portfolio object): The portfolio being handles

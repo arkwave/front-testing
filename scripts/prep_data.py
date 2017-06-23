@@ -14,6 +14,7 @@ Description    : Script contains methods to read-in and format data. These metho
 
 from .portfolio import Portfolio
 from .classes import Option, Future
+from .calc import get_barrier_vol
 import pandas as pd
 import numpy as np
 from scipy.interpolate import PchipInterpolator, interp1d
@@ -513,11 +514,22 @@ def prep_portfolio(voldata, pricedata, filepath):
             # short or long position on this option.
             shorted = True if data.shorted else False
 
+            bvol = None
+
+            # handling european barrier case: get/assign barrier vol
+            if barriertype is not None:
+                print('prep_portfolio - getting barrier vol')
+                barlevel = ki if ki is not None else ko
+                bvoldata = voldata[
+                    (voldata.value_date == pd.to_datetime(sim_start))]
+
+                bvol = get_barrier_vol(
+                    bvoldata, f_name, tau, volflag, barlevel, ordering)
+
             opt = Option(strike, tau, char, vol, underlying,
                          payoff, shorted=shorted, month=opmth, direc=direc,
                          barrier=barriertype, lots=lots, bullet=bullet,
-                         ki=ki, ko=ko, ordering=ordering)
-            # greek value
+                         ki=ki, ko=ko, ordering=ordering, bvol=bvol)
 
             oplist[flag].append(opt)
 
@@ -562,20 +574,20 @@ def handle_dailies(dic, sim_start):
                 print('daterange: ', daterange)
                 taus = [((expdate - b_day).days) /
                         365 for b_day in daterange if b_day != expdate]
-                strike, char, vol, underlying, payoff, shorted, month, ordering, lots \
+                strike, char, vol, underlying, payoff, shorted, month, ordering, lots, settlement \
                     = params['strike'], params['char'], params['vol'], params['underlying'], \
                     params['payoff'],  params['shorted'], params['month'], \
-                    params['ordering'], params['lots']
+                    params['ordering'], params['lots'],\
+                    params['settlement']
                 # barrier params
-                direc, barrier, ki, ko, rebate = \
+                direc, barrier, ki, ko, rebate, bvol = \
                     params['direc'], params['barrier'], params[
-                        'ki'], params['ko'], params['rebate']
+                        'ki'], params['ko'], params['rebate'], params['bvol']
 
                 # creating the bullets corresponding to this daily option.
                 for tau in taus:
                     op_i = Option(strike, tau, char, vol, underlying,
-                                  payoff, shorted, month, direc=direc, barrier=barrier, lots=lots,
-                                  bullet=False, ki=ki, ko=ko, rebate=rebate, ordering=ordering)
+                                  payoff, shorted, month, direc=direc, barrier=barrier, lots=lots, bullet=False, ki=ki, ko=ko, rebate=rebate, ordering=ordering, settlement=settlement, bvol=bvol)
                     bullets.append(op_i)
 
             lst.extend(bullets)
