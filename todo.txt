@@ -725,60 +725,62 @@ High priority:
 				- butterflies
 				- spreads 
 
-		3. hedge upon percentage/absolute move. 
-			> take in a value, the greek to hedge, and how to hedge.
 
 
 
 23/5:
 	> new read method csv --> dict --> portfolio. Try to keep current work intact 
 	> portfolio-wide hedging as a flag --> how does this work? numerical equivalent? 
-	> multiple signals per day 
+	> multiple signals per day [Done]
 
-
-
-
->>> DOUBLE CHECK LOTS FOR UNDERLYINGS <<< 
 
 25/5:
-	URGENT:
-		- creating separate underlying for each option created. CANNOT USE SAME UNDERLYING FOR DIFFERENT OPTIONS. -> Done. 
-		
-		- finish up util implementations -> butterfly left to do; finalize kwarg inputs for other composites.
-			> Straddles: Done. 
-			> Strangles: Done. 
-			> skews/fences: Done
-			> butterfly: TODO. 
-			> spreads: Done
+	- creating separate underlying for each option created. CANNOT USE SAME UNDERLYING FOR DIFFERENT OPTIONS. -> Done. 
+	
+	- finish up util implementations -> butterfly left to do; finalize kwarg inputs for other composites.
+		> Straddles: Done. 
+		> Strangles: Done. 
+		> skews/fences: Done
+		> butterfly: Done 
+		> spreads: Done
 
 
-	Less Urgent:
-	PVM:
-		- port over:
-			1. exercise changes and 
-			2. alt data access functions 
-		  to PVM. 
-		- download and store data for PVM
-		- run VAR on all products 
+26/5
+	
+> multiple signals per day [Done]
 
 
 
-	Least Urgent:
-	HSIM:
-		- creating complex portfolios from csv file. wheat portfolio as an example. 
+23/6:
+
+> [Done] implement barrier volatility updates for european barriers
+> [Done] include bvol in class constructor 
+> [Done] change up compute_value, compute_greeks etc to include barrier volatilities.
+> [Done] include bvol in construction methods for option combos in util.py
+> [Done] include bvol calculation in prep_data
+> [Done] include bvol in handle_dailies
+> [Done] include bvol in get_properties method of options.
+> [Done] ensure it all still works; run some samples
+
+> read through and understand skew code, what it does and what is required. 
+
+> update documentation. 
+
+
+
+
+Least Urgent:
+> new read method csv --> dict --> portfolio. Try to keep current work intact 
+> portfolio-wide hedging as a flag --> how does this work? numerical equivalent? 
+3. hedge upon percentage/absolute move. - todo once ticker data is to be implemented. 
+	> take in a value, the greek to hedge, and how to hedge.
 
 
 Future work:
-> DEBUG THE FUCKING LOG FILE 
 > update all documentation. 
-> missing data for soybean N/U5 
 > hedging on the level of portfolio rather than on contract -> flag. 
 > monte carlo for VAR module. 
-
-
-> figure out how to effectively create option composites using mutiple options in a way that doesn't break portfolio object/require much refactoring. 
-
-
+> run var module on all portfolios. something will break, fix it. 
 
 
 
@@ -800,9 +802,6 @@ Notes from meeting: #
 
 4. correlation surfaces as inputs
 	> required for monte carlo generation of series & pricing 
-
-5. flexible hedging strategies.
-	> done
 
 
 MC Pricing for Barriers:
