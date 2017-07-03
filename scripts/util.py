@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-06-23 14:13:47
+# @Last Modified time: 2017-07-03 15:47:06
 
 
 from .portfolio import Portfolio
@@ -980,3 +980,32 @@ def pull_alt_data(pdt):
                '_price_dump.csv', index=False)
 
     return vdf, pdf, df
+
+
+def grab_data(pdt, opmth, ftmth, start_date, end_date):
+    """Utility function that allows the user to easily grab a dataset by specifying just the product, 
+    start_date and end_date. Used to small datasets for the purposes of testing new functions/modules. 
+    DO NOT USE to generate datasets to be passed into simulation.py; use pull_alt_data + prepare_datasets for that. 
+
+    Args:
+        pdt (TYPE): the product being evaluated. 
+        opmth (TYPE): option month
+        ftmth (TYPE): future month 
+        start_date (TYPE): start date of the dataset desired. 
+        end_date (TYPE): end date of the dataset desired. 
+
+    return:
+        pandas dataframe: the data particular to that commodity between start and end dates.
+    """
+
+    volpath = 'datasets/data_dump/' + pdt.lower() + '_vol_dump.csv'
+    price_path = 'datasets/data_dump/' + pdt.lower() + '_price_dump.csv'
+
+    # pull in option expiry data
+    opex = pd.read_csv('datasets/option_expiry.csv')
+
+    # case 1: data dump exists and has already been pulled from database.
+    if os.path.exists(price_path) and \
+            os.path.exists(volpath):
+        vdf = pd.read_csv(volpath)
+        pdf = pd.read_csv(price_path)

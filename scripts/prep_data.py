@@ -240,8 +240,9 @@ def read_data(epath, specpath, signals=None, start_date=None, end_date=None, tes
         print('exp: ', osf.path.exists(epath))
         print('specs: ', osf.path.exists(specpath))
 
-        priceDF, volDF = pull_relevant_data(
-            pf_path=specpath, signals=signals, start_date=start_date, end_date=end_date, pdt=pdt, opmth=opmth, ftmth=ftmth)
+        priceDF, volDF = pull_relevant_data(pf_path=specpath, signals=signals,
+                                            start_date=start_date, end_date=end_date,
+                                            pdt=pdt, opmth=opmth, ftmth=ftmth)
         edf = pd.read_csv(epath).dropna()
 
         if osf.path.exists(specpath):
