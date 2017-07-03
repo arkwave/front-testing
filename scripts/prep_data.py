@@ -25,7 +25,7 @@ from ast import literal_eval
 from collections import OrderedDict
 import os as osf
 from .global_vars import pdt as gvpdt
-from .fetch_data import pull_relevant_data
+# from .fetch_data import pull_relevant_data
 
 seed = 7
 np.random.seed(seed)
@@ -204,167 +204,178 @@ def generate_hedges(filepath):
     return hedges
 
 
-def read_data(epath, specpath, signals=None, start_date=None, end_date=None, test=False, writeflag=None, write=False, pdt=None, opmth=None, ftmth=None):
-    """Wrapper method that handles all read-in and preprocessing. This function does the following:
-    1) reads in path to volatility, price and expiry tables from portfolio_specs.txt
-    2) reads in dataframes from said paths
-    3) cleans that data in different ways, depending on the flag passed in. Exact information can be found in clean_data function.
+# def read_data(epath, specpath, signals=None, start_date=None, end_date=None, test=False, writeflag=None, write=False, pdt=None, opmth=None, ftmth=None):
+#     """Wrapper method that handles all read-in and preprocessing. This function does the following:
+#     1) reads in path to volatility, price and expiry tables from portfolio_specs.txt
+#     2) reads in dataframes from said paths
+# 3) cleans that data in different ways, depending on the flag passed in.
+# Exact information can be found in clean_data function.
 
-    Args:
-        volpath (str): path to the volatility DF
+#     Args:
+#         volpath (str): path to the volatility DF
 
-        pricepath (str): path to the price DF
+#         pricepath (str): path to the price DF
 
-        epath (str): path to the option expiry DF
+#         epath (str): path to the option expiry DF
 
-        start_date (pd.Timestamp, optional): Desired start date for the simulation. Defaults to None, in which case the starting date selected is the earliest date such that all vol_ids in the volatility dataframe have data.
+# start_date (pd.Timestamp, optional): Desired start date for the
+# simulation. Defaults to None, in which case the starting date selected
+# is the earliest date such that all vol_ids in the volatility dataframe
+# have data.
 
-        end_date (str, optional): Desired end date for the simulation. Defaults to None, in which case the end date selected is the latest date such that all vol_ids in the volatility dataframe have data.
+# end_date (str, optional): Desired end date for the simulation. Defaults
+# to None, in which case the end date selected is the latest date such
+# that all vol_ids in the volatility dataframe have data.
 
-        test (bool, optional): flag used to indicate if the function is called as part of a test or as part of the actual simulation. Test=True writes the resultant dataframes to the path specified, subjected to writeflag, while test=False does not write any dataframes to csv.
+# test (bool, optional): flag used to indicate if the function is called
+# as part of a test or as part of the actual simulation. Test=True writes
+# the resultant dataframes to the path specified, subjected to writeflag,
+# while test=False does not write any dataframes to csv.
 
-        writeflag (str, optional): Determines where the datasets are being written to.
+# writeflag (str, optional): Determines where the datasets are being
+# written to.
 
-    Returns:
-        pandas dataframes x 4: volatility data, price data, expiry data, and cleaned prices (to be used exclusively for rollover dates)
+#     Returns:
+# pandas dataframes x 4: volatility data, price data, expiry data, and
+# cleaned prices (to be used exclusively for rollover dates)
 
-    Raises:
-        ValueError: Raised if the start date is inconsistent with the datasets.
+#     Raises:
+# ValueError: Raised if the start date is inconsistent with the datasets.
 
-    """
+#     """
 
-    t = time.clock()
-    vid_list = []
-    try:
-        # get paths
-        print('exp: ', osf.path.exists(epath))
-        print('specs: ', osf.path.exists(specpath))
+#     t = time.clock()
+#     vid_list = []
+#     try:
+#         # get paths
+#         print('exp: ', osf.path.exists(epath))
+#         print('specs: ', osf.path.exists(specpath))
 
-        priceDF, volDF = pull_relevant_data(pf_path=specpath, signals=signals,
-                                            start_date=start_date, end_date=end_date,
-                                            pdt=pdt, opmth=opmth, ftmth=ftmth)
-        edf = pd.read_csv(epath).dropna()
+#         priceDF, volDF = pull_relevant_data(pf_path=specpath, signals=signals,
+#                                             start_date=start_date, end_date=end_date,
+#                                             pdt=pdt, opmth=opmth, ftmth=ftmth)
+#         edf = pd.read_csv(epath).dropna()
 
-        if osf.path.exists(specpath):
-            specs = pd.read_csv(specpath)
-            vid_list = specs[specs.Type == 'Option'].vol_id.unique()
+#         if osf.path.exists(specpath):
+#             specs = pd.read_csv(specpath)
+#             vid_list = specs[specs.Type == 'Option'].vol_id.unique()
 
-        # fixing datetimes
-        volDF.value_date = pd.to_datetime(volDF.value_date)
-        priceDF.value_date = pd.to_datetime(priceDF.value_date)
+#         # fixing datetimes
+#         volDF.value_date = pd.to_datetime(volDF.value_date)
+#         priceDF.value_date = pd.to_datetime(priceDF.value_date)
 
-        # case 1: drawing based on portfolio.
-        if signals is not None:
-            signals.value_date = pd.to_datetime(signals.value_date)
-            volDF, priceDF = match_to_signals(volDF, priceDF, signals)
+#         # case 1: drawing based on portfolio.
+#         if signals is not None:
+#             signals.value_date = pd.to_datetime(signals.value_date)
+#             volDF, priceDF = match_to_signals(volDF, priceDF, signals)
 
-        print('prep_data.read_data - pdf dates: ',
-              pd.to_datetime(priceDF.value_date.unique()))
+#         print('prep_data.read_data - pdf dates: ',
+#               pd.to_datetime(priceDF.value_date.unique()))
 
-        print('vid list: ', vid_list)
+#         print('vid list: ', vid_list)
 
-        # get effective start date, pick whichever is max
+#         # get effective start date, pick whichever is max
 
-        # case 2: drawing based on pdt, ft and opmth
-        if not any(i is None for i in [pdt, opmth, ftmth]):
-            vid_list = [pdt + '  ' + opmth + '.' + ftmth]
+#         # case 2: drawing based on pdt, ft and opmth
+#         if not any(i is None for i in [pdt, opmth, ftmth]):
+#             vid_list = [pdt + '  ' + opmth + '.' + ftmth]
 
-        dataset_start_date = get_min_start_date(
-            volDF, priceDF, vid_list, signals=signals)
-        print('datasets start date: ', dataset_start_date)
+#         dataset_start_date = get_min_start_date(
+#             volDF, priceDF, vid_list, signals=signals)
+#         print('datasets start date: ', dataset_start_date)
 
-        dataset_start_date = pd.to_datetime(dataset_start_date)
+#         dataset_start_date = pd.to_datetime(dataset_start_date)
 
-        start_date = dataset_start_date if (start_date is None) or \
-            ((start_date is not None) and (dataset_start_date > start_date)) else start_date
+#         start_date = dataset_start_date if (start_date is None) or \
+#             ((start_date is not None) and (dataset_start_date > start_date)) else start_date
 
-        print('prep_data start_date: ', start_date)
+#         print('prep_data start_date: ', start_date)
 
-        # filtering relevant dates
-        volDF = volDF[(volDF.value_date >= start_date) &
-                      (volDF.value_date <= end_date)] \
-            if end_date \
-            else volDF[(volDF.value_date >= start_date)]
+#         # filtering relevant dates
+#         volDF = volDF[(volDF.value_date >= start_date) &
+#                       (volDF.value_date <= end_date)] \
+#             if end_date \
+#             else volDF[(volDF.value_date >= start_date)]
 
-        priceDF = priceDF[(priceDF.value_date >= start_date) &
-                          (priceDF.value_date <= end_date)] \
-            if end_date \
-            else priceDF[(priceDF.value_date >= start_date)]
+#         priceDF = priceDF[(priceDF.value_date >= start_date) &
+#                           (priceDF.value_date <= end_date)] \
+#             if end_date \
+#             else priceDF[(priceDF.value_date >= start_date)]
 
-        print('prep_data.read_data - pdf dates: ',
-              pd.to_datetime(priceDF.value_date.unique()))
+#         print('prep_data.read_data - pdf dates: ',
+#               pd.to_datetime(priceDF.value_date.unique()))
 
-        # catch errors
-        if (volDF.empty or priceDF.empty):
-            raise ValueError(
-                '[scripts/prep_data.read_data] : Improper start date entered; resultant dataframes are empty')
-        print('pdf: ', priceDF)
-        print('vdf: ', volDF)
-        # clean dataframes
-        edf = clean_data(edf, 'exp', writeflag=writeflag)
-        final_vol = clean_data(volDF, 'vol', date=start_date,
-                               edf=edf, writeflag=writeflag)
-        final_price = clean_data(priceDF, 'price', date=start_date,
-                                 edf=edf, writeflag=writeflag)
+#         # catch errors
+#         if (volDF.empty or priceDF.empty):
+#             raise ValueError(
+#                 '[scripts/prep_data.read_data] : Improper start date entered; resultant dataframes are empty')
+#         print('pdf: ', priceDF)
+#         print('vdf: ', volDF)
+#         # clean dataframes
+#         edf = clean_data(edf, 'exp', writeflag=writeflag)
+#         final_vol = clean_data(volDF, 'vol', date=start_date,
+#                                edf=edf, writeflag=writeflag)
+#         final_price = clean_data(priceDF, 'price', date=start_date,
+#                                  edf=edf, writeflag=writeflag)
 
-        print('prep_data.read_data - pdf dates: ',
-              pd.to_datetime(priceDF.value_date.unique()))
-        # final preprocessing steps
-        # final_price = ciprice(priceDF)
-        # final_vol = civols(volDF, final_price)
+#         print('prep_data.read_data - pdf dates: ',
+#               pd.to_datetime(priceDF.value_date.unique()))
+#         # final preprocessing steps
+#         # final_price = ciprice(priceDF)
+#         # final_vol = civols(volDF, final_price)
 
-        print('sanity checking date ranges')
-        if not np.array_equal(pd.to_datetime(final_vol.value_date.unique()),
-                              pd.to_datetime(final_price.value_date.unique())):
-            vmask = final_vol.value_date.isin([x for x in final_vol.value_date.unique()
-                                               if x not in final_price.value_date.unique()])
-            pmask = final_price.value_date.isin([x for x in final_price.value_date.unique()
-                                                 if x not in final_vol.value_date.unique()])
-            final_vol = final_vol[~vmask]
-            final_price = final_price[~pmask]
+#         print('sanity checking date ranges')
+#         if not np.array_equal(pd.to_datetime(final_vol.value_date.unique()),
+#                               pd.to_datetime(final_price.value_date.unique())):
+#             vmask = final_vol.value_date.isin([x for x in final_vol.value_date.unique()
+#                                                if x not in final_price.value_date.unique()])
+#             pmask = final_price.value_date.isin([x for x in final_price.value_date.unique()
+#                                                  if x not in final_vol.value_date.unique()])
+#             final_vol = final_vol[~vmask]
+#             final_price = final_price[~pmask]
 
-    except FileNotFoundError:
-        print('files not found! printing paths below...')
-        print(epath)
-        import os
-        print(os.getcwd())
-    elapsed = time.clock() - t
+#     except FileNotFoundError:
+#         print('files not found! printing paths below...')
+#         print(epath)
+#         import os
+#         print(os.getcwd())
+#     elapsed = time.clock() - t
 
-    print('[READ_DATA] elapsed: ', elapsed)
-    if writeflag:
-        if writeflag == 'small':
-            writestr = 'small_' + gvpdt.lower()
-        else:
-            writestr = 'full_' + gvpdt.lower()
+#     print('[READ_DATA] elapsed: ', elapsed)
+#     if writeflag:
+#         if writeflag == 'small':
+#             writestr = 'small_' + gvpdt.lower()
+#         else:
+#             writestr = 'full_' + gvpdt.lower()
 
-        print('writestr: ', writestr)
+#         print('writestr: ', writestr)
 
-    if not test:
-        vbd = vol_by_delta(final_vol, final_price)
+#     if not test:
+#         vbd = vol_by_delta(final_vol, final_price)
 
-        # merging vol_by_delta and price dataframes on product, underlying_id,
-        # value_date and order
-        vbd.underlying_id = vbd.underlying_id.str.split().str[0]\
-            + '  ' + vbd.underlying_id.str.split().str[1]
-        final_price.underlying_id = final_price.underlying_id.str.split().str[0]\
-            + '  ' + final_price.underlying_id.str.split().str[1]
-        merged = pd.merge(vbd, final_price, on=[
-                          'pdt', 'value_date', 'underlying_id', 'order'])
-        final_price = merged
+#         # merging vol_by_delta and price dataframes on product, underlying_id,
+#         # value_date and order
+#         vbd.underlying_id = vbd.underlying_id.str.split().str[0]\
+#             + '  ' + vbd.underlying_id.str.split().str[1]
+#         final_price.underlying_id = final_price.underlying_id.str.split().str[0]\
+#             + '  ' + final_price.underlying_id.str.split().str[1]
+#         merged = pd.merge(vbd, final_price, on=[
+#                           'pdt', 'value_date', 'underlying_id', 'order'])
+#         final_price = merged
 
-        # handle conventions for vol_id in price/vol data.
-        final_vol.vol_id = final_vol.vol_id.str.split().str[0]\
-            + '  ' + final_vol.vol_id.str.split().str[1]
-        final_price.vol_id = final_price.vol_id.str.split().str[0]\
-            + '  ' + final_price.vol_id.str.split().str[1]
-    if write:
-        final_vol.to_csv('datasets/' + writestr +
-                         '/final_vols.csv', index=False)
-        final_price.to_csv('datasets/' + writestr +
-                           '/final_price.csv', index=False)
-        edf.to_csv('datasets/' + writestr + '/final_expdata.csv', index=False)
+#         # handle conventions for vol_id in price/vol data.
+#         final_vol.vol_id = final_vol.vol_id.str.split().str[0]\
+#             + '  ' + final_vol.vol_id.str.split().str[1]
+#         final_price.vol_id = final_price.vol_id.str.split().str[0]\
+#             + '  ' + final_price.vol_id.str.split().str[1]
+#     if write:
+#         final_vol.to_csv('datasets/' + writestr +
+#                          '/final_vols.csv', index=False)
+#         final_price.to_csv('datasets/' + writestr +
+#                            '/final_price.csv', index=False)
+#         edf.to_csv('datasets/' + writestr + '/final_expdata.csv', index=False)
 
-    return final_vol, final_price, edf, priceDF
+#     return final_vol, final_price, edf, priceDF
 
 
 def prep_portfolio(voldata, pricedata, filepath):
@@ -657,17 +668,17 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
             1].str.split('.').str[0]
 
         # transformative functions
-        df = assign_ci(df, date)
-        try:
-            df['label'] = df['vol_id'] + ' ' + \
-                df['order'].astype(str) + ' ' + df.call_put_id
-        except TypeError:
-            print(df.vol_id[0])
-            print('vol_id type: ', type(df.vol_id[0]))
-            print('order type: ', type(df.order[0]))
+        # df = assign_ci(df, date)
+        # try:
+        # df['label'] = df['vol_id'] + ' ' + \
+        #     df['order'].astype(str) + ' ' + df.call_put_id
+        # except TypeError:
+        #     print(df.vol_id[0])
+        #     print('vol_id type: ', type(df.vol_id[0]))
+        #     print('order type: ', type(df.order[0]))
 
         # setting data types
-        df.order = pd.to_numeric(df.order)
+        # df.order = pd.to_numeric(df.order)
         df.tau = pd.to_numeric(df.tau)
         df.strike = pd.to_numeric(df.strike)
         df.settle_vol = pd.to_numeric(df.settle_vol)
@@ -681,14 +692,14 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
         df['ftmth'] = df['underlying_id'].str.split().str[1]
         # transformative functions.
         df = get_expiry(df, edf)
-        df = assign_ci(df, date)
+        # df = assign_ci(df, date)
         df = scale_prices(df)
         df = df.fillna(0)
         df.expdate = pd.to_datetime(df.expdate)
         df = df[df.value_date <= df.expdate]
 
         # setting data types
-        df.order = pd.to_numeric(df.order)
+        # df.order = pd.to_numeric(df.order)
         df.value_date = pd.to_datetime(df.value_date)
         df.settle_value = pd.to_numeric(df.settle_value)
         df.returns = pd.to_numeric(df.returns)
@@ -1043,6 +1054,8 @@ def assign_ci(df, date):
         ftmths = df2.ftmth.unique()
         for ftmth in ftmths:
             m1 = curr_mth + str(curr_yr % (2000 + decade))
+            print('ftmth: ', ftmth)
+            print('m1: ', m1)
             dist = find_cdist(m1, ftmth, lst)
             df.ix[(df.pdt == pdt) & (df.ftmth == ftmth), 'order'] = dist
     return df

@@ -2,20 +2,20 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-06-23 14:40:44
+# @Last Modified time: 2017-07-03 20:46:20
 
 ################################ imports ###################################
 import numpy as np
 import pandas as pd
 from scripts.portfolio import Portfolio
 from scripts.classes import Option, Future
-from scripts.prep_data import read_data, prep_portfolio, get_rollover_dates, generate_hedges, find_cdist, sanity_check
-from scripts.util import create_underlying, create_straddle, create_vanilla_option
+from scripts.prep_data import prep_portfolio, generate_hedges, find_cdist, sanity_check
+from scripts.fetch_data import prep_datasets, pull_alt_data
+from scripts.util import create_underlying, create_vanilla_option
 from scripts.calc import compute_strike_from_delta, get_barrier_vol
 import copy
 import time
 import matplotlib.pyplot as plt
-import pprint
 import scripts.global_vars as gv
 import os
 from collections import OrderedDict
@@ -92,7 +92,7 @@ np.random.seed(seed)
 ############## Main Simulation Loop #################
 #####################################################
 
-def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_date=None, brokerage=None, slippage=None, signals=None):
+def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, brokerage=None, slippage=None, signals=None):
     """
     Each run of the simulation consists of 5 steps:
         1) Feed data into the portfolio.
@@ -207,7 +207,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
 
     # Step 3: Feed data into the portfolio.
         pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
-            = feed_data(vdf, pdf, pf, rollover_dates, prev_date,
+            = feed_data(vdf, pdf, pf, prev_date,
                         init_val, brokerage=brokerage, slippage=slippage)
 
         # dailycost -= profit
@@ -555,7 +555,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, rollover_dates, end_
 ########################## Helper functions ##############################
 ##########################################################################
 
-def feed_data(voldf, pdf, pf, dic, prev_date, init_val, brokerage=None, slippage=None):
+def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None):
     """
     This function does the following:
         1) Computes current value of portfolio.
@@ -2233,7 +2233,7 @@ if __name__ == '__main__':
     # path to hedging conditions #
     hedge_path = gv.hedge_path
     # final paths to datasets #
-    volpath, pricepath, exppath, rollpath, sigpath = gv.final_paths
+    volpath, pricepath, exppath, sigpath = gv.final_paths
     # raw paths
     epath = gv.raw_exp_path
 
@@ -2252,7 +2252,7 @@ if __name__ == '__main__':
     print('vol: ', os.path.exists(volpath))
     print('price: ', os.path.exists(pricepath))
     print('exp: ', os.path.exists(exppath))
-    print('roll: ', os.path.exists(rollpath))
+    # print('roll: ', os.path.exists(rollpath))
 
     # error check in case signals are not being used this sim
     signals = None if sigpath is None else pd.read_csv(sigpath)
@@ -2261,30 +2261,31 @@ if __name__ == '__main__':
 
     # if data exists/has been prepared/saved, reads it in.
     if os.path.exists(volpath) and os.path.exists(pricepath)\
-            and os.path.exists(exppath)\
-            and os.path.exists(rollpath):
+            and os.path.exists(exppath):
+            # and os.path.exists(rollpath):
         print('--------------------------------------------------------')
         print('DATA EXISTS. READING IN... [2/7]')
         print('datasets listed below: ')
         print('voldata : ', volpath)
         print('pricepath: ', pricepath)
         print('exppath: ', exppath)
-        print('rollpath: ', rollpath)
+        # print('rollpath: ', rollpath)
 
         vdf, pdf, edf = pd.read_csv(volpath), pd.read_csv(
             pricepath), pd.read_csv(exppath)
-        rolldf = pd.read_csv(rollpath)
+        # rolldf = pd.read_csv(rollpath)
         if signals is not None:
             print('sigpath: ', sigpath)
 
         print('--------------------------------------------------------')
 
         # sorting out date types
-        rolldf.value_date, rolldf.expdate = pd.to_datetime(
-            rolldf.value_date), pd.to_datetime(rolldf.expdate)
         vdf.value_date = pd.to_datetime(vdf.value_date)
         pdf.value_date = pd.to_datetime(pdf.value_date)
         edf.expiry_date = pd.to_datetime(edf.expiry_date)
+
+        vdf, pdf, edf, roll_df, start_date = prep_datasets(
+            vdf, pdf, edf, start_date, end_date, gv.pdt, signals=signals, test=False, write=True)
 
     # if data does not exist as specified, reads in the relevant data.
     else:
@@ -2295,7 +2296,7 @@ if __name__ == '__main__':
         print('paths inputted: ')
         print('voldata : ', volpath)
         print('pricepath: ', pricepath)
-        print('exppath: ', epath)
+        print('exppath: ', exppath)
         print('--------------------------------------------------------')
 
         if sigpath:
@@ -2304,8 +2305,16 @@ if __name__ == '__main__':
         else:
             signals = None
 
-        vdf, pdf, edf, rolldf = read_data(
-            epath, specpath, signals=signals, test=False,  writeflag=writeflag, start_date=start_date, end_date=end_date)
+        vdf, pdf, raw_data = pull_alt_data(gv.pdt)
+        edf = pd.read_csv(epath)
+        edf.expiry_date = pd.to_datetime(edf.expiry_date)
+
+        vdf, pdf, edf, rolldf, alt_start_date = prep_datasets(
+            vdf, pdf, edf, start_date, end_date, gv.pdt, signals=signals, test=False, write=True)
+
+        # vdf, pdf, edf, rolldf = read_data(
+        # epath, specpath, signals=signals, test=False,  writeflag=writeflag,
+        # start_date=start_date, end_date=end_date)
 
     print('DATA READ-IN COMPLETE. SANITY CHECKING... [3/7]')
     print('READ-IN RUNTIME: ', time.clock() - t)
@@ -2335,7 +2344,7 @@ if __name__ == '__main__':
     hedges = generate_hedges(hedge_path)
 
     # get rollover dates
-    rollover_dates = get_rollover_dates(rolldf)
+    # rollover_dates = get_rollover_dates(rolldf)
 
     e1 = time.clock() - t
     print('TOTAL PREP TIME: ', e1)
@@ -2352,11 +2361,11 @@ if __name__ == '__main__':
     print('--------------------------------------------------------')
     print('HEDGES GENERATED. RUNNING SIMULATION... [6/7]')
 
-    print('ROLLOVER DATES: ', rollover_dates)
+    # print('ROLLOVER DATES: ', rollover_dates)
 
     # # run simulation #
     grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log = run_simulation(
-        vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage, slippage=gv.slippage, signals=signals)
+        vdf, pdf, edf, pf, hedges, brokerage=gv.brokerage, slippage=gv.slippage, signals=signals)
 
 
 ##########################################################################

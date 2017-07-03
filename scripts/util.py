@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-03 15:47:06
+# @Last Modified time: 2017-07-03 19:27:10
 
 
 from .portfolio import Portfolio
@@ -779,7 +779,7 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, kwargs, pf=None):
     return op1, op2
 
 
-def prep_datasets(vdf, pdf, edf, start_date, end_date, specpath='', signals=None, test=False, write=False):
+def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='', signals=None, test=False, write=False):
     """Utility function that does everything prep_data does, but to full datasets rather than things drawn from the database. Made because i was lazy. 
 
     Args:
@@ -862,10 +862,13 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, specpath='', signals=None
     pdf = clean_data(pdf, 'price', date=start_date,
                      edf=edf)
 
+    # reassigning variables
+    final_vol = vdf
+    final_price = pdf
     # final preprocessing steps
-    final_price = ciprice(pdf)
+    # final_price = ciprice(pdf)
     # print('final price: ', final_price)
-    final_vol = civols(vdf, final_price)
+    # final_vol = civols(vdf, final_price)
 
     print('sanity checking date ranges')
     if not np.array_equal(pd.to_datetime(final_vol.value_date.unique()),
@@ -896,116 +899,102 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, specpath='', signals=None
         final_price.vol_id = final_price.vol_id.str.split().str[0]\
             + '  ' + final_price.vol_id.str.split().str[1]
 
+    # check if directory exists
+    if not os.path.isdir('datasets/debug'):
+        os.mkdir('datasets/debug')
+
+    # write datasets into the debug folder.
+    final_vol.to_csv('datasets/debug/' + pdt.lower() +
+                     '_final_vols.csv', index=False)
+
+    final_price.to_csv('datasets/debug/' + pdt.lower() +
+                       '_final_price.csv', index=False)
+
+    pdf.to_csv('datasets/debug/' + pdt.lower() + '_roll_df.csv', index=False)
+
+    edf.to_csv('datasets/debug/final_option_expiry.csv', index=False)
+
     return final_vol, final_price, edf, pdf, start_date
 
 
-def pull_alt_data(pdt):
-    """Utility function that draws/cleans data from the alternate data table. 
+# def pull_alt_data(pdt):
+#     """Utility function that draws/cleans data from the alternate data table.
 
-    Args:
-        pdt (string): The product being drawn from the database
+#     Args:
+#         pdt (string): The product being drawn from the database
 
-    Returns:
-        tuple: vol dataframe, price dataframe, raw dataframe. 
-
-
-    """
-    print('starting clock..')
-    t = time.clock()
-    engine = create_engine(
-        'postgresql://sumit:Olam1234@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
-    connection = engine.connect()
-
-    query = "select security_id, settlement_date, future_settlement_value, option_expiry_date,implied_vol \
-            FROM table_option_settlement_data where security_id like '" + pdt.upper() + " %%' and extract(YEAR from settlement_date) > 2009"
-    print('query: ', query)
-    df = pd.read_sql_query(query, connection)
-
-    df.to_csv('datasets/data_dump/' + pdt.lower() +
-              '_raw_data.csv', index=False)
-
-    print('finished pulling data')
-    print('elapsed: ', time.clock() - t)
-
-    add = 1 if len(pdt) == 2 else 0
-
-    # cleans up data
-    df['vol_id'] = df.security_id.str[:9+add]
-    df['call_put_id'] = df.security_id.str[9+add:11+add].str.strip()
-    # getting 'S' from 'S Q17.Q17'
-    df['pdt'] = df.vol_id.str[0:len(pdt)]
-    # df['pdt'] = df.vol_id.str.split().str[0].str.strip()
-
-    # getting opmth
-    df['opmth'] = df.vol_id.str.split(
-        '.').str[0].str.split().str[1].str.strip()
-    df.opmth = df.opmth.str[0] + \
-        (df.opmth.str[1:].astype(int) % 10).astype(str)
-
-    df['strike'] = df.security_id.str[10+add:].astype(float)
-
-    df['implied_vol'] = df.implied_vol / 100
-
-    # Q17 -> Q7
-    df['ftmth'] = df.vol_id.str.split('.').str[1].str.strip()
-    df.ftmth = df.ftmth.str[0] + \
-        (df.ftmth.str[1:].astype(int) % 10).astype(str)
-
-    # creating underlying_id and vol_id
-    df.vol_id = df.pdt + '  ' + df.opmth + '.' + df.ftmth
-    df['underlying_id'] = df.pdt + '  ' + df.ftmth
-
-    # selecting
-    vdf = df[['settlement_date', 'vol_id',
-              'call_put_id', 'strike', 'implied_vol']]
-    pdf = df[['settlement_date', 'underlying_id', 'future_settlement_value']]
-
-    vdf.columns = ['value_date', 'vol_id',
-                   'call_put_id', 'strike', 'settle_vol']
-    pdf.columns = ['value_date', 'underlying_id', 'settle_value']
-
-    # removing duplicates, resetting indices
-    pdf = pdf.drop_duplicates()
-    vdf = vdf.drop_duplicates()
-
-    pdf.reset_index(drop=True, inplace=True)
-    vdf.reset_index(drop=True, inplace=True)
-
-    if not os.path.isdir('datasets/data_dump'):
-        os.mkdir('datasets/data_dump')
-
-    vdf.to_csv('datasets/data_dump/' + pdt.lower() +
-               '_vol_dump.csv', index=False)
-    pdf.to_csv('datasets/data_dump/' + pdt.lower() +
-               '_price_dump.csv', index=False)
-
-    return vdf, pdf, df
+#     Returns:
+#         tuple: vol dataframe, price dataframe, raw dataframe.
 
 
-def grab_data(pdt, opmth, ftmth, start_date, end_date):
-    """Utility function that allows the user to easily grab a dataset by specifying just the product, 
-    start_date and end_date. Used to small datasets for the purposes of testing new functions/modules. 
-    DO NOT USE to generate datasets to be passed into simulation.py; use pull_alt_data + prepare_datasets for that. 
+#     """
+#     print('starting clock..')
+#     t = time.clock()
+#     engine = create_engine(
+#         'postgresql://sumit:Olam1234@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+#     connection = engine.connect()
 
-    Args:
-        pdt (TYPE): the product being evaluated. 
-        opmth (TYPE): option month
-        ftmth (TYPE): future month 
-        start_date (TYPE): start date of the dataset desired. 
-        end_date (TYPE): end date of the dataset desired. 
+#     query = "select security_id, settlement_date, future_settlement_value, option_expiry_date,implied_vol \
+#             FROM table_option_settlement_data where security_id like '" + pdt.upper() + " %%' and extract(YEAR from settlement_date) > 2009"
+#     print('query: ', query)
+#     df = pd.read_sql_query(query, connection)
 
-    return:
-        pandas dataframe: the data particular to that commodity between start and end dates.
-    """
+#     df.to_csv('datasets/data_dump/' + pdt.lower() +
+#               '_raw_data.csv', index=False)
 
-    volpath = 'datasets/data_dump/' + pdt.lower() + '_vol_dump.csv'
-    price_path = 'datasets/data_dump/' + pdt.lower() + '_price_dump.csv'
+#     print('finished pulling data')
+#     print('elapsed: ', time.clock() - t)
 
-    # pull in option expiry data
-    opex = pd.read_csv('datasets/option_expiry.csv')
+#     add = 1 if len(pdt) == 2 else 0
 
-    # case 1: data dump exists and has already been pulled from database.
-    if os.path.exists(price_path) and \
-            os.path.exists(volpath):
-        vdf = pd.read_csv(volpath)
-        pdf = pd.read_csv(price_path)
+#     # cleans up data
+#     df['vol_id'] = df.security_id.str[:9+add]
+#     df['call_put_id'] = df.security_id.str[9+add:11+add].str.strip()
+#     # getting 'S' from 'S Q17.Q17'
+#     df['pdt'] = df.vol_id.str[0:len(pdt)]
+#     # df['pdt'] = df.vol_id.str.split().str[0].str.strip()
+
+#     # getting opmth
+#     df['opmth'] = df.vol_id.str.split(
+#         '.').str[0].str.split().str[1].str.strip()
+#     df.opmth = df.opmth.str[0] + \
+#         (df.opmth.str[1:].astype(int) % 10).astype(str)
+
+#     df['strike'] = df.security_id.str[10+add:].astype(float)
+
+#     df['implied_vol'] = df.implied_vol / 100
+
+#     # Q17 -> Q7
+#     df['ftmth'] = df.vol_id.str.split('.').str[1].str.strip()
+#     df.ftmth = df.ftmth.str[0] + \
+#         (df.ftmth.str[1:].astype(int) % 10).astype(str)
+
+#     # creating underlying_id and vol_id
+#     df.vol_id = df.pdt + '  ' + df.opmth + '.' + df.ftmth
+#     df['underlying_id'] = df.pdt + '  ' + df.ftmth
+
+#     # selecting
+#     vdf = df[['settlement_date', 'vol_id',
+#               'call_put_id', 'strike', 'implied_vol']]
+#     pdf = df[['settlement_date', 'underlying_id', 'future_settlement_value']]
+
+#     vdf.columns = ['value_date', 'vol_id',
+#                    'call_put_id', 'strike', 'settle_vol']
+#     pdf.columns = ['value_date', 'underlying_id', 'settle_value']
+
+#     # removing duplicates, resetting indices
+#     pdf = pdf.drop_duplicates()
+#     vdf = vdf.drop_duplicates()
+
+#     pdf.reset_index(drop=True, inplace=True)
+#     vdf.reset_index(drop=True, inplace=True)
+
+#     if not os.path.isdir('datasets/data_dump'):
+#         os.mkdir('datasets/data_dump')
+
+#     vdf.to_csv('datasets/data_dump/' + pdt.lower() +
+#                '_vol_dump.csv', index=False)
+#     pdf.to_csv('datasets/data_dump/' + pdt.lower() +
+#                '_price_dump.csv', index=False)
+
+#     return vdf, pdf, df
