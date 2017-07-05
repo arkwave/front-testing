@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-05 14:16:44
+# @Last Modified time: 2017-07-05 16:33:38
 
 
 from .portfolio import Portfolio
@@ -633,7 +633,7 @@ def create_strangle(volid, vdf, pdf, date, shorted, kwargs, pf=None):
     return op1, op2
 
 
-def create_skew(volid, vdf, pdf, date, shorted, delta, ftprice, kwargs):
+def create_skew(volid, vdf, pdf, date, shorted, delta, ftprice, **kwargs):
     """Utility function that creates a skew position given dataframes and arguments. 
 
     Args:
@@ -777,8 +777,6 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, kwargs, pf=None):
     op2.get_underlying().update_lots(lots_req)
 
     return op1, op2
-
-
 
 
 # def pull_alt_data(pdt):

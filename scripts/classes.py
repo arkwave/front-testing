@@ -130,8 +130,8 @@ class Option:
         string += ' price - ' + str(self.price) + ' |'
         string += ' delta - ' + str(abs(self.delta)) + ' |'
         string += ' vol - ' + str(self.vol) + ' |'
-        string += ' bvol - ' + \
-            str(self.bvol) if self.bvol is not None else 'None'
+        string += ' bvol - '
+        string += str(self.bvol) if self.bvol is not None else 'None'
         string += '>>'
         return string
 

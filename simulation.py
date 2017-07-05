@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-03 20:46:20
+# @Last Modified time: 2017-07-05 16:34:09
 
 ################################ imports ###################################
 import numpy as np
@@ -11,7 +11,7 @@ from scripts.portfolio import Portfolio
 from scripts.classes import Option, Future
 from scripts.prep_data import prep_portfolio, generate_hedges, find_cdist, sanity_check
 from scripts.fetch_data import prep_datasets, pull_alt_data
-from scripts.util import create_underlying, create_vanilla_option
+from scripts.util import create_underlying, create_vanilla_option, create_skew
 from scripts.calc import compute_strike_from_delta, get_barrier_vol
 import copy
 import time
@@ -158,6 +158,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
 
     date_range = sorted(voldata.value_date.unique())  # [1:]
     print('dates: ', pd.to_datetime(date_range))
+    print('signals: ', signals is not None)
     # hedging frequency counters for delta, gamma, theta, vega respectively.
     counters = [1, 1, 1, 1]
 
@@ -402,6 +403,9 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
             ['vol_id', 'value_date', '25d']]
         puts.columns = ['vol_id', 'value_date', '25d_p']
 
+        print('call columns: ', calls.columns)
+        print('log columns: ', log.columns)
+
         log = pd.merge(log, calls, on=['vol_id', 'value_date'])
         log = pd.merge(log, puts, on=['vol_id', 'value_date'])
 
@@ -593,7 +597,7 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
 
     # 1) sanity checks
     if pf.empty():
-        return pf, False, 0, 0, 0, []
+        return pf, False, 0, 0, 0, [], []
 
     if voldf.empty:
         raise ValueError('vol df is empty!')
@@ -1622,7 +1626,7 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
             if net_call_vega == 0 and net_put_vega == 0:
                 print('empty portfolio; adding skews')
                 pf, cost = add_skew(pf, vdf, pdf, inputs, date,
-                                    dval, brokerage=brokerage, slippage=slippage)
+                                    dval*100, brokerage=brokerage, slippage=slippage)
                 ret, cost = pf, cost
             # Case 2-2: Adding to nonempty portfolio
             else:
@@ -1767,23 +1771,24 @@ def add_skew(pf, vdf, pdf, inputs, date, dval, brokerage=None, slippage=None):
 
     # unpack inputs
     cost = 0
-    cvol, pvol, sig, opmth, ftmth, pdt, lots, vega_req = inputs
+    cvol, pvol, sig, opmth, ftmth, pdt, vega_req = inputs
     print('add_skew inputs: ')
     print('cvol: ', cvol)
     print('pvol: ', pvol)
     print('sig: ', sig)
     print('vega req: ', vega_req)
+    print('dval: ', dval)
 
     # determining if options are to be shorted or not
     shorted = True if sig < 0 else False
-    num_skews = abs(sig)
+    # num_skews = abs(sig)
     cvol, pvol = cvol/100, pvol/100
     # computing ordering
     curr_mth = date.month
     curr_mth_sym = month_to_sym[curr_mth]
     curr_yr = date.year % (2000 + decade)
     curr_sym = curr_mth_sym + str(curr_yr)
-    order = find_cdist(curr_sym, ftmth, contract_mths[pdt])
+    # order = find_cdist(curr_sym, ftmth, contract_mths[pdt])
 
     # create the underlying future
     uid = pdt + '  ' + ftmth
@@ -1794,43 +1799,50 @@ def add_skew(pf, vdf, pdf, inputs, date, dval, brokerage=None, slippage=None):
     except IndexError:
         print('inputs: ', date, uid)
 
-    ft = Future(ftmth, ftprice, pdt, shorted=False,
-                lots=lots, ordering=order)
-
     # create the options; long one dval call, short on dval put
     vol_id = pdt + '  ' + opmth + '.' + ftmth
+    # kwargs = {'greek': 'vega', 'greekval': vega_req}
+    callop, putop = create_skew(
+        vol_id, vdf, pdf, date, shorted, dval, ftprice, greek='vega', greekval=vega_req)
 
-    # computing tau
-    tau = vdf[(vdf.value_date == date) &
-              (vdf.vol_id == vol_id)].tau.values[0]
+    print('callop: ', str(callop))
+    print('putop: ', str(putop))
 
-    # computing strikes
-    c_strike = compute_strike_from_delta(
-        None, delta1=dval, vol=cvol, s=ftprice, tau=tau, char='call', pdt=pdt)
-    p_strike = compute_strike_from_delta(
-        None, delta1=dval, vol=pvol, s=ftprice, tau=tau, char='put', pdt=pdt)
+    # ft = Future(ftmth, ftprice, pdt, shorted=False,
+    #             lots=lots, ordering=order)
 
-    # creating placeholder options objects for computation purposes
-    callop = Option(c_strike, tau, 'call', cvol, ft, 'amer',
-                    shorted, opmth, lots=lots, ordering=order)
-    putop = Option(p_strike, tau, 'put', pvol, ft, 'amer',
-                   not shorted, opmth, lots=lots, ordering=order)
+    # # computing tau
+    # tau = vdf[(vdf.value_date == date) &
+    #           (vdf.vol_id == vol_id)].tau.values[0]
+
+    # # computing strikes
+    # c_strike = compute_strike_from_delta(
+    #     None, delta1=dval, vol=cvol, s=ftprice, tau=tau, char='call', pdt=pdt)
+    # p_strike = compute_strike_from_delta(
+    #     None, delta1=dval, vol=pvol, s=ftprice, tau=tau, char='put', pdt=pdt)
+
+    # # creating placeholder options objects for computation purposes
+    # callop = Option(c_strike, tau, 'call', cvol, ft, 'amer',
+    #                 shorted, opmth, lots=lots, ordering=order)
+    # putop = Option(p_strike, tau, 'put', pvol, ft, 'amer',
+    #                not shorted, opmth, lots=lots, ordering=order)
 
     tobeadded = []
+    lots_req = callop.lots
 
-    pnl_mult = multipliers[pdt][-1]
-    op_vega = (callop.vega * 100) / (callop.lots * pnl_mult)
-    print('call vega: ', op_vega)
-    # calculate lots required for requisite vega specified; done according
-    # to callop.
-    lots_req = round((abs(vega_req * num_skews) * 100) /
-                     abs(op_vega * pnl_mult))
+    # pnl_mult = multipliers[pdt][-1]
+    # op_vega = (callop.vega * 100) / (callop.lots * pnl_mult)
+    # print('call vega: ', op_vega)
+    # # calculate lots required for requisite vega specified; done according
+    # # to callop.
+    # lots_req = round((abs(vega_req * num_skews) * 100) /
+    #                  abs(op_vega * pnl_mult))
 
-    # creating and appending relevant options.
-    callop = Option(c_strike, tau, 'call', cvol, ft, 'amer',
-                    shorted, opmth, lots=lots_req, ordering=order)
-    putop = Option(p_strike, tau, 'put', pvol, ft, 'amer',
-                   not shorted, opmth, lots=lots_req, ordering=order)
+    # # creating and appending relevant options.
+    # callop = Option(c_strike, tau, 'call', cvol, ft, 'amer',
+    #                 shorted, opmth, lots=lots_req, ordering=order)
+    # putop = Option(p_strike, tau, 'put', pvol, ft, 'amer',
+    #                not shorted, opmth, lots=lots_req, ordering=order)
     print('vegas: ', callop.vega, putop.vega)
     pf.add_security([callop, putop], 'OTC')
     tobeadded.extend([callop, putop])
