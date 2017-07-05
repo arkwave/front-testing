@@ -1,10 +1,12 @@
 
-from scripts.prep_data import read_data, generate_hedges, sanity_check, get_rollover_dates
+from scripts.prep_data import generate_hedges, sanity_check, get_rollover_dates
+import os
 import numpy as np
 import pandas as pd
 import scripts.global_vars as gv
 from simulation import run_simulation
-from scripts.util import create_portfolio, prep_datasets, pull_alt_data
+from scripts.util import create_portfolio
+from scripts.fetch_data import pull_alt_data, prep_datasets
 
 
 multipliers = {
@@ -96,6 +98,11 @@ end_date = pd.Timestamp('201' + str(yr) + '-08-31')
 if alt:
     print('pulling data')
     edf = pd.read_csv(epath)
+
+    # check to see if the data exists
+    if not os.path.exists(pricedump) or (not os.path.exists(voldump)):
+        vdf, pdf, raw_daf = pull_alt_data(pdt)
+
     uids = [pdt + '  ' + u + str(yr) for u in symlst]
     print('uids: ', uids)
     volids = [pdt + '  ' + u + str(yr) + '.' + u + str(yr) for u in symlst]
@@ -117,7 +124,7 @@ if alt:
     #           & (pdf.value_date <= end_date)]
 
     vdf, pdf, edf, priceDF, start_date = prep_datasets(
-        vdf, pdf, edf, start_date, end_date)
+        vdf, pdf, edf, start_date, end_date, pdt, test=False, write=True)
     print('finished pulling data')
 
     # # creating signals
@@ -160,13 +167,13 @@ if alt:
     signals = pd.DataFrame(dict(zip(sig_cols, inputs)))
     signals.to_csv('results/kc/signals.csv')
 
-else:
-    opmth = target + str(yr)
-    ftmth = target + str(yr)
-    print('pulling data')
-    vdf, pdf, edf, priceDF = read_data(
-        epath, '', pdt=pdt, opmth=opmth, ftmth=ftmth, start_date=start_date, end_date=end_date)
-    print('finished pulling data')
+# else:
+#     opmth = target + str(yr)
+#     ftmth = target + str(yr)
+#     print('pulling data')
+#     vdf, pdf, edf, priceDF = read_data(
+#         epath, '', pdt=pdt, opmth=opmth, ftmth=ftmth, start_date=start_date, end_date=end_date)
+#     print('finished pulling data')
 
 print('sanity checking data')
 # sanity check date ranges
@@ -208,20 +215,20 @@ print('specifying hedging logic')
 # specify hedging logic
 hedges = generate_hedges(hedgepath)
 
-print('getting rollover dates')
+# print('getting rollover dates')
 # get rollover dates according to opex
-rollover_dates = get_rollover_dates(priceDF)
-print('rollover dates: ', rollover_dates)
+# rollover_dates = get_rollover_dates(priceDF)
+# print('rollover dates: ', rollover_dates)
 
 print('running simulation')
 # run the simulation
 grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log = run_simulation(
-    vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage,
+    vdf, pdf, edf, pf, hedges, brokerage=gv.brokerage,
     slippage=gv.slippage, signals=signals)
 
 pnls.append(netpnl)
 
 # bound = '_20_30'
 bound = '_10_40'
-log.to_csv('results/kc/201' + str(yr) + bound + '_log.csv', index=False)
+log.to_csv('results/kc/201' + str(yr) + bound + '_log_test.csv', index=False)
 print(pnls)

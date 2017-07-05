@@ -439,7 +439,7 @@ def prep_portfolio(voldata, pricedata, filepath):
             ordering = find_cdist(curr_sym, mth, lst)
             # price = pricedata[(pricedata.order == ordering) &
             #                   (pricedata.value_date == sim_start)]['settle_value'].values[0]
-            price = pricedata[(pricedata['order'] == ordering) &
+            price = pricedata[(pricedata['underlying_id'] == full) &
                               (pricedata['value_date'] == sim_start)]['settle_value'].values[0]
             flag = data.hedgeorOTC
             lots = 1000 if data.lots == 'None' else int(data.lots)
@@ -802,8 +802,8 @@ def vol_by_delta(voldata, pricedata):
     # print('voldata: ', voldata)
     # print('pricedata: ', pricedata)
     relevant_price = pricedata[
-        ['pdt', 'underlying_id', 'value_date', 'settle_value', 'order']]
-    relevant_vol = voldata[['pdt', 'value_date', 'vol_id', 'strike', 'order',
+        ['pdt', 'underlying_id', 'value_date', 'settle_value']]
+    relevant_vol = voldata[['pdt', 'value_date', 'vol_id', 'strike',
                             'call_put_id', 'tau', 'settle_vol', 'underlying_id']]
 
     # handle discrepancies in underlying_id format
@@ -815,7 +815,7 @@ def vol_by_delta(voldata, pricedata):
 
     print('merging')
     merged = pd.merge(relevant_vol, relevant_price,
-                      on=['pdt', 'value_date', 'underlying_id', 'order'])
+                      on=['pdt', 'value_date', 'underlying_id'])
     # filtering out negative tau values.
     merged = merged[(merged['tau'] > 0) & (merged['settle_vol'] > 0)]
 
@@ -835,7 +835,7 @@ def vol_by_delta(voldata, pricedata):
     print('preallocating')
     # preallocating dataframes
     vdf = merged[['value_date', 'underlying_id', 'tau', 'vol_id',
-                  'order', 'pdt', 'call_put_id']].drop_duplicates()
+                  'pdt', 'call_put_id']].drop_duplicates()
 
     products = merged.pdt.unique()
 

@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-03 21:56:51
+# @Last Modified time: 2017-07-05 13:53:30
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -416,7 +416,7 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='', signals
         final_price.underlying_id = final_price.underlying_id.str.split().str[0]\
             + '  ' + final_price.underlying_id.str.split().str[1]
         merged = pd.merge(vbd, final_price, on=[
-                          'pdt', 'value_date', 'underlying_id', 'order'])
+                          'pdt', 'value_date', 'underlying_id'])
         final_price = merged
 
         # handle conventions for vol_id in price/vol data.
