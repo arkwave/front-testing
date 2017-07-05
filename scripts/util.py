@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-05 16:33:38
+# @Last Modified time: 2017-07-05 17:36:21
 
 
 from .portfolio import Portfolio
@@ -777,86 +777,3 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, kwargs, pf=None):
     op2.get_underlying().update_lots(lots_req)
 
     return op1, op2
-
-
-# def pull_alt_data(pdt):
-#     """Utility function that draws/cleans data from the alternate data table.
-
-#     Args:
-#         pdt (string): The product being drawn from the database
-
-#     Returns:
-#         tuple: vol dataframe, price dataframe, raw dataframe.
-
-
-#     """
-#     print('starting clock..')
-#     t = time.clock()
-#     engine = create_engine(
-#         'postgresql://sumit:Olam1234@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
-#     connection = engine.connect()
-
-#     query = "select security_id, settlement_date, future_settlement_value, option_expiry_date,implied_vol \
-#             FROM table_option_settlement_data where security_id like '" + pdt.upper() + " %%' and extract(YEAR from settlement_date) > 2009"
-#     print('query: ', query)
-#     df = pd.read_sql_query(query, connection)
-
-#     df.to_csv('datasets/data_dump/' + pdt.lower() +
-#               '_raw_data.csv', index=False)
-
-#     print('finished pulling data')
-#     print('elapsed: ', time.clock() - t)
-
-#     add = 1 if len(pdt) == 2 else 0
-
-#     # cleans up data
-#     df['vol_id'] = df.security_id.str[:9+add]
-#     df['call_put_id'] = df.security_id.str[9+add:11+add].str.strip()
-#     # getting 'S' from 'S Q17.Q17'
-#     df['pdt'] = df.vol_id.str[0:len(pdt)]
-#     # df['pdt'] = df.vol_id.str.split().str[0].str.strip()
-
-#     # getting opmth
-#     df['opmth'] = df.vol_id.str.split(
-#         '.').str[0].str.split().str[1].str.strip()
-#     df.opmth = df.opmth.str[0] + \
-#         (df.opmth.str[1:].astype(int) % 10).astype(str)
-
-#     df['strike'] = df.security_id.str[10+add:].astype(float)
-
-#     df['implied_vol'] = df.implied_vol / 100
-
-#     # Q17 -> Q7
-#     df['ftmth'] = df.vol_id.str.split('.').str[1].str.strip()
-#     df.ftmth = df.ftmth.str[0] + \
-#         (df.ftmth.str[1:].astype(int) % 10).astype(str)
-
-#     # creating underlying_id and vol_id
-#     df.vol_id = df.pdt + '  ' + df.opmth + '.' + df.ftmth
-#     df['underlying_id'] = df.pdt + '  ' + df.ftmth
-
-#     # selecting
-#     vdf = df[['settlement_date', 'vol_id',
-#               'call_put_id', 'strike', 'implied_vol']]
-#     pdf = df[['settlement_date', 'underlying_id', 'future_settlement_value']]
-
-#     vdf.columns = ['value_date', 'vol_id',
-#                    'call_put_id', 'strike', 'settle_vol']
-#     pdf.columns = ['value_date', 'underlying_id', 'settle_value']
-
-#     # removing duplicates, resetting indices
-#     pdf = pdf.drop_duplicates()
-#     vdf = vdf.drop_duplicates()
-
-#     pdf.reset_index(drop=True, inplace=True)
-#     vdf.reset_index(drop=True, inplace=True)
-
-#     if not os.path.isdir('datasets/data_dump'):
-#         os.mkdir('datasets/data_dump')
-
-#     vdf.to_csv('datasets/data_dump/' + pdt.lower() +
-#                '_vol_dump.csv', index=False)
-#     pdf.to_csv('datasets/data_dump/' + pdt.lower() +
-#                '_price_dump.csv', index=False)
-
-#     return vdf, pdf, df

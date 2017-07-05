@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-05 13:53:30
+# @Last Modified time: 2017-07-05 17:59:55
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -303,7 +303,7 @@ def pull_alt_data(pdt):
     return vdf, pdf, df
 
 
-def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='', signals=None, test=False, write=False):
+def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='', signals=None, test=False, write=False, writepath=None):
     """Utility function that does everything prep_data does, but to full datasets rather than things drawn from the database. Made because i was lazy. 
 
     Args:
@@ -325,21 +325,19 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='', signals
     """
     # edf = pd.read_csv(epath).dropna()
 
-    # filtering relevant dates
     # fixing datetimes
     vdf.value_date = pd.to_datetime(vdf.value_date)
     pdf.value_date = pd.to_datetime(pdf.value_date)
+
     vdf = vdf.sort_values('value_date')
     pdf = pdf.sort_values('value_date')
+
+    # filtering relevant dates
     vdf = vdf[(vdf.value_date >= start_date) &
-              (vdf.value_date <= end_date)] \
-        if end_date \
-        else vdf[(vdf.value_date >= start_date)]
+              (vdf.value_date <= end_date)]
 
     pdf = pdf[(pdf.value_date >= start_date) &
-              (pdf.value_date <= end_date)] \
-        if end_date \
-        else pdf[(pdf.value_date >= start_date)]
+              (pdf.value_date <= end_date)]
 
     assert not vdf.empty
     assert not pdf.empty
@@ -426,25 +424,26 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='', signals
             + '  ' + final_price.vol_id.str.split().str[1]
 
     if write:
-        # check if directory exists
-        if not os.path.isdir('datasets/debug'):
-            os.mkdir('datasets/debug')
+        desired_path = writepath if writepath is not None else 'datasets/debug/'
+        if not os.path.isdir(desired_path):
+            os.mkdir(desired_path)
+
         # write datasets into the debug folder.
-        final_vol.to_csv('datasets/debug/' + pdt.lower() +
+        final_vol.to_csv(desired_path + pdt.lower() +
                          '_final_vols.csv', index=False)
 
-        final_price.to_csv('datasets/debug/' + pdt.lower() +
+        final_price.to_csv(desired_path + pdt.lower() +
                            '_final_price.csv', index=False)
 
-        pdf.to_csv('datasets/debug/' + pdt.lower() +
+        pdf.to_csv(desired_path + pdt.lower() +
                    '_roll_df.csv', index=False)
 
-        edf.to_csv('datasets/debug/final_option_expiry.csv', index=False)
+        edf.to_csv(desired_path + 'final_option_expiry.csv', index=False)
 
     return final_vol, final_price, edf, pdf, start_date
 
 
-def grab_data(pdt, opmth, ftmth, start_date, end_date):
+def grab_data(pdt, opmth, ftmth, start_date, end_date, sigpath=None, writepath=None):
     """Utility function that allows the user to easily grab a dataset by specifying just the product,
     start_date and end_date. Used to small datasets for the purposes of testing new functions/modules.
 DO NOT USE to generate datasets to be passed into simulation.py; use
@@ -464,15 +463,28 @@ pull_alt_data + prepare_datasets for that.
     volpath = 'datasets/data_dump/' + pdt.lower() + '_vol_dump.csv'
     price_path = 'datasets/data_dump/' + pdt.lower() + '_price_dump.csv'
 
-    # pull in option expiry data
-    opex = pd.read_csv('datasets/option_expiry.csv')
+    # handling signals
+    signals = pd.read_csv(sigpath) if sigpath is not None else None
+    if signals is not None:
+        signals.value_date = pd.to_datetime(signals.value_date)
 
-    # case 1: data dump exists and has already been pulled from database.
-    if not(os.path.exists(price_path) and
-            os.path.exists(volpath)):
-
+    # handling prices and vos
+    if not os.path.exists(volpath) or os.path.exists(price_path):
+        vdf, pdf, raw_df = pull_alt_data(pdt)
+    else:
         vdf = pd.read_csv(volpath)
         pdf = pd.read_csv(price_path)
 
-    else:
-        pass
+    # handling datetime formats.
+    edf = pd.read_csv('datasets/option_expiry.csv')
+    vdf.value_date = pd.to_datetime(vdf.value_date)
+    pdf.value_date = pd.to_datetime(vdf.value_date)
+    edf.expiry_date = pd.to_datetime(edf.value_date)
+    # pull in option expiry data
+
+    vdf, pdf, edf, roll_df, start_date = prep_datasets(vdf, pdf, edf, start_date,
+                                                       end_date, pdt, signals=signals,
+                                                       test=False, write=True, writepath=writepath)
+    # prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='', signals=None, test=False, write=False)
+
+    return vdf, pdf, edf

@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-07-05 15:57:43
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-05 16:11:08
+# @Last Modified time: 2017-07-05 17:36:38
 
 from scripts.prep_data import generate_hedges, sanity_check
 import os
@@ -160,7 +160,8 @@ opmth = target + str(yr)
 ftmth = target + str(yr)
 
 
-# pf = create_portfolio(pdt, opmth,+horted=True, greek='vega', greekval=25000)
+# pf = create_portfolio(pdt, opmth, ftmth, 'skew', vdf, pdf,
+#                       delta=25, shorted=True, greek='vega', greekval=25000)
 pf = Portfolio()
 # pf = create_portfolio(pdt, opmth, ftmth, 'straddle', vdf, pdf, chars=[
 #     'call', 'put'], shorted=False, atm=True, greek='vega', greekval='130000', hedges=hedge_specs)
