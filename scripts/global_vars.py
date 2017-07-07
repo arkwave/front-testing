@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-12 13:32:49
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-07 14:13:12
+# @Last Modified time: 2017-07-07 20:46:13
 import pandas as pd
 import os
 
@@ -19,7 +19,7 @@ write_path = 'results/' + pdt.lower() + '/logs/'
 
 
 ######### automate path selection based on inputs ##########
-folder = 'datasets/data_dump/'
+folder = 'C:/Users/Ananth/Desktop/Modules/HistoricSimulator/datasets/data_dump/'
 
 if not os.path.isdir(folder):
     os.mkdir(folder)

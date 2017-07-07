@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-05 19:47:51
+# @Last Modified time: 2017-07-07 21:23:37
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -443,7 +443,7 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='', signals
     return final_vol, final_price, edf, pdf, start_date
 
 
-def grab_data(pdt, ftmth, opmth, start_date, end_date, sigpath=None, writepath=None, direc='C:/Users/Ananth/Desktop/Modules/HistoricSimulator/'):
+def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None, writepath=None, direc='C:/Users/Ananth/Desktop/Modules/HistoricSimulator/'):
     """Utility function that allows the user to easily grab a dataset by specifying just the product,
     start_date and end_date. Used to small datasets for the purposes of testing new functions/modules.
 DO NOT USE to generate datasets to be passed into simulation.py; use
@@ -463,53 +463,58 @@ pull_alt_data + prepare_datasets for that.
     print('start_date: ', start_date)
     print('end_date: ', end_date)
 
-    volpath = direc + 'datasets/data_dump/' + pdt.lower() + '_vol_dump.csv'
+    final_pdf = pd.DataFrame()
+    final_vols = pd.DataFrame()
 
-    price_path = direc + 'datasets/data_dump/' + pdt.lower() + '_price_dump.csv'
+    for pdt in pdts:
+        volpath = direc + 'datasets/data_dump/' + pdt.lower() + '_vol_dump.csv'
 
-    print('volpath: ', volpath)
-    print('pricepath: ', price_path)
+        price_path = direc + 'datasets/data_dump/' + pdt.lower() + '_price_dump.csv'
 
-    # handling signals
-    signals = pd.read_csv(sigpath) if sigpath is not None else None
-    if signals is not None:
-        signals.value_date = pd.to_datetime(signals.value_date)
+        print('volpath: ', volpath)
+        print('pricepath: ', price_path)
 
-    # handling prices and vos
-    if not os.path.exists(volpath) or not os.path.exists(price_path):
-        print('dumps dont exist, pulling raw data')
-        vdf, pdf, raw_df = pull_alt_data(pdt)
-    else:
-        print('dumps exist, reading in')
-        vdf = pd.read_csv(volpath)
-        pdf = pd.read_csv(price_path)
+        # handling signals
+        signals = pd.read_csv(sigpath) if sigpath is not None else None
+        if signals is not None:
+            signals.value_date = pd.to_datetime(signals.value_date)
 
-    # handling datetime formats.
-    edf = pd.read_csv(direc + 'datasets/option_expiry.csv')
-    vdf.value_date = pd.to_datetime(vdf.value_date)
-    pdf.value_date = pd.to_datetime(pdf.value_date)
-    edf.expiry_date = pd.to_datetime(edf.expiry_date)
+        # handling prices and vos
+        if not os.path.exists(volpath) or not os.path.exists(price_path):
+            print('dumps dont exist, pulling raw data')
+            vdf, pdf, raw_df = pull_alt_data(pdt)
+        else:
+            print('dumps exist, reading in')
+            vdf = pd.read_csv(volpath)
+            pdf = pd.read_csv(price_path)
 
-    # filter according to vdf, pdf
-    u_id = pdt + '  ' + ftmth
-    print('uid: ', u_id)
-    vol_id = pdt + '  ' + opmth + '.' + ftmth
-    print('vid: ', vol_id)
+        # handling datetime formats.
+        edf = pd.read_csv(direc + 'datasets/option_expiry.csv')
+        vdf.value_date = pd.to_datetime(vdf.value_date)
+        pdf.value_date = pd.to_datetime(pdf.value_date)
+        edf.expiry_date = pd.to_datetime(edf.expiry_date)
 
-    # try filtering just by uidand vol_id
+        # filter according to start/end dates
+        vdf = vdf[(vdf.value_date >= start_date) &
+                  (vdf.value_date <= end_date)]
 
-    vdf = vdf[(vdf.vol_id == vol_id) &
-              (vdf.value_date >= start_date) &
-              (vdf.value_date <= end_date)]
+        pdf = pdf[(pdf.value_date >= start_date) &
+                  (pdf.value_date <= end_date)]
 
-    pdf = pdf[(pdf.underlying_id == u_id) &
-              (pdf.value_date >= start_date) &
-              (pdf.value_date <= end_date)]
+        # try filtering just by uid and vol_id
+        if ftmth is not None and opmth is not None:
+            u_id = pdt + '  ' + ftmth
+            print('uid: ', u_id)
+            vol_id = pdt + '  ' + opmth + '.' + ftmth
+            print('vid: ', vol_id)
 
-    vdf, pdf, edf, roll_df, start_date = prep_datasets(vdf, pdf, edf, start_date,
-                                                       end_date, pdt, signals=signals,
-                                                       test=False, write=True, writepath=writepath)
+            vdf = vdf[(vdf.vol_id == vol_id)]
+            pdf = pdf[(pdf.underlying_id == u_id)]
 
-    # prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='', signals=None, test=False, write=False)
+        vdf, pdf, edf, roll_df, start_date = prep_datasets(vdf, pdf, edf, start_date,
+                                                           end_date, pdt, signals=signals,
+                                                           test=False, write=True, writepath=writepath)
+        final_pdf = pd.concat([final_pdf, pdf])
+        final_vols = pd.concat([final_vols, vdf])
 
     return vdf, pdf, edf
