@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-07 17:43:01
+# @Last Modified time: 2017-07-07 18:40:59
 
 ################################ imports ###################################
 import numpy as np
@@ -384,15 +384,15 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
         df = pd.merge(signals, pricedata[['value_date', 'underlying_id', 'settle_value']], on=[
             'value_date', 'underlying_id'])
         df = df.drop_duplicates()
-        df['price_change'] = df.settle_value.shift(-1) - df.settle_value
-        df['dval_call_vol_change'] = df.call_vol.shift(
-            -1) - df.call_vol
-        df['dval_put_vol_change'] = df.put_vol.shift(-1) - df.put_vol
-        df['dval_call_vol_change'] = df['dval_call_vol_change'].shift(1)
-        df['dval_put_vol_change'] = df['dval_put_vol_change'].shift(1)
-        df = df.fillna(0)
-        log = pd.merge(log, df[['value_date', 'vol_id', 'price_change',
-                                'dval_call_vol_change', 'dval_put_vol_change']], on=['value_date', 'vol_id'])
+        # df['price_change'] = df.settle_value.shift(-1) - df.settle_value
+        # df['dval_call_vol_change'] = df.call_vol.shift(
+        #     -1) - df.call_vol
+        # df['dval_put_vol_change'] = df.put_vol.shift(-1) - df.put_vol
+        # df['dval_call_vol_change'] = df['dval_call_vol_change'].shift(1)
+        # df['dval_put_vol_change'] = df['dval_put_vol_change'].shift(1)
+        # df = df.fillna(0)
+        log = pd.merge(log, df[['value_date', 'vol_id', 'settle_value',
+                                'call_vol', 'put_vol']], on=['value_date', 'vol_id'])
 
     # case where signals are None; in this case get 25d vol changes from pdf
     elif signals is None:
@@ -463,7 +463,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
              alpha=0.6, label='net pnl distribution')
     plt.title('PnL Distribution: Gross/Net')
     plt.legend()
-    plt.show()
+    # plt.show()
 
     # plotting gross pnl values
     plt.figure()
@@ -479,7 +479,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
     plt.plot(xvals, vega_pnl_cumul, c='y', alpha=0.5, label='cu. vega pnl')
     plt.title('gross/net pnl daily')
     plt.legend()
-    plt.show()
+    # plt.show()
 
     # cumulative gamma/vega/cumulpnl values
     plt.figure()
@@ -492,61 +492,67 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
              alpha=0.8, label='gross pnl')
     plt.title('gamma/vega/cumulative pnls')
     plt.legend()
-    plt.show()
+    # plt.show()
 
-    # net values
-    plt.figure()
-    # colors = ['c' if x >= 0 else 'r' for x in gamma_pnl_daily]
-    plt.plot(log.value_date, log.eod_gamma_pnl, color='c',
-             alpha=0.6, label='eod gamma pnl')
-    plt.plot(log.value_date, log.eod_vega_pnl,
-             color='m', alpha=0.6, label='eod vega pnl')
-    plt.plot(log.value_date, log.eod_pnl_gross, color='k',
-             alpha=0.8, label='eod pnl')
-    plt.title('gamma/vega/daily eod pnls')
-    plt.legend()
-    plt.show()
+    # # net values
+    # plt.figure()
+    # # colors = ['c' if x >= 0 else 'r' for x in gamma_pnl_daily]
+    # plt.plot(log.value_date, log.eod_gamma_pnl, color='c',
+    #          alpha=0.6, label='eod gamma pnl')
+    # plt.plot(log.value_date, log.eod_vega_pnl,
+    #          color='m', alpha=0.6, label='eod vega pnl')
+    # plt.plot(log.value_date, log.eod_pnl_gross, color='k',
+    #          alpha=0.8, label='eod pnl')
+    # plt.title('gamma/vega/daily eod pnls')
+    # plt.legend()
+    # # plt.show()
 
-    # plotting greeks with pnl
-    plt.figure()
-    # plt.plot(xvals, net_cumul_values, c='k',
-    #          alpha=0.8, label='net cumulative pnl')
-    plt.plot(log.value_date, log.net_delta, c='y', alpha=0.8, label='delta')
-    plt.plot(log.value_date, log.net_gamma, c='g', alpha=0.8, label='gamma')
-    plt.plot(log.value_date, log.net_theta, c='b', alpha=0.8, label='theta')
-    plt.plot(log.value_date, log.net_vega, c='r', alpha=0.8, label='vega')
-    # plt.plot(log.value_date, log.cu_pnl_net, c='k',
-    #          alpha=0.6, label='cumulative pnl')
-    plt.legend()
-    plt.title('Greeks over simulation period')
-    plt.show()
+    # # plotting greeks with pnl
+    # plt.figure()
+    # # plt.plot(xvals, net_cumul_values, c='k',
+    # #          alpha=0.8, label='net cumulative pnl')
+    # plt.plot(log.value_date, log.net_delta, c='y', alpha=0.8, label='delta')
+    # plt.plot(log.value_date, log.net_gamma, c='g', alpha=0.8, label='gamma')
+    # plt.plot(log.value_date, log.net_theta, c='b', alpha=0.8, label='theta')
+    # plt.plot(log.value_date, log.net_vega, c='r', alpha=0.8, label='vega')
+    # # plt.plot(log.value_date, log.cu_pnl_net, c='k',
+    # #          alpha=0.6, label='cumulative pnl')
+    # plt.legend()
+    # plt.title('Greeks over simulation period')
+    # # plt.show()
 
     if signals is not None:
+        print('signals not none, proceeding to additional plots.')
         plt.figure()
-        y = (log.cu_pnl_net - np.mean(log.cu_pnl_net)) / \
-            (log.cu_pnl_net.max() - log.cu_pnl_net.min())
+        # y = (log.cu_pnl_net - np.mean(log.cu_pnl_net)) / \
+        #     (log.cu_pnl_net.max() - log.cu_pnl_net.min())
 
-        y1 = log['dval_call_vol_change'] - log['dval_put_vol_change']
-        plt.plot(log.value_date, y, c='k',
-                 alpha=0.8, label='cumulative pnl')
-        plt.plot(log.value_date, y1,
-                 c='c', alpha=0.7, label='25d_c_vol - 25d_p_vol')
-        # plt.plot(log.value_date, log['dval_put_vol_change'],
-        #          c='m', alpha=0.5, label='25 Delta Put Vol Change')
-        plt.plot(log.value_date, log.price_change,
-                 c='b', alpha=0.4, label='Price change')
-        plt.title('Norm PnL, Vol Diff & Price Change')
+        # y1 = log['dval_call_vol_change'] - log['dval_put_vol_change']
+        unique_log = log.drop_duplicates(subset='value_date')
+
+        settle_vals = unique_log.settle_value
+        callvols = unique_log.call_vol
+        putvols = unique_log.put_vol
+        callvols *= 100
+        callvolchange = (callvols.shift(-1) - callvols).shift(1).fillna(0)
+        putvols *= 100
+        putvolchange = (putvols.shift(-1) - putvols).shift(1).fillna(0)
+        dates = unique_log.value_date
+
+        spotchange = (settle_vals.shift(-1) - settle_vals).shift(1).fillna(0)
+
+        plt.plot(dates, spotchange, c='k',
+                 alpha=0.8, label='spot change')
+
+        plt.plot(dates, callvolchange,
+                 c='c', alpha=0.7, label='call_vol change')
+
+        plt.plot(dates, putvolchange,
+                 c='r', alpha=0.7, label='put_vol change')
+
+        plt.title('Spot Price, call_vol and put_vol changes')
         plt.legend()
-        plt.show()
 
-    plt.figure()
-    plt.plot(log.value_date, log.net_ft_pos, c='k',
-             alpha=0.7, label='net future position (lots)')
-    normed_daily = (log.eod_pnl_net) / 100
-    plt.plot(log.value_date, normed_daily, c='c',
-             alpha=0.7, label='scaled daily pnl (1/100)')
-    plt.title('normed daily pnl & net future position')
-    plt.legend()
     plt.show()
 
     return grosspnl, netpnl, pf, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log
