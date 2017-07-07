@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-05 16:34:09
+# @Last Modified time: 2017-07-07 17:43:01
 
 ################################ imports ###################################
 import numpy as np
@@ -294,6 +294,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
         for op in pf.OTC_options:
             ftprice = op.underlying.get_price()
             op_value = op.get_price()
+            pos = 'long' if not op.shorted else 'short'
+            char = op.char
             oplots = op.lots
             opvol = op.vol
             strike = op.K
@@ -301,19 +303,19 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
             vol_id = pdt + '  ' + opmth + '.' + ftmth
             tau = round(op.tau * 365)
 
-            lst = [date, vol_id, tau, op_value, oplots,
+            lst = [date, vol_id, char, pos, tau, op_value, oplots,
                    ftprice, strike, opvol,
                    dailypnl, dailypnl-dailycost, grosspnl, netpnl,
                    gamma_pnl, gammapnl, vega_pnl, vegapnl, roll_hedged]
 
-            cols = ['value_date', 'vol_id', 'ttm', 'option_value', 'option_lottage',
+            cols = ['value_date', 'vol_id', 'call/put', 'pos', 'ttm', 'option_value', 'option_lottage',
                     'future price', 'strike', 'vol',
                     'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross', 'cu_pnl_net',
                     'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl', 'cu_vega_pnl',
                     'delta_rolled']
 
-            adcols = ['pdt', 'ft_month', 'op_month', 'delta', 'gamma', 'theta',
-                      'vega', 'net_call_vega', 'net_put_vega', 'net_ft_pos', 'b/s']
+            adcols = ['pdt', 'ft_month', 'op_month', 'net_delta', 'net_gamma', 'net_theta',
+                      'net_vega', 'net_call_vega', 'net_put_vega', 'net_ft_pos', 'b/s']
 
             if op.barrier is not None:
                 cpi = 'C' if op.char == 'call' else 'P'
@@ -383,14 +385,14 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
             'value_date', 'underlying_id'])
         df = df.drop_duplicates()
         df['price_change'] = df.settle_value.shift(-1) - df.settle_value
-        df['25d_call_change'] = df.delta_call_25_a.shift(
-            -1) - df.delta_call_25_a
-        df['25d_put_change'] = df.delta_put_25_b.shift(-1) - df.delta_put_25_b
-        df['25d_call_change'] = df['25d_call_change'].shift(1)
-        df['25d_put_change'] = df['25d_put_change'].shift(1)
+        df['dval_call_vol_change'] = df.call_vol.shift(
+            -1) - df.call_vol
+        df['dval_put_vol_change'] = df.put_vol.shift(-1) - df.put_vol
+        df['dval_call_vol_change'] = df['dval_call_vol_change'].shift(1)
+        df['dval_put_vol_change'] = df['dval_put_vol_change'].shift(1)
         df = df.fillna(0)
         log = pd.merge(log, df[['value_date', 'vol_id', 'price_change',
-                                '25d_call_change', '25d_put_change']], on=['value_date'])
+                                'dval_call_vol_change', 'dval_put_vol_change']], on=['value_date', 'vol_id'])
 
     # case where signals are None; in this case get 25d vol changes from pdf
     elif signals is None:
@@ -509,10 +511,10 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
     plt.figure()
     # plt.plot(xvals, net_cumul_values, c='k',
     #          alpha=0.8, label='net cumulative pnl')
-    plt.plot(log.value_date, log.delta, c='y', alpha=0.8, label='delta')
-    plt.plot(log.value_date, log.gamma, c='g', alpha=0.8, label='gamma')
-    plt.plot(log.value_date, log.theta, c='b', alpha=0.8, label='theta')
-    plt.plot(log.value_date, log.vega, c='r', alpha=0.8, label='vega')
+    plt.plot(log.value_date, log.net_delta, c='y', alpha=0.8, label='delta')
+    plt.plot(log.value_date, log.net_gamma, c='g', alpha=0.8, label='gamma')
+    plt.plot(log.value_date, log.net_theta, c='b', alpha=0.8, label='theta')
+    plt.plot(log.value_date, log.net_vega, c='r', alpha=0.8, label='vega')
     # plt.plot(log.value_date, log.cu_pnl_net, c='k',
     #          alpha=0.6, label='cumulative pnl')
     plt.legend()
@@ -524,12 +526,12 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
         y = (log.cu_pnl_net - np.mean(log.cu_pnl_net)) / \
             (log.cu_pnl_net.max() - log.cu_pnl_net.min())
 
-        y1 = log['25d_call_change'] - log['25d_put_change']
+        y1 = log['dval_call_vol_change'] - log['dval_put_vol_change']
         plt.plot(log.value_date, y, c='k',
                  alpha=0.8, label='cumulative pnl')
         plt.plot(log.value_date, y1,
                  c='c', alpha=0.7, label='25d_c_vol - 25d_p_vol')
-        # plt.plot(log.value_date, log['25d_put_change'],
+        # plt.plot(log.value_date, log['dval_put_vol_change'],
         #          c='m', alpha=0.5, label='25 Delta Put Vol Change')
         plt.plot(log.value_date, log.price_change,
                  c='b', alpha=0.4, label='Price change')
@@ -723,7 +725,7 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
                             (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
                 df_tau = min(val.tau, key=lambda x: abs(x-tau))
                 strike_vol = val[val.tau == df_tau].settle_vol.values[0]
-                print('UPDATED - new vol: ', val)
+                print('UPDATED - new vol: ', strike_vol)
             except (IndexError, ValueError):
                 print('### VOLATILITY DATA MISSING ###')
                 print('product: ', product)
@@ -1589,7 +1591,7 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
     # necessary.
 
     cost = 0
-    cols = ['delta_call_25_a', 'delta_put_25_b',
+    cols = ['call_vol', 'put_vol',
             'signal', 'opmth', 'ftmth', 'pdt', 'vega']
     # getting inputs from signals dataframe
     print('next_date: ', next_date)
@@ -1625,6 +1627,7 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
             # Case 2-1: Adding to empty portfolio.
             if net_call_vega == 0 and net_put_vega == 0:
                 print('empty portfolio; adding skews')
+                inputs[-1]
                 pf, cost = add_skew(pf, vdf, pdf, inputs, date,
                                     dval*100, brokerage=brokerage, slippage=slippage)
                 ret, cost = pf, cost
@@ -1694,7 +1697,7 @@ def generate_skew_op(char, vdf, pdf, inputs, date, dval, brokerage=None, slippag
     print('shorted: ', shorted)
 
     # num_skews = abs(sig)
-    vol = vol/100
+    # vol = vol/100
 
     # computing ordering
     curr_mth = date.month
@@ -1783,11 +1786,6 @@ def add_skew(pf, vdf, pdf, inputs, date, dval, brokerage=None, slippage=None):
     shorted = True if sig < 0 else False
     # num_skews = abs(sig)
     cvol, pvol = cvol/100, pvol/100
-    # computing ordering
-    curr_mth = date.month
-    curr_mth_sym = month_to_sym[curr_mth]
-    curr_yr = date.year % (2000 + decade)
-    curr_sym = curr_mth_sym + str(curr_yr)
     # order = find_cdist(curr_sym, ftmth, contract_mths[pdt])
 
     # create the underlying future
@@ -1803,46 +1801,14 @@ def add_skew(pf, vdf, pdf, inputs, date, dval, brokerage=None, slippage=None):
     vol_id = pdt + '  ' + opmth + '.' + ftmth
     # kwargs = {'greek': 'vega', 'greekval': vega_req}
     callop, putop = create_skew(
-        vol_id, vdf, pdf, date, shorted, dval, ftprice, greek='vega', greekval=vega_req)
+        vol_id, vdf, pdf, date, shorted, dval, ftprice, greek='vega', greekval=vega_req*abs(sig))
 
     print('callop: ', str(callop))
     print('putop: ', str(putop))
 
-    # ft = Future(ftmth, ftprice, pdt, shorted=False,
-    #             lots=lots, ordering=order)
-
-    # # computing tau
-    # tau = vdf[(vdf.value_date == date) &
-    #           (vdf.vol_id == vol_id)].tau.values[0]
-
-    # # computing strikes
-    # c_strike = compute_strike_from_delta(
-    #     None, delta1=dval, vol=cvol, s=ftprice, tau=tau, char='call', pdt=pdt)
-    # p_strike = compute_strike_from_delta(
-    #     None, delta1=dval, vol=pvol, s=ftprice, tau=tau, char='put', pdt=pdt)
-
-    # # creating placeholder options objects for computation purposes
-    # callop = Option(c_strike, tau, 'call', cvol, ft, 'amer',
-    #                 shorted, opmth, lots=lots, ordering=order)
-    # putop = Option(p_strike, tau, 'put', pvol, ft, 'amer',
-    #                not shorted, opmth, lots=lots, ordering=order)
-
     tobeadded = []
     lots_req = callop.lots
 
-    # pnl_mult = multipliers[pdt][-1]
-    # op_vega = (callop.vega * 100) / (callop.lots * pnl_mult)
-    # print('call vega: ', op_vega)
-    # # calculate lots required for requisite vega specified; done according
-    # # to callop.
-    # lots_req = round((abs(vega_req * num_skews) * 100) /
-    #                  abs(op_vega * pnl_mult))
-
-    # # creating and appending relevant options.
-    # callop = Option(c_strike, tau, 'call', cvol, ft, 'amer',
-    #                 shorted, opmth, lots=lots_req, ordering=order)
-    # putop = Option(p_strike, tau, 'put', pvol, ft, 'amer',
-    #                not shorted, opmth, lots=lots_req, ordering=order)
     print('vegas: ', callop.vega, putop.vega)
     pf.add_security([callop, putop], 'OTC')
     tobeadded.extend([callop, putop])

@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-07-05 15:57:43
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-05 17:36:38
+# @Last Modified time: 2017-07-07 14:34:29
 
 from scripts.prep_data import generate_hedges, sanity_check
 import os
@@ -73,29 +73,26 @@ contract_mths = {
 }
 
 
+#################### variables #########################
+pdt = 'CT'
+yr = 7
+signals = True
+target = 'N'
+symlst = ['H', 'K', 'N', 'U', 'Z']
+start_date = pd.Timestamp('2017-01-03')
+end_date = pd.Timestamp('2017-03-31')
+#######################################################
+
+
+#################### default paths ##########################
 epath = 'datasets/option_expiry.csv'
 specpath = 'specs.csv'
-sigpath = 'datasets/small_ct/signals.csv'
+signal_path = '../skew_lib/results/test_signal.csv'
 hedgepath = 'hedging.csv'
-
-yr = 7
-pnls = []
-
-# vdf, pdf, df = pull_alt_data('KC')
-
-target = 'N'
-
-# for yr in yrs:
-pdt = 'CT'
-symlst = ['H', 'K', 'N', 'U', 'Z']
-# ftmth = 'X2'
-# opmth = 'X2'
-
 pricedump = 'datasets/data_dump/' + pdt.lower() + '_price_dump.csv'
 voldump = 'datasets/data_dump/' + pdt.lower() + '_vol_dump.csv'
+#############################################################
 
-start_date = pd.Timestamp('201' + str(yr) + '-01-03')
-end_date = pd.Timestamp('201' + str(yr) + '-03-31')
 
 # vdf, pdf, df = pull_alt_data()
 
@@ -107,44 +104,76 @@ edf = pd.read_csv(epath)
 if not os.path.exists(pricedump) or (not os.path.exists(voldump)):
     vdf, pdf, raw_daf = pull_alt_data(pdt)
 
+# cleaning data, pulling relevant stuff from dumps.
 uids = [pdt + '  ' + u + str(yr) for u in symlst]
 print('uids: ', uids)
 volids = [pdt + '  ' + u + str(yr) + '.' + u + str(yr) for u in symlst]
 print('volids: ', volids)
 pdf = pd.read_csv(pricedump)
 pdf.value_date = pd.to_datetime(pdf.value_date)
+
 # cleaning prices
 pmask = pdf.underlying_id.isin(uids)
 pdf = pdf[pmask]
+
+# cleaning vols
 vdf = pd.read_csv(voldump)
-# volid = pdt + '  ' + opmth + '.' + ftmth
 vmask = vdf.vol_id.isin(volids)
 vdf = vdf[vmask]
 vdf.value_date = pd.to_datetime(vdf.value_date)
-# filter datasets before prep
-# vdf = vdf[(vdf.value_date >= start_date)
-#           & (vdf.value_date <= end_date)]
-# pdf = pdf[(pdf.value_date >= start_date)
-#           & (pdf.value_date <= end_date)]
 
-signal_path = 'datasets/signals/' + pdt.lower() + '_signals.csv'
-signals = pd.read_csv(signal_path) if os.path.exists(signal_path) else None
-# if os.path.exists(signal_path):
-#     signals = pd.read_csv(signal_path)
+
+# handling signals
+signals = pd.read_csv(signal_path) if (
+    os.path.exists(signal_path) and signals) else None
+
+
+# prep_datasets
 vdf, pdf, edf, priceDF, start_date = prep_datasets(
     vdf, pdf, edf, start_date, end_date, pdt, signals=signals, test=False, write=True)
 print('finished pulling data')
 
 
-print('sanity checking data')
 # sanity check date ranges
+print('sanity checking data')
 sanity_check(vdf.value_date.unique(),
              pdf.value_date.unique(), start_date, end_date)
 
-# print('voldata: ', vdf)
-# print('pricedf: ', pdf)
 
+# initalizing portfolio
 print('creating portfolio')
+pf = Portfolio()
+
+
+print('portfolio: ', pf)
+print('deltas: ', [op.delta/op.lots for op in pf.OTC_options])
+print('vegas: ', pf.net_vega_pos())
+print('start_date: ', start_date)
+print('end_date: ', end_date)
+
+
+print('specifying hedging logic')
+
+# specify hedging logic
+hedges = generate_hedges(hedgepath)
+
+
+# run the simulation
+print('running simulation')
+grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values,\
+    net_daily_values, net_cumul_values, log = run_simulation(vdf, pdf, edf,
+                                                             pf, hedges,
+                                                             brokerage=gv.brokerage,
+                                                             slippage=gv.slippage,
+                                                             signals=signals)
+
+# bound = '_20_30'
+bound = '_10_40'
+log.to_csv('results/' + pdt.lower() + '/201' +
+           str(yr) + bound + '_log_test.csv', index=False)
+
+
+###################### code dump ##########################
 # create 130,000 vega atm straddles
 
 # hedge_specs = {'pdt': 'S',
@@ -155,42 +184,3 @@ print('creating portfolio')
 #                'shorted': True,
 #                'greek': 'gamma',
 #                'greekval': 'portfolio'}
-
-opmth = target + str(yr)
-ftmth = target + str(yr)
-
-
-# pf = create_portfolio(pdt, opmth, ftmth, 'skew', vdf, pdf,
-#                       delta=25, shorted=True, greek='vega', greekval=25000)
-pf = Portfolio()
-# pf = create_portfolio(pdt, opmth, ftmth, 'straddle', vdf, pdf, chars=[
-#     'call', 'put'], shorted=False, atm=True, greek='vega', greekval='130000', hedges=hedge_specs)
-
-print('portfolio: ', pf)
-print('deltas: ', [op.delta/op.lots for op in pf.OTC_options])
-print('vegas: ', pf.net_vega_pos())
-print('start_date: ', start_date)
-print('end_date: ', end_date)
-
-print('specifying hedging logic')
-# specify hedging logic
-hedges = generate_hedges(hedgepath)
-
-print('running simulation')
-# run the simulation
-
-
-grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values,\
-    net_daily_values, net_cumul_values, log = run_simulation(vdf, pdf, edf,
-                                                             pf, hedges,
-                                                             brokerage=gv.brokerage,
-                                                             slippage=gv.slippage,
-                                                             signals=signals)
-
-# pnls.append(netpnl)
-
-# bound = '_20_30'
-bound = '_10_40'
-log.to_csv('results/' + pdt.lower() + '/201' +
-           str(yr) + bound + '_log_test.csv', index=False)
-print(pnls)

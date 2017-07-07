@@ -870,8 +870,11 @@ def vol_by_delta(voldata, pricedata):
                     # interpolating delta using Piecewise Cubic Hermite
                     # Interpolation (Pchip)
 
-                    # f1 = PchipInterpolator(deltas, vols, axis=1)
                     try:
+                        # print('deltas: ', deltas)
+                        # print('vols: ', vols)
+                        # f1 = PchipInterpolator(
+                        #     deltas, vols, extrapolate=True)
                         f1 = interp1d(deltas, vols, kind='linear',
                                       fill_value='extrapolate')
                     except ValueError:

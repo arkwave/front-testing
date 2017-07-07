@@ -2,14 +2,14 @@
 # @Author: Ananth
 # @Date:   2017-05-12 13:32:49
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-03 21:22:59
+# @Last Modified time: 2017-07-07 14:13:12
 import pandas as pd
 import os
 
 
 ################ CHANGE THESE #################
 pdt = 'CT'
-signals = False
+signals = True
 start_date = pd.Timestamp('2017-01-03')
 end_date = pd.Timestamp('2017-03-31')
 brokerage = 0
@@ -42,7 +42,8 @@ raw_exp_path = 'datasets/option_expiry.csv'
 hedge_path = 'hedging.csv'
 
 # signal path
-signal_path = folder + 'signals.csv' if signals else None
+# signal_path = folder + 'signals.csv' if signals else None
+signal_path = '../skew_lib/results/test_signal.csv'
 
 
 # portfolio location
