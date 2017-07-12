@@ -768,19 +768,17 @@ High priority:
 
 
 
+>>>>>>> TODOS AS OF 7/12 <<<<<<<< 
 
-Least Urgent:
-> new read method csv --> dict --> portfolio. Try to keep current work intact 
-> portfolio-wide hedging as a flag --> how does this work? numerical equivalent? 
-3. hedge upon percentage/absolute move. - todo once ticker data is to be implemented. 
-	> take in a value, the greek to hedge, and how to hedge.
+1) Multiple signals per day:
+	> currently relies on net_vega_pos of the entire portfolio. need to re-implement this in order to make sure different signals are applied appropriately.
 
+2) Go through skew signal application with a fine-toothed comb. PnL profiles 	look very similar to previous runs, consistently making money on gamma 	\	and losing on vega. Why?
 
-Future work:
-> update all documentation. 
-> hedging on the level of portfolio rather than on contract -> flag. 
-> monte carlo for VAR module. 
-> run var module on all portfolios. something will break, fix it. 
+3) Handle barrier option status. 
+
+4) run it through the debugger and make sure it is outputting correct results. 
+
 
 
 
