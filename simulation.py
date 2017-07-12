@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-07 18:40:59
+# @Last Modified time: 2017-07-12 21:48:07
 
 ################################ imports ###################################
 import numpy as np
@@ -201,8 +201,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
         # filter data specific to the current day of the simulation.
         vdf = voldata[voldata.value_date == date]
         pdf = pricedata[pricedata.value_date == date]
-        print('Active Options: ', [
-              str(op) for op in pf.get_all_options() if op.check_active()])
+        # print('Active Options: ', [
+        #       str(op) for op in pf.get_all_options() if op.check_active()])
         print('Portfolio before any ops: ', pf)
         print('SOD Vega Pos: ', pf.net_vega_pos())
 
@@ -216,7 +216,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
 
     # Step 4: Compute pnl for the day
         updated_val = pf.compute_value()
-        print('updated pnl after feed: ', updated_val)
+        print('updated value after feed: ', updated_val)
         print('init val: ', init_val)
         dailypnl = (updated_val -
                     init_val) + exercise_profit if (init_val != 0 and updated_val != 0) else 0
@@ -226,7 +226,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
             pf.add_security(exercise_futures, 'OTC')
         if barrier_futures:
             pf.add_security(barrier_futures, 'hedge')
-        print('pf after feed: ', pf)
+        # print('pf after resid. futures: ', pf)
 
     # Step 5: Apply signal
         if signals is not None:
@@ -354,10 +354,10 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
         pf.timestep(num_days * timestep)
 
         print('pf after timestep: ', pf)
-        for op in pf.OTC_options:
-            print('Option: ', op)
-            print('vol: ', op.vol)
-            print('price: ', op.underlying.get_price())
+        # for op in pf.OTC_options:
+        #     print('Option: ', op)
+        #     print('vol: ', op.vol)
+        #     print('price: ', op.underlying.get_price())
 
         print('Net vega pos: ', pf.net_vega_pos())
 
@@ -369,6 +369,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
 
     ######################### PRINTING OUTPUT ###########################
     log = pd.DataFrame(loglist)
+    log.to_csv('results/skew/c_skew_test.csv', index=False)
     # log.to_csv('log.csv')
     # log['vol_id'] = log.pdt + '  ' + log.month + '.' + log.month
 
@@ -731,7 +732,7 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
                             (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
                 df_tau = min(val.tau, key=lambda x: abs(x-tau))
                 strike_vol = val[val.tau == df_tau].settle_vol.values[0]
-                print('UPDATED - new vol: ', strike_vol)
+                # print('UPDATED - new vol: ', strike_vol)
             except (IndexError, ValueError):
                 print('### VOLATILITY DATA MISSING ###')
                 print('product: ', product)
@@ -751,7 +752,7 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
                                   (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
                     df_tau = min(b_val.tau, key=lambda x: abs(x-tau))
                     b_vol = val[val.tau == df_tau].settle_vol.values[0]
-                    print('UPDATED - new barrier vol: ', b_vol)
+                    # print('UPDATED - new barrier vol: ', b_vol)
             except (IndexError, ValueError):
                 print('### BARRIER VOLATILITY DATA MISSING ###')
                 print('product: ', product)
@@ -789,9 +790,9 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
         pf (TYPE): portfolio being simulated. 
 
     """
-    print('handling barriers...')
+    # print('handling barriers...')
 
-    print('future val: ', val)
+    # print('future val: ', val)
 
     step = 0
     delta_diff = 0
@@ -804,18 +805,20 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
     ft_ticksize = multipliers[pdt][2]
     ops = [op for op in pf.OTC_options if op.underlying == ft]
 
-    print('ops: ', ops)
+    # print('ops: ', [str(op) for op in ops])
     if not ops:
         return pf, 0, []
 
     op = ops[0]
+    # print('barrierstatus: ', op.barrier)
     # opmth = op.get_op_month()
 
     # base case: option is a vanilla option, or has expired.
 
     if (op.barrier is None) or (op.check_expired()):
-        print('simulation.handle_barrers - vanilla/expired case ' + str(op))
-        ret = pf, 0
+        print('simulation.handle_barrers - vanilla/expired case ')
+        ret = pf, 0, []
+        return ret
 
     bar_op = copy.deepcopy(op)
     # create vanilla option with the same stats as the barrier option AFTER
@@ -1620,6 +1623,7 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
             ret, cost = Portfolio(), 0
         # Case 2: Nonzero signal
         else:
+            # FIXME: Reimplement this to take care of multiple months
             # grab delta value we want each leg of the skew to have.
             dval = roll_cond[1]/100
             # identify the net vega position on each leg of the skew.
@@ -1670,6 +1674,8 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
 ############################ Helper functions #################################
 ###############################################################################
 
+
+# TODO: see if create_underlying from utils can be used to any effect here.
 def generate_skew_op(char, vdf, pdf, inputs, date, dval, brokerage=None, slippage=None):
     """Helper function that generates the options comprising the skew position, based on inputs passed in.
     Used when dealing with individual legs of the skew position, not when dealing with adding skews as a whole.
@@ -2365,4 +2371,6 @@ if __name__ == '__main__':
 ##########################################################################
 ##########################################################################
 ##########################################################################
+####
+###
 ####

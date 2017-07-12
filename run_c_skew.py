@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-07-12 19:19:17
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-12 19:41:19
+# @Last Modified time: 2017-07-12 21:08:20
 
 
 from scripts.prep_data import generate_hedges, sanity_check
@@ -16,8 +16,9 @@ from simulation import run_simulation
 from scripts.util import create_portfolio
 from scripts.fetch_data import pull_alt_data, prep_datasets, grab_data
 from skew_lib.skew_funcs.util import compute_skew, compute_skew_percentile
-from skew_ib.skew_funcs.strategies.simple_strat import band_simple_strat
-# from scripts.portfolio import Portfolio
+from skew_lib.skew_funcs.strategies.simple_strat import band_strat_simple
+from skew_lib.skew_funcs.generate_signal import generate_skew_signals
+from scripts.portfolio import Portfolio
 
 
 multipliers = {
@@ -100,23 +101,118 @@ writepath = '../skew_lib/datasets/test_sets/'
 #############################################################
 
 
-######### Other variables #########
+######### Other variables ##################################
 volids = ['C  Z7.Z7', 'C  U7.U7']
+volpath = writepath + pdt.lower() + '_final_vols.csv'
+pricepath = writepath + pdt.lower() + '_final_price.csv'
+exppath = writepath + 'final_option_expiry.csv'
 weights = [1, -1, 1]
 deltas = [25, -25, 50]
+#############################################################
 
-
-####################################
-vdf, pdf, edf = grab_data([pdt], start_date, end_date,
-                          writepath=writepath, volids=volids)
 
 write_path = 'datasets/skew/' + pdt.lower() + '_' +\
     start_date.strftime('%Y%m%d') + '_' +\
     end_date.strftime('%Y%m%d')
 
-df = compute_skew(pdf, weights, deltas)
-df.to_csv(write_path + '_25_skews.csv', index=False)
-vdf = compute_skew_percentile(df, deltas, 'ttm')
-vdf.to_csv('datasets/skew/' + pdt.lower() + '_' +
-           start_date.strftime('%Y%m%d') + '_' +
-           end_date.strftime('%Y%m%d') + '_25_skew_pct.csv', index=False)
+logpath = 'results/skew/' + pdt.lower() + '_' +\
+    start_date.strftime('%Y%m%d') + '_' +\
+    end_date.strftime('%Y%m%d') + '_log.csv'
+
+
+pct_path = write_path + '_25_skew_pct.csv'
+skew_path = write_path + '_25_skews.csv'
+sigpath = write_path + '_signals.csv'
+
+"""
+try reading signals
+- if exist, proceed to simulation
+- else:
+    - try reading in pct dataset
+        -if exists: proceed to signals
+        -else:
+            - try reading in voldata/pricedata
+                - if exists, proceed to compute_skew_percentile
+                - else:
+                    - read in data. 
+ """
+
+
+print('preparing datasets...')
+final_vols, final_price, final_exp = grab_data([pdt], start_date, end_date,
+                                               writepath=writepath, volids=volids)
+print('datasets prepared.')
+
+if os.path.exists(sigpath):
+    print('signals exist; reading in and skipping to simulation prep')
+    signals = pd.read_csv(sigpath)
+    signals.value_date = pd.to_datetime(signals.value_date)
+
+else:
+    print('signals dont exist, attempting to read in percentile data')
+    if os.path.exists(pct_path):
+        print('skew percentile datasets exist; reading in')
+        skew_pct = pd.read_csv(pct_path)
+        skew_pct.value_date = pd.to_datetime(skew_pct.value_date)
+
+    else:
+        print('skew percentile datasets dont exist; using prepped data.')
+
+        # assert (os.path.exists(volpath) and os.path.exists(
+        #     pricepath) and os.path.exists(exppath))
+
+        # print('price and vol data exist, reading in. ')
+        # vdf = pd.read_csv(volpath)
+        # pdf = pd.read_csv(pricepath)
+        # edf = pd.read_csv(exppath)
+        # # handling dates
+        # vdf.value_date = pd.to_datetime(vdf.value_date)
+        # pdf.value_date = pd.to_datetime(pdf.value_date)
+        # edf.expiry_date = pd.to_datetime(edf.expiry_date)
+
+        # else:
+        #     print('price and vol data dont exist; generating. ')
+        #     vdf, pdf, edf = grab_data([pdt], start_date, end_date,
+        #                               writepath=writepath, volids=volids)
+
+        print('computing skew...')
+        df = compute_skew(final_price, weights, deltas)
+        df.to_csv(write_path + '_25_skews.csv', index=False)
+        print('done computing skew. Computing percentiles...')
+        skew_pct = compute_skew_percentile(df, deltas, 'ttm')
+        skew_pct.to_csv(write_path + '_25_skew_pct.csv', index=False)
+        print('done computing percentiles')
+
+    # dealing with column niceties
+    print('handling date and naming issues')
+    skew_pct.value_date = pd.to_datetime(skew_pct.value_date)
+    skew_pct.columns = ['call_vol' if x ==
+                        '25d_call' else x for x in skew_pct.columns]
+    skew_pct.columns = ['put_vol' if x ==
+                        '25d_put' else x for x in skew_pct.columns]
+    skew_pct.columns = ['atm_vol' if x ==
+                        '50d' else x for x in skew_pct.columns]
+
+    signals = generate_skew_signals(
+        skew_pct, strategy=band_strat_simple, strat_str='band_strat_simple')
+
+    signals.to_csv(write_path + '_signals.csv', index=False)
+
+print('finished generating signals.')
+
+
+print('specifying hedging logic...')
+
+hedges = generate_hedges(hedgepath)
+print('hedging logic: ', hedges)
+
+pf = Portfolio()
+
+print('running simulation...')
+
+grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values,\
+    net_daily_values, net_cumul_values, log = \
+    run_simulation(final_vols, final_price, final_exp, pf, hedges, brokerage=None,
+                   slippage=None, signals=signals)
+
+log.to_csv(logpath, index=False)
