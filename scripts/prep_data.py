@@ -1280,19 +1280,19 @@ def get_min_start_date(vdf, pdf, lst, signals=None):
         return sig_date
 
     elif len(lst) > 0:
-        print('lst: ', lst)
-        print('p_lst: ', p_lst)
-        print('vdf volid: ', vdf.vol_id.unique()[0])
+        # print('lst: ', lst)
+        # print('p_lst: ', p_lst)
+        # print('vdf volid: ', vdf.vol_id.unique()[0])
         # print('vdf test: ', vdf.vol_id.unique()[0] == 'CT  N7.N7')
         for vid in lst:
-            print('prep_data.get_min_start_date - vid: ', vid)
+            # print('prep_data.get_min_start_date - vid: ', vid)
             df = vdf[vdf.vol_id == vid]
-            print('prep_data.get_min_start_date - date: ', min(df.value_date))
+            # print('prep_data.get_min_start_date - date: ', min(df.value_date))
             v_dates.append(min(df.value_date))
         for uid in p_lst:
-            print('prep_data.get_min_start_date - uid: ', uid)
+            # print('prep_data.get_min_start_date - uid: ', uid)
             df = pdf[pdf.underlying_id == uid]
-            print('prep_data.get_min_start_date - date: ', df.value_date.min())
+            # print('prep_data.get_min_start_date - date: ', df.value_date.min())
             p_dates.append(df.value_date.min())
 
         return max(max(v_dates), max(p_dates))
