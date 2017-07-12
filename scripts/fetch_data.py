@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-07 21:23:37
+# @Last Modified time: 2017-07-11 20:11:29
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -303,7 +303,8 @@ def pull_alt_data(pdt):
     return vdf, pdf, df
 
 
-def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='', signals=None, test=False, write=False, writepath=None):
+def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
+                  signals=None, test=False, write=False, writepath=None, direc=None):
     """Utility function that does everything prep_data does, but to full datasets rather than things drawn from the database. Made because i was lazy. 
 
     Args:
@@ -345,8 +346,8 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='', signals
     vid_list = vdf.vol_id.unique()
     p_list = pdf.underlying_id.unique()
 
-    print('util.prep_datasets - vid_list: ', vid_list)
-    print('util.prep_datasets - p_list: ', p_list)
+    # print('util.prep_datasets - vid_list: ', vid_list)
+    # print('util.prep_datasets - p_list: ', p_list)
 
     if os.path.exists(specpath):
         specs = pd.read_csv(specpath)
@@ -357,21 +358,21 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='', signals
         signals.value_date = pd.to_datetime(signals.value_date)
         vdf, pdf = match_to_signals(vdf, pdf, signals)
 
-    print('vid list: ', vid_list)
+    # print('vid list: ', vid_list)
 
     # get effective start date, pick whichever is max
 
     # case 2: drawing based on pdt, ft and opmth
     dataset_start_date = get_min_start_date(
         vdf, pdf, vid_list, signals=signals)
-    print('datasets start date: ', dataset_start_date)
+    # print('datasets start date: ', dataset_start_date)
 
     dataset_start_date = pd.to_datetime(dataset_start_date)
 
     start_date = dataset_start_date if (start_date is None) or \
         ((start_date is not None) and (dataset_start_date > start_date)) else start_date
 
-    print('prep_data start_date: ', start_date)
+    # print('prep_data start_date: ', start_date)
 
     # catch errors
     if (vdf.empty or pdf.empty):
@@ -389,6 +390,7 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='', signals
     # reassigning variables
     final_vol = vdf
     final_price = pdf
+
     # final preprocessing steps
     # final_price = ciprice(pdf)
     # print('final price: ', final_price)
@@ -424,7 +426,7 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='', signals
             + '  ' + final_price.vol_id.str.split().str[1]
 
     if write:
-        desired_path = writepath if writepath is not None else 'datasets/debug/'
+        desired_path = writepath if writepath is not None else direc + 'datasets/debug/'
         if not os.path.isdir(desired_path):
             os.mkdir(desired_path)
 
@@ -443,7 +445,9 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='', signals
     return final_vol, final_price, edf, pdf, start_date
 
 
-def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None, writepath=None, direc='C:/Users/Ananth/Desktop/Modules/HistoricSimulator/'):
+def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
+              writepath=None, direc='C:/Users/Ananth/Desktop/Modules/HistoricSimulator/',
+              write=True, test=False, volids=None):
     """Utility function that allows the user to easily grab a dataset by specifying just the product,
     start_date and end_date. Used to small datasets for the purposes of testing new functions/modules.
 DO NOT USE to generate datasets to be passed into simulation.py; use
@@ -459,12 +463,14 @@ pull_alt_data + prepare_datasets for that.
     return:
         pandas dataframe: the data particular to that commodity between start and end dates.
     """
-
+    print('### RUNNING GRAB_DATA ###')
     print('start_date: ', start_date)
     print('end_date: ', end_date)
 
     final_pdf = pd.DataFrame()
     final_vols = pd.DataFrame()
+
+    pdts = set(pdts)
 
     for pdt in pdts:
         volpath = direc + 'datasets/data_dump/' + pdt.lower() + '_vol_dump.csv'
@@ -501,6 +507,18 @@ pull_alt_data + prepare_datasets for that.
         pdf = pdf[(pdf.value_date >= start_date) &
                   (pdf.value_date <= end_date)]
 
+        print('pdf columns: ', pdf.columns)
+        print('vdf columns: ', vdf.columns)
+
+        if volids is not None:
+            relevant_volids = [x for x in volids if x[:2].strip() == pdt]
+            uids = [x.split()[0] + '  ' + x.split('.')[1]
+                    for x in relevant_volids]
+            print('relevant volids: ', relevant_volids)
+            print('relevant uids: ', uids)
+            pdf = pdf[pdf.underlying_id.isin(uids)]
+            vdf = vdf[vdf.vol_id.isin(relevant_volids)]
+
         # try filtering just by uid and vol_id
         if ftmth is not None and opmth is not None:
             u_id = pdt + '  ' + ftmth
@@ -513,8 +531,10 @@ pull_alt_data + prepare_datasets for that.
 
         vdf, pdf, edf, roll_df, start_date = prep_datasets(vdf, pdf, edf, start_date,
                                                            end_date, pdt, signals=signals,
-                                                           test=False, write=True, writepath=writepath)
+                                                           test=False, write=write, writepath=writepath,
+                                                           direc=direc)
         final_pdf = pd.concat([final_pdf, pdf])
         final_vols = pd.concat([final_vols, vdf])
 
+    print('### GRAB DATA COMPLETED ###')
     return vdf, pdf, edf
