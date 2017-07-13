@@ -776,12 +776,8 @@ High priority:
 > create skew apparently has some problems to be debugged. 
 
 
-2) Go through skew signal application with a fine-toothed comb. PnL profiles look very similar to previous runs, consistently making money on gamma and losing on vega. Why?
-
-
-
-3) Handle barrier option status. 
-
+2) [Done] Go through skew signal application with a fine-toothed comb. PnL profiles look very similar to previous runs, consistently making money on gamma and losing on vega. Why?
+	> long theta long vega long gamma, overall. gamma PnL is therefore consistently positive (since gamma is timestep + price change). 
 
 4) [Done] run it through the debugger and make sure it is outputting correct results. 
 
