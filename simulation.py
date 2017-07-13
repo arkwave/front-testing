@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-13 16:26:27
+# @Last Modified time: 2017-07-13 18:51:40
 
 ################################ imports ###################################
 import numpy as np
@@ -204,15 +204,17 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
         # print('Active Options: ', [
         #       str(op) for op in pf.get_all_options() if op.check_active()])
         print('Portfolio before any ops: ', pf)
-        unique_mths = pf.OTC[gv.pdt].keys() if gv.pdt in pf.OTC else []
 
         # getting SOD vega pos for all products and months
         if len(pf.OTC) == 0:
             print('Month, SOD Vega Pos: ', (0, 0))
-        for pdt in pf.OTC:
-            for mth in pf.OTC[pdt]:
-                print('Month, SOD Vega Pos: ', [
-                      (mth, pf.net_vega_pos(mth, pdt)) for mth in unique_mths])
+        # print('pf.OTC: ', pf.OTC)
+        if len(pf.OTC) > 0:
+            for pdt in pf.OTC:
+                for mth in pf.OTC[pdt]:
+                    # ops = pf.OTC[pdt][0]
+                    print('Month, SOD Vega Pos: ',
+                          (mth, pf.net_vega_pos(mth, pdt)))
 
     # Step 3: Feed data into the portfolio.
         pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
@@ -224,8 +226,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
 
     # Step 4: Compute pnl for the day
         updated_val = pf.compute_value()
-        print('updated value after feed: ', updated_val)
-        print('init val: ', init_val)
+        # print('updated value after feed: ', updated_val)
+        # print('init val: ', init_val)
         dailypnl = (updated_val -
                     init_val) + exercise_profit if (init_val != 0 and updated_val != 0) else 0
 
@@ -361,17 +363,16 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
 
         pf.timestep(num_days * timestep)
 
-        print('pf after timestep: ', pf)
+        # print('pf after timestep: ', pf)
         # for op in pf.OTC_options:
         #     print('Option: ', op)
         #     print('vol: ', op.vol)
         #     print('price: ', op.underlying.get_price())
         if len(pf.OTC) == 0:
-            print('Month, SOD Vega Pos: ', (0, 0))
+            print('Month, EOD Vega Pos: ', (0, 0))
         for pdt in pf.OTC:
             for mth in pf.OTC[pdt]:
-                print('Month, SOD Vega Pos: ', [
-                      (mth, pf.net_vega_pos(mth, pdt)) for mth in unique_mths])
+                print('Month, EOD Vega Pos: ', (mth, pf.net_vega_pos(mth, pdt)))
         # print('Net vega pos: ', pf.net_vega_pos())
 
     # Step 11: Plotting results/data viz
@@ -382,7 +383,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
 
     ######################### PRINTING OUTPUT ###########################
     log = pd.DataFrame(loglist)
-    log.to_csv('results/skew/c_skew_test.csv', index=False)
+    log.to_csv('results/skew/c_skew_test_cvo.csv', index=False)
     # log.to_csv('results/w/debugger_w.csv', index=False)
     # log.to_csv('log.csv')
     # log['vol_id'] = log.pdt + '  ' + log.month + '.' + log.month
@@ -401,13 +402,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
                                           'settle_value']],
                       on=['value_date', 'underlying_id'])
         df = df.drop_duplicates()
-        # df['price_change'] = df.settle_value.shift(-1) - df.settle_value
-        # df['dval_call_vol_change'] = df.call_vol.shift(
-        #     -1) - df.call_vol
-        # df['dval_put_vol_change'] = df.put_vol.shift(-1) - df.put_vol
-        # df['dval_call_vol_change'] = df['dval_call_vol_change'].shift(1)
-        # df['dval_put_vol_change'] = df['dval_put_vol_change'].shift(1)
-        # df = df.fillna(0)
+
         log = pd.merge(log, df[['value_date', 'vol_id', 'settle_value',
                                 'call_vol', 'put_vol', 'signal']],
                        on=['value_date', 'vol_id'])
@@ -432,12 +427,6 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
         print('columns after merge: ', log.columns)
         log['25d_c'] = (log['25d_c'].shift(-1) - log['25d_c']).shift(1)
         log['25d_p'] = (log['25d_p'].shift(-1) - log['25d_p']).shift(1)
-
-    # log.to_csv('log.csv')
-    # if not os.path.isdir(gv.folder):
-    #     os.mkdir(gv.folder)
-
-    # log.to_csv(gv.folder + '/log.csv', index=False)
 
     elapsed = time.clock() - t
 
@@ -718,16 +707,16 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
     # calculating gamma pnl
     intermediate_val = pf.compute_value()
 
-    print('intermediate value: ', intermediate_val)
+    # print('intermediate value: ', intermediate_val)
     if exercised:
         gamma_pnl = (intermediate_val + exercise_profit) - init_val
     else:
         gamma_pnl = intermediate_val + total_profit - init_val \
             if (init_val != 0 and intermediate_val != 0) else 0
 
-    print('gamma pnl: ', gamma_pnl)
+    # print('feed_data - gamma pnl: ', gamma_pnl)
 
-    print('pf after rollovers and expiries: ', pf)
+    # print('pf after rollovers and expiries: ', pf)
 
     # update option attributes by feeding in vol.
     if not broken:
@@ -741,7 +730,7 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
             # interpolate or round? currently rounding, interpolation easy.
             ticksize = multipliers[op.get_product()][-2]
             # get strike corresponding to closest available ticksize.
-            print('feed_data - ticksize: ', ticksize, op.get_product())
+            # print('feed_data - ticksize: ', ticksize, op.get_product())
             strike = round(round(strike/ticksize) * ticksize, 2)
             vid = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
             try:
@@ -1023,10 +1012,10 @@ def handle_exercise(pf, brokerage=None, slippage=None):
                 print('letting hedge op ' + str(op) + ' expire.')
 
     # debug statement:
-    print('tobeadded: ', [str(x) for x in tobeadded])
-    print('options exercised: ', exercised)
-    print(' ### net exercise profit: ', profit)
-    print('handle expiry time: ', time.clock() - t)
+    print('handle_exercise - tobeadded: ', [str(x) for x in tobeadded])
+    print('handle_exercise - options exercised: ', exercised)
+    print('handle_exercise - net exercise profit: ', profit)
+    print('handle exercise time: ', time.clock() - t)
     return profit, pf, exercised, tobeadded
 
 
@@ -1575,7 +1564,8 @@ def hedge_delta_roll(pf, roll_cond, pdf, brokerage=None, slippage=None):
             tobeadded.append(newop)
 
             # handle expenses: brokerage and old op price - new op price
-            val = (op.compute_price() - newop.compute_price())
+
+            val = -(op.compute_price() - newop.compute_price())
             cost += val
 
             if brokerage:
@@ -1728,56 +1718,14 @@ def generate_skew_op(char, vdf, pdf, inputs, date, dval, brokerage=None, slippag
         shorted = False
     elif sig > 0 and char == 'put':
         shorted = True
-    print('char: ', char)
-    print('shorted: ', shorted)
+    print('generate_skew_op - char: ', char)
+    print('generate_skew_op - shorted: ', shorted)
 
-    # num_skews = abs(sig)
-    # vol = vol/100
-
-    # computing ordering
-    curr_mth = date.month
-    curr_mth_sym = month_to_sym[curr_mth]
-    curr_yr = date.year % (2000 + decade)
-    curr_sym = curr_mth_sym + str(curr_yr)
-    order = find_cdist(curr_sym, ftmth, contract_mths[pdt])
-
-    # create the underlying future
-    uid = pdt + '  ' + ftmth
-
-    try:
-        ftprice = pdf[(pdf.value_date == date) &
-                      (pdf.underlying_id == uid)].settle_value.values[0]
-    except IndexError:
-        print('inputs: ', date, uid)
-
-    ft = Future(ftmth, ftprice, pdt, shorted=False, ordering=order)
-
-    # create the options; long one dval call, short on dval put
     vol_id = pdt + '  ' + opmth + '.' + ftmth
+    op = create_vanilla_option(vdf, pdf, vol_id, char, shorted, date, delta=dval*100, vol=vol,
+                               kwargs={'greek': 'vega', 'greekval': vega_req})
 
-    # computing tau
-    tau = vdf[(vdf.value_date == date) &
-              (vdf.vol_id == vol_id)].tau.values[0]
-
-    # computing strikes
-    print('genrate_skew_op: csd inputs: ', dval, vol, ftprice, tau, char, pdt)
-    strike = compute_strike_from_delta(
-        None, delta1=dval, vol=vol, s=ftprice, tau=tau, char=char, pdt=pdt)
-
-    op = Option(strike, tau, char, vol, ft, 'amer',
-                shorted, opmth, ordering=order)
-    print('generate_skew_op - option generated: ', op)
-    pnl_mult = multipliers[pdt][-1]
-    op_vega = (op.vega * 100) / (op.lots * pnl_mult)
-    print(char + ' vega: ', op_vega)
-    # calculate lots required for requisite vega specified; done according
-    # to callop.
-    lots_req = round((abs(vega_req) * 100) /
-                     abs(op_vega * pnl_mult))
-    print('generate_skew_op - lots required: ', lots_req)
-    op = Option(strike, tau, char, vol, ft, 'amer',
-                shorted, opmth, lots=lots_req, ordering=order)
-    print('generate_skew_op - total vega: ', op.vega)
+    lots_req = op.lots
 
     if brokerage:
         cost += brokerage * lots_req
@@ -2137,7 +2085,7 @@ def close_out_deltas(pf, dtc):
         Returns
             tuple: updated portfolio, and cost of closing out deltas. money is spent to close short pos, and gained by selling long pos.
     """
-    print('closing out deltas')
+    # print('simulation.closing out deltas')
     cost = 0
     toberemoved = []
     print('simulation.close_out_deltas - dtc: ', dtc)
@@ -2394,6 +2342,4 @@ if __name__ == '__main__':
 ##########################################################################
 ##########################################################################
 ##########################################################################
-####
 ###
-####

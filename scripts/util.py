@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-05 17:36:21
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-07-13 18:44:01
 
 
 from .portfolio import Portfolio
@@ -325,7 +325,14 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', l
             lots_req = round(((theta_req) * 365) / (t1 * lm * dm))
 
         if kwargs['greek'] == 'vega':
-            pass
+            vega_req = float(kwargs['greekval'])
+            # if shorted:
+            #     vega_req = -vega_req
+            # curr_vega = op1.vega + op2.vega
+            lm, dm = multipliers[pdt][1], multipliers[pdt][0]
+            v1 = (newop.vega * 100) / (newop.lots * dm * lm)
+            lots_req = round((vega_req * 100) / (v1 * lm * dm))
+            print('lots req: ', lots_req)
 
         if kwargs['greek'] == 'gamma':
             pass

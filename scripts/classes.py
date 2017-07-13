@@ -128,7 +128,7 @@ class Option:
         string += ' ttm - ' + str(round(self.tau * 365)) + ' |'
         string += ' order - [c_' + str(self.ordering) + '] |'
         string += ' price - ' + str(self.price) + ' |'
-        string += ' delta - ' + str(abs(self.delta)) + ' |'
+        string += ' delta - ' + str(abs(self.delta / self.lots)) + ' |'
         string += ' vol - ' + str(self.vol) + ' |'
         string += ' bvol - '
         string += str(self.bvol) if self.bvol is not None else 'None'
