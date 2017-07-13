@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-07-12 19:19:17
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-12 21:08:20
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-07-13 16:15:50
 
 
 from scripts.prep_data import generate_hedges, sanity_check
@@ -108,6 +108,7 @@ pricepath = writepath + pdt.lower() + '_final_price.csv'
 exppath = writepath + 'final_option_expiry.csv'
 weights = [1, -1, 1]
 deltas = [25, -25, 50]
+curr_skew = 'C  U7.U7'
 #############################################################
 
 
@@ -200,6 +201,12 @@ else:
 
 print('finished generating signals.')
 
+print('filtering signals...')
+
+
+relevant_sigs = signals[signals.vol_id == curr_skew]
+
+print('signals filtered: ', curr_skew)
 
 print('specifying hedging logic...')
 
@@ -213,6 +220,6 @@ print('running simulation...')
 grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values,\
     net_daily_values, net_cumul_values, log = \
     run_simulation(final_vols, final_price, final_exp, pf, hedges, brokerage=None,
-                   slippage=None, signals=signals)
+                   slippage=None, signals=relevant_sigs)
 
 log.to_csv(logpath, index=False)

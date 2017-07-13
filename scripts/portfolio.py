@@ -657,14 +657,20 @@ class Portfolio:
             order = s.get_ordering()
         return order
 
-    def net_vega_pos(self):
-        # vega = 0
-        all_ops = self.get_all_options()
+    def net_vega_pos(self, month, pdt=None):
+        all_ops = [op for op in self.get_all_options()
+                   if op.get_month() == month]
+        if pdt is not None:
+            all_ops = [op for op in all_ops if op.get_product() == pdt]
+        if not all_ops:
+            return 0, 0
         call_op_vega = sum([op.vega for op in all_ops if op.char == 'call'])
         put_op_vega = sum([op.vega for op in all_ops if op.char == 'put'])
+
         return call_op_vega, put_op_vega
 
-    def net_gamma_pos(self):
-        all_ops = self.get_all_options()
+    def net_gamma_pos(self, month):
+        all_ops = [op for op in self.get_all_options()
+                   if op.get_month() == month]
         net_gamma = sum([op.gamma for op in all_ops])
         return net_gamma

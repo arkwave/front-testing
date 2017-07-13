@@ -2,14 +2,14 @@
 # @Author: Ananth
 # @Date:   2017-05-12 13:32:49
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-13 14:17:57
+# @Last Modified time: 2017-07-13 16:20:19
 import pandas as pd
 import os
 
 
 ################ CHANGE THESE #################
 pdt = 'W'
-signals = False
+signals = True
 start_date = pd.Timestamp('2016-05-23')
 end_date = pd.Timestamp('2016-07-01')
 brokerage = 0

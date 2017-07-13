@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-13 15:40:25
+# @Last Modified time: 2017-07-13 16:26:27
 
 ################################ imports ###################################
 import numpy as np
@@ -204,7 +204,15 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
         # print('Active Options: ', [
         #       str(op) for op in pf.get_all_options() if op.check_active()])
         print('Portfolio before any ops: ', pf)
-        print('SOD Vega Pos: ', pf.net_vega_pos())
+        unique_mths = pf.OTC[gv.pdt].keys() if gv.pdt in pf.OTC else []
+
+        # getting SOD vega pos for all products and months
+        if len(pf.OTC) == 0:
+            print('Month, SOD Vega Pos: ', (0, 0))
+        for pdt in pf.OTC:
+            for mth in pf.OTC[pdt]:
+                print('Month, SOD Vega Pos: ', [
+                      (mth, pf.net_vega_pos(mth, pdt)) for mth in unique_mths])
 
     # Step 3: Feed data into the portfolio.
         pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
@@ -358,8 +366,13 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
         #     print('Option: ', op)
         #     print('vol: ', op.vol)
         #     print('price: ', op.underlying.get_price())
-
-        print('Net vega pos: ', pf.net_vega_pos())
+        if len(pf.OTC) == 0:
+            print('Month, SOD Vega Pos: ', (0, 0))
+        for pdt in pf.OTC:
+            for mth in pf.OTC[pdt]:
+                print('Month, SOD Vega Pos: ', [
+                      (mth, pf.net_vega_pos(mth, pdt)) for mth in unique_mths])
+        # print('Net vega pos: ', pf.net_vega_pos())
 
     # Step 11: Plotting results/data viz
 
@@ -369,8 +382,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
 
     ######################### PRINTING OUTPUT ###########################
     log = pd.DataFrame(loglist)
-    # log.to_csv('results/skew/c_skew_test.csv', index=False)
-    log.to_csv('results/w/debugger_w.csv', index=False)
+    log.to_csv('results/skew/c_skew_test.csv', index=False)
+    # log.to_csv('results/w/debugger_w.csv', index=False)
     # log.to_csv('log.csv')
     # log['vol_id'] = log.pdt + '  ' + log.month + '.' + log.month
 
@@ -384,8 +397,9 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
         signals['vol_id'] = signals.pdt + '  ' + \
             signals.opmth + '.' + signals.ftmth
 
-        df = pd.merge(signals, pricedata[['value_date', 'underlying_id', 'settle_value']], on=[
-            'value_date', 'underlying_id'])
+        df = pd.merge(signals, pricedata[['value_date', 'underlying_id',
+                                          'settle_value']],
+                      on=['value_date', 'underlying_id'])
         df = df.drop_duplicates()
         # df['price_change'] = df.settle_value.shift(-1) - df.settle_value
         # df['dval_call_vol_change'] = df.call_vol.shift(
@@ -395,7 +409,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
         # df['dval_put_vol_change'] = df['dval_put_vol_change'].shift(1)
         # df = df.fillna(0)
         log = pd.merge(log, df[['value_date', 'vol_id', 'settle_value',
-                                'call_vol', 'put_vol', 'signal']], on=['value_date', 'vol_id'])
+                                'call_vol', 'put_vol', 'signal']],
+                       on=['value_date', 'vol_id'])
 
     # case where signals are None; in this case get 25d vol changes from pdf
     elif signals is None:
@@ -1632,8 +1647,9 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
             # grab delta value we want each leg of the skew to have.
             dval = roll_cond[1]/100
             # identify the net vega position on each leg of the skew.
-            net_call_vega, net_put_vega = pf.net_vega_pos()
-            print('net call/put vega: ', net_call_vega, net_put_vega)
+            net_call_vega, net_put_vega = pf.net_vega_pos(ftmth)
+            print('net call/put vega for ' + str(ftmth) +
+                  ': ', net_call_vega, net_put_vega)
             # get the target vega position we want on each leg
             target_call_vega, target_put_vega = vega_req * sig,  -vega_req * sig
             print('target call/put vega: ', target_call_vega, target_put_vega)
@@ -1906,7 +1922,7 @@ def update_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol, vdf, pdf
             pf.remove_security(shorts.copy(), 'OTC')
             index = 0 if char == 'call' else 1
             # get residual vega on this leg after removing all shorts.
-            curr_vega = pf.net_vega_pos()[index]
+            curr_vega = pf.net_vega_pos(ftmth)[index]
             vega_req = target_vega - curr_vega
             # create input list
             op_inputs = [vol, sig, opmth, ftmth, pdt, vega_req]
@@ -1949,7 +1965,7 @@ def update_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol, vdf, pdf
             longs = [op for op in ops if not op.shorted]
             pf.remove_security(longs.copy(), 'OTC')
             index = 0 if char == 'call' else 1
-            curr_vega = pf.net_vega_pos()[index]
+            curr_vega = pf.net_vega_pos(ftmth)[index]
             vega_req = target_vega - curr_vega
             op_inputs = [vol, sig, opmth, ftmth, pdt, vega_req]
             # generate option
