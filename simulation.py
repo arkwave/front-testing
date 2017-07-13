@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-13 14:25:39
+# @Last Modified time: 2017-07-13 15:40:25
 
 ################################ imports ###################################
 import numpy as np
@@ -932,7 +932,8 @@ def handle_exercise(pf, brokerage=None, slippage=None):
         tuple: the combined PnL from exercising (if appropriate) and daily/bullet payoffs, as well as the updated portfolio.
 
     Notes on implementation:
-        1) options are exercised if less than or equal to 2 days to maturity, and option is in the money. Futures obtained are immediately sold and profit is locked in.
+        1) options are exercised if less than or equal to 2 days to maturity, and 
+        option is in the money. Futures obtained are immediately sold and profit is locked in.
 
     """
     if pf.empty():
@@ -1443,7 +1444,9 @@ def hedge(pf, inputs, product, month, flag, brokerage=None, slippage=None):
 # NOTE: assuming that future can be found with the exact number of
 # lots to delta hedge.
 def hedge_delta(cond, vdf, pdf, pf, month, product, ordering, brokerage=None, slippage=None):
-    """Helper function that implements delta hedging. General idea is to zero out delta at the end of the day by buying/selling -delta * lots futures. Returns expenditure (which is negative if shorting and postive if purchasing delta) and the updated portfolio object.
+    """Helper function that implements delta hedging. General idea is to zero out delta at the end 
+    of the day by buying/selling -delta * lots futures. Returns expenditure (which is negative if shorting and 
+    postive if purchasing delta) and the updated portfolio object.
 
     Args:
         cond (string): condition for delta hedging
@@ -1658,13 +1661,15 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
                     calls = [op for op in pf.OTC_options if op.char == 'call']
                     # update_pos(char, target_vega, curr_vega, dval, ops, pf,
                     # strat, tol, vdf, pdf, inputs, date)
-                    pf, cost = update_pos('call', target_call_vega,
-                                          net_call_vega, dval, calls, pf, strat, tol, vdf, pdf, inputs, date, brokerage=brokerage, slippage=slippage)
+                    pf, cost = update_pos('call', target_call_vega, net_call_vega,
+                                          dval, calls, pf, strat, tol, vdf, pdf,
+                                          inputs, date, brokerage=brokerage, slippage=slippage)
 
                 if handle_puts:
                     puts = [op for op in pf.OTC_options if op.char == 'put']
-                    pf, cost = update_pos('put', target_put_vega,
-                                          net_put_vega, dval, puts, pf, strat, tol, vdf, pdf, inputs, date, brokerage=brokerage, slippage=slippage)
+                    pf, cost = update_pos('put', target_put_vega, net_put_vega,
+                                          dval, puts, pf, strat, tol, vdf, pdf,
+                                          inputs, date, brokerage=brokerage, slippage=slippage)
 
             ret, cost = pf, cost
 
