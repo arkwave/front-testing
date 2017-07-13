@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-12 21:48:07
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-07-13 13:37:16
 
 ################################ imports ###################################
 import numpy as np
@@ -378,6 +378,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
 
     # appending 25d vol changes and price changes
     if signals is not None:
+
         signals['underlying_id'] = signals.pdt + '  ' + signals.ftmth
         signals['vol_id'] = signals.pdt + '  ' + \
             signals.opmth + '.' + signals.ftmth
@@ -393,7 +394,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
         # df['dval_put_vol_change'] = df['dval_put_vol_change'].shift(1)
         # df = df.fillna(0)
         log = pd.merge(log, df[['value_date', 'vol_id', 'settle_value',
-                                'call_vol', 'put_vol']], on=['value_date', 'vol_id'])
+                                'call_vol', 'put_vol', 'signal']], on=['value_date', 'vol_id'])
 
     # case where signals are None; in this case get 25d vol changes from pdf
     elif signals is None:
