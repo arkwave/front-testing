@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-05-12 13:32:49
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-07 20:46:13
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-07-13 14:17:57
 import pandas as pd
 import os
 
 
 ################ CHANGE THESE #################
-pdt = 'CT'
-signals = True
-start_date = pd.Timestamp('2017-01-03')
-end_date = pd.Timestamp('2017-03-31')
+pdt = 'W'
+signals = False
+start_date = pd.Timestamp('2016-05-23')
+end_date = pd.Timestamp('2016-07-01')
 brokerage = 0
 slippage = None  # [0.05, 0.10, 0.15]
 write_path = 'results/' + pdt.lower() + '/logs/'
@@ -43,7 +43,7 @@ hedge_path = 'hedging.csv'
 
 # signal path
 # signal_path = folder + 'signals.csv' if signals else None
-signal_path = '../skew_lib/results/test_signal.csv'
+signal_path = '../skew_lib/results/test_signal.csv' if signals else None
 
 
 # portfolio location

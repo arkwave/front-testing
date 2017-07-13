@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-11 20:11:29
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-07-13 14:19:25
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -304,7 +304,7 @@ def pull_alt_data(pdt):
 
 
 def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
-                  signals=None, test=False, write=False, writepath=None, direc=None):
+                  signals=None, test=False, write=False, writepath=None, direc='C:/Users/Ananth/Desktop/Modules/HistoricSimulator/'):
     """Utility function that does everything prep_data does, but to full datasets rather than things drawn from the database. Made because i was lazy. 
 
     Args:
@@ -325,6 +325,10 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
         ValueError: Description
     """
     # edf = pd.read_csv(epath).dropna()
+
+    # sanity checking
+    print('start_date: ', start_date)
+    print('end_date: ', end_date)
 
     # fixing datetimes
     vdf.value_date = pd.to_datetime(vdf.value_date)
@@ -365,14 +369,14 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
     # case 2: drawing based on pdt, ft and opmth
     dataset_start_date = get_min_start_date(
         vdf, pdf, vid_list, signals=signals)
-    # print('datasets start date: ', dataset_start_date)
+    print('datasets start date: ', dataset_start_date)
 
-    dataset_start_date = pd.to_datetime(dataset_start_date)
+    # dataset_start_date = pd.to_datetime(dataset_start_date)
 
-    start_date = dataset_start_date if (start_date is None) or \
-        ((start_date is not None) and (dataset_start_date > start_date)) else start_date
+    # start_date = dataset_start_date if (start_date is None) or \
+    #     ((start_date is not None) and (dataset_start_date > start_date)) else start_date
 
-    # print('prep_data start_date: ', start_date)
+    print('prep_data start_date: ', start_date)
 
     # catch errors
     if (vdf.empty or pdf.empty):

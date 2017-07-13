@@ -773,11 +773,14 @@ High priority:
 1) Multiple signals per day:
 	> currently relies on net_vega_pos of the entire portfolio. need to re-implement this in order to make sure different signals are applied appropriately.
 
-2) Go through skew signal application with a fine-toothed comb. PnL profiles 	look very similar to previous runs, consistently making money on gamma 	\	and losing on vega. Why?
+
+2) Go through skew signal application with a fine-toothed comb. PnL profiles look very similar to previous runs, consistently making money on gamma and losing on vega. Why?
+
 
 3) Handle barrier option status. 
 
-4) run it through the debugger and make sure it is outputting correct results. 
+
+4) [Done] run it through the debugger and make sure it is outputting correct results. 
 
 
 

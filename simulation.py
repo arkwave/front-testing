@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-13 13:37:16
+# @Last Modified time: 2017-07-13 14:25:39
 
 ################################ imports ###################################
 import numpy as np
@@ -369,7 +369,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
 
     ######################### PRINTING OUTPUT ###########################
     log = pd.DataFrame(loglist)
-    log.to_csv('results/skew/c_skew_test.csv', index=False)
+    # log.to_csv('results/skew/c_skew_test.csv', index=False)
+    log.to_csv('results/w/debugger_w.csv', index=False)
     # log.to_csv('log.csv')
     # log['vol_id'] = log.pdt + '  ' + log.month + '.' + log.month
 

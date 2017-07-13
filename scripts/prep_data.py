@@ -111,8 +111,8 @@ def match_to_signals(vdf, pdf, signals):
     v_dates = pd.to_datetime(vdf.value_date.unique())
     # p_dates = pd.to_datetime(pdf.value_date.unique())
 
-    print('v_check 1: ', pd.Timestamp('2017-02-20') in v_dates)
-    print('v_check 2: ', pd.Timestamp('2017-01-16') in v_dates)
+    # print('v_check 1: ', pd.Timestamp('2017-02-20') in v_dates)
+    # print('v_check 2: ', pd.Timestamp('2017-01-16') in v_dates)
 
     vdf['monday'] = vdf.value_date.dt.weekday == 0
     # pdf['monday'] = pdf.value_date.dt.weekday == 0
@@ -433,13 +433,15 @@ def prep_portfolio(voldata, pricedata, filepath):
         if data.Type == 'Future':
             # future case
             full = data.vol_id.split()
+            # uid = data.vol_id
             product = full[0]
             mth = full[1]
             lst = contract_mths[product]
             ordering = find_cdist(curr_sym, mth, lst)
             # price = pricedata[(pricedata.order == ordering) &
             #                   (pricedata.value_date == sim_start)]['settle_value'].values[0]
-            price = pricedata[(pricedata['underlying_id'] == full) &
+            print('volid: ', data.vol_id)
+            price = pricedata[(pricedata['underlying_id'] == data.vol_id) &
                               (pricedata['value_date'] == sim_start)]['settle_value'].values[0]
             flag = data.hedgeorOTC
             lots = 1000 if data.lots == 'None' else int(data.lots)
