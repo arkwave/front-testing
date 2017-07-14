@@ -2,14 +2,14 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-14 13:37:09
+# @Last Modified time: 2017-07-14 14:18:02
 
 import pandas as pd
 from sqlalchemy import create_engine
 import time
 import os
 import numpy as np
-from .prep_data import match_to_signals, get_min_start_date, clean_data, vol_by_delta
+from .prep_data import match_to_signals, get_min_start_date, clean_data, vol_by_delta, ciprice
 
 contract_mths = {
 
@@ -403,7 +403,7 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
     final_price = pdf
 
     # final preprocessing steps
-    # final_price = ciprice(pdf)
+    final_price = ciprice(pdf)
     # print('final price: ', final_price)
     # final_vol = civols(vdf, final_price)
 

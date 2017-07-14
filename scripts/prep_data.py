@@ -694,14 +694,14 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
         df['ftmth'] = df['underlying_id'].str.split().str[1]
         # transformative functions.
         df = get_expiry(df, edf)
-        # df = assign_ci(df, date)
+        df = assign_ci(df, date)
         df = scale_prices(df)
         df = df.fillna(0)
         df.expdate = pd.to_datetime(df.expdate)
         df = df[df.value_date <= df.expdate]
 
         # setting data types
-        # df.order = pd.to_numeric(df.order)
+        df.order = pd.to_numeric(df.order)
         df.value_date = pd.to_datetime(df.value_date)
         df.settle_value = pd.to_numeric(df.settle_value)
         df.returns = pd.to_numeric(df.returns)
