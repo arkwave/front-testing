@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-13 14:19:25
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-07-14 13:37:09
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -124,8 +124,11 @@ def pull_relevant_data(pf_path=None, sigpath=None, signals=None, start_date=None
         raise ValueError('no valid inputs; cannot draw data')
 
     # creating SQL engine, drawing data
+    user = input('DB Username: ')
+    password = input('DB Password: ')
+
     engine = create_engine(
-        'postgresql://sumit:Olam1234@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+        'postgresql://' + user + ':' + password + '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
     connection = engine.connect()
 
     # construct queries
@@ -233,8 +236,12 @@ def pull_alt_data(pdt):
     """
     print('starting clock..')
     t = time.clock()
+
+    user = input('DB Username: ')
+    password = input('DB Password: ')
+
     engine = create_engine(
-        'postgresql://sumit:Olam1234@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+        'postgresql://' + user + ':' + password + '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
     connection = engine.connect()
 
     query = "select security_id, settlement_date, future_settlement_value, option_expiry_date,implied_vol \
