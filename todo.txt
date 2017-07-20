@@ -784,6 +784,24 @@ High priority:
 
 
 
+>>>>>>>>>> TODOS as of 7/20 <<<<<<<<<<<<
+
+
+1) Expand historic simulator to accept currencies. 
+	> might need alternate methods in feed_data to address differences in data.
+	> valuation of these options (e.g. delta gamma theta vega scaling) would not be accurate --> need to redo.
+		> might need different hedging strategies/implementation? rebalance might not work explicitly. 
+
+
+2) Improve on hedging code to do the following:
+	> apply bound, static to each greek independently (i.e. don't assume that delta is zero and gamma/theta/vega are bounded)
+	> accept multiples of current TTM
+	> accept fixed ttm for hedging that decrements with each passing day. 
+
+
+
+
+
 =====================
 Notes from meeting: #
 =====================
