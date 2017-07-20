@@ -34,7 +34,7 @@ multipliers = {
     'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
 }
 
-
+from timeit import default_timer as timer
 from operator import add
 import pprint
 import numpy as np
@@ -145,10 +145,12 @@ class Portfolio:
         self.update_sec_by_month(False, flag, update=True)
 
     def empty(self):
-        return (len(self.OTC) == 0) and (len(self.hedges) == 0)
+        """Checks to see if portfolio is completely empty 
 
-    def set_pnl(self, pnl):
-        self.pnl = pnl
+        Returns:
+            bool: True if empty, false otherwise. 
+        """
+        return (len(self.OTC) == 0) and (len(self.hedges) == 0)
 
     def init_sec_by_month(self, iden):
         """Initializing method that creates the relevant futures list, options list, and dictionary depending on the flag passed in. 
@@ -196,6 +198,7 @@ class Portfolio:
     def compute_net_greeks(self):
         ''' Computes net greeks organized hierarchically according to product and
          month. Updates net_greeks by using OTC and hedges. '''
+
         final_dic = {}
         common_products = set(self.OTC.keys()) & set(
             self.hedges.keys())
@@ -568,6 +571,69 @@ class Portfolio:
         self.remove_security(toberemoved, flag)
         self.add_security(tobeadded, flag)
 
+    def greeks_by_exp(self, buckets):
+        """Returns a dictionary of net greeks, organized by product and expiry. 
+
+        Returns:
+            dictionary: dictionary 
+        """
+        net = {}
+        if self.empty():
+            return
+        t = timer()
+        # preallocating
+        # otc_by_exp = {}
+        # hedges_by_exp = {}
+
+        for comm in self.get_unique_products():
+            # preallocating net
+            if comm not in net:
+                net[comm] = {}
+            for div in buckets:
+                if div not in net[comm]:
+                    net[comm][div] = []
+                net[comm][div] = [set(), 0, 0, 0, 0]
+
+        else:
+            otcs = self.OTC
+            hedges = self.hedges
+            # handle OTCs first then hedges
+            for comm in otcs:
+                for month in otcs[comm]:
+                    options = otcs[comm][month][0]
+                    for op in options:
+                        # bucket based on tau
+                        optau = float(op.tau * 365)
+                        bucket = min([x
+                                      for x in buckets if x > optau])
+                        # if bucket not in otc_by_exp:
+                        # otc_by_exp[bucket] = [0, 0, 0, 0]
+                        d, g, t, v = op.greeks()
+                        net[comm][bucket][0].add(op)
+                        net[comm][bucket][1] += d
+                        net[comm][bucket][2] += g
+                        net[comm][bucket][3] += t
+                        net[comm][bucket][4] += v
+
+            for comm in hedges:
+                for month in hedges[comm]:
+                    options = hedges[comm][month][0]
+                    for op in options:
+                        # bucket based on tau
+                        optau = float(op.tau * 365)
+                        bucket = min(
+                            [x for x in buckets if x > optau])
+                        # if bucket not in hedges_by_exp:
+                        #     hedges_by_exp[bucket] = []
+                        d, g, t, v = op.greeks()
+                        net[comm][bucket][0].add(op)
+                        net[comm][bucket][1] += d
+                        net[comm][bucket][2] += g
+                        net[comm][bucket][3] += t
+                        net[comm][bucket][4] += v
+        return net
+
+
 ############### getter/utility methods #################
 
     def get_securities_monthly(self, flag):
@@ -674,3 +740,41 @@ class Portfolio:
                    if op.get_month() == month]
         net_gamma = sum([op.gamma for op in all_ops])
         return net_gamma
+
+    def get_volid_mappings(self):
+        """Returns a dictionary mapping vol_id to lists of options currently in this portfolio. 
+        """
+        dic = {}
+
+        # handle OTCs first
+        for product in self.OTC:
+            for mth in self.OTC[product]:
+                options = self.OTC[product][mth][0]
+                for op in options:
+                    volid = product + '  ' + op.get_op_month() + '.' + mth
+                    if volid not in dic:
+                        dic[volid] = []
+                    dic[volid].append(op)
+                    # dic[volid] = []
+
+        # now handle hedges
+        for product in self.hedges:
+            for mth in self.hedges[product]:
+                options = self.hedges[product][mth][0]
+                for op in options:
+                    volid = product + '  ' + op.get_op_month() + '.' + mth
+                    if volid not in dic:
+                        dic[volid] = []
+                    dic[volid].append(op)
+                    # dic[volid] = []
+
+        return dic
+
+    def get_unique_products(self):
+        """returns a list of all unique products in this portfolio
+        """
+
+        otc_products = list(self.OTC.keys())
+        hedge_products = list(self.hedges.keys())
+
+        return set(otc_products + hedge_products)
