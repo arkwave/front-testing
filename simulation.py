@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-13 18:51:40
+# @Last Modified time: 2017-07-20 17:12:08
 
 ################################ imports ###################################
 import numpy as np
@@ -1281,7 +1281,12 @@ def gen_hedge_inputs(hedges, vdf, pdf, month, pf, product, ordering, flag):
 
     else:
         target = relevant_conds[3]
-        tau = min(tau_vals, key=lambda x: abs(x-target))
+        # tau value passed in is an absolute TTM desired
+        if target > 1:
+            tau = min(tau_vals, key=lambda x: abs(x-target))
+        # tau value is a ratio
+        else:
+            tau = max(tau_vals) * target
 
     underlying = Future(month, price, product, ordering=ordering)
 
