@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-20 17:12:08
+# @Last Modified time: 2017-07-21 21:47:32
 
 ################################ imports ###################################
 import numpy as np
@@ -30,7 +30,7 @@ multipliers = {
 
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
     'LSU': [1, 50, 0.1, 10, 50],
-    'LCC': [1.2153, 10, 1, 25, 12.153],
+    'QC': [1.2153, 10, 1, 25, 12.153],
     'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
     'CC':  [1, 10, 1, 50, 10],
     'CT':  [22.046, 22.679851, 0.01, 1, 500],
@@ -52,7 +52,7 @@ contract_mths = {
 
     'LH':  ['G', 'J', 'K', 'M', 'N', 'Q', 'V', 'Z'],
     'LSU': ['H', 'K', 'Q', 'V', 'Z'],
-    'LCC': ['H', 'K', 'N', 'U', 'Z'],
+    'QC': ['H', 'K', 'N', 'U', 'Z'],
     'SB':  ['H', 'K', 'N', 'V'],
     'CC':  ['H', 'K', 'N', 'U', 'Z'],
     'CT':  ['H', 'K', 'N', 'Z'],
@@ -92,7 +92,7 @@ np.random.seed(seed)
 ############## Main Simulation Loop #################
 #####################################################
 
-def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, brokerage=None, slippage=None, signals=None):
+def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, brokerage=None, slippage=None, signals=None, rollover_dates=None, roll_portfolio=None, roll_hedges=None):
     """
     Each run of the simulation consists of 5 steps:
         1) Feed data into the portfolio.
@@ -246,11 +246,20 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
                                     roll_cond, strat='filo', brokerage=brokerage, slippage=slippage)
             dailycost += cost
 
-    # Step 6: Hedge - consists of rolling over hedges (if necessary), and controlling greek levels of hedges
-        # cost = 0
-        pf, cost = roll_over_hedges(
-            pf, vdf, pdf, date, brokerage=brokerage, slippage=slippage)
-        dailycost += cost
+    # Step 6: Hedge - consists of rolling over hedges (if necessary), and
+    # controlling greek levels of hedges
+        cost = 0
+        if roll_portfolio:
+            pf, cost, rollover_dates = roll_over(
+                pf, vdf, pdf, date, brokerage=brokerage, slippage=slippage, flag='OTC', rollover_dates=rollover_dates, atm_roll=True)
+            dailycost += cost
+
+        # if roll_hedges:
+        #     pf, cost = roll_over(
+        # pf, vdf, pdf, date, brokerage=brokerage, slippage=slippage,
+        # flag='hedge', rollover_dates=rollover_dates)
+
+            # dailycost += cost
 
         pf, counters, cost, roll_hedged = rebalance(
             vdf, pdf, pf, hedges, counters, brokerage=brokerage, slippage=slippage)
@@ -383,7 +392,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
 
     ######################### PRINTING OUTPUT ###########################
     log = pd.DataFrame(loglist)
-    log.to_csv('results/skew/c_skew_test_cvo.csv', index=False)
+    # log.to_csv('results/skew/c_skew_test_cvo.csv', index=False)
     # log.to_csv('results/w/debugger_w.csv', index=False)
     # log.to_csv('log.csv')
     # log['vol_id'] = log.pdt + '  ' + log.month + '.' + log.month
@@ -601,7 +610,7 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
         ValueError: Raised if voldf is empty.
 
     Notes:
-    1) DO NOT ADD SECURITIES INSIDE THIS FUNCTION. Doing so will mess up the PnL calculations and give you vastly overinflated profits or vastly exaggerated losses, due to reliance on the compute_value function. 
+    1) DO NOT ADD SECURITIES INSIDE THIS FUNCTION. Doing so will mess up the PnL calculations and give you vastly overinflated profits or vastly exaggerated losses, due to reliance on the compute_value function.
 
     """
     barrier_futures = []
@@ -793,7 +802,7 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
         vdf (TYPE): dataframe of volatilities
         pdf (TYPE): dataframe of prices
         ft (TYPE): future object whose price is being updated
-        pf (TYPE): portfolio being simulated. 
+        pf (TYPE): portfolio being simulated.
 
     """
     # print('handling barriers...')
@@ -936,7 +945,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
         tuple: the combined PnL from exercising (if appropriate) and daily/bullet payoffs, as well as the updated portfolio.
 
     Notes on implementation:
-        1) options are exercised if less than or equal to 2 days to maturity, and 
+        1) options are exercised if less than or equal to 2 days to maturity, and
         option is in the money. Futures obtained are immediately sold and profit is locked in.
 
     """
@@ -1028,7 +1037,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
 ########### Hedging-related functions (generation and implementation) #########
 ###############################################################################
 
-def roll_over_hedges(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=10):
+def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=10, flag=None, rollover_dates=None, atm_roll=None):
     """Utility method that checks expiries of options currently being used for hedging. If ttm < ttm_tol,
     closes out that position (and all accumulated deltas), saves lot size/strikes, and rolls it over into the
     next month.
@@ -1045,52 +1054,76 @@ def roll_over_hedges(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=
         tuple: updated portfolio and cost of operations undertaken
     """
     total_cost = 0
-
-    hedge_ops = pf.hedge_options
-
+    rolled = {}
     deltas_to_close = set()
     tobeadded = []
     toberemoved = []
 
-    for op in hedge_ops:
-        if (op.tau) * 365 < ttm_tol:
-            print('$$$ ROLLING HEDGES TO NEXT MONTH $$$')
-            print(str(op) + ' nearing expiry. rolling over to next month')
+    dic = pf.OTC_options if flag == 'OTC' else pf.hedge_options
+
+    for op in dic:
+        # grab list of rollover dates for each vol_id
+        rollover_date_lst = rollover_dates[
+            op.get_vol_id()] if op.get_vol_id() in rollover_dates else None
+        # select the minimum (i.e. the most applicable)
+        relevant_rollover = min(
+            rollover_date_lst) if rollover_date_lst else None
+        # establish if rollover is required.
+        date_roll = (
+            date >= relevant_rollover) if relevant_rollover is not None else False
+        needtoroll = (op.tau*365 < ttm_tol) or date_roll
+        if needtoroll:
+            print('rolling option ' + str(op))
+            # print(str(op) + ' nearing expiry. rolling over to next month')
             toberemoved.append(op)
             # creating the underlying future object
             pdt = op.get_product()
             ftmth = op.underlying.get_month()
-            # deltas_to_close.add(iden)
             ft_month, ft_yr = ftmth[0], ftmth[1]
             index = contract_mths[pdt].index(ft_month) + 1
             new_ft_month = contract_mths[pdt][index] + ft_yr
             print('old ft month: ', ftmth)
             print('new ft month: ', new_ft_month)
             new_ft, ftprice = create_underlying(pdt, new_ft_month, pdf, date)
-            # ftprice = new_ft.get_price()
+            ftprice = new_ft.get_price()
+
+            # identifying deltas to close
             iden = (pdt, ftmth, ftprice)
             print('simulation.roll_over_hedges - iden: ', iden)
             deltas_to_close.add(iden)
+
             # creating the new options object - getting the tau and vol
             new_vol_id = pdt + '  ' + new_ft_month + '.' + new_ft_month
             print('new vol_id: ', new_vol_id)
-
-            # create_vanilla_option(vdf, pdf, ft, strike, lots, vol_id,
-            # call_put_id):
             strike, lots = op.K, op.lots
-            # create_vanilla_option(vdf, pdf, ft, strike, lots, volid, char,
-            # payoff, shorted, mth, date=None)
-            newop = create_vanilla_option(vdf, pdf, new_ft, strike, lots, new_vol_id,
-                                          op.char, op.payoff, op.shorted, new_ft.get_month())
+            if atm_roll:
+                strike = 'atm'
+            newop = create_vanilla_option(
+                vdf, pdf, new_vol_id, op.char, op.shorted, date, lots=lots, strike=strike)
+
+            # cost is > 0 if newop.price > op.price
+            total_cost += newop.get_price() - op.get_price()
             tobeadded.append(newop)
 
-    pf.remove_security(toberemoved, 'hedge')
-    pf.add_security(tobeadded, 'hedge')
+            rolled[op.get_vol_id()] = relevant_rollover
 
+    # take difference of dictionaries to obtain rollovers that are left
+    # for each vol_id
+    for x in rolled:
+        rollover_dates[x].remove(rolled[x])
+
+    print('deltas to close: ', deltas_to_close)
     pf, cost = close_out_deltas(pf, deltas_to_close)
     total_cost += cost
-
-    return pf, total_cost
+    pf.update_sec_by_month(None, flag, update=True)
+    print('toberemoved: ', [str(op) for op in toberemoved])
+    pf.remove_security(toberemoved, flag)
+    pf.update_sec_by_month(None, flag, update=True)
+    pf.add_security(tobeadded, flag)
+    pf.update_sec_by_month(None, flag, update=True)
+    print('pf after rollover: ', pf)
+    print('cost of rolling over: ', total_cost)
+    return pf, total_cost, rollover_dates
 
 
 def rebalance(vdf, pdf, pf, hedges, counters, brokerage=None, slippage=None):
@@ -1175,7 +1208,8 @@ def rebalance(vdf, pdf, pf, hedges, counters, brokerage=None, slippage=None):
             pf, roll_cond, pdf, brokerage=brokerage, slippage=slippage)
         cost += exp
 
-    while not done_hedging:
+    hedge_count = 0
+    while (not done_hedging and hedge_count < 10):
         for product in dic:
             for month in dic[product]:
                 ordering = pf.compute_ordering(product, month)
@@ -1211,12 +1245,15 @@ def rebalance(vdf, pdf, pf, hedges, counters, brokerage=None, slippage=None):
                     if delta_cond:
                         delta_cond = delta_cond[0][1]
                     # print('delta conds: ', delta_cond)
-                        pf, dhedges, fees = hedge_delta(
+                        pf, dhedges, fees, broken = hedge_delta(
                             delta_cond, vdf, pdf, pf, month, product, ordering, brokerage=brokerage, slippage=slippage)
+                        if broken:
+                            break
                         cost += fees
                     else:
                         print('no delta hedging specifications found')
         done_hedging = hedges_satisfied(pf, hedges)
+        hedge_count += 1
 
     return (pf, counters, cost, droll)
 
@@ -1284,7 +1321,9 @@ def gen_hedge_inputs(hedges, vdf, pdf, month, pf, product, ordering, flag):
         # tau value passed in is an absolute TTM desired
         if target > 1:
             tau = min(tau_vals, key=lambda x: abs(x-target))
-        # tau value is a ratio
+
+        # TODO: need to change this to
+        # tau value is a ratio; assume it's ratio * contract_month option
         else:
             tau = max(tau_vals) * target
 
@@ -1453,8 +1492,8 @@ def hedge(pf, inputs, product, month, flag, brokerage=None, slippage=None):
 # NOTE: assuming that future can be found with the exact number of
 # lots to delta hedge.
 def hedge_delta(cond, vdf, pdf, pf, month, product, ordering, brokerage=None, slippage=None):
-    """Helper function that implements delta hedging. General idea is to zero out delta at the end 
-    of the day by buying/selling -delta * lots futures. Returns expenditure (which is negative if shorting and 
+    """Helper function that implements delta hedging. General idea is to zero out delta at the end
+    of the day by buying/selling -delta * lots futures. Returns expenditure (which is negative if shorting and
     postive if purchasing delta) and the updated portfolio object.
 
     Args:
@@ -1479,8 +1518,12 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering, brokerage=None, sl
     print('>>>>>>>>>>> delta hedging: ', product +
           '  ' + month + ' <<<<<<<<<<<<<')
     uid = product + '  ' + month
-    future_price = pdf[(pdf.pdt == product) &
-                       (pdf.underlying_id == uid)].settle_value.values[0]
+    try:
+        future_price = pdf[(pdf.pdt == product) &
+                           (pdf.underlying_id == uid)].settle_value.values[0]
+    except IndexError:
+        print('simulation.hedge_delta : price data not found. skipping hedging...')
+        return pf, None, 0, True
 
     net_greeks = pf.get_net_greeks()
     fees = 0
@@ -1494,7 +1537,7 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering, brokerage=None, sl
         if num_lots_needed == 0:
             print(str(product) + ' ' + str(month) +
                   ' DELTA IS ZEROED. SKIPPING HEDGING')
-            return pf, None, 0
+            return pf, None, 0, False
         else:
             ft = Future(month, future_price, product,
                         shorted=shorted, ordering=ordering, lots=num_lots_needed)
@@ -1503,7 +1546,7 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering, brokerage=None, sl
         fees = brokerage * num_lots_needed
     print('hedging fees - delta: ', fees)
     print('>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<')
-    return pf, ft, fees
+    return pf, ft, fees, False
 
 
 #####################################################################
@@ -2095,16 +2138,22 @@ def close_out_deltas(pf, dtc):
     toberemoved = []
     print('simulation.close_out_deltas - dtc: ', dtc)
     for pdt, mth, price in dtc:
+        # print(pdt, mth, price)
         futures = pf.hedges[pdt][mth][1]
-        toberemoved = []
+        # print([str(ft) for ft in futures])
+        # toberemoved = []
         for ft in futures:
             # need to spend to buy back
             val = price if ft.shorted else -price
             cost += val
             toberemoved.append(ft)
 
+    # print('close_out_deltas - toberemoved: ',
+    #       [str(sec) for sec in toberemoved])
     pf.remove_security(toberemoved, 'hedge')
     print('cost of closing out deltas: ', cost)
+
+    # print('pf after closing out deltas: ', pf)
     return pf, cost
 
 
@@ -2347,4 +2396,6 @@ if __name__ == '__main__':
 ##########################################################################
 ##########################################################################
 ##########################################################################
+###
+#######
 ###

@@ -397,6 +397,9 @@ class Option:
         self.lots = lots
         self.update_greeks()
 
+    def get_vol_id(self):
+        return self.get_product() + '  ' + self.get_op_month() + '.' + self.get_month()
+
     def get_properties(self):
         return {'month': self.month, 'barrier': self.barrier, 'payoff': self.payoff,
                 'underlying': self.underlying, 'lots': self.lots, 'ki': self.ki,

@@ -795,11 +795,21 @@ High priority:
 
 2) Improve on hedging code to do the following:
 	> apply bound, static to each greek independently (i.e. don't assume that delta is zero and gamma/theta/vega are bounded)
+	
 	> accept multiples of current TTM
+		- need some kinda way to check wha
+	
 	> accept fixed ttm for hedging that decrements with each passing day. 
 
+	> [Done] ensure that rollovers work for  multiple products. 
+	> [Done] edit grab data to search for and accept data if it is already saved rather than querying database. 
+	> [Done] updated all dictionaries to change LCC to QC as per database.
+	> [Done] implemented flexible rollovers for multiple vol_ids 
+	> [Done] updated scripts/util.create_vanilla and create_straddle to accept atm as a strike value. 
+	> [Done] debugged construction errors with create_vanilla and create_underlying. 
 
-
+delta,roll,25,1,"(10,40)"
+vega,bound,"(-5000, 5000)",1,,0.164383562
 
 
 =====================

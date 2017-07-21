@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-13 18:44:01
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-07-21 17:03:36
 
 
 from .portfolio import Portfolio
@@ -19,7 +19,7 @@ from .calc import compute_strike_from_delta
 multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
     'LSU': [1, 50, 0.1, 10, 50],
-    'LCC': [1.2153, 10, 1, 25, 12.153],
+    'QC': [1.2153, 10, 1, 25, 12.153],
     'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
     'CC':  [1, 10, 1, 50, 10],
     'CT':  [22.046, 22.679851, 0.01, 1, 500],
@@ -55,7 +55,7 @@ contract_mths = {
 
     'LH':  ['G', 'J', 'K', 'M', 'N', 'Q', 'V', 'Z'],
     'LSU': ['H', 'K', 'Q', 'V', 'Z'],
-    'LCC': ['H', 'K', 'N', 'U', 'Z'],
+    'QC': ['H', 'K', 'N', 'U', 'Z'],
     'SB':  ['H', 'K', 'N', 'V'],
     'CC':  ['H', 'K', 'N', 'U', 'Z'],
     'CT':  ['H', 'K', 'N', 'Z'],
@@ -193,6 +193,8 @@ def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=N
             print('util.create_underlying: cannot find price. printing outputs: ')
             print('uid: ', uid)
             print('date: ', date)
+            print('debug 1: ', pdf[(pdf.value_date == date)])
+            print('debug 2: ', pdf[(pdf.underlying_id == uid)])
 
     curr_mth = date.month
     curr_mth_sym = month_to_sym[curr_mth]
@@ -256,6 +258,12 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', l
     # print('util.create_vanilla_option - pdf.columns: ', pdf.columns)
     ft, ftprice = create_underlying(pdt, ftmth, pdf, date,
                                     shorted=ft_shorted, lots=lots)
+
+    ticksize = multipliers[pdt][-2]
+
+    # if strike is set to 'atm', round closest optiontick to underlying price.
+    if strike == 'atm':
+        strike = round(round(ftprice / ticksize) * ticksize, 2)
 
     # get tau
     try:
@@ -715,7 +723,7 @@ def create_skew(volid, vdf, pdf, date, shorted, delta, ftprice, **kwargs):
     return op1, op2
 
 
-def create_straddle(volid, vdf, pdf, date, shorted, strike, kwargs, pf=None):
+def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
     """Utility function that creates straddle given dataframes and arguments.
 
     Args:
@@ -738,49 +746,52 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, kwargs, pf=None):
     char1, char2 = 'call', 'put'
     lm, dm = multipliers[pdt][1], multipliers[pdt][0]
 
+    lots = kwargs['lots'] if 'lots' in kwargs else None
+
     op1 = create_vanilla_option(
-        vdf, pdf, volid, char1, shorted, date, strike=strike)
+        vdf, pdf, volid, char1, shorted, date, strike=strike, lots=lots)
 
     op2 = create_vanilla_option(
-        vdf, pdf, volid, char2, shorted, date, strike=strike)
+        vdf, pdf, volid, char2, shorted, date, strike=strike, lots=lots)
 
     lots_req = op1.lots
 
-    # determine number of lots based on greek and greekvalue
-    if kwargs['greek'] == 'vega':
-        if pf is not None and kwargs['greekval'] == 'portfolio':
-            vega_req = -pf.net_theta_pos()
-        else:
-            vega_req = float(kwargs['greekval'])
-        print('util.create_straddle - vega req: ', vega_req)
-        v1 = (op1.vega * 100) / (op1.lots * dm * lm)
-        v2 = (op2.vega * 100) / (op2.lots * dm * lm)
-        lots_req = round((abs(vega_req) * 100) / ((v1 + v2) * lm * dm))
+    if 'greek' in kwargs:
+        # determine number of lots based on greek and greekvalue
+        if kwargs['greek'] == 'vega':
+            if pf is not None and kwargs['greekval'] == 'portfolio':
+                vega_req = -pf.net_theta_pos()
+            else:
+                vega_req = float(kwargs['greekval'])
+            print('util.create_straddle - vega req: ', vega_req)
+            v1 = (op1.vega * 100) / (op1.lots * dm * lm)
+            v2 = (op2.vega * 100) / (op2.lots * dm * lm)
+            lots_req = round((abs(vega_req) * 100) / ((v1 + v2) * lm * dm))
 
-    elif kwargs['greek'] == 'gamma':
-        if pf is not None and kwargs['greekval'] == 'portfolio':
-            gamma_req = -pf.net_gamma_pos()
-        else:
-            gamma_req = float(kwargs['greekval'])
-        print('util.create_straddle - gamma req: ', gamma_req)
-        g1 = (op1.gamma * dm) / (op1.lots * lm)
-        g2 = (op2.gamma * dm) / (op2.lots * lm)
-        lots_req = round(((gamma_req) * dm) / ((g1 + g2) * lm))
+        elif kwargs['greek'] == 'gamma':
+            if pf is not None and kwargs['greekval'] == 'portfolio':
+                gamma_req = -pf.net_gamma_pos()
+            else:
+                gamma_req = float(kwargs['greekval'])
+            print('util.create_straddle - gamma req: ', gamma_req)
+            g1 = (op1.gamma * dm) / (op1.lots * lm)
+            g2 = (op2.gamma * dm) / (op2.lots * lm)
+            lots_req = round(((gamma_req) * dm) / ((g1 + g2) * lm))
 
-    elif kwargs['greek'] == 'theta':
-        if pf is not None and kwargs['greekval'] == 'portfolio':
-            theta_req = -pf.net_theta_pos()
-        else:
-            theta_req = float(kwargs['greekval'])
-        print('util.create_straddle - theta req: ', theta_req)
-        t1 = (op1.theta * 365)/(op1.lots * lm * dm)
-        t2 = (op2.theta * 365) / (op2.lots * lm * dm)
-        lots_req = round(((theta_req) * 365) / ((t1 + t2) * lm * dm))
+        elif kwargs['greek'] == 'theta':
+            if pf is not None and kwargs['greekval'] == 'portfolio':
+                theta_req = -pf.net_theta_pos()
+            else:
+                theta_req = float(kwargs['greekval'])
+            print('util.create_straddle - theta req: ', theta_req)
+            t1 = (op1.theta * 365)/(op1.lots * lm * dm)
+            t2 = (op2.theta * 365) / (op2.lots * lm * dm)
+            lots_req = round(((theta_req) * 365) / ((t1 + t2) * lm * dm))
 
-    print('util.create_straddle - lots_req: ', lots_req)
-    op1.update_lots(lots_req)
-    op2.update_lots(lots_req)
-    op1.get_underlying().update_lots(lots_req)
-    op2.get_underlying().update_lots(lots_req)
+        print('util.create_straddle - lots_req: ', lots_req)
+        op1.update_lots(lots_req)
+        op2.update_lots(lots_req)
+        op1.get_underlying().update_lots(lots_req)
+        op2.get_underlying().update_lots(lots_req)
 
     return op1, op2

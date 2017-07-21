@@ -16,7 +16,7 @@ Description    : Script contains implementation of the Portfolio class, as well 
 multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
     'LSU': [1, 50, 0.1, 10, 50],
-    'LCC': [1.2153, 10, 1, 25, 12.153],
+    'QC': [1.2153, 10, 1, 25, 12.153],
     'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
     'CC':  [1, 10, 1, 50, 10],
     'CT':  [22.046, 22.679851, 0.01, 1, 500],
@@ -112,6 +112,8 @@ class Portfolio:
         hedgeops = [op.__str__() for op in self.hedge_options]
         hedgeft = [op.__str__() for op in self.hedge_futures]
         nets = self.net_greeks
+        # otcs = self.OTC
+        # hedges = self.hedges
 
         r_dict = {'OTC Options': otcops,
                   'OTC Futures': otcft,
@@ -304,6 +306,7 @@ class Portfolio:
                 elif sec.get_desc() == 'future':
                     ft.remove(sec)
             except ValueError:
+                print(str(sec))
                 print('specified security doesnt exist in this portfolio')
 
         self.toberemoved.extend(security)
@@ -359,6 +362,7 @@ class Portfolio:
 
         Notes: this method does 90% of all the heavy lifting in the portfolio class. Don't mess with this unless you know EXACTLY what each part is doing.
         '''
+        # print('update sec by month flag: ', flag)
         if flag == 'OTC':
             dic = self.OTC
             op = self.OTC_options
@@ -399,25 +403,35 @@ class Portfolio:
             else:
                 target = self.toberemoved.copy()
                 self.toberemoved.clear()
+                # print('target: ', [str(sec) for sec in target])
                 for sec in target:
                     product = sec.get_product()
                     month = sec.get_month()
+                    # print('removing ', product, month)
                     data = dic[product][month]
                     try:
                         if sec.get_desc() == 'option':
+                            # print('removing ' + str(product) +
+                            #       str(month) + ' option')
                             data[0].remove(sec)
+                            # print('removed ' + str(sec))
                         else:
+                            # print('removing ' + str(product) +
+                            #       str(month) + ' future')
                             data[1].remove(sec)
+                            # print('removed ' + str(sec))
                     except KeyError:
                         print(
                             "The security specified does not exist in this Portfolio")
                     # check for degenerate case when removing sec results in no
                     # securities associated to this product-month
                     if not(data[0]) and not(data[1]):
+                        # print('removing ' + str(month) +
+                        #       ' from ' + str(product))
                         dic[product].pop(month)
                         if len(dic[product]) == 0:
                             dic.pop(product)
-                        return self.compute_net_greeks()
+                        self.compute_net_greeks()
                     else:
                         self.update_greeks_by_month(
                             product, month, sec, added, flag)

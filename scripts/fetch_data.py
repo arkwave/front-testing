@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-14 14:18:02
+# @Last Modified time: 2017-07-21 17:07:13
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -15,7 +15,7 @@ contract_mths = {
 
     'LH':  ['G', 'J', 'K', 'M', 'N', 'Q', 'V', 'Z'],
     'LSU': ['H', 'K', 'Q', 'V', 'Z'],
-    'LCC': ['H', 'K', 'N', 'U', 'Z'],
+    'QC': ['H', 'K', 'N', 'U', 'Z'],
     'SB':  ['H', 'K', 'N', 'V'],
     'CC':  ['H', 'K', 'N', 'U', 'Z'],
     'CT':  ['H', 'K', 'N', 'V', 'Z'],
@@ -333,6 +333,8 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
     """
     # edf = pd.read_csv(epath).dropna()
 
+    start_date = pd.to_datetime(start_date)
+    end_date = pd.to_datetime(end_date)
     # sanity checking
     print('start_date: ', start_date)
     print('end_date: ', end_date)
@@ -441,15 +443,16 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
         if not os.path.isdir(desired_path):
             os.mkdir(desired_path)
 
+        sd, ed = start_date.strftime('%Y%m%d'), end_date.strftime('%Y%m%d')
         # write datasets into the debug folder.
         final_vol.to_csv(desired_path + pdt.lower() +
-                         '_final_vols.csv', index=False)
+                         '_final_vols_' + sd + '_' + ed + '.csv', index=False)
 
         final_price.to_csv(desired_path + pdt.lower() +
-                           '_final_price.csv', index=False)
+                           '_final_price_' + sd + '_' + ed + '.csv', index=False)
 
         pdf.to_csv(desired_path + pdt.lower() +
-                   '_roll_df.csv', index=False)
+                   '_roll_df_' + sd + '_' + ed + '.csv', index=False)
 
         edf.to_csv(desired_path + 'final_option_expiry.csv', index=False)
 
@@ -480,72 +483,98 @@ pull_alt_data + prepare_datasets for that.
 
     final_pdf = pd.DataFrame()
     final_vols = pd.DataFrame()
+    edf = pd.DataFrame()
+
+    sd = ''.join(start_date.split('-'))
+    ed = ''.join(end_date.split('-'))
+
+    desired_path = direc + 'datasets/debug/'
 
     pdts = set(pdts)
 
     for pdt in pdts:
-        volpath = direc + 'datasets/data_dump/' + pdt.lower() + '_vol_dump.csv'
 
-        price_path = direc + 'datasets/data_dump/' + pdt.lower() + '_price_dump.csv'
+        final_volpath = desired_path + pdt.lower() + '_final_vols_' + \
+            sd + '_' + ed + '.csv'
+        final_pricepath = desired_path + pdt.lower() + '_final_price_' + \
+            sd + '_' + ed + '.csv'
+        final_exppath = desired_path + 'final_option_expiry.csv'
 
-        print('volpath: ', volpath)
-        print('pricepath: ', price_path)
+        if (os.path.exists(final_volpath) and os.path.exists(final_pricepath) and os.path.exists(final_exppath)):
+            print('cleaned data found, reading in and returning...')
+            vdf = pd.read_csv(final_volpath)
+            pdf = pd.read_csv(final_pricepath)
+            edf = pd.read_csv(final_exppath)
+            # handling datetimes
+            vdf.value_date = pd.to_datetime(vdf.value_date)
+            pdf.value_date = pd.to_datetime(pdf.value_date)
+            edf.expiry_date = pd.to_datetime(edf.expiry_date)
 
-        # handling signals
-        signals = pd.read_csv(sigpath) if sigpath is not None else None
-        if signals is not None:
-            signals.value_date = pd.to_datetime(signals.value_date)
+            final_pdf = pd.concat([final_pdf, pdf])
+            final_vols = pd.concat([final_vols, vdf])
 
-        # handling prices and vos
-        if not os.path.exists(volpath) or not os.path.exists(price_path):
-            print('dumps dont exist, pulling raw data')
-            vdf, pdf, raw_df = pull_alt_data(pdt)
         else:
-            print('dumps exist, reading in')
-            vdf = pd.read_csv(volpath)
-            pdf = pd.read_csv(price_path)
+            print('cleaned data not found; preparing from dumps')
+            volpath = direc + 'datasets/data_dump/' + pdt.lower() + '_vol_dump.csv'
+            price_path = direc + 'datasets/data_dump/' + pdt.lower() + '_price_dump.csv'
+            print('volpath: ', volpath)
+            print('pricepath: ', price_path)
 
-        # handling datetime formats.
-        edf = pd.read_csv(direc + 'datasets/option_expiry.csv')
-        vdf.value_date = pd.to_datetime(vdf.value_date)
-        pdf.value_date = pd.to_datetime(pdf.value_date)
-        edf.expiry_date = pd.to_datetime(edf.expiry_date)
+            # handling signals
+            signals = pd.read_csv(sigpath) if sigpath is not None else None
+            if signals is not None:
+                signals.value_date = pd.to_datetime(signals.value_date)
 
-        # filter according to start/end dates
-        vdf = vdf[(vdf.value_date >= start_date) &
-                  (vdf.value_date <= end_date)]
+            # handling prices and vos
+            if not os.path.exists(volpath) or not os.path.exists(price_path):
+                print('dumps dont exist, pulling raw data')
+                vdf, pdf, raw_df = pull_alt_data(pdt)
+            else:
+                print('dumps exist, reading in')
+                vdf = pd.read_csv(volpath)
+                pdf = pd.read_csv(price_path)
 
-        pdf = pdf[(pdf.value_date >= start_date) &
-                  (pdf.value_date <= end_date)]
+            # handling datetime formats.
+            edf = pd.read_csv(direc + 'datasets/option_expiry.csv')
+            vdf.value_date = pd.to_datetime(vdf.value_date)
+            pdf.value_date = pd.to_datetime(pdf.value_date)
+            edf.expiry_date = pd.to_datetime(edf.expiry_date)
 
-        print('pdf columns: ', pdf.columns)
-        print('vdf columns: ', vdf.columns)
+            # filter according to start/end dates
+            vdf = vdf[(vdf.value_date >= start_date) &
+                      (vdf.value_date <= end_date)]
 
-        if volids is not None:
-            relevant_volids = [x for x in volids if x[:2].strip() == pdt]
-            uids = [x.split()[0] + '  ' + x.split('.')[1]
-                    for x in relevant_volids]
-            print('relevant volids: ', relevant_volids)
-            print('relevant uids: ', uids)
-            pdf = pdf[pdf.underlying_id.isin(uids)]
-            vdf = vdf[vdf.vol_id.isin(relevant_volids)]
+            pdf = pdf[(pdf.value_date >= start_date) &
+                      (pdf.value_date <= end_date)]
 
-        # try filtering just by uid and vol_id
-        if ftmth is not None and opmth is not None:
-            u_id = pdt + '  ' + ftmth
-            print('uid: ', u_id)
-            vol_id = pdt + '  ' + opmth + '.' + ftmth
-            print('vid: ', vol_id)
+            print('pdf columns: ', pdf.columns)
+            print('vdf columns: ', vdf.columns)
 
-            vdf = vdf[(vdf.vol_id == vol_id)]
-            pdf = pdf[(pdf.underlying_id == u_id)]
+            if volids is not None:
+                relevant_volids = [x for x in volids if x[:2].strip() == pdt]
+                uids = [x.split()[0] + '  ' + x.split('.')[1]
+                        for x in relevant_volids]
+                print('relevant volids: ', relevant_volids)
+                print('relevant uids: ', uids)
+                pdf = pdf[pdf.underlying_id.isin(uids)]
+                vdf = vdf[vdf.vol_id.isin(relevant_volids)]
 
-        vdf, pdf, edf, roll_df, start_date = prep_datasets(vdf, pdf, edf, start_date,
-                                                           end_date, pdt, signals=signals,
-                                                           test=False, write=write, writepath=writepath,
-                                                           direc=direc)
-        final_pdf = pd.concat([final_pdf, pdf])
-        final_vols = pd.concat([final_vols, vdf])
+            # try filtering just by uid and vol_id
+            if ftmth is not None and opmth is not None:
+                u_id = pdt + '  ' + ftmth
+                print('uid: ', u_id)
+                vol_id = pdt + '  ' + opmth + '.' + ftmth
+                print('vid: ', vol_id)
+
+                vdf = vdf[(vdf.vol_id == vol_id)]
+                pdf = pdf[(pdf.underlying_id == u_id)]
+
+            vdf, pdf, edf, roll_df, start_date = prep_datasets(vdf, pdf, edf, start_date,
+                                                               end_date, pdt, signals=signals,
+                                                               test=False, write=write, writepath=writepath,
+                                                               direc=direc)
+            final_pdf = pd.concat([final_pdf, pdf])
+            final_vols = pd.concat([final_vols, vdf])
 
     print('### GRAB DATA COMPLETED ###')
-    return vdf, pdf, edf
+    return final_vols, final_pdf, edf

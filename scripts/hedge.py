@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-20 22:21:36
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-07-21 16:14:30
 
 from timeit import default_timer as timer
 import numpy as np
@@ -16,16 +16,18 @@ class Hedge:
     Inference of hedging parameters is done via the _calibrate method, while applying hedges is done via the _apply method.
     """
 
-    def __init__(self, portfolio, vdf, pdf, buckets=None):
+    def __init__(self, portfolio, hedges, vdf, pdf, desc, buckets=None):
         """Constructor. Initializes a hedge object subject to the following parameters. 
 
         Args:
             portfolio (TYPE): the portfolio being hedged
             vdf (TYPE): dataframe of volatilites 
             pdf (TYPE): Description
+            view (TYPE): a string description of the greek representation. valid inputs are 'exp' for greeks-by-expiry and 'uid' for greeks by underlying.
             buckets (None, optional): Description
         """
         self.params = {}
+        self.desc = desc
         self.greek_repr = {}
         self.vdf = vdf
         self.pdf = pdf
@@ -34,7 +36,9 @@ class Hedge:
             30, 60, 90, 120, 1e5]
         self.buckets.append(1e5)
 
-    def _calibrate(self, hedges, flag='exp'):
+        self.params, self.greek_repr = self._calibrate()
+
+    def _calibrate(self):
         """Helper method that constructs the hedging parameters based on the greek representation fed into the hedge object.
 
         Example (1): flag == 'exp' indicates that hedging is being done basis greeks bucketed according to time to maturity. As such, the parameter dictionary generated is a dictionary mapping commodity and ttm to vol_id used to hedge that particular dictionary. 
@@ -43,13 +47,19 @@ class Hedge:
 
 
         Args:
-            flag (str, optional): the representation that hedging is being done with respect to. currently accepts 'exp' to hedge gamma theta and vega as per the net greeks according to bucketed ttm  
+            hedges (dictionary): dictionary of hedging logic passed into the simulation. 
+            flag (TYPE): 
+
+
+        Note: this does NOT check if greeks other than delta are being hedged, because delta by default is hedged at the EOD by commodity/month, not on the basis of expiries. I.e. you will never use a W Q6 underlying to hedge the deltas from a W Q6.U6 option. 
 
         """
         t = timer()
         params = {}
         net = {}
-        if flag == 'exp':
+
+        # first case: greek by expiry.
+        if self.desc == 'exp':
             calibration_dic = self.pf.greeks_by_exp(self.buckets)
             net = calibration_dic
             for product in calibration_dic:
@@ -68,8 +78,11 @@ class Hedge:
                     # todo: implement ttm scaling and pick appropriate vol_id
                     # based on liquidity constraints
 
+                    # pick the median ttm for all options in each bucket.
                     ttm = np.median([op.tau for op in options])
-                    # hedges subcond? implement tomorrow.
+
+                    # apply ttm multiplier if it is present
+                    relevant_hedges = []
 
                     # based on the ttm, pick the appropriate vol_id for this
                     # commodity. -> params[loc] = vol_id
@@ -83,7 +96,8 @@ class Hedge:
                     volids = [x for x in volids if x != '']
                     params[loc] = volids
 
-        elif flag == 'uid':
+        # second case: greeks by underlying (regular thing we're used to)
+        elif self.desc == 'uid':
             calibration_dic = self.pf.get_net_greeks()
             net = calibration_dic
             for product in net:

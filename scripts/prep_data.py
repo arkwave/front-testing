@@ -49,7 +49,7 @@ contract_mths = {
 
     'LH':  ['G', 'J', 'K', 'M', 'N', 'Q', 'V', 'Z'],
     'LSU': ['H', 'K', 'Q', 'V', 'Z'],
-    'LCC': ['H', 'K', 'N', 'U', 'Z'],
+    'QC': ['H', 'K', 'N', 'U', 'Z'],
     'SB':  ['H', 'K', 'N', 'V'],
     'CC':  ['H', 'K', 'N', 'U', 'Z'],
     'CT':  ['H', 'K', 'N', 'Z'],
@@ -71,7 +71,7 @@ contract_mths = {
 multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
     'LSU': [1, 50, 0.1, 10, 50],
-    'LCC': [1.2153, 10, 1, 25, 12.153],
+    'QC': [1.2153, 10, 1, 25, 12.153],
     'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
     'CC':  [1, 10, 1, 50, 10],
     'CT':  [22.046, 22.679851, 0.01, 1, 500],
@@ -995,7 +995,7 @@ def civols(vdf, pdf, rollover='opex'):
 ################ Helper Functions ###################
 #####################################################
 
-
+# TODO: rewrite this to pull straight from db?
 def ttm(df, s, edf):
     """Takes in a vol_id (for example C Z7.Z7) and outputs the time to expiry for the option in years
 
@@ -1013,7 +1013,7 @@ def ttm(df, s, edf):
         try:
             expdate = pd.to_datetime(expdate.values[0])
         except IndexError:
-            print('Vol ID: ', iden)
+            print('expdate not found for Vol ID: ', iden)
         currdate = pd.to_datetime(df[(df['vol_id'] == iden)]['value_date'])
         timedelta = (expdate - currdate).dt.days / 365
         df.ix[df['vol_id'] == iden, 'tau'] = timedelta
@@ -1059,8 +1059,8 @@ def assign_ci(df, date):
         ftmths = df2.ftmth.unique()
         for ftmth in ftmths:
             m1 = curr_mth + str(curr_yr % (2000 + decade))
-            print('ftmth: ', ftmth)
-            print('m1: ', m1)
+            # print('ftmth: ', ftmth)
+            # print('m1: ', m1)
             dist = find_cdist(m1, ftmth, lst)
             df.ix[(df.pdt == pdt) & (df.ftmth == ftmth), 'order'] = dist
     return df
