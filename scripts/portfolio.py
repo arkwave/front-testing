@@ -618,8 +618,12 @@ class Portfolio:
                     for op in options:
                         # bucket based on tau
                         optau = float(op.tau * 365)
-                        bucket = min([x
-                                      for x in buckets if x > optau])
+                        # try:
+                        bucket = max([x
+                                      for x in buckets if x < optau])
+                        # except ValueError:
+                        # print('adding larger bucket value')
+                        # buckets.append(np.inf)
                         # if bucket not in otc_by_exp:
                         # otc_by_exp[bucket] = [0, 0, 0, 0]
                         d, g, t, v = op.greeks()
@@ -635,8 +639,8 @@ class Portfolio:
                     for op in options:
                         # bucket based on tau
                         optau = float(op.tau * 365)
-                        bucket = min(
-                            [x for x in buckets if x > optau])
+                        bucket = max(
+                            [x for x in buckets if x < optau])
                         # if bucket not in hedges_by_exp:
                         #     hedges_by_exp[bucket] = []
                         d, g, t, v = op.greeks()

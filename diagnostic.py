@@ -1,14 +1,18 @@
 
-from scripts.prep_data import read_data, generate_hedges, sanity_check, get_rollover_dates
+from scripts.prep_data import generate_hedges, sanity_check
 # from scripts.classes import Option, Future
-import itertools
+# import itertools
 import numpy as np
 import pandas as pd
-import scripts.global_vars as gv
-from simulation import run_simulation
-from scripts.util import prep_datasets, create_underlying, create_vanilla_option, create_barrier_option
+# import scripts.global_vars as gv
+# from simulation import run_simulation
+from scripts.util import create_straddle, create_underlying
 from scripts.portfolio import Portfolio
-import os
+from scripts.fetch_data import grab_data
+# from scripts.classes import Option, Future
+from scripts.hedge import Hedge
+# import os
+from timeit import default_timer as timer
 
 
 multipliers = {
@@ -69,211 +73,70 @@ contract_mths = {
 }
 
 
-epath = 'datasets/option_expiry.csv'
-specpath = 'specs.csv'
-sigpath = 'datasets/small_ct/signals.csv'
-hedgepath = 'hedging.csv'
+######### variables ################
+start_date = '2017-05-01'
+end_date = '2017-07-21'
+rd1 = pd.to_datetime('2017-06-30')
+rd2 = pd.to_datetime('2017-06-30')
+rollover_dates = {'QC  U7.U7': [rd1], 'CC  U7.U7': [rd2]}
+pdts = ['QC', 'CC']
+volids = ['QC  U7.U7', 'QC  Z7.Z7', 'CC  U7.U7', 'CC  Z7.Z7']
+####################################
 
 
-yrs = [6]
-pnls = []
-op = None
+vdf, pdf, edf = grab_data(pdts, start_date, end_date,
+                          volids=volids, write=True)
 
-# , 'cuo', 'cdi', 'cdo', 'pui', 'puo', 'pdi', 'pdo']
-flags = ['putop']
-
-for yr, flag in itertools.product(yrs, flags):
-    # vdf, pdf, df = pull_alt_data('W')
-
-    target = 'U'
-
-    # for yr in yrs:
-    pdt = 'W'
-    ftlist = ['U']
-    oplist = ['Q', 'U']
-    # ftmth = 'X2'
-    # opmth = 'X2'
-
-    alt = True
-    # alt = True if yr >= 5 else True
-
-    pricedump = 'datasets/data_dump/' + pdt.lower() + '_price_dump.csv'
-    voldump = 'datasets/data_dump/' + pdt.lower() + '_vol_dump.csv'
-
-    start_date = pd.Timestamp('201' + str(yr) + '-05-23')
-    end_date = pd.Timestamp('201' + str(yr) + '-06-30')
-
-    # vdf, pdf, df = pull_alt_data()
-
-    if alt:
-        # uids = 'U' + str(yr)
-        # opmths = []
-        print('pulling data')
-        edf = pd.read_csv(epath)
-        uids = [pdt + '  ' + u + str(yr) for u in ftlist]
-        print('uids: ', uids)
-        volids = [pdt + '  ' + i + str(yr) + '.' + u + str(yr)
-                        for i in oplist for u in ftlist]
-        print('volids: ', volids)
-        pdf = pd.read_csv(pricedump)
-        pdf.value_date = pd.to_datetime(pdf.value_date)
-        # cleaning prices
-        pmask = pdf.underlying_id.isin(uids)
-        pdf = pdf[pmask]
-        vdf = pd.read_csv(voldump)
-        # volid = pdt + '  ' + opmth + '.' + ftmth
-        vmask = vdf.vol_id.isin(volids)
-        vdf = vdf[vmask]
-        vdf.value_date = pd.to_datetime(vdf.value_date)
-
-        # filter datasets before prep
-        vdf = vdf[(vdf.value_date >= start_date)
-                  & (vdf.value_date <= end_date)]
-        pdf = pdf[(pdf.value_date >= start_date)
-                  & (pdf.value_date <= end_date)]
-
-        vdf, pdf, edf, priceDF, start_date = prep_datasets(
-            vdf, pdf, edf, start_date, end_date)
-
-        print('w_position - start date: ', start_date)
-
-        if not os.path.isdir('datasets/' + pdt.lower()):
-            os.mkdir('datasets/' + pdt.lower())
-        print('finished pulling data')
-
-        vdf.to_csv('datasets/' + pdt.lower() + '/debug_vols.csv', index=False)
-        pdf.to_csv('datasets/' + pdt.lower() +
-                   '/debug_prices.csv', index=False)
-
-    else:
-        opmth = target + str(yr)
-        ftmth = target + str(yr)
-        print('pulling data')
-        vdf, pdf, edf, priceDF = read_data(
-            epath, '', pdt=pdt, opmth=opmth, ftmth=ftmth, start_date=start_date, end_date=end_date)
-        print('finished pulling data')
-
-    print('sanity checking data')
-    # sanity check date ranges
-    sanity_check(vdf.value_date.unique(),
-                 pdf.value_date.unique(), start_date, end_date)
-
-    print('voldata: ', vdf)
-    print('pricedf: ', pdf)
-
-    print('creating portfolio')
-    # create 130,000 vega atm straddles
-
-    # hedge_specs = {'pdt': 'S',
-    #                'opmth': 'N' + str(yr),
-    #                'ftmth': 'N' + str(yr),
-    #                'type': 'straddle',
-    #                'strike': 'atm',
-    #                'shorted': True,
-    #                'greek': 'gamma',
-    #                'greekval': 'portfolio'}
-
-    opmth1 = target + str(yr)
-    opmth2 = 'Q' + str(yr)
-    ftmth = target + str(yr)
-
-    volid1 = pdt + '  ' + opmth1 + '.' + ftmth  # W UX.UX
-    volid2 = pdt + '  ' + opmth2 + '.' + ftmth  # W QX.UX
-
-    #### W Qx.Ux - Long Positions ####
-    # W Qx.Ux Put 430 900 lots - 34
-    if flag == 'callop':
-        op = create_vanilla_option(vdf, pdf, volid2, 'call', False,
-                                   start_date, lots=900, delta=34, bullet=False)
-
-    elif flag == 'putop':
-        op = create_vanilla_option(vdf, pdf, volid2, 'put', False,
-                                   start_date, lots=900, delta=34, bullet=False)
-
-    elif flag == 'cui':
-        # 500 CUI 520
-        op = create_barrier_option(vdf, pdf, volid2, 'call', 500, False,
-                                   start_date, 'amer', 'up', ki=520, ko=None,
-                                   bullet=True, lots=900)
-    elif flag == 'cuo':
-        # 500 CUO 520
-        op = create_barrier_option(vdf, pdf, volid2, 'call', 500, False,
-                                   start_date, 'amer', 'up', ki=None, ko=530,
-                                   bullet=True, lots=900)
-    # 500 CDI 460
-    elif flag == 'cdi':
-        op = create_barrier_option(vdf, pdf, volid2, 'call', 500, False,
-                                   start_date, barriertype='amer', direction='down',
-                                   ki=460, ko=None, bullet=True, lots=900)
-    elif flag == 'cdo':
-        # 500 CDO 460
-        op = create_barrier_option(vdf, pdf, volid2, 'call', 500, False,
-                                   start_date, barriertype='amer', direction='down',
-                                   ki=None, ko=460, bullet=True, lots=900)
-    elif flag == 'pui':
-        # 500 PUI 520
-        op = create_barrier_option(vdf, pdf, volid2, 'put', 500, False,
-                                   start_date, barriertype='amer', direction='up',
-                                   ki=520, ko=None, bullet=True, lots=900)
-
-    elif flag == 'puo':
-        # 500 PUO 520
-        op = create_barrier_option(vdf, pdf, volid2, 'put', 500, False,
-                                   start_date, barriertype='amer', direction='up',
-                                   ki=None, ko=520, bullet=True, lots=900)
-    elif flag == 'pdi':
-        # 500 PDI 460
-        op = create_barrier_option(vdf, pdf, volid2, 'put', 500, False,
-                                   start_date, barriertype='amer', direction='down',
-                                   ki=460, ko=None, bullet=True, lots=900)
-    elif flag == 'pdo':
-        # 500 PDO 460
-        op = create_barrier_option(vdf, pdf, volid2, 'put', 500, False,
-                                   start_date, barriertype='amer', direction='down',
-                                   ki=None, ko=460, bullet=True, lots=900)
-
-    pf = Portfolio()
-    pf.add_security(op, 'OTC')
-
-    # ops = [op1, op2, op3, op4, op5, op6, op7, op8, op9]
-
-    pf_delta = pf.net_greeks['W']['U' + str(yr)][0]
-
-    print('net pf delta: ', pf_delta)
-
-    shorted = True if pf_delta > 0 else False
-
-    ### Outstanding Future Position ###
-    fts, ftprice2 = create_underlying(
-        pdt, ftmth, pdf, start_date, shorted=shorted, lots=round(abs(pf_delta)))
-
-    fts = [fts]
-    pf.add_security(fts, 'hedge')
-
-    print('portfolio: ', pf)
-    print('deltas: ', [op.delta/op.lots for op in pf.OTC_options])
-    print('vegas: ', pf.net_vega_pos())
-    print('start_date: ', start_date)
-    print('end_date: ', end_date)
-
-    print('specifying hedging logic')
-    # specify hedging logic
-    hedges = generate_hedges(hedgepath)
-
-    print('getting rollover dates')
-    # get rollover dates according to opex
-    rollover_dates = get_rollover_dates(priceDF)
-    print('rollover dates: ', rollover_dates)
-
-    print('running simulation')
-    # # # # run the simulation
-    # grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log = run_simulation(
-    #     vdf, pdf, edf, pf, hedges, rollover_dates, brokerage=gv.brokerage,
-    #     slippage=gv.slippage)
-
-    # pnls.append(netpnl)
-    # log.to_csv('results/' + flag + '_' + str(yr) +
-    #            '_daily_log.csv', index=False)
+sanity_check(vdf.value_date.unique(),
+             pdf.value_date.unique(), pd.to_datetime(start_date), pd.to_datetime(end_date))
 
 
-# print(pnls)
+cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf,
+                           pd.to_datetime(start_date), False, 'atm', lots=1000)
+
+qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(
+    start_date), True, 'atm', lots=1000)
+
+# print('CC Call: ', str(cc1))
+# print('CC Put: ', str(cc2))
+# print('QC Call: ', str(qc1))
+# print('QC Put: ', str(qc2))
+
+pf = Portfolio()
+pf.add_security([qc1, qc2, cc1, cc2], 'OTC')
+
+# print('portfolio: ', pf)
+
+hedges = generate_hedges('hedging.csv')
+
+print('hedges: ', hedges)
+
+test_pdf = pdf[pdf.value_date == pd.to_datetime(start_date)]
+
+b1 = [0, 20, 30, 50, 80, 90]
+b2 = [0, 50, 70, 100, 150, 200]
+b3 = [0, 70, 120, 170]
+
+
+t = timer()
+# pf = generate_portfolio()
+hedge = Hedge(pf, hedges, test_pdf, desc='exp')
+
+for key in hedges:
+    if key != 'delta':
+        hedge._calibrate(key)
+
+print('elapsed: ', timer() - t)
+
+import pprint
+print(pprint.pformat(hedge.params))
+print(pprint.pformat(hedge.greek_repr))
+print(pprint.pformat(hedge.mappings))
+
+
+for pdt in hedge.greek_repr:
+    for exp in hedge.greek_repr[pdt]:
+        data = hedge.greek_repr[pdt][exp]
+        # empty, no options to hedge.
+        if not data[0]:
+            continue

@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-24 19:22:15
+# @Last Modified time: 2017-07-24 20:14:34
 
 ################################ imports ###################################
 import numpy as np
@@ -1192,6 +1192,7 @@ def rebalance(vdf, pdf, pf, hedges, counters, brokerage=None, slippage=None):
             else:
                 print('gamma freq not met')
                 counters[2] += 1
+
     done_hedging = hedges_satisfied(pf, hedges)
     roll_hedged = check_roll_status(pf, hedges)
     droll = not roll_hedged

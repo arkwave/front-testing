@@ -811,6 +811,35 @@ High priority:
 delta,roll,25,1,"(10,40)"
 vega,bound,"(-5000, 5000)",1,,0.164383562
 
+vega,bound,"(-5000, 5000)",1,,0.5
+
+
+
+
+
+
+>>>>>>>>>>>>> TODOS as of 7/24: <<<<<<<<<<<<<
+
+1) Finish implementation of the hedge object.
+	- _calibrate:
+		> applying ttm multiplier/specifying ttm based on value passed in.
+		> generating parameter dictionary for each case:
+			+ exp: (product, ttm) -> vol_id 
+			+ uid: vol_id -> vol_id (self referential mapping)
+
+	- hedge implementation via hedge object; use existing methods or re-implement? 
+
+
+2) [Done] Handle missing data properly; i.e. timestep needs to be done, but pnls recorded should be 0.
+	> removed 'broken' boolean and break statements when data is missing. 
+
+3) [Done] reconcile rolling over with target_product with ttm_tolerance for each option (buy and hold example)
+
+> updated the hedges_satisfied function to deal with more complex hedges 
+
+
+4) slippage and brokerage in handle_barriers (need to figure out in what form/manner this is actually required)
+
 
 =====================
 Notes from meeting: #
