@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-21 21:47:32
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-07-24 15:26:13
 
 ################################ imports ###################################
 import numpy as np
@@ -170,9 +170,9 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
         dailycost = 0
     # Steps 1 & 2: Error checks to prevent useless simulation runs.
         # broken = True if there is missing data.
-        if broken:
-            print('DATA MISSING; ENDING SIMULATION...')
-            break
+        # if broken:
+        #     print('DATA MISSING; ENDING SIMULATION...')
+        #     break
         # checks to make sure if there are still non-hedge securities in pf
         if len(pf.OTC_options) == 0 and len(pf.OTC_futures) == 0 and not pf.empty():
             print('ALL OTC OPTIONS HAVE EXPIRED. ENDING SIMULATION...')
@@ -267,6 +267,10 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
 
     # Step 7: Subtract brokerage/slippage costs from rebalancing. Append to
     # relevant lists.
+        if broken:
+            gamma_pnl, vega_pnl, dailypnl, dailycost = 0, 0, 0, 0
+            broken = False
+
         # gamma/vega pnls
         gamma_pnl_daily.append(gamma_pnl)
         vega_pnl_daily.append(vega_pnl)
@@ -301,8 +305,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
     ##########################################################################
 
         # Portfolio-wide information
-        dic = pf.get_net_greeks()
-
+        # dic = pf.get_net_greeks()
         call_vega = sum([op.vega for op in pf.get_all_options()
                          if op.K >= op.underlying.get_price()])
 
@@ -313,28 +316,28 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
         for op in pf.OTC_options:
             ftprice = op.underlying.get_price()
             op_value = op.get_price()
-            pos = 'long' if not op.shorted else 'short'
+            # pos = 'long' if not op.shorted else 'short'
             char = op.char
-            oplots = op.lots
+            oplots = -op.lots if op.shorted else op.lots
             opvol = op.vol
             strike = op.K
             pdt, ftmth, opmth = op.get_product(), op.get_month(), op.get_op_month()
             vol_id = pdt + '  ' + opmth + '.' + ftmth
             tau = round(op.tau * 365)
 
-            lst = [date, vol_id, char, pos, tau, op_value, oplots,
+            lst = [date, vol_id, char, tau, op_value, oplots,
                    ftprice, strike, opvol,
                    dailypnl, dailypnl-dailycost, grosspnl, netpnl,
                    gamma_pnl, gammapnl, vega_pnl, vegapnl, roll_hedged]
 
-            cols = ['value_date', 'vol_id', 'call/put', 'pos', 'ttm', 'option_value', 'option_lottage',
+            cols = ['value_date', 'vol_id', 'call/put', 'ttm', 'option_value', 'option_lottage',
                     'future price', 'strike', 'vol',
                     'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross', 'cu_pnl_net',
                     'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl', 'cu_vega_pnl',
                     'delta_rolled']
 
-            adcols = ['pdt', 'ft_month', 'op_month', 'net_delta', 'net_gamma', 'net_theta',
-                      'net_vega', 'net_call_vega', 'net_put_vega', 'net_ft_pos', 'b/s']
+            adcols = ['pdt', 'ft_month', 'op_month', 'delta', 'gamma', 'theta',
+                      'vega', 'net_call_vega', 'net_put_vega', 'b/s']
 
             if op.barrier is not None:
                 cpi = 'C' if op.char == 'call' else 'P'
@@ -349,15 +352,15 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
             cols.extend(adcols)
 
             # getting net greeks
-            delta, gamma, theta, vega = dic[pdt][ftmth]
-            ftpos = 0
+            delta, gamma, theta, vega = op.greeks()
+            # ftpos = 0
             # net future position
-            ft = pf.hedges[pdt][ftmth][1]
-            for f in ft:
-                val = f.lots if not f.shorted else -f.lots
-                ftpos += val
+            # ft = pf.hedges[pdt][ftmth][1]
+            # for f in ft:
+            #     val = f.lots if not f.shorted else -f.lots
+            #     ftpos += val
             lst.extend([pdt, ftmth, opmth, delta, gamma, theta,
-                        vega, call_vega, put_vega, ftpos, dailycost])
+                        vega, call_vega, put_vega, dailycost])
 
             l_dic = OrderedDict(zip(cols, lst))
             loglist.append(l_dic)
@@ -2399,3 +2402,4 @@ if __name__ == '__main__':
 ###
 #######
 ###
+#
