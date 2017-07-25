@@ -1,19 +1,13 @@
 
 from scripts.prep_data import generate_hedges, sanity_check
-# from scripts.classes import Option, Future
-# import itertools
 import numpy as np
 import pandas as pd
-# import scripts.global_vars as gv
-# from simulation import run_simulation
 from scripts.util import create_straddle, create_underlying
 from scripts.portfolio import Portfolio
 from scripts.fetch_data import grab_data
-# from scripts.classes import Option, Future
 from scripts.hedge import Hedge
-# import os
 from timeit import default_timer as timer
-
+import pprint
 
 multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
@@ -128,7 +122,7 @@ for key in hedges:
 
 print('elapsed: ', timer() - t)
 
-import pprint
+
 print(pprint.pformat(hedge.params))
 print(pprint.pformat(hedge.greek_repr))
 print(pprint.pformat(hedge.mappings))
