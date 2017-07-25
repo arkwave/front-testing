@@ -139,10 +139,15 @@ print([x.vega for x in cc_hedge])
 
 print(hedge.satisfied(pf))
 
+# for 
+
+
 pf.add_security(cc_hedge, 'hedge')
 pf.add_security(qc_hedge, 'hedge')
 
 hedge.refresh()
+
+
 
 
 print(pprint.pformat(hedge.greek_repr))

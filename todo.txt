@@ -810,8 +810,8 @@ High priority:
 
 delta,roll,25,1,"(10,40)"
 vega,bound,"(-5000, 5000)",1,,0.164383562
-
-vega,bound,"(-5000, 5000)",1,,0.5
+theta,bound,"(-5000, 5000)",1,,0.5
+gamma,bound,"(-5000, 5000)",1,,0.5
 
 
 
@@ -840,24 +840,31 @@ vega,bound,"(-5000, 5000)",1,,0.5
 
 >>>>>>>>>>>>>> TODOS as of 7/25: <<<<<<<<<<<<<
 
-> figure out whether or not to keep delta hedging as it is, or to move it into the hedge object
++++ Hedging-related concerns: +++
+
+> [Done] update utils and see if greek-based lot selection has sign errors like create_straddle did. 
+> [Done] e-write hedge delta to dispense with ordering input and to rely on utils.create_underlying
+> [Done[ figure out whether or not to keep delta hedging as it is, or to move it into the hedge object
 	_ would require capability to handle multiple representations. 
 	- adding/removing futures/options? 
+	- implementation decision: keep delta hedging and delta rolling out of the hedge object because they do not depend on the representation of the greeks. 
+> [Done] expand hedging to allow for the construction of different objects to hedge based on input flags. ]
+	- taken care of with self.params dictionary, which will specify the actual structure to be used to hedge. 
+	- can currently construct any and all pre-defined structures with constructors found in scripts.utils. 
 
-> capability to handle forex? what would this entail? Conceptualize. 
-
-> update utils and see if greek-based lot selection has sign errors like create_straddle did. 
-
-> expand hedging to allow for the construction of different objects to hedge based on input flags. 
 
 > re-write the hedging functions (most notably rebalance, gen_hedge_inputs and hedge (possibly hedge_delta ))) based on what convention is decided upon. 
 
 > recall example where pf was not rolled --> ensure that close out works, checks to see if OTC options are empty. 
 
+
+
+
+----------------------------------------------
+
+> capability to handle forex? what would this entail? Conceptualize. 
+
 > toy with the idea of different TTM buckets for each greek; see what will come of it and how much needs to be changed. 
-
-
-
 
 4) slippage and brokerage in handle_barriers (need to figure out in what form/manner this is actually required)
 
