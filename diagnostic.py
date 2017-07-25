@@ -1,5 +1,6 @@
 
 from scripts.prep_data import generate_hedges, sanity_check
+
 import numpy as np
 import pandas as pd
 from scripts.util import create_straddle, create_underlying
@@ -85,8 +86,8 @@ sanity_check(vdf.value_date.unique(),
              pdf.value_date.unique(), pd.to_datetime(start_date), pd.to_datetime(end_date))
 
 
-cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf,
-                           pd.to_datetime(start_date), False, 'atm', lots=1000)
+cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
+    start_date), False, 'atm', lots=1000)
 
 qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(
     start_date), True, 'atm', lots=1000)
@@ -128,9 +129,21 @@ print(pprint.pformat(hedge.greek_repr))
 print(pprint.pformat(hedge.mappings))
 
 
-for pdt in hedge.greek_repr:
-    for exp in hedge.greek_repr[pdt]:
-        data = hedge.greek_repr[pdt][exp]
-        # empty, no options to hedge.
-        if not data[0]:
-            continue
+qc_hedge = list(create_straddle('QC  U7.U7', vdf, pdf,
+                                pd.to_datetime(start_date), False, 'atm', greek='gamma', greekval=24))
+
+cc_hedge = list(create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
+    start_date), True, 'atm', greek='gamma', greekval=25))
+
+print([x.vega for x in cc_hedge])
+
+print(hedge.satisfied(pf))
+
+pf.add_security(cc_hedge, 'hedge')
+pf.add_security(qc_hedge, 'hedge')
+
+hedge.refresh()
+
+
+print(pprint.pformat(hedge.greek_repr))
+print(hedge.satisfied(pf))
