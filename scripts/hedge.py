@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-24 22:03:07
+# @Last Modified time: 2017-07-25 15:43:11
 
 from timeit import default_timer as timer
 import numpy as np
@@ -34,10 +34,8 @@ class Hedge:
         self.pdf = pdf
         self.pf = portfolio
         self.buckets = buckets if buckets is not None else [0, 30, 60, 90, 120]
-
-        # self.buckets.append(1e5)
-
         self.hedges = hedges
+        self.done = self.satisfied(self.pf)
 
         # self.params, self.greek_repr = None, None
 
@@ -102,7 +100,7 @@ class Hedge:
                             ttm = ttm * ttm_modifier
 
                     # check available vol_ids and pick the closest one.
-                    closest_tau_val = min(df.tau, key=lambda x: abs(x-ttm))
+                    closest_tau_val = min(df.tau, key=lambda x: abs(x - ttm))
 
                     vol_ids = df[df.tau == closest_tau_val].vol_id.values
 
@@ -154,11 +152,11 @@ class Hedge:
                         ttm_modifier = relevant_hedges[3]
                         # case: fixed value of ttm used to hedge this greek.
                         if ttm_modifier >= 1:
-                            ttm = ttm_modifier/365
+                            ttm = ttm_modifier / 365
                         else:
                             ttm = max_ttm * ttm_modifier
 
-                    closest_tau_val = min(df.tau, key=lambda x: abs(x-ttm))
+                    closest_tau_val = min(df.tau, key=lambda x: abs(x - ttm))
 
                     uid = product + '  ' + month
 
@@ -198,7 +196,7 @@ class Hedge:
         return min([x for x in buckets if x > val])
 
     def satisfied(self, pf):
-        """Helper method that checks if the hedge conditions are satisfied 
+        """Helper method that delegates checks if the hedge conditions are satisfied 
 
         Args:
             pf (object): The portfolio object being hedged 
@@ -207,7 +205,7 @@ class Hedge:
             return self.uid_hedges_satisfied(pf, self.hedges)
 
         elif self.desc == 'exp':
-            pass
+            return self.exp_hedges_satisfied(pf, self.hedges)
 
     def uid_hedges_satisfied(self, pf, hedges):
         """Helper method that ascertains if all entries in net_greeks satisfy the conditions laid out in hedges.
@@ -250,7 +248,8 @@ class Hedge:
         return True
 
     def exp_hedges_satisfied(self, pf, hedges):
-        """Helper method that checks if 
+        """Helper method that checks if greeks according to expiry
+             representation are adequately hedged. 
 
         Args:
             pf (TYPE): Description
@@ -286,3 +285,13 @@ class Hedge:
                         return False
         # rolls_satisfied = check_roll_hedges(pf, hedges)
         return True
+
+    def refresh(self):
+        """Helper method that re-inializes all values. To be used when updating portfolio to ascertain hedges have been satisfied. 
+        """
+        for flag in self.hedges:
+            if flag != 'delta':
+                print('refreshing ' + flag)
+                self._calibrate(flag)
+
+        self.done = self.satisfied(self.pf)
