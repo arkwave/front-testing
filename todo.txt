@@ -820,7 +820,7 @@ vega,bound,"(-5000, 5000)",1,,0.5
 
 >>>>>>>>>>>>> TODOS as of 7/24: <<<<<<<<<<<<<
 
-1) Finish implementation of the hedge object.
+1) [Done] Finish implementation of the hedge object.
 	- _calibrate:
 		> applying ttm multiplier/specifying ttm based on value passed in.
 		> generating parameter dictionary for each case:
@@ -829,13 +829,34 @@ vega,bound,"(-5000, 5000)",1,,0.5
 
 	- hedge implementation via hedge object; use existing methods or re-implement? 
 
-
 2) [Done] Handle missing data properly; i.e. timestep needs to be done, but pnls recorded should be 0.
 	> removed 'broken' boolean and break statements when data is missing. 
 
 3) [Done] reconcile rolling over with target_product with ttm_tolerance for each option (buy and hold example)
 
-> updated the hedges_satisfied function to deal with more complex hedges 
+> [Done] updated the hedges_satisfied function to deal with more complex hedges 
+
+
+
+>>>>>>>>>>>>>> TODOS as of 7/25: <<<<<<<<<<<<<
+
+> figure out whether or not to keep delta hedging as it is, or to move it into the hedge object
+	_ would require capability to handle multiple representations. 
+	- adding/removing futures/options? 
+
+> capability to handle forex? what would this entail? Conceptualize. 
+
+> update utils and see if greek-based lot selection has sign errors like create_straddle did. 
+
+> expand hedging to allow for the construction of different objects to hedge based on input flags. 
+
+> re-write the hedging functions (most notably rebalance, gen_hedge_inputs and hedge (possibly hedge_delta ))) based on what convention is decided upon. 
+
+> recall example where pf was not rolled --> ensure that close out works, checks to see if OTC options are empty. 
+
+> toy with the idea of different TTM buckets for each greek; see what will come of it and how much needs to be changed. 
+
+
 
 
 4) slippage and brokerage in handle_barriers (need to figure out in what form/manner this is actually required)
