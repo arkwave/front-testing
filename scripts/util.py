@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-21 17:03:36
+# @Last Modified time: 2017-07-25 15:49:40
 
 
 from .portfolio import Portfolio
@@ -760,13 +760,13 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
         # determine number of lots based on greek and greekvalue
         if kwargs['greek'] == 'vega':
             if pf is not None and kwargs['greekval'] == 'portfolio':
-                vega_req = -pf.net_theta_pos()
+                vega_req = -pf.net_vega_pos()
             else:
                 vega_req = float(kwargs['greekval'])
             print('util.create_straddle - vega req: ', vega_req)
             v1 = (op1.vega * 100) / (op1.lots * dm * lm)
             v2 = (op2.vega * 100) / (op2.lots * dm * lm)
-            lots_req = round((abs(vega_req) * 100) / ((v1 + v2) * lm * dm))
+            lots_req = round(abs(vega_req) * 100) / (abs(v1 + v2) * lm * dm)
 
         elif kwargs['greek'] == 'gamma':
             if pf is not None and kwargs['greekval'] == 'portfolio':
@@ -776,7 +776,7 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
             print('util.create_straddle - gamma req: ', gamma_req)
             g1 = (op1.gamma * dm) / (op1.lots * lm)
             g2 = (op2.gamma * dm) / (op2.lots * lm)
-            lots_req = round(((gamma_req) * dm) / ((g1 + g2) * lm))
+            lots_req = round((abs(gamma_req) * dm) / (abs(g1 + g2) * lm))
 
         elif kwargs['greek'] == 'theta':
             if pf is not None and kwargs['greekval'] == 'portfolio':
