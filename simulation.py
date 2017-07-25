@@ -823,7 +823,7 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
     pdt = ft.get_product()
     ftmth = ft.get_month()
 
-    op_ticksize = multipliers[pdt][-2]
+    # op_ticksize = multipliers[pdt][-2]
     ft_ticksize = multipliers[pdt][2]
     ops = [op for op in pf.OTC_options if op.underlying == ft]
 

@@ -19,7 +19,10 @@ write_path = 'results/' + pdt.lower() + '/logs/'
 
 
 ######### automate path selection based on inputs ##########
-folder = 'C:/Users/Ananth/Desktop/Modules/HistoricSimulator/datasets/data_dump/'
+main_direc = 'anant_000'
+# main_direc = 'Ananth'
+
+folder = 'C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/datasets/data_dump/'
 
 if not os.path.isdir(folder):
     os.mkdir(folder)

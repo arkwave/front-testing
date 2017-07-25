@@ -10,6 +10,7 @@ import time
 import os
 import numpy as np
 from .prep_data import match_to_signals, get_min_start_date, clean_data, vol_by_delta, ciprice
+from .global_vars import main_direc
 
 contract_mths = {
 
@@ -311,7 +312,7 @@ def pull_alt_data(pdt):
 
 
 def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
-                  signals=None, test=False, write=False, writepath=None, direc='C:/Users/Ananth/Desktop/Modules/HistoricSimulator/'):
+                  signals=None, test=False, write=False, writepath=None, direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/'):
     """Utility function that does everything prep_data does, but to full datasets rather than things drawn from the database. Made because i was lazy. 
 
     Args:
@@ -357,7 +358,7 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
     assert not pdf.empty
 
     vid_list = vdf.vol_id.unique()
-    p_list = pdf.underlying_id.unique()
+    # p_list = pdf.underlying_id.unique()
 
     # print('util.prep_datasets - vid_list: ', vid_list)
     # print('util.prep_datasets - p_list: ', p_list)
@@ -460,7 +461,7 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
 
 
 def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
-              writepath=None, direc='C:/Users/Ananth/Desktop/Modules/HistoricSimulator/',
+              writepath=None, direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/',
               write=True, test=False, volids=None):
     """Utility function that allows the user to easily grab a dataset by specifying just the product,
     start_date and end_date. Used to small datasets for the purposes of testing new functions/modules.
