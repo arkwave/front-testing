@@ -295,3 +295,18 @@ class Hedge:
                 self._calibrate(flag)
 
         self.done = self.satisfied(self.pf)
+
+
+
+    def apply(self, pf):
+        """Main method that actually applies the hedging logic specified. The kind of structure used to hedge is specified by self.params['kind'] 
+        
+        Args:
+            pf (TYPE): The portfolio being hedged
+        """
+        tst = self.hedges
+        # first: get rid of delta hedging requirement. this is handled outside of the hedge object.
+        if 'delta' in tst:
+            tst.pop('delta')
+        for cond in self.hedges:
+

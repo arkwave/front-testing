@@ -618,8 +618,9 @@ def create_strangle(volid, vdf, pdf, date, shorted, kwargs, pf=None):
             v1 = (op1.vega * 100) / (op1.lots * dm * lm)
             v2 = (op2.vega * 100) / (op2.lots * dm * lm)
             print('v1 + v2: ', v1+v2)
-            lots_req = round((vega_req * 100) / ((v1 + v2) * lm * dm))
+            lots_req = round(abs(vega_req * 100) / (abs(v1 + v2) * lm * dm))
             print('lots_req: ', lots_req)
+
         elif kwargs['greek'] == 'gamma':
             if pf is not None and kwargs['greekval'] == 'portfolio':
                 gamma_req = -pf.net_gamma_pos()
@@ -628,7 +629,7 @@ def create_strangle(volid, vdf, pdf, date, shorted, kwargs, pf=None):
             print('gamma req: ', gamma_req)
             g1 = (op1.gamma * dm) / (op1.lots * lm)
             g2 = (op2.gamma * dm) / (op2.lots * lm)
-            lots_req = round(((gamma_req) * dm) / ((g1 + g2) * lm))
+            lots_req = round((abs(gamma_req) * dm) / (abs(g1 + g2) * lm))
 
         elif kwargs['greek'] == 'theta':
             if pf is not None and kwargs['greekval'] == 'portfolio':

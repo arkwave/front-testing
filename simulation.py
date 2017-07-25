@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from scripts.portfolio import Portfolio
 from scripts.classes import Option, Future
-from scripts.prep_data import prep_portfolio, generate_hedges, find_cdist, sanity_check
+from scripts.prep_data import prep_portfolio, generate_hedges, sanity_check
 from scripts.fetch_data import prep_datasets, pull_alt_data
 from scripts.util import create_underlying, create_vanilla_option, create_skew
 from scripts.calc import compute_strike_from_delta, get_barrier_vol
@@ -1495,7 +1495,7 @@ def hedge(pf, inputs, product, month, flag, brokerage=None, slippage=None):
 
 # NOTE: assuming that future can be found with the exact number of
 # lots to delta hedge.
-def hedge_delta(cond, vdf, pdf, pf, month, product, ordering, brokerage=None, slippage=None):
+def hedge_delta(cond, vdf, pdf, pf, month, product, brokerage=None, slippage=None):
     """Helper function that implements delta hedging. General idea is to zero out delta at the end
     of the day by buying/selling -delta * lots futures. Returns expenditure (which is negative if shorting and
     postive if purchasing delta) and the updated portfolio object.
@@ -1531,6 +1531,7 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering, brokerage=None, sl
 
     net_greeks = pf.get_net_greeks()
     fees = 0
+    date = pd.to_datetime(pdf.value_date.unique()[0])
     # print('cond: ', cond)
     if cond == 'zero':
         # flag that indicates delta hedging.
@@ -1543,8 +1544,7 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, ordering, brokerage=None, sl
                   ' DELTA IS ZEROED. SKIPPING HEDGING')
             return pf, None, 0, False
         else:
-            ft = Future(month, future_price, product,
-                        shorted=shorted, ordering=ordering, lots=num_lots_needed)
+            ft = create_underlying(product, month, pdf, date, ftprice=future_price, shorted=shorted, lots=num_lots_needed)
             pf.add_security([ft], 'hedge')
     if brokerage:
         fees = brokerage * num_lots_needed
@@ -1685,7 +1685,6 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
             ret, cost = Portfolio(), 0
         # Case 2: Nonzero signal
         else:
-            # FIXME: Reimplement this to take care of multiple months
             # grab delta value we want each leg of the skew to have.
             dval = roll_cond[1]/100
             # identify the net vega position on each leg of the skew.
