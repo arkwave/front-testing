@@ -1,3 +1,5 @@
 greek,flag,cond,freq,subcond,tau
 delta,static,zero,1,,
 delta,roll,50,1,"(40,60)"
+vega,bound,"(-5000, 5000)",1,,0.5
+gamma,bound,"(-10, 10)",1,,0.5
