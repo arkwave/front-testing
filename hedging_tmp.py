@@ -1,6 +1,6 @@
-import copy 
+import copy
 from simulation import gen_hedge_inputs, hedge, hedges_satisfied, check_roll_status, hedge_delta_roll, hedge_delta
-from scripts.hedge import Hedge 
+from scripts.hedge import Hedge
 
 
 def rebalance(vdf, pdf, pf, hedges, counters, desc, buckets=None, brokerage=None, slippage=None, hedge_type='straddle'):
@@ -28,9 +28,6 @@ def rebalance(vdf, pdf, pf, hedges, counters, desc, buckets=None, brokerage=None
     # return both the portfolio, as well as the gain/loss from short/long pos
     # hedging delta, gamma, vega.
     delta_freq, gamma_freq, theta_freq, vega_freq = counters
-    # print('delta freq: ', delta_freq)
-    # print('vega freq: ', vega_freq)
-    dic = copy.deepcopy(pf.get_net_greeks())
     hedgearr = [False, False, False, False]
     droll = None
     # updating counters
@@ -72,14 +69,14 @@ def rebalance(vdf, pdf, pf, hedges, counters, desc, buckets=None, brokerage=None
 
     cost = 0
 
-    # first: handle roll-hedging. 
+    # first: handle roll-hedging.
     if roll_hedged:
         print('deltas within bounds. skipping roll_hedging')
 
     if not roll_hedged:
         print(' ++ ROLL HEDGING REQUIRED ++ ')
         for op in pf.OTC_options:
-            print('delta: ', abs(op.delta/op.lots))
+            print('delta: ', abs(op.delta / op.lots))
         roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
             'delta'][i][0] == 'roll'][0]
         pf, exp = hedge_delta_roll(
@@ -88,38 +85,43 @@ def rebalance(vdf, pdf, pf, hedges, counters, desc, buckets=None, brokerage=None
 
     hedge_count = 0
 
-    hedge_engine = Hedge(pf, hedges, pdf, desc, buckets=buckets, kind=hedge_type)
-    # calibrate hedge object to all non-delta hedges. 
+    # initialize hedge engine.
+    hedge_engine = Hedge(pf, hedges, pdf, desc,
+                         buckets=buckets, kind=hedge_type)
+
+    # calibrate hedge object to all non-delta hedges.
     for flag in hedges:
         if flag != 'delta':
             hedge_engine._calibrate(flag)
 
     done_hedging = hedge_engine.satisfied(pf)
 
-    # hedging non-delta greeks. 
+    # hedging non-delta greeks.
     while (not done_hedging and hedge_count < 10):
-        # insert the actual business of hedging here. 
-        cost += hedge_engine.apply(pf)
+        # insert the actual business of hedging here.
+        for flag in hedges:
+            if flag == 'gamma' and hedgearr[1]:
+                cost += hedge_engine.apply(pf, 'gamma', 'bound')
+            elif flag == 'vega' and hedgearr[3]:
+                cost += hedge_engine.apply(pf, 'vega', 'bound')
+            elif flag == 'theta' and hedgearr[2]:
+                cost += hedge_engine.apply(pf, 'theta', 'bound')
+            hedge.refresh()
+
         hedge_count += 1
         done_hedging = hedge_engine.satisfied(pf)
 
-    # check if delta hedging is required. if so, perform. else, skip. 
-    if hedgearr[0]:
+    # check if delta hedging is required. if so, perform. else, skip.
+    if hedgearr[0] and 'delta' in hedges:
         # grabbing condition that indicates zeroing condition on
         # delta
-        delta_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
-            'delta'][i][0] == 'static']
-        if delta_cond:
-            delta_cond = delta_cond[0][1]
-        net_greeks = pf.get_net_greeks()
-        for product in net_greeks:
-            for month in net_greeks[product]:
-                pf, dhedges, fees, broken = hedge_delta(
-                    delta_cond, vdf, pdf, pf, month, product, brokerage=brokerage, slippage=slippage)
-                if broken:
-                    break
-                cost += fees
-        else:
-            print('no delta hedging specifications found')
+        hedge_type = hedges['delta']
+        hedge_type = [hedge_type[i] for i in range(len(hedge_type)) if hedge_type[
+            i][0] == 'static'][0][1]
+
+        cost += hedge_engine.apply(pf, 'delta', hedge_type)
+
+    else:
+        print('no delta hedging specifications found')
 
     return (pf, counters, cost, droll)

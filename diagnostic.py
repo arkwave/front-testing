@@ -87,10 +87,10 @@ sanity_check(vdf.value_date.unique(),
 
 
 cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
-    start_date), False, 'atm', lots=1000)
+    start_date), False, 'atm', greek='vega', greekval=20000)
 
 qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(
-    start_date), True, 'atm', lots=1000)
+    start_date), True, 'atm', greek='vega', greekval=20000)
 
 # print('CC Call: ', str(cc1))
 # print('CC Put: ', str(cc2))
@@ -107,6 +107,7 @@ hedges = generate_hedges('hedging.csv')
 print('hedges: ', hedges)
 
 test_pdf = pdf[pdf.value_date == pd.to_datetime(start_date)]
+test_vdf = vdf[vdf.value_date == pd.to_datetime(start_date)]
 
 b1 = [0, 20, 30, 50, 80, 90]
 b2 = [0, 50, 70, 100, 150, 200]
@@ -115,40 +116,27 @@ b3 = [0, 70, 120, 170]
 
 t = timer()
 # pf = generate_portfolio()
-hedge = Hedge(pf, hedges, test_pdf, desc='exp')
+hedge = Hedge(pf, hedges, test_vdf, test_pdf,
+              desc='uid', type='straddle', brokerage=1)
 
 for key in hedges:
     if key != 'delta':
         hedge._calibrate(key)
-
-print('elapsed: ', timer() - t)
 
 
 print(pprint.pformat(hedge.params))
 print(pprint.pformat(hedge.greek_repr))
 print(pprint.pformat(hedge.mappings))
 
-
-qc_hedge = list(create_straddle('QC  U7.U7', vdf, pdf,
-                                pd.to_datetime(start_date), False, 'atm', greek='gamma', greekval=24))
-
-cc_hedge = list(create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
-    start_date), True, 'atm', greek='gamma', greekval=25))
-
-print([x.vega for x in cc_hedge])
-
 print(hedge.satisfied(pf))
 
-# for 
 
-
-pf.add_security(cc_hedge, 'hedge')
-pf.add_security(qc_hedge, 'hedge')
+x = hedge.apply(pf, 'vega', 'bound')
+y = hedge.apply(pf, 'delta', 'zero')
 
 hedge.refresh()
 
-
-
-
 print(pprint.pformat(hedge.greek_repr))
 print(hedge.satisfied(pf))
+
+print('elapsed: ', timer() - t)

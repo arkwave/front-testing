@@ -2,10 +2,11 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-25 15:43:11
-
+# @Last Modified time: 2017-07-26 17:18:12
+import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
+from .util import create_straddle, create_underlying
 
 
 class Hedge:
@@ -16,7 +17,7 @@ class Hedge:
     Inference of hedging parameters is done via the _calibrate method, while applying hedges is done via the _apply method.
     """
 
-    def __init__(self, portfolio, hedges, pdf, desc, buckets=None, **kwargs):
+    def __init__(self, portfolio, hedges, vdf, pdf, desc, buckets=None, brokerage=None, slippage=None, **kwargs):
         """Constructor. Initializes a hedge object subject to the following parameters. 
 
         Args:
@@ -26,16 +27,21 @@ class Hedge:
             view (TYPE): a string description of the greek representation. valid inputs are 'exp' for greeks-by-expiry and 'uid' for greeks by underlying.
             buckets (None, optional): Description
         """
+        self.b = brokerage
+        self.s = slippage
         self.params = kwargs
         # self.flag = flag
         self.mappings = {}
         self.desc = desc
         self.greek_repr = {}
+        self.vdf = vdf
         self.pdf = pdf
         self.pf = portfolio
         self.buckets = buckets if buckets is not None else [0, 30, 60, 90, 120]
         self.hedges = hedges
         self.done = self.satisfied(self.pf)
+        self.date = pd.to_datetime(pdf.value_date.unique()[0])
+        assert len([self.date]) == 1
 
         # self.params, self.greek_repr = None, None
 
@@ -179,11 +185,7 @@ class Hedge:
 
                     self.mappings[flag][loc] = volid
 
-        # self.mappings = params
-        # if flag not in self.greek_repr:
-        #     self.greek_repr[flag] = {}
         self.greek_repr = net
-        # print('Hedge.calibrate - elapsed: ', timer() - t)
 
     def get_bucket(self, val, buckets=None):
         """Helper method that gets the bucket associated with a given value according to self.buckets. 
@@ -219,8 +221,8 @@ class Hedge:
         """
         strs = {'delta': 0, 'gamma': 1, 'theta': 2, 'vega': 3}
         tst = hedges.copy()
-        if 'delta' in tst:
-            tst.pop('delta')
+        # if 'delta' in tst:
+        #     tst.pop('delta')
 
         net_greeks = pf.get_net_greeks()
         # delta condition:
@@ -258,8 +260,8 @@ class Hedge:
         strs = {'delta': 0, 'gamma': 1, 'theta': 2, 'vega': 3}
         net_greeks = pf.greeks_by_exp(self.buckets)
         tst = hedges.copy()
-        if 'delta' in tst:
-            tst.pop('delta')
+        # if 'delta' in tst:
+        #     tst.pop('delta')
 
         # delta condition:
         conditions = []
@@ -296,17 +298,134 @@ class Hedge:
 
         self.done = self.satisfied(self.pf)
 
-
-
-    def apply(self, pf):
+    def apply(self, pf, flag, hedge_type):
         """Main method that actually applies the hedging logic specified. The kind of structure used to hedge is specified by self.params['kind'] 
-        
+
         Args:
             pf (TYPE): The portfolio being hedged
+            flag (string): the greek being hedged 
         """
-        tst = self.hedges
-        # first: get rid of delta hedging requirement. this is handled outside of the hedge object.
-        if 'delta' in tst:
-            tst.pop('delta')
-        for cond in self.hedges:
+        # base case:
+        cost = 0
+        indices = {'delta': 0, 'gamma': 1, 'theta': 2, 'vega': 3}
+        ind = indices[flag]
 
+        if flag == 'delta':
+            cost += self.hedge_delta(pf)
+            return
+
+        for product in self.greek_repr:
+            for loc in self.greek_repr[product]:
+                data = self.greek_repr[product][loc]
+                # case: options included in greek repr
+                if len(data) == 5:
+                    data = data[1:]
+                greekval = data[ind]
+                if hedge_type == 'bound':
+                    relevant_conds = [self.hedges[flag][i] for i in range(len(self.hedges[flag]))
+                                      if self.hedges[flag][i][0] == 'bound'][0]
+                    # print('relevant_conds: ', relevant_conds)
+                    bounds = relevant_conds[1]
+
+                    # case: bounds are exceeded.
+                    if data[ind] < bounds[0] or data[ind] > bounds[1]:
+                        target = (bounds[1] + bounds[0]) / 2
+                        cost += self.hedge(pf, flag, product,
+                                           loc, greekval, target)
+                    else:
+                        print(product + ' ' + str(loc) +
+                              ' ' + flag + ' within bounds. skipping...')
+
+                elif hedge_type == 'zero':
+                    cost += self.hedge(pf, flag, product, loc, greekval, 0)
+
+        return cost
+
+    def hedge(self, pf, flag, product, loc, greekval, target):
+        """Helper method that neutralizes the greek specified by flag. 
+
+        Args:
+            pf (portfolio object): the portfolio being hedged
+            flag (str): the greek being neutralized
+            product (string): the product in question
+            loc (TYPE): additional locating parameters
+
+        """
+        cost = 0
+        reqd_val = target - greekval
+        # identify the long/short required for straddles
+        # case: short atm straddles
+
+        shorted = self.pos_type(self.params['type'], reqd_val, flag)
+        reqd_val = abs(reqd_val)
+        hedge_id = self.mappings[flag][(product, loc)]
+        if self.params['type'] == 'straddle':
+            try:
+                ops = create_straddle(hedge_id, self.vdf, self.pdf, self.date,
+                                      shorted, strike='atm', greek=flag, greekval=reqd_val)
+
+                pf.add_security(list(ops), 'hedge')
+            except IndexError:
+                print(product + ' ' + str(loc) +
+                      ' price and/or vol data does not exist. skipping...')
+                pass
+        if self.s:
+            pass
+        if self.b:
+            cost += self.b * sum([op.lots for op in ops])
+            print('sum lots: ', sum([op.lots for op in ops]))
+            print('cost: ', cost)
+
+        return cost
+
+    def hedge_delta(self, pf):
+        """Helper method that hedges delta basis net greeks, irrespective of the greek representation the object was initialized with. 
+
+        Args:
+            pf (TYPE): Description
+        """
+        cost = 0
+        ft = None
+        net_greeks = pf.get_net_greeks()
+        for product in net_greeks:
+            for month in net_greeks[product]:
+                # uid = product + '  ' + month
+                delta = net_greeks[product][month][0]
+                shorted = True if delta > 0 else False
+                num_lots_needed = abs(round(delta))
+                if num_lots_needed == 0:
+                    print(product + ' ' + month +
+                          ' delta is zero. skipping hedging.')
+                    return 0
+                else:
+                    try:
+                        ft, _ = create_underlying(product, month, self.pdf,
+                                                  self.date, shorted=shorted, lots=num_lots_needed)
+                        pf.add_security([ft], 'hedge')
+                    except IndexError:
+                        print('price data for this day does not exist. skipping...')
+                        pass
+        if self.s:
+            pass
+        if self.b:
+            cost += self.b * ft.lots
+
+        return cost
+
+    # TODO: shorted check for other structures, implement as and when necessary
+    def pos_type(self, desc, val, flag):
+        """Helper method that checks what exactly is required given the required value of the greek, the greek itself, and the structure being used to hedge it. 
+
+        Args:
+            desc (TYPE): Description
+            val (TYPE): Description
+            flag (TYPE): Description
+        """
+        shorted = None
+        if desc == 'straddle':
+            if flag in ('gamma', 'vega'):
+                shorted = True if val < 0 else False
+            elif flag == 'theta':
+                shorted = True if val > 0 else False
+
+        return shorted
