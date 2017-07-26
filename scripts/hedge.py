@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-26 17:18:12
+# @Last Modified time: 2017-07-26 18:01:27
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -311,8 +311,9 @@ class Hedge:
         ind = indices[flag]
 
         if flag == 'delta':
-            cost += self.hedge_delta(pf)
-            return
+            fee = self.hedge_delta(pf)
+            # cost += self.hedge_delta(pf)
+            return fee
 
         for product in self.greek_repr:
             for loc in self.greek_repr[product]:
@@ -401,7 +402,8 @@ class Hedge:
                     try:
                         ft, _ = create_underlying(product, month, self.pdf,
                                                   self.date, shorted=shorted, lots=num_lots_needed)
-                        pf.add_security([ft], 'hedge')
+                        if ft is not None:
+                            pf.add_security([ft], 'hedge')
                     except IndexError:
                         print('price data for this day does not exist. skipping...')
                         pass

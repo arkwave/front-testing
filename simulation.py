@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-26 17:23:53
+# @Last Modified time: 2017-07-26 18:30:04
 
 ################################ imports ###################################
 import numpy as np
@@ -266,7 +266,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
             # dailycost += cost
 
         pf, counters, cost, roll_hedged = rebalance(
-            vdf, pdf, pf, hedges, counters, brokerage=brokerage, slippage=slippage)
+            vdf, pdf, pf, hedges, counters, desc='uid', brokerage=brokerage, slippage=slippage)
         dailycost += cost
 
     # Step 7: Subtract brokerage/slippage costs from rebalancing. Append to
@@ -1213,8 +1213,9 @@ def rebalance(vdf, pdf, pf, hedges, counters, desc, buckets=None, brokerage=None
     hedge_count = 0
 
     # initialize hedge engine.
-    hedge_engine = Hedge(pf, hedges, pdf, desc,
-                         buckets=buckets, kind=hedge_type)
+    hedge_engine = Hedge(pf, hedges, vdf, pdf, desc,
+                         buckets=buckets, kind=hedge_type,
+                         slippage=slippage, brokerage=brokerage)
 
     # calibrate hedge object to all non-delta hedges.
     for flag in hedges:
@@ -1228,12 +1229,17 @@ def rebalance(vdf, pdf, pf, hedges, counters, desc, buckets=None, brokerage=None
         # insert the actual business of hedging here.
         for flag in hedges:
             if flag == 'gamma' and hedgearr[1]:
-                cost += hedge_engine.apply(pf, 'gamma', 'bound')
+                fee = hedge_engine.apply(pf, 'gamma', 'bound')
+                cost += fee
             elif flag == 'vega' and hedgearr[3]:
-                cost += hedge_engine.apply(pf, 'vega', 'bound')
+                fee = hedge_engine.apply(pf, 'vega', 'bound')
+                cost += fee
+                # cost += hedge_engine.apply(pf, 'vega', 'bound')
             elif flag == 'theta' and hedgearr[2]:
-                cost += hedge_engine.apply(pf, 'theta', 'bound')
-            hedge.refresh()
+                fee = hedge_engine.apply(pf, 'theta', 'bound')
+                cost += fee
+                # cost += hedge_engine.apply(pf, 'theta', 'bound')
+            hedge_engine.refresh()
 
         hedge_count += 1
         done_hedging = hedge_engine.satisfied(pf)
@@ -1246,7 +1252,9 @@ def rebalance(vdf, pdf, pf, hedges, counters, desc, buckets=None, brokerage=None
         hedge_type = [hedge_type[i] for i in range(len(hedge_type)) if hedge_type[
             i][0] == 'static'][0][1]
 
-        cost += hedge_engine.apply(pf, 'delta', hedge_type)
+        fee = hedge_engine.apply(pf, 'delta', hedge_type)
+        cost += fee
+        # cost += hedge_engine.apply(pf, 'delta', hedge_type)
 
     else:
         print('no delta hedging specifications found')
