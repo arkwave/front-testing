@@ -2,14 +2,14 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-26 18:30:04
+# @Last Modified time: 2017-07-26 18:48:45
 
 ################################ imports ###################################
 import numpy as np
 import pandas as pd
 from scripts.hedge import Hedge
 from scripts.portfolio import Portfolio
-from scripts.classes import Option, Future
+from scripts.classes import Option
 from scripts.prep_data import prep_portfolio, generate_hedges, sanity_check
 from scripts.fetch_data import prep_datasets, pull_alt_data
 from scripts.util import create_underlying, create_vanilla_option, create_skew
