@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-28 21:03:58
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-07-31 16:46:58
 
 
 from .portfolio import Portfolio
@@ -14,6 +14,8 @@ import numpy as np
 import os
 import time
 from .calc import compute_strike_from_delta
+import sys
+import os
 
 
 multipliers = {
@@ -802,3 +804,13 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
         op2.get_underlying().update_lots(lots_req)
 
     return op1, op2
+
+
+# Disable
+def blockPrint():
+    sys.stdout = open(os.devnull, 'w')
+
+
+# Restore
+def enablePrint():
+    sys.stdout = sys.__stdout__
