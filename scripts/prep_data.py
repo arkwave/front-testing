@@ -174,9 +174,9 @@ def generate_hedges(filepath):
         row = df.iloc[i]
         # static hedging
         greek = row.greek
-        if row.flag == 'static':
+        if row.flag == 'zero':
             # greek = row.greek
-            lst = [row.flag, row.cond, int(row.freq)]
+            lst = [row.flag, int(row.freq)]
             # hedges[greek].append(lst)
         # bound hedging
         elif row.flag == 'bound':
@@ -1082,6 +1082,7 @@ def find_cdist(x1, x2, lst):
     x2mth = x2[0]
     x2yr = int(x2[1:])
 
+    # print(x1yr >)
     # case 1: month is a contract month.
     if x1mth in lst:
         # print('if case')
@@ -1098,8 +1099,11 @@ def find_cdist(x1, x2, lst):
             yrdiff = x2yr - x1yr
             dist = reg + (len(lst) * yrdiff)
         # examples: (Z7, H8), (N7, Z7), (Z7, U7)
+        elif (x2yr == x1yr) and (x1mth > x2mth):
+            return -1
         else:
             # print('case 3')
+            # print('reg: ', reg)
             return reg
 
     # case 2: month is NOT a contract month. C1 would be nearest contract

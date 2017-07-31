@@ -124,8 +124,8 @@ class Option:
             string += ' ' + str(self.ko)
         string += ' S ' if self.shorted else ' L '
         string += str(self.underlying.get_price())
-        string += ' lots - ' + str(int(self.lots)) + ' |'
-        string += ' ttm - ' + str(round(self.tau * 365)) + ' |'
+        string += ' | lots - ' + str(int(self.lots)) + ' |'
+        string += ' ttm - ' + str(self.tau) + ' |'
         string += ' order - [c_' + str(self.ordering) + '] |'
         string += ' price - ' + str(self.price) + ' |'
         string += ' delta - ' + str(abs(self.delta / self.lots)) + ' |'
@@ -489,3 +489,6 @@ class Future:
         self.lots = lots
         mult = -1 if self.shorted else 1
         self.delta = 1 * lots * mult
+
+    def get_delta(self):
+        return self.delta

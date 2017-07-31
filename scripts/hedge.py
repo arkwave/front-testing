@@ -2,11 +2,12 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-26 18:01:27
+# @Last Modified time: 2017-07-28 21:08:35
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
 from .util import create_straddle, create_underlying
+from .prep_data import find_cdist, contract_mths
 
 
 class Hedge:
@@ -17,7 +18,8 @@ class Hedge:
     Inference of hedging parameters is done via the _calibrate method, while applying hedges is done via the _apply method.
     """
 
-    def __init__(self, portfolio, hedges, vdf, pdf, desc, buckets=None, brokerage=None, slippage=None, **kwargs):
+    def __init__(self, portfolio, hedges, vdf, pdf, desc,
+                 buckets=None, brokerage=None, slippage=None, **kwargs):
         """Constructor. Initializes a hedge object subject to the following parameters. 
 
         Args:
@@ -39,7 +41,7 @@ class Hedge:
         self.pf = portfolio
         self.buckets = buckets if buckets is not None else [0, 30, 60, 90, 120]
         self.hedges = hedges
-        self.done = self.satisfied(self.pf)
+        self.done = self.satisfied()
         self.date = pd.to_datetime(pdf.value_date.unique()[0])
         assert len([self.date]) == 1
 
@@ -70,6 +72,8 @@ class Hedge:
 
         # first case: greek by expiry.
         if self.desc == 'exp':
+            # self.pf.update_sec_by_month(None, 'OTC', update=True)
+            # self.pf.update_sec_by_month(None, 'hedge', update=True)
             calibration_dic = self.pf.greeks_by_exp(
                 self.buckets) if buckets is None else self.pf.greeks_by_exp(buckets)
 
@@ -78,13 +82,18 @@ class Hedge:
             for product in calibration_dic:
                 df = self.pdf[self.pdf.pdt == product]
                 for exp in calibration_dic[product]:
+                    loc = (product, exp)
+                    if df.empty:
+                        if flag not in self.mappings:
+                            self.mappings[flag] = {}
+                        self.mappings[flag][loc] = False
+                        continue
+
                     options = calibration_dic[product][exp][0]
 
                     # case: no options associated with this product/exp bucket
                     if not options:
                         continue
-
-                    loc = (product, exp)
 
                     # select relevant hedge conditions based on flag passed in.
                     relevant_hedges = self.hedges[flag][0]
@@ -99,18 +108,26 @@ class Hedge:
 
                         # case: proportion of current ttm passed in.
                         else:
-                            print('selection_criteria: ', selection_criteria)
+                            # print('selection_criteria: ', selection_criteria)
                             if selection_criteria == 'median':
                                 ttm = np.median([op.tau for op in options])
                                 print('ttm: ', ttm)
                             ttm = ttm * ttm_modifier
 
                     # check available vol_ids and pick the closest one.
-                    closest_tau_val = min(df.tau, key=lambda x: abs(x - ttm))
+
+                    closest_tau_val = sorted(
+                        df.tau, key=lambda x: abs(x - ttm))
+
+                    # sanity check: ensuring that the option being selected to
+                    # hedge has at least 4 days to maturity (i.e. to account
+                    # for a weekend)
+                    closest_tau_val = min(
+                        [x for x in closest_tau_val if x > 4 / 365])
 
                     vol_ids = df[df.tau == closest_tau_val].vol_id.values
 
-                    print('vol_ids: ', vol_ids)
+                    # print('vol_ids: ', vol_ids)
                     # select the closest opmth/ftmth combination
                     split = [x.split()[1] for x in vol_ids]
                     # sort by ft_year, ft_month and op_month
@@ -127,16 +144,25 @@ class Hedge:
 
         # second case: greeks by underlying (regular thing we're used to)
         elif self.desc == 'uid':
+            # self.pf.update_sec_by_month(None, 'OTC', update=True)
+            # self.pf.update_sec_by_month(None, 'hedge', update=True)
             calibration_dic = self.pf.get_net_greeks()
             net = calibration_dic
             for product in net:
                 df = self.pdf[self.pdf.pdt == product]
                 for month in net[product]:
+                    uid = product + '  ' + month
+                    df = df[(df.underlying_id == uid)]
                     data = net[product][month]
+                    loc = (product, month)
+                    if df.empty:
+                        print('df is empty, data missing. skipping..')
+                        if flag not in self.mappings:
+                            self.mappings[flag] = {}
+                        self.mappings[flag][loc] = False
+                        continue
                     if not data or (data == [0, 0, 0, 0]):
                         continue
-
-                    loc = (product, month)
 
                     relevant_hedges = self.hedges[flag][0]
 
@@ -144,7 +170,8 @@ class Hedge:
 
                     try:
                         volid = product + '  ' + month + '.' + month
-                        max_ttm = df[(df.vol_id == volid) & (
+                        print('max_ttm volid: ', volid)
+                        ttm = df[(df.vol_id == volid) & (
                             df.call_put_id == 'C')].tau.values[0]
                     except IndexError:
                         print('hedge.uid_volid: cannot find max ttm')
@@ -160,15 +187,16 @@ class Hedge:
                         if ttm_modifier >= 1:
                             ttm = ttm_modifier / 365
                         else:
-                            ttm = max_ttm * ttm_modifier
+                            ttm = ttm * ttm_modifier
 
                     closest_tau_val = min(df.tau, key=lambda x: abs(x - ttm))
 
-                    uid = product + '  ' + month
+                    print('closest_tau_val: ', closest_tau_val)
 
-                    vol_ids = df[(df.tau == closest_tau_val) & (
-                        df.underlying_id == uid)].vol_id.values
+                    vol_ids = df[(df.underlying_id == uid) &
+                                 (df.tau == closest_tau_val)].vol_id.values
 
+                    print('product, month: ', product, month)
                     print('vol_ids: ', vol_ids)
 
                     # select the closest opmth/ftmth combination
@@ -197,19 +225,19 @@ class Hedge:
         buckets = self.buckets if buckets is None else buckets
         return min([x for x in buckets if x > val])
 
-    def satisfied(self, pf):
+    def satisfied(self):
         """Helper method that delegates checks if the hedge conditions are satisfied 
 
         Args:
             pf (object): The portfolio object being hedged 
         """
         if self.desc == 'uid':
-            return self.uid_hedges_satisfied(pf, self.hedges)
+            return self.uid_hedges_satisfied()
 
         elif self.desc == 'exp':
-            return self.exp_hedges_satisfied(pf, self.hedges)
+            return self.exp_hedges_satisfied()
 
-    def uid_hedges_satisfied(self, pf, hedges):
+    def uid_hedges_satisfied(self):
         """Helper method that ascertains if all entries in net_greeks satisfy the conditions laid out in hedges.
 
         Args:
@@ -220,18 +248,18 @@ class Hedge:
             Boolean: indicating if the hedges are all satisfied or not.
         """
         strs = {'delta': 0, 'gamma': 1, 'theta': 2, 'vega': 3}
-        tst = hedges.copy()
+        tst = self.hedges.copy()
         # if 'delta' in tst:
         #     tst.pop('delta')
 
-        net_greeks = pf.get_net_greeks()
+        net_greeks = self.pf.get_net_greeks()
         # delta condition:
         conditions = []
         for greek in tst:
             conds = tst[greek]
             for cond in conds:
                 # static bound case
-                if cond[0] == 'static':
+                if cond[0] == 'zero':
                     conditions.append((strs[greek], (-1, 1)))
                 elif cond[0] == 'bound':
                     # print('to be literal eval-ed: ', hedges[greek][1])
@@ -249,7 +277,7 @@ class Hedge:
         # rolls_satisfied = check_roll_hedges(pf, hedges)
         return True
 
-    def exp_hedges_satisfied(self, pf, hedges):
+    def exp_hedges_satisfied(self):
         """Helper method that checks if greeks according to expiry
              representation are adequately hedged. 
 
@@ -258,8 +286,8 @@ class Hedge:
             hedges (TYPE): Description
         """
         strs = {'delta': 0, 'gamma': 1, 'theta': 2, 'vega': 3}
-        net_greeks = pf.greeks_by_exp(self.buckets)
-        tst = hedges.copy()
+        net_greeks = self.pf.greeks_by_exp(self.buckets)
+        tst = self.hedges.copy()
         # if 'delta' in tst:
         #     tst.pop('delta')
 
@@ -269,22 +297,27 @@ class Hedge:
             conds = tst[greek]
             for cond in conds:
                 # static bound case
-                if cond[0] == 'static':
+                if cond[0] == 'zero':
                     conditions.append((strs[greek], (-1, 1)))
                 elif cond[0] == 'bound':
                     # print('to be literal eval-ed: ', hedges[greek][1])
                     c = cond[1]
                     tup = (strs[greek], c)
                     conditions.append(tup)
-        print('conditions: ', conditions)
+        # print('conditions: ', conditions)
 
         for pdt in net_greeks:
             for exp in net_greeks[pdt]:
+                ops = net_greeks[pdt][exp][0]
                 greeks = net_greeks[pdt][exp][1:]
-                for cond in conditions:
-                    bound = cond[1]
-                    if (greeks[cond[0]] > bound[1]) or (greeks[cond[0]] < bound[0]):
-                        return False
+                # print('ops: ', ops)
+                if ops:
+                    print('ops is true for exp = ' + str(exp))
+                    for cond in conditions:
+                        bound = cond[1]
+                        if (greeks[cond[0]] > bound[1]) or (greeks[cond[0]] < bound[0]):
+                            print(str(cond) + ' failed')
+                            return False
         # rolls_satisfied = check_roll_hedges(pf, hedges)
         return True
 
@@ -296,53 +329,84 @@ class Hedge:
                 print('refreshing ' + flag)
                 self._calibrate(flag)
 
-        self.done = self.satisfied(self.pf)
+        self.done = self.satisfied()
 
-    def apply(self, pf, flag, hedge_type):
+    def apply(self, flag):
         """Main method that actually applies the hedging logic specified. The kind of structure used to hedge is specified by self.params['kind'] 
 
         Args:
             pf (TYPE): The portfolio being hedged
             flag (string): the greek being hedged 
         """
-        # base case:
+        # base case: flag not in hedges
+        if flag not in self.hedges:
+            raise ValueError(flag + ' hedge is not specified in hedging.csv')
+
         cost = 0
         indices = {'delta': 0, 'gamma': 1, 'theta': 2, 'vega': 3}
         ind = indices[flag]
 
+        conds = self.hedges[flag]
+        # print('conds: ', conds)
+        isbounds = [conds[i] for i in range(len(conds))
+                    if conds[i][0] == 'bound']
+        isstatic = [conds[i] for i in range(len(conds))
+                    if conds[i][0] == 'zero']
+
+        # print('isbounds: ', isbounds)
+        # print('isstatic: ', isstatic)
+
+        if isstatic:
+            relevant_conds = isstatic[0]
+            hedge_type = 'zero'
+
+        elif isbounds:
+            relevant_conds = isbounds[0]
+            hedge_type = 'bound'
+
         if flag == 'delta':
-            fee = self.hedge_delta(pf)
+            fee = self.hedge_delta()
             # cost += self.hedge_delta(pf)
             return fee
 
+        # print('flag: ', flag)
+        # print('hedge_type: ', hedge_type)
         for product in self.greek_repr:
             for loc in self.greek_repr[product]:
-                data = self.greek_repr[product][loc]
+                print('>> hedging ' + str(product) + ' ' + str(loc) + ' <<')
+                fulldata = self.greek_repr[product][loc]
                 # case: options included in greek repr
-                if len(data) == 5:
-                    data = data[1:]
+                if len(fulldata) == 5:
+                    ops = fulldata[0]
+                    data = fulldata[1:]
+                else:
+                    data = fulldata
                 greekval = data[ind]
-                if hedge_type == 'bound':
-                    relevant_conds = [self.hedges[flag][i] for i in range(len(self.hedges[flag]))
-                                      if self.hedges[flag][i][0] == 'bound'][0]
-                    # print('relevant_conds: ', relevant_conds)
-                    bounds = relevant_conds[1]
 
+                # sanity check in the case of nonzero lower bound and exp
+                # hedging
+                if len(fulldata) == 5 and len(ops) == 0:
+                    print('no options present for this exp; skipping.')
+                    continue
+
+                if hedge_type == 'bound':
+                    bounds = relevant_conds[1]
                     # case: bounds are exceeded.
                     if data[ind] < bounds[0] or data[ind] > bounds[1]:
                         target = (bounds[1] + bounds[0]) / 2
-                        cost += self.hedge(pf, flag, product,
+                        print('target ' + flag + ': ', target)
+                        cost += self.hedge(flag, product,
                                            loc, greekval, target)
                     else:
                         print(product + ' ' + str(loc) +
                               ' ' + flag + ' within bounds. skipping...')
 
                 elif hedge_type == 'zero':
-                    cost += self.hedge(pf, flag, product, loc, greekval, 0)
+                    cost += self.hedge(flag, product, loc, greekval, 0)
 
         return cost
 
-    def hedge(self, pf, flag, product, loc, greekval, target):
+    def hedge(self, flag, product, loc, greekval, target):
         """Helper method that neutralizes the greek specified by flag. 
 
         Args:
@@ -356,16 +420,20 @@ class Hedge:
         reqd_val = target - greekval
         # identify the long/short required for straddles
         # case: short atm straddles
+        # print('reqd_val: ', reqd_val)
 
-        shorted = self.pos_type(self.params['type'], reqd_val, flag)
+        shorted = self.pos_type(self.params['kind'], reqd_val, flag)
         reqd_val = abs(reqd_val)
         hedge_id = self.mappings[flag][(product, loc)]
-        if self.params['type'] == 'straddle':
+        if not hedge_id:
+            return 0
+        if self.params['kind'] == 'straddle':
             try:
                 ops = create_straddle(hedge_id, self.vdf, self.pdf, self.date,
                                       shorted, strike='atm', greek=flag, greekval=reqd_val)
 
-                pf.add_security(list(ops), 'hedge')
+                self.pf.add_security(list(ops), 'hedge')
+                print('added straddle: ' + str([str(op) for op in ops]))
             except IndexError:
                 print(product + ' ' + str(loc) +
                       ' price and/or vol data does not exist. skipping...')
@@ -379,15 +447,16 @@ class Hedge:
 
         return cost
 
-    def hedge_delta(self, pf):
+    def hedge_delta(self):
         """Helper method that hedges delta basis net greeks, irrespective of the greek representation the object was initialized with. 
 
         Args:
             pf (TYPE): Description
         """
+        print('hedging delta')
         cost = 0
         ft = None
-        net_greeks = pf.get_net_greeks()
+        net_greeks = self.pf.get_net_greeks()
         for product in net_greeks:
             for month in net_greeks[product]:
                 # uid = product + '  ' + month
@@ -403,7 +472,8 @@ class Hedge:
                         ft, _ = create_underlying(product, month, self.pdf,
                                                   self.date, shorted=shorted, lots=num_lots_needed)
                         if ft is not None:
-                            pf.add_security([ft], 'hedge')
+                            self.pf.add_security([ft], 'hedge')
+                            print('adding ' + str(ft))
                     except IndexError:
                         print('price data for this day does not exist. skipping...')
                         pass

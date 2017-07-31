@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-26 18:48:45
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-07-31 16:23:40
 
 ################################ imports ###################################
 import numpy as np
@@ -1163,7 +1163,7 @@ def rebalance(vdf, pdf, pf, hedges, counters, desc, buckets=None, brokerage=None
 
     for greek in hedges:
         if greek == 'delta':
-            if delta_freq == hedges[greek][0][2]:
+            if delta_freq == hedges[greek][0][1]:
                 counters[0] = 1
                 hedgearr[0] = True
             else:
@@ -1217,42 +1217,48 @@ def rebalance(vdf, pdf, pf, hedges, counters, desc, buckets=None, brokerage=None
                          buckets=buckets, kind=hedge_type,
                          slippage=slippage, brokerage=brokerage)
 
-    # calibrate hedge object to all non-delta hedges.
+    """calibrate hedge object to all non-delta hedges. calibrate does one of the following things:
+
+    1) if hedge_engine is initialized with desc='exp', calibrate generates a dictionary mapping product and expiry to a vol_id, which will be used to hedge that pdt/exp combination
+
+    2) desc = 'uid' -> _calibrate generates a dictionary mapping product/underlying month to a vol_id, dependent on any ttm multipliers passed in. """
+
     for flag in hedges:
         if flag != 'delta':
             hedge_engine._calibrate(flag)
 
-    done_hedging = hedge_engine.satisfied(pf)
+    # initial boolean check
+    done_hedging = hedge_engine.satisfied()
 
     # hedging non-delta greeks.
     while (not done_hedging and hedge_count < 10):
         # insert the actual business of hedging here.
         for flag in hedges:
             if flag == 'gamma' and hedgearr[1]:
-                fee = hedge_engine.apply(pf, 'gamma', 'bound')
+                fee = hedge_engine.apply('gamma')
                 cost += fee
             elif flag == 'vega' and hedgearr[3]:
-                fee = hedge_engine.apply(pf, 'vega', 'bound')
+                fee = hedge_engine.apply('vega')
                 cost += fee
                 # cost += hedge_engine.apply(pf, 'vega', 'bound')
             elif flag == 'theta' and hedgearr[2]:
-                fee = hedge_engine.apply(pf, 'theta', 'bound')
+                fee = hedge_engine.apply('theta')
                 cost += fee
                 # cost += hedge_engine.apply(pf, 'theta', 'bound')
             hedge_engine.refresh()
 
         hedge_count += 1
-        done_hedging = hedge_engine.satisfied(pf)
+        done_hedging = hedge_engine.satisfied()
 
     # check if delta hedging is required. if so, perform. else, skip.
     if hedgearr[0] and 'delta' in hedges:
         # grabbing condition that indicates zeroing condition on
         # delta
-        hedge_type = hedges['delta']
-        hedge_type = [hedge_type[i] for i in range(len(hedge_type)) if hedge_type[
-            i][0] == 'static'][0][1]
+        # hedge_type = hedges['delta']
+        # hedge_type = [hedge_type[i] for i in range(len(hedge_type)) if hedge_type[
+        #     i][0] == 'static'][0][1]
 
-        fee = hedge_engine.apply(pf, 'delta', hedge_type)
+        fee = hedge_engine.apply('delta')
         cost += fee
         # cost += hedge_engine.apply(pf, 'delta', hedge_type)
 

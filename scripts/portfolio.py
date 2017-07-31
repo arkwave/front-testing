@@ -207,6 +207,9 @@ class Portfolio:
         OTC_products_unique = set(self.OTC.keys()) - common_products
         hedge_products_unique = set(self.hedges.keys()) - common_products
 
+        # print('OTCs: ', self.OTC)
+        # print('hedges: ', self.hedges)
+
         # dealing with common products
         for product in common_products:
             # checking existence.
@@ -299,6 +302,8 @@ class Portfolio:
         elif flag == 'hedge':
             op = self.hedge_options
             ft = self.hedge_futures
+        self.toberemoved.extend(security)
+        self.update_sec_by_month(False, flag)
         for sec in security:
             try:
                 if sec.get_desc() == 'option':
@@ -309,9 +314,6 @@ class Portfolio:
                 print(str(sec))
                 print('specified security doesnt exist in this portfolio')
 
-        self.toberemoved.extend(security)
-        self.update_sec_by_month(False, flag)
-
     def remove_expired(self):
         '''Removes all expired options from the portfolio. '''
         explist = {'hedge': [], 'OTC': []}
@@ -320,31 +322,25 @@ class Portfolio:
             if sec.barrier == 'amer':
                 if sec.knockedout:
                     explist['OTC'].append(sec)
-                    # self.remove_security(sec, 'OTC')
             # vanilla/knockin case
             if sec.check_expired():
                 explist['OTC'].append(sec)
-                # self.remove_security(sec, 'OTC')
         for sec in self.hedge_options:
             # handling barrier case.
             if sec.barrier == 'amer':
                 if sec.knockedout:
                     explist['hedge'].append(sec)
-                    # self.remove_security(sec, 'hedge')
-                    # vanilla/knockin case
+
             elif sec.check_expired():
                 explist['hedge'].append(sec)
-                # self.remove_security(sec, 'hedge')
-                # handle rollover futures.
+
         for ft in self.OTC_futures:
             if ft.check_expired():
                 explist['OTC'].append(ft)
-                # self.remove_security(ft, 'OTC')
 
         for ft in self.hedge_futures:
             if ft.check_expired():
                 explist['hedge'].append(ft)
-                # self.remove_security(ft, 'hedge')
 
         self.remove_security(explist['hedge'], 'hedge')
         self.remove_security(explist['OTC'], 'OTC')
@@ -367,10 +363,12 @@ class Portfolio:
             dic = self.OTC
             op = self.OTC_options
             ft = self.OTC_futures
+            other = self.hedges
         elif flag == 'hedge':
             dic = self.hedges
             op = self.hedge_options
             ft = self.hedge_futures
+            other = self.OTC
         # adding/removing security to portfolio
 
         if update is None:
@@ -403,34 +401,33 @@ class Portfolio:
             else:
                 target = self.toberemoved.copy()
                 self.toberemoved.clear()
-                # print('target: ', [str(sec) for sec in target])
                 for sec in target:
                     product = sec.get_product()
                     month = sec.get_month()
-                    # print('removing ', product, month)
                     data = dic[product][month]
                     try:
                         if sec.get_desc() == 'option':
-                            # print('removing ' + str(product) +
-                            #       str(month) + ' option')
                             data[0].remove(sec)
-                            # print('removed ' + str(sec))
+
                         else:
-                            # print('removing ' + str(product) +
-                            #       str(month) + ' future')
                             data[1].remove(sec)
-                            # print('removed ' + str(sec))
                     except KeyError:
                         print(
                             "The security specified does not exist in this Portfolio")
                     # check for degenerate case when removing sec results in no
                     # securities associated to this product-month
-                    if not(data[0]) and not(data[1]):
-                        # print('removing ' + str(month) +
-                        #       ' from ' + str(product))
+                    ops = data[0]
+                    fts = data[1]
+                    other_op = other[product][month][0]
+                    other_ft = other[product][month][1]
+                    if (not ops) and (not fts) and (not other_op) and (not other_ft):
+                        print('degenerate case hit')
                         dic[product].pop(month)
+                        other[product].pop(month)
                         if len(dic[product]) == 0:
                             dic.pop(product)
+                        if len(other[product]) == 0:
+                            other.pop(product)
                         self.compute_net_greeks()
                     else:
                         self.update_greeks_by_month(
@@ -632,6 +629,9 @@ class Portfolio:
                         net[comm][bucket][2] += g
                         net[comm][bucket][3] += t
                         net[comm][bucket][4] += v
+                    fts = otcs[comm][month][1]
+                    for ft in fts:
+                        net[comm][bucket][1] += ft.get_delta()
 
             for comm in hedges:
                 for month in hedges[comm]:
@@ -649,6 +649,9 @@ class Portfolio:
                         net[comm][bucket][2] += g
                         net[comm][bucket][3] += t
                         net[comm][bucket][4] += v
+                    fts = hedges[comm][month][1]
+                    for ft in fts:
+                        net[comm][bucket][1] += ft.get_delta()
         return net
 
 

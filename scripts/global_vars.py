@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-05-12 13:32:49
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-13 16:20:19
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-07-26 15:54:26
 import pandas as pd
 import os
 
@@ -19,10 +19,11 @@ write_path = 'results/' + pdt.lower() + '/logs/'
 
 
 ######### automate path selection based on inputs ##########
-main_direc = 'anant_000'
-# main_direc = 'Ananth'
+# main_direc = 'anant_000'
+main_direc = 'Ananth'
 
-folder = 'C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/datasets/data_dump/'
+folder = 'C:/Users/' + main_direc + \
+    '/Desktop/Modules/HistoricSimulator/datasets/data_dump/'
 
 if not os.path.isdir(folder):
     os.mkdir(folder)

@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-26 18:45:10
+# @Last Modified time: 2017-07-28 21:03:58
 
 
 from .portfolio import Portfolio
@@ -193,8 +193,8 @@ def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=N
             print('util.create_underlying: cannot find price. printing outputs: ')
             print('uid: ', uid)
             print('date: ', date)
-            print('debug 1: ', pdf[(pdf.value_date == date)])
-            print('debug 2: ', pdf[(pdf.underlying_id == uid)])
+            # print('debug 1: ', pdf[(pdf.value_date == date)])
+            # print('debug 2: ', pdf[(pdf.underlying_id == uid)])
             return None, 0
 
     curr_mth = date.month
@@ -253,6 +253,11 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', l
     pdt = volid.split()[0]
     opmth = volid.split()[1].split('.')[0]
     cpi = 'C' if char == 'call' else 'P'
+
+    # get min start date for debugging
+    min_start_date = min(pdf[pdf.pdt == pdt].value_date)
+
+    date = min_start_date if min_start_date > date else date
 
     # create the underlying future
     ft_shorted = shorted if char == 'call' else not shorted
