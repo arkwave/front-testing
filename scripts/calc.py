@@ -817,7 +817,7 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction, produc
     # if bvol is None:
     #     raise ValueError('Improper Data: Barrier vol not on vol surface.')
     ticksize = multipliers[product][2]
-    dpo = abs(k - barlevel)/ticksize
+    dpo = abs(k - barlevel) / ticksize
     if ko:
         g1 = np.array(_compute_greeks(
             char, k, tau, vol, s, r, product, payoff, lots))
@@ -927,17 +927,17 @@ def newton_raphson(option, s, k, c, tau, r, num_iter=100):
     Outputs: Implied volatility of this VANILLA EUROPEAN option.
      """
     precision = 1e-3
-    guess = sqrt(2*pi / tau)*(c/s)
+    guess = sqrt(2 * pi / tau) * (c / s)
     for i in range(num_iter):
         try:
-            d1 = (log(s/k) + (r + 0.5 * guess ** 2)*tau) / \
+            d1 = (log(s / k) + (r + 0.5 * guess ** 2) * tau) / \
                 (guess * sqrt(tau))
             option_price = _bsm_euro(option, tau, guess, k, s, r)
             vega = s * norm.pdf(d1) * sqrt(tau)
             diff = option_price - c
             if abs(diff) < precision:
                 return guess
-            guess = guess - diff/vega
+            guess = guess - diff / vega
         except RuntimeWarning:
             print('guess: ', guess)
             print('diff: ', diff)
@@ -958,9 +958,9 @@ def greeks_scaled(delta1, gamma1, theta1, vega1, product, lots):
     dm = multipliers[product][0]
     pnl_mult = multipliers[product][-1]
     delta = delta1 * lots
-    gamma = (gamma1*lots*lm)/(dm)
-    vega = (vega1*lots*pnl_mult)/100
-    theta = (theta1*lots*pnl_mult)/365
+    gamma = (gamma1 * lots * lm) / (dm)
+    vega = (vega1 * lots * pnl_mult) / 100
+    theta = (theta1 * lots * pnl_mult) / 365
 
     # return delta1, gamma1, theta1/365, vega1/100
     return delta, gamma, theta, vega
@@ -1113,25 +1113,26 @@ def _num_vega(payoff, option_type, s, k, tau, r,  vol, b=0):
 
 def A_B(flag, phi, b, r, x1, x2, tau, vol, s, k):
     x = x1 if flag == 'A' else x2
-    ret = phi*s*exp((b-r)*tau)*norm.cdf(phi*x) - phi*k * \
-        exp(-r*tau)*norm.cdf(phi*x - phi*vol*sqrt(tau))
+    ret = phi * s * exp((b - r) * tau) * norm.cdf(phi * x) - phi * k * \
+        exp(-r * tau) * norm.cdf(phi * x - phi * vol * sqrt(tau))
     return ret
 
 
 def C_D(flag, phi, s, b, r, tau, h, mu, eta, y1, y2, k, vol):
     y = y1 if flag == 'C' else y2
-    ret = (phi*s*exp((b-r)*tau)*((h/s)**(2*(mu + 1)))*norm.cdf(eta*y)) - \
-        phi*k*exp(-r*tau) * ((h/s)**(2*mu))*norm.cdf(eta*y - eta*vol*sqrt(tau))
+    ret = (phi * s * exp((b - r) * tau) * ((h / s) ** (2 * (mu + 1))) * norm.cdf(eta * y)) - \
+        phi * k * exp(-r * tau) * ((h / s) ** (2 * mu)) * \
+        norm.cdf(eta * y - eta * vol * sqrt(tau))
     return ret
 
 
 def E_f(k, r, tau, eta, x, vol, h, s, mu, y):
-    ret = k*exp(-r*tau) * (norm.cdf(eta*x - eta*vol*sqrt(tau)) -
-                           ((h/s)**(2*mu)) * norm.cdf(eta*y - eta*vol*sqrt(tau)))
+    ret = k * exp(- r * tau) * (norm.cdf(eta * x - eta * vol * sqrt(tau)) -
+                                ((h / s) ** (2 * mu)) * norm.cdf(eta * y - eta * vol * sqrt(tau)))
     return ret
 
 
 def F_f(k, h, s, mu, l, eta, z, vol, tau):
-    ret = k * (((h/s)**(mu + l)) * norm.cdf(eta*z) + (h/s)**(mu-l)
-               * norm.cdf(eta*z - 2*eta*l * vol*sqrt(tau)))
+    ret = k * (((h / s) ** (mu + l)) * norm.cdf(eta * z) + (h / s) **
+               (mu - l) * norm.cdf(eta * z - 2 * eta * l * vol * sqrt(tau)))
     return ret
