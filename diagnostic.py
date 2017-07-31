@@ -130,9 +130,10 @@ print(pprint.pformat(hedge.mappings))
 
 print(hedge.satisfied(pf))
 
-
-x = hedge.apply(pf, 'vega', 'bound')
-y = hedge.apply(pf, 'delta', 'zero')
+print('~~~~ HEDGING VEGA ~~~~~~')
+x = hedge.apply(pf, 'vega')
+print('~~~~ HEDGING GAMMA~~~~~~')
+# y = hedge.apply(pf, 'gamma')
 
 hedge.refresh()
 
