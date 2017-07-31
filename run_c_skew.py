@@ -2,15 +2,14 @@
 # @Author: arkwave
 # @Date:   2017-07-12 19:19:17
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-13 17:20:51
+# @Last Modified time: 2017-07-31 21:09:00
 
 
 from scripts.prep_data import generate_hedges, sanity_check
 import os
 import numpy as np
 import pandas as pd
-import sys
-sys.path.append('../')
+
 # import scripts.global_vars as gv
 from simulation import run_simulation
 from scripts.util import create_portfolio
