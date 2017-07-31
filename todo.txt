@@ -833,7 +833,6 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 	> removed 'broken' boolean and break statements when data is missing. 
 
 3) [Done] reconcile rolling over with target_product with ttm_tolerance for each option (buy and hold example)
-
 > [Done] updated the hedges_satisfied function to deal with more complex hedges 
 
 
@@ -852,11 +851,44 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 	- taken care of with self.params dictionary, which will specify the actual structure to be used to hedge. 
 	- can currently construct any and all pre-defined structures with constructors found in scripts.utils. 
 
+>>>>>>>>>>>>> TODOS as of 7/26 <<<<<<<<<<<<<
 
-> re-write the hedging functions (most notably rebalance, gen_hedge_inputs and hedge (possibly hedge_delta ))) based on what convention is decided upon. 
+> [Done] re-write the hedging functions (most notably rebalance, gen_hedge_inputs and hedge) based on what convention is decided upon. 
+> [Done] Debug hedging implementation, include delta hedging in hedge object. 
+> [Done] implement slippage/brokerage 
+> [Done] Assign more meaning to the 'static' and 'zero' keywords passed into the dict, or remove if unnecessary. 
+	> zero and bound hedging are both taken care of now. fuck yeah. 
+> [Done] Debug option hedging
+	- runs properly for days with missing data 
+	- non-delta greeks can be zero-hedged with no issues. 
+
 
 > recall example where pf was not rolled --> ensure that close out works, checks to see if OTC options are empty. 
 
+
+
+>>>>>>>>>>>>>>> TODOS as of 7/28 <<<<<<<<<<<<<<<<<
+
+> debug Hedge object under the following scenarios:
+
+1) [Done] missing data. 
+2) [Done] done_hedging always returns false for some reason. 
+3) Proper handling of expiries. 
+	> issues:
+		- when the whole portfolio is near expiry, some weird things start to happen:
+			- [Done] options of identical TTM are not evaluated all at the same time for expiration/exercise.
+				+ resolved by replacing op.tau <= tol with np.isclose(op.tau, tol)
+			- gamma PnL goes batshit crazy. PnL
+				+ resolved (partially) by adding in intermediate_val == 0 check when exercised = True. 
+			- HUGE delta accumulations close to expiry. 
+
+
+	>>> OPEN ISSUE: checking when all options have expired/exercised and we need to close out the rest of the portfolio.  <<<
+
+
+>>>>>>>>>>> TODOS as of 7/30 <<<<<<<<<<<<<
+
+> moving to plotly  
 
 
 
@@ -867,6 +899,16 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 > toy with the idea of different TTM buckets for each greek; see what will come of it and how much needs to be changed. 
 
 4) slippage and brokerage in handle_barriers (need to figure out in what form/manner this is actually required)
+
+
+
+___________________________________________
+hedging parameters:
+delta,zero,,1,,
+delta,roll,50,1,"(40,60)"
+gamma,bound,"(-10, 10)",1,,0.5
+vega,bound,"(-1000, 1000)",1,,0.164383562
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 =====================
