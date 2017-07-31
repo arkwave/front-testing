@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-31 16:23:40
+# @Last Modified time: 2017-07-31 18:05:48
 
 ################################ imports ###################################
 import numpy as np
@@ -12,7 +12,7 @@ from scripts.portfolio import Portfolio
 from scripts.classes import Option
 from scripts.prep_data import prep_portfolio, generate_hedges, sanity_check
 from scripts.fetch_data import prep_datasets, pull_alt_data
-from scripts.util import create_underlying, create_vanilla_option, create_skew
+from scripts.util import create_underlying, create_vanilla_option, create_skew, blockPrint, enablePrint
 from scripts.calc import compute_strike_from_delta, get_barrier_vol
 import copy
 import time
@@ -20,6 +20,9 @@ import matplotlib.pyplot as plt
 import scripts.global_vars as gv
 import os
 from collections import OrderedDict
+
+
+# blockPrint()
 ###########################################################################
 ######################## initializing variables ###########################
 ###########################################################################
@@ -161,8 +164,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
     loglist = []
 
     date_range = sorted(voldata.value_date.unique())  # [1:]
-    print('dates: ', pd.to_datetime(date_range))
-    print('signals: ', signals is not None)
+    # print('dates: ', pd.to_datetime(date_range))
+    # print('signals: ', signals is not None)
     # hedging frequency counters for delta, gamma, theta, vega respectively.
     counters = [1, 1, 1, 1]
 
@@ -309,7 +312,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
     ##########################################################################
 
         # Portfolio-wide information
-        # dic = pf.get_net_greeks()
+        dic = pf.get_net_greeks()
         call_vega = sum([op.vega for op in pf.get_all_options()
                          if op.K >= op.underlying.get_price()])
 
@@ -329,16 +332,17 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
             vol_id = pdt + '  ' + opmth + '.' + ftmth
             tau = round(op.tau * 365)
 
+            d, g, t, v = dic[pdt][mth]
+
             lst = [date, vol_id, char, tau, op_value, oplots,
-                   ftprice, strike, opvol,
-                   dailypnl, dailypnl - dailycost, grosspnl, netpnl,
-                   gamma_pnl, gammapnl, vega_pnl, vegapnl, roll_hedged]
+                   ftprice, strike, opvol, dailypnl, dailypnl - dailycost, grosspnl, netpnl,
+                   gamma_pnl, gammapnl, vega_pnl, vegapnl, roll_hedged, d, g, t, v]
 
             cols = ['value_date', 'vol_id', 'call/put', 'ttm', 'option_value', 'option_lottage',
                     'future price', 'strike', 'vol',
                     'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross', 'cu_pnl_net',
                     'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl', 'cu_vega_pnl',
-                    'delta_rolled']
+                    'delta_rolled', 'net_delta', 'net_gamma', 'net_theta', 'net_vega']
 
             adcols = ['pdt', 'ft_month', 'op_month', 'delta', 'gamma', 'theta',
                       'vega', 'net_call_vega', 'net_put_vega', 'b/s']
@@ -375,7 +379,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
         # calculate number of days to step
         num_days = 0 if next_date is None else (
             pd.Timestamp(next_date) - pd.Timestamp(date)).days
-        print('TIME STEPPING: ', str(num_days) + ' days')
+        # print('TIME STEPPING: ', str(num_days) + ' days')
 
         pf.timestep(num_days * timestep)
 
@@ -384,11 +388,11 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
         #     print('Option: ', op)
         #     print('vol: ', op.vol)
         #     print('price: ', op.underlying.get_price())
-        if len(pf.OTC) == 0:
-            print('Month, EOD Vega Pos: ', (0, 0))
-        for pdt in pf.OTC:
-            for mth in pf.OTC[pdt]:
-                print('Month, EOD Vega Pos: ', (mth, pf.net_vega_pos(mth, pdt)))
+        # if len(pf.OTC) == 0:
+        #     print('Month, EOD Vega Pos: ', (0, 0))
+        # for pdt in pf.OTC:
+        #     for mth in pf.OTC[pdt]:
+        #         print('Month, EOD Vega Pos: ', (mth, pf.net_vega_pos(mth, pdt)))
         # print('Net vega pos: ', pf.net_vega_pos())
 
     # Step 11: Plotting results/data viz
@@ -434,35 +438,36 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
             ['vol_id', 'value_date', '25d']]
         puts.columns = ['vol_id', 'value_date', '25d_p']
 
-        print('call columns: ', calls.columns)
-        print('log columns: ', log.columns)
+        # print('call columns: ', calls.columns)
+        # print('log columns: ', log.columns)
 
         log = pd.merge(log, calls, on=['vol_id', 'value_date'])
         log = pd.merge(log, puts, on=['vol_id', 'value_date'])
 
-        print('columns after merge: ', log.columns)
+        # print('columns after merge: ', log.columns)
         log['25d_c'] = (log['25d_c'].shift(-1) - log['25d_c']).shift(1)
         log['25d_p'] = (log['25d_p'].shift(-1) - log['25d_p']).shift(1)
 
     elapsed = time.clock() - t
 
     print('Time elapsed: ', elapsed)
-    print('##################### PNL: #####################')
-    print('gross pnl: ', grosspnl)
-    print('vega pnl: ', vegapnl)
-    print('gamma pnl: ', gammapnl)
-    print('net pnl: ', netpnl)
 
     print('################# Portfolio: ###################')
     print(pf)
 
     print('SIMULATION COMPLETE. PRINTING RELEVANT OUTPUT... [7/7]')
-    print('--------------------------------------------------------')
-    print('daily pnls     [gross]: ', gross_daily_values)
-    print('daily pnls     [net]: ', net_daily_values)
-    print('cumulative pnl [gross]: ', gross_cumul_values)
-    print('cumulative pnl [net]: ', net_cumul_values)
-    print('##############################################################')
+
+    print('##################### PNL: #####################')
+    print('gross pnl: ', grosspnl)
+    print('vega pnl: ', vegapnl)
+    print('gamma pnl: ', gammapnl)
+    print('net pnl: ', netpnl)
+    # print('--------------------------------------------------------')
+    # print('daily pnls     [gross]: ', gross_daily_values)
+    # print('daily pnls     [net]: ', net_daily_values)
+    # print('cumulative pnl [gross]: ', gross_cumul_values)
+    # print('cumulative pnl [net]: ', net_cumul_values)
+    print('################################################')
 
     gvar = np.percentile(gross_daily_values, 5)
     cvar = np.percentile(net_daily_values, 5)
@@ -578,6 +583,14 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
 
     plt.show()
 
+    # preparing the log file for analytics.
+    # analytics_csv = log.drop_duplicates('eod_pnl_gross')
+    # analytics_cols = ['value_date', 'option_lottage', 'strike',
+    #                   'future price', 'vol', 'eod_pnl_net', 'cu_pnl_net', 'eod_gamma_pnl',
+    #                   'cu_gamma_pnl', 'eod_vega_pnl', 'cu_vega_pnl', 'net_delta',
+    #                   'net_gamma', 'net_theta', 'net_vega']
+    # analytics_csv = analytics_csv[analytics_cols]
+
     return grosspnl, netpnl, pf, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log
 
 
@@ -640,7 +653,7 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
     # 2)  update prices of futures, underlying & portfolio alike.
     if not broken:
         for ft in pf.get_all_futures():
-            pdt, ordering = ft.get_product(), ft.get_ordering()
+            pdt = ft.get_product()
             try:
                 uid = ft.get_product() + '  ' + ft.get_month()
                 val = pdf[(pdf.pdt == pdt) &
@@ -653,12 +666,12 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
 
             # index error would occur only if data is missing.
             except IndexError:
-                print('###### PRICE DATA MISSING #######')
-                print('ordering: ', ordering)
-                print('uid: ', uid)
-                print('pdt: ', pdt)
-                print('debug 1: ', pdf[(pdf.pdt == pdt) &
-                                       (pdf.order == ordering)])
+                # print('###### PRICE DATA MISSING #######')
+                # print('ordering: ', ordering)
+                # print('uid: ', uid)
+                # print('pdt: ', pdt)
+                # print('debug 1: ', pdf[(pdf.pdt == pdt) &
+                #                        (pdf.order == ordering)])
                 # broken = True
                 ft.update_price(ft.get_price())
                 # break
@@ -666,7 +679,7 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
     # handling pnl arising from barrier futures.
         if barrier_futures:
             for ft in barrier_futures:
-                pdt, ordering = ft.get_product(), ft.get_ordering()
+                pdt = ft.get_product()
                 pnl_mult = multipliers[pdt][-1]
                 try:
                     uid = ft.get_product() + '  ' + ft.get_month()
@@ -681,22 +694,23 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
 
                 # index error would occur only if data is missing.
                 except IndexError:
-                    print('###### PRICE DATA MISSING #######')
-                    print('ordering: ', ordering)
-                    print('uid: ', uid)
-                    print('pdt: ', pdt)
-                    print('debug 1: ', pdf[(pdf.pdt == pdt) &
-                                           (pdf.order == ordering)])
+                    # print('###### PRICE DATA MISSING #######')
+                    # print('ordering: ', ordering)
+                    # print('uid: ', uid)
+                    # print('pdt: ', pdt)
+                    # print('debug 1: ', pdf[(pdf.pdt == pdt) &
+                    #                        (pdf.order == ordering)])
+                    ft.update_price(ft.get_price())
                     # broken = True
                     # break
 
-            print('barrier future profit: ', barrier_profit)
+            # print('barrier future profit: ', barrier_profit)
             # pf.add_security(barrier_futures, 'hedge')
 
     exercise_profit, pf, exercised, exercise_futures = handle_exercise(
         pf, brokerage, slippage)
 
-    print('handle exercise profit: ', exercise_profit)
+    # print('handle exercise profit: ', exercise_profit)
 
     total_profit = exercise_profit + barrier_profit
 
@@ -706,6 +720,9 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
 
     # removing expiries
     pf.remove_expired()
+
+    # TODO: Need to re-implement the sanity checks for when portfolio needs
+    # to be cleaned out.
 
     # sanity check: if no active options, close out entire portfolio.
     if not pf.OTC_options and not pf.hedge_options:
@@ -724,9 +741,13 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
     # calculating gamma pnl
     intermediate_val = pf.compute_value()
 
+    # TODO: Reimplement this.
     # print('intermediate value: ', intermediate_val)
     if exercised:
-        gamma_pnl = (intermediate_val + exercise_profit) - init_val
+        if intermediate_val == 0:
+            gamma_pnl = exercise_profit
+        else:
+            gamma_pnl = (intermediate_val + exercise_profit) - init_val
     else:
         gamma_pnl = intermediate_val + total_profit - init_val \
             if (init_val != 0 and intermediate_val != 0) else 0
@@ -738,7 +759,7 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
     # update option attributes by feeding in vol.
     for op in pf.get_all_options():
         # info reqd: strike, order, product, tau
-        strike, order, product, tau = op.K, op.ordering, op.product, op.tau
+        strike, product, tau = op.K, op.product, op.tau
         b_vol, strike_vol = None, None
         # print('price: ', op.compute_price())
         # print('OP GREEKS: ', op.greeks())
@@ -756,12 +777,12 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
             strike_vol = val[val.tau == df_tau].settle_vol.values[0]
             # print('UPDATED - new vol: ', strike_vol)
         except (IndexError, ValueError):
-            print('### VOLATILITY DATA MISSING ###')
-            print('product: ', product)
-            print('strike: ', strike)
-            print('order: ', order)
-            print('vid: ', vid)
-            print('call put id: ', cpi)
+            # print('### VOLATILITY DATA MISSING ###')
+            # print('product: ', product)
+            # print('strike: ', strike)
+            # print('order: ', order)
+            # print('vid: ', vid)
+            # print('call put id: ', cpi)
             # print('tau: ', df_tau)
             # broken = True
             strike_vol = op.vol
@@ -776,12 +797,12 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
                 b_vol = val[val.tau == df_tau].settle_vol.values[0]
                 # print('UPDATED - new barrier vol: ', b_vol)
         except (IndexError, ValueError):
-            print('### BARRIER VOLATILITY DATA MISSING ###')
-            print('product: ', product)
-            print('strike: ', barlevel)
-            print('order: ', order)
-            print('vid: ', vid)
-            print('call put id: ', cpi)
+            # print('### BARRIER VOLATILITY DATA MISSING ###')
+            # print('product: ', product)
+            # print('strike: ', barlevel)
+            # print('order: ', order)
+            # print('vid: ', vid)
+            # print('call put id: ', cpi)
             # print('tau: ', df_tau)
             # broken = True
             b_vol = op.bvol
@@ -839,7 +860,7 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
     # base case: option is a vanilla option, or has expired.
 
     if (op.barrier is None) or (op.check_expired()):
-        print('simulation.handle_barrers - vanilla/expired case ')
+        # print('simulation.handle_barrers - vanilla/expired case ')
         ret = pf, 0, []
         return ret
 
@@ -1841,6 +1862,7 @@ def liquidate_pos(char, resid_vega, ops, pf, strat, dval, brokerage=None, slippa
     return pf, cost
 
 
+# TODO: close out OTC futures as well
 def close_out_deltas(pf, dtc):
     """Checks to see if the portfolio is emtpty but with residual deltas. Closes out all remaining future positions, resulting in an empty portfolio.
 
@@ -2108,10 +2130,3 @@ if __name__ == '__main__':
 ##########################################################################
 ##########################################################################
 ##########################################################################
-###
-#######
-###
-#
-#
-###
-#
