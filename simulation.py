@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-31 18:09:09
+# @Last Modified time: 2017-07-31 18:22:08
 
 ################################ imports ###################################
 import numpy as np
@@ -23,6 +23,7 @@ from collections import OrderedDict
 
 
 # blockPrint()
+# enablePrint()
 ###########################################################################
 ######################## initializing variables ###########################
 ###########################################################################
@@ -591,7 +592,9 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
     #                   'net_gamma', 'net_theta', 'net_vega']
     # analytics_csv = analytics_csv[analytics_cols]
 
-    return grosspnl, netpnl, pf, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log
+    return log
+    # return grosspnl, netpnl, pf, gross_daily_values, gross_cumul_values,
+    # net_daily_values, net_cumul_values, log
 
 
 ##########################################################################
@@ -2113,19 +2116,17 @@ if __name__ == '__main__':
     print('HEDGES GENERATED. RUNNING SIMULATION... [6/7]')
 
     # # run simulation #
-    grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values, net_daily_values, net_cumul_values, log = run_simulation(
-        vdf, pdf, edf, pf, hedges, brokerage=gv.brokerage, slippage=gv.slippage, signals=signals)
+    log = run_simulation(vdf, pdf, edf, pf, hedges,
+                         brokerage=gv.brokerage, slippage=gv.slippage, signals=signals)
 
 
 ##########################################################################
 ##########################################################################
 ##########################################################################
 
-
 ##########################################################################
 ##########################################################################
 ##########################################################################
-
 
 ##########################################################################
 ##########################################################################
