@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-07-21 15:41:52
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-24 19:20:23
+# @Last Modified time: 2017-07-28 21:07:24
 from scripts.fetch_data import grab_data
 from scripts.util import create_straddle
 import pandas as pd
@@ -26,6 +26,8 @@ end_date = str(yr) + '-12-31'
 
 pdts = ['QC', 'CC']
 
+# volids = ['QC  U7.U7', 'CC  U7.U7', 'CC  Z7.Z7', 'QC  Z7.Z7']
+
 volids = ['QC  U6.U6', 'QC  Z6.Z6', 'CC  U6.U6',
           'CC  Z6.Z6', 'QC  H7.H7', 'CC  H7.H7',
           'CC  K7.K7', 'QC  K7.K7', 'CC  N7.N7', 'QC  N7.N7']
@@ -39,10 +41,10 @@ sanity_check(vdf.value_date.unique(),
 
 
 cc1, cc2 = create_straddle('CC  U6.U6', vdf, pdf,
-                           pd.to_datetime(start_date), True, 'atm', greek='vega', greekval=50000)
+                           pd.to_datetime(start_date), False, 'atm', greek='vega', greekval=50000)
 
-qc1, qc2 = create_straddle('QC  U6.U6', vdf, pdf, pd.to_datetime(
-    start_date), True, 'atm', greek='vega', greekval=50000)
+# qc1, qc2 = create_straddle('QC  U6.U6', vdf, pdf, pd.to_datetime(
+#     start_date), True, 'atm', greek='vega', greekval=50000)
 
 # print('CC Call: ', str(cc1))
 # print('CC Put: ', str(cc2))
@@ -50,7 +52,7 @@ qc1, qc2 = create_straddle('QC  U6.U6', vdf, pdf, pd.to_datetime(
 # print('QC Put: ', str(qc2))
 
 pf = Portfolio()
-pf.add_security([qc1, qc2, cc1, cc2], 'OTC')
+pf.add_security([cc1, cc2], 'OTC')
 
 print('portfolio: ', pf)
 
@@ -60,8 +62,9 @@ print('hedges: ', hedges)
 
 grosspnl, netpnl, pf1, gross_daily_values, gross_cumul_values,\
     net_daily_values, net_cumul_values, log = run_simulation(
-        vdf, pdf, edf, pf, hedges, roll_portfolio=True, roll_product='CC', ttm_tol=60)
+        vdf, pdf, edf, pf, hedges, hedge_desc='uid')
 
 
 name = 'qc_cc_log'
-log.to_csv('../../QC_CC_Splits/' + str(name) + '.csv', index=False)
+log.to_csv('../../QC_CC_Splits/' + str(name) +
+           '_hedge_test.csv', index=False)
