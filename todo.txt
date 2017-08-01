@@ -891,21 +891,27 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 
 > [Done] alter pull_alt_data to accept write_dumps, start_date and end_date as parameters 
 > [Done] test new pull_alt_data and make sure it all works. 
+> [Done] Move signal generation files from skew_lib to HistoricSimulator.scripts 
+
+> [Done] Sketch out framework of applying signals to straddles. 
+> [In Progress] Updating straddle positions based on curr pos and signal 
+
 
 
 > [In Progress] closing out portfolio criterion when all OTC options expire (simulation.py, lines 744-762)
 > Figure out import statements for runs when moving to runs folder. 
-> Generalize signal application to more than just skews:
-	
-	0) Format of the signals file.
+
+> Sit with sumit and learn about corn fundamentals/how to evaluate wheat vs corn trade.
+
+
+> Generalize signal application to more than just skews:	
+	0) [Done] Format of the signals file. -> added in a sigtype column that apply_signal will use to delegate work. 
 	1) apply_signal
 	2) liquidate_pos
 	3) update_pos
 	4) add_skew
 	5) generate_skew_op
 
-
-> Move signal generation files from skew_lib to HistoricSimulator.scripts 
 
 
 

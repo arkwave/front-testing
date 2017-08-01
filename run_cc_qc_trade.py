@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-07-21 15:41:52
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-01 18:01:05
+# @Last Modified time: 2017-08-01 20:19:08
 
 from scripts.fetch_data import grab_data
 from scripts.util import create_straddle
@@ -45,14 +45,6 @@ Variables required:
 yr = 2016
 start_date = str(yr) + '-05-02'
 end_date = str(yr) + '-12-31'
-# rd1 = pd.to_datetime(str(yr) + '-07-01')
-# rd2 = pd.to_datetime(str(yr) + '-07-01')
-# rd2 = pd.to_datetime(str(yr) + '-09-04')
-
-# rollover_dates = {'QC  U6.U6': [rd1],
-#                   'CC  U6.U6': [rd1],
-#                   'CC  Z6.Z6': [rd2],
-#                   'QC  Z6.Z6': [rd2], }
 
 pdts = ['QC', 'CC']
 
@@ -62,13 +54,11 @@ volids = ['QC  U6.U6', 'QC  Z6.Z6', 'CC  U6.U6',
           'CC  K7.K7', 'QC  K7.K7', 'CC  N7.N7', 'QC  N7.N7']
 ####################################
 
-
+# grabbing data
 vdf, pdf, edf = grab_data(pdts, start_date, end_date, volids=volids)
 
-sanity_check(vdf.value_date.unique(),
-             pdf.value_date.unique(), pd.to_datetime(start_date), pd.to_datetime(end_date))
 
-
+# specifying portfolio
 cc1, cc2 = create_straddle('CC  U6.U6', vdf, pdf,
                            pd.to_datetime(start_date), False, 'atm', greek='vega', greekval=50000)
 
@@ -77,14 +67,17 @@ qc1, qc2 = create_straddle('QC  U6.U6', vdf, pdf, pd.to_datetime(
 
 
 pf = Portfolio()
-pf.add_security([cc1, cc2], 'OTC')
+pf.add_security([cc1, cc2, qc1, qc2], 'OTC')
 
 print('portfolio: ', pf)
 
-hedges = generate_hedges('hedging.csv')
 
+# specifying hedges.
+hedges = generate_hedges('hedging.csv')
 print('hedges: ', hedges)
 
+
+# running simulation
 log = run_simulation(vdf, pdf, edf, pf, hedges, hedge_desc='uid')
 
 name = 'qc_cc_log'

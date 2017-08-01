@@ -2,11 +2,126 @@
 # @Author: Ananth
 # @Date:   2017-08-01 18:18:23
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-01 18:19:22
+# @Last Modified time: 2017-08-01 22:08:26
 
 
 def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist', tol=1000, brokerage=None, slippage=None):
+    """Wrapper method that delegates application of the signal to the relevant sub-function.
+
+    Args:
+        pf (TYPE): Description
+        vdf (TYPE): Description
+        pdf (TYPE): Description
+        signals (TYPE): Description
+        date (TYPE): Description
+        next_date (TYPE): Description
+        roll_cond (TYPE): Description
+        strat (str, optional): Description
+        tol (int, optional): Description
+        brokerage (None, optional): Description
+        slippage (None, optional): Description
+    """
+
+    # check sigtype
+    sigtype = signals.sigtype.unique()[0]
+    if sigtype == 'skew':
+        return apply_skew_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat=strat, , tol=tol, brokerage=brokerage, slippage=slippage)
+
+    elif sigtype == 'straddle':
+        return apply_straddle_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat=strat, tol=tol, brokerage=brokerage, slippage=slippage)
+
+
+def apply_straddle_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist', tol=1000, brokerage=None, slippage=None):
+    """Helper method that deals with straddle signals. 
+
+    Args:
+        pf (TYPE): Description
+        vdf (TYPE): Description
+        pdf (TYPE): Description
+        signals (TYPE): Description
+        date (TYPE): Description
+        next_date (TYPE): Description
+        roll_cond (TYPE): Description
+        strat (str, optional): Description
+        tol (int, optional): Description
+        brokerage (None, optional): Description
+        slippage (None, optional): Description
+    """
+    cost = 0
+    cols = ['call_vol', 'put_vol',
+            'signal', 'opmth', 'ftmth', 'pdt', 'vega', 'strike']
+    # getting inputs from signals dataframe
+    print('next_date: ', next_date)
+
+    if next_date is None:
+        print('reached end of signal period')
+        return pf, 0
+
+    relevant_signals = signals[signals.value_date == next_date][cols]
+    for _, row in relevant_signals.iterrows():
+        cvol, pvol, sig, opmth, ftmth, pdt, vega_req, strike = row.values
+        inputs = [cvol, pvol, sig, opmth, ftmth, pdt, vega_req, strike]
+        print('________APPLYING SIGNAL_______: ', sig)
+        print('Inputs: ', inputs)
+        ret = None
+        next_date = pd.to_datetime(next_date)
+
+        # Case 1: flatten signal
+        if sig == 0:
+            ret, cost = Portfolio(), 0
+
+        # Case 2: Nonzero signal.
+        else:
+            handle_longs, handle_shorts = True, True
+            # Case 2-1: Adding to empty portfolio.
+            if len(pf.OTC_options) == 0:
+                vol_id = pdt + '  ' + opmth + '.' + ftmth
+                greekval = vega_req * abs(signal)
+                shorted = True if signal < 0 else False
+                ops = create_straddle(
+                    vol_id, vdf, pdf, date, shorted, strike, greek='vega', greekval=greekval)
+                pf.add_security(list(ops), 'OTC')
+                if brokerage is not None:
+                    cost += brokerage * sum([op.lots for op in ops])
+                if slippage is not None:
+                    cost += slippage
+
+            # Case 2-2: Adding to nonempty Portfolio
+            # determine if liquidation or extending current position.
+            long_calls = [x for x in pf.OTC_options if x.char ==
+                          'call' and not x.shorted and x.get_product() == pdt]
+            long_puts = [x for x in pf.OTC_options if x.char ==
+                         'put' and not x.shorted and x.get_product() == pdt]
+            short_calls = [x for x in pf.OTC_options if x.char ==
+                           'call' and not x.shorted and x.get_product() == pdt]
+            short_calls = [x for x in pf.OTC_options if x.char ==
+                           'put' and x.shorted and x.get_product() == pdt]
+
+            # case: current position is long some straddles
+            if len(long_calls) == len(long_puts) and len(long_puts) > 0:
+                curr_vega = sum([op.vega for op in long_calls]) + \
+                    sum([op.vega for op in long_puts])
+                if abs(curr_vega - abs(vega_reqd*signal)) < tol:
+                    print('vega from long straddles within tol. skipping handling...')
+                    handle_longs = False
+            # case: current position is short some straddles
+            elif len(short_puts) == len(short_calls) and len(short_puts) > 0:
+                curr_vega = sum([op.vega for op in short_calls]) + \
+                    sum([op.vega for op in short_puts])
+                if abs(curr_vega - abs(vega_reqd*signal)) < tol:
+                    print('vega from short straddles within tol. skipping handling...')
+                    handle_shorts = False
+
+            if handle_longs:
+                pass
+
+            if handle_shorts:
+                pass
+
+
+def apply_skew_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist', tol=1000, brokerage=None, slippage=None):
     """Applies the signal generated by the recommendation program to the portfolio.
+
     Args:
         pf (object): portfolio
         vdf (pandas dataframe): dataframe of volatilities
@@ -16,6 +131,9 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
         next_date (pandas Timestamp): next date in simulation
         roll_cond (list): list of delta_roll conditions
         strat (str, optional): Description
+        tol (int, optional): Description
+        brokerage (None, optional): Description
+        slippage (None, optional): Description
 
     Returns:
         portfolio object: the portfolio with the requisite changes applied.
@@ -79,17 +197,17 @@ def apply_signal(pf, vdf, pdf, signals, date, next_date, roll_cond, strat='dist'
 
                 if handle_calls:
                     calls = [op for op in pf.OTC_options if op.char == 'call']
-                    # update_pos(char, target_vega, curr_vega, dval, ops, pf,
+                    # update_skew_pos(char, target_vega, curr_vega, dval, ops, pf,
                     # strat, tol, vdf, pdf, inputs, date)
-                    pf, cost = update_pos('call', target_call_vega, net_call_vega,
-                                          dval, calls, pf, strat, tol, vdf, pdf,
-                                          inputs, date, brokerage=brokerage, slippage=slippage)
+                    pf, cost = update_skew_pos('call', target_call_vega, net_call_vega,
+                                               dval, calls, pf, strat, tol, vdf, pdf,
+                                               inputs, date, brokerage=brokerage, slippage=slippage)
 
                 if handle_puts:
                     puts = [op for op in pf.OTC_options if op.char == 'put']
-                    pf, cost = update_pos('put', target_put_vega, net_put_vega,
-                                          dval, puts, pf, strat, tol, vdf, pdf,
-                                          inputs, date, brokerage=brokerage, slippage=slippage)
+                    pf, cost = update_skew_pos('put', target_put_vega, net_put_vega,
+                                               dval, puts, pf, strat, tol, vdf, pdf,
+                                               inputs, date, brokerage=brokerage, slippage=slippage)
 
             ret, cost = pf, cost
 
@@ -225,7 +343,7 @@ def add_skew(pf, vdf, pdf, inputs, date, dval, brokerage=None, slippage=None):
     return pf, cost
 
 
-def update_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol, vdf, pdf, inputs, date, brokerage=None, slippage=None):
+def update_skew_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol, vdf, pdf, inputs, date, brokerage=None, slippage=None):
     """
     Helper function that updates individual legs of the skew position in question. Two major cases are handled:
     1) Increasing current position. I.e. negative to negative, positive to positive, negative to positive, positive to negative.
@@ -300,7 +418,7 @@ def update_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol, vdf, pdf
             shortops = [op for op in ops if op.shorted]
             resid_vega = abs(curr_vega - target_vega)
             # print('resid_vega: ', resid_vega)
-            pf, cost = liquidate_pos(
+            pf, cost = liquidate_skew_pos(
                 char, resid_vega, shortops, pf, strat, dval, brokerage=brokerage, slippage=slippage)
 
     # Case 2: Need to sell vega from this leg.
@@ -333,7 +451,7 @@ def update_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol, vdf, pdf
             print('liquidating long positions - selling ' + char + ' leg')
             longops = [op for op in ops if not op.shorted]
             resid_vega = curr_vega - target_vega
-            pf, cost = liquidate_pos(
+            pf, cost = liquidate_skew_pos(
                 char, resid_vega, longops, pf, strat, dval, brokerage=brokerage, slippage=slippage)
 
     # add any securities that need adding.
@@ -350,7 +468,7 @@ def update_pos(char, target_vega, curr_vega, dval, ops, pf, strat, tol, vdf, pdf
     return pf, cost
 
 
-def liquidate_pos(char, resid_vega, ops, pf, strat, dval, brokerage=None, slippage=None):
+def liquidate_skew_pos(char, resid_vega, ops, pf, strat, dval, brokerage=None, slippage=None):
     """Buys/Sells (vega_req * num_req) worth of dval skew composites. For example
        if vega = 10000, num_skews =1 and dval = 25, then the function figures out
        how to liquidate 10,000 vega worth of that day's 25 Delta skew positions ON
