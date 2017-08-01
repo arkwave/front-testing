@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-21 17:07:13
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-08-01 15:04:35
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -125,8 +125,8 @@ def pull_relevant_data(pf_path=None, sigpath=None, signals=None, start_date=None
         raise ValueError('no valid inputs; cannot draw data')
 
     # creating SQL engine, drawing data
-    user = input('DB Username: ')
-    password = input('DB Password: ')
+    user = 'sumit'
+    password = 'Olam1234'
 
     engine = create_engine(
         'postgresql://' + user + ':' + password + '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
@@ -224,7 +224,7 @@ def construct_queries(uids, volids, start_date=None, end_date=None):
     return price_query, vol_query
 
 
-def pull_alt_data(pdt):
+def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False):
     """Utility function that draws/cleans data from the alternate data table. 
 
     Args:
@@ -235,18 +235,35 @@ def pull_alt_data(pdt):
 
 
     """
+
+    assert (start_date is not None or end_date is not None) or write_dump
+
     print('starting clock..')
     t = time.clock()
 
-    user = input('DB Username: ')
-    password = input('DB Password: ')
+    user = 'sumit'
+    password = 'Olam1234'
+
+    # user = input('DB Username: ')
+    # password = input('DB Password: ')
 
     engine = create_engine(
         'postgresql://' + user + ':' + password + '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
     connection = engine.connect()
 
     query = "select security_id, settlement_date, future_settlement_value, option_expiry_date,implied_vol \
-            FROM table_option_settlement_data_all where security_id like '" + pdt.upper() + " %%' and extract(YEAR from settlement_date) > 2009"
+            FROM table_option_settlement_data_all where security_id like '" + pdt.upper() + " %%' "
+
+    if start_date is not None:
+        query += "and settlement_date >= " + "'" + \
+            ''.join(start_date.split('-')) + "'"
+
+    if end_date is not None:
+        query += " and settlement_date <= " + \
+            "'" + ''.join(end_date.split('-')) + "'"
+
+    if start_date is None and end_date is None and write_dump:
+        query += "and extract(YEAR from settlement_date) > 2009"
     print('query: ', query)
     df = pd.read_sql_query(query, connection)
 
@@ -300,13 +317,13 @@ def pull_alt_data(pdt):
     pdf.reset_index(drop=True, inplace=True)
     vdf.reset_index(drop=True, inplace=True)
 
-    if not os.path.isdir('datasets/data_dump'):
-        os.mkdir('datasets/data_dump')
-
-    vdf.to_csv('datasets/data_dump/' + pdt.lower() +
-               '_vol_dump.csv', index=False)
-    pdf.to_csv('datasets/data_dump/' + pdt.lower() +
-               '_price_dump.csv', index=False)
+    if write_dump:
+        if not os.path.isdir('datasets/data_dump'):
+            os.mkdir('datasets/data_dump')
+        vdf.to_csv('datasets/data_dump/' + pdt.lower() +
+                   '_vol_dump.csv', index=False)
+        pdf.to_csv('datasets/data_dump/' + pdt.lower() +
+                   '_price_dump.csv', index=False)
 
     return vdf, pdf, df
 
@@ -462,7 +479,7 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
 
 def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
               writepath=None, direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/',
-              write=True, test=False, volids=None):
+              write=True, test=False, volids=None, write_dump=False):
     """Utility function that allows the user to easily grab a dataset by specifying just the product,
     start_date and end_date. Used to small datasets for the purposes of testing new functions/modules.
 DO NOT USE to generate datasets to be passed into simulation.py; use
@@ -529,7 +546,13 @@ pull_alt_data + prepare_datasets for that.
             # handling prices and vos
             if not os.path.exists(volpath) or not os.path.exists(price_path):
                 print('dumps dont exist, pulling raw data')
-                vdf, pdf, raw_df = pull_alt_data(pdt)
+                if write_dump:
+                    print('pulling and saving dumps')
+                    vdf, pdf, raw_df = pull_alt_data(pdt, write_dump=True)
+                else:
+                    print('pulling relevant data; not saving dumps')
+                    vdf, pdf, raw_df = pull_alt_data(
+                        pdt, start_date, end_date, write_dump=False)
             else:
                 print('dumps exist, reading in')
                 vdf = pd.read_csv(volpath)

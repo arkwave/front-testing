@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-07-28 15:41:07
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-31 21:07:31
+# @Last Modified time: 2017-08-01 15:00:16
 
 
 from scripts.fetch_data import grab_data
@@ -20,7 +20,7 @@ import pandas as pd
 from timeit import default_timer as timer
 
 ######### variables ################
-yr = 2010
+yr = 2016
 start_date = str(yr) + '-08-15'
 end_date = str(yr) + '-12-01'
 
@@ -36,7 +36,8 @@ volids = [pdt + '  ' + contract for pdt in pdts]
 ####################################
 
 
-vdf, pdf, edf = grab_data(pdts, start_date, end_date, volids=volids)
+vdf, pdf, edf = grab_data(pdts, start_date, end_date,
+                          volids=volids, write_dump=False)
 
 sanity_check(vdf.value_date.unique(),
              pdf.value_date.unique(), pd.to_datetime(start_date), pd.to_datetime(end_date))
