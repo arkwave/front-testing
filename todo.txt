@@ -886,21 +886,40 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 	>>> OPEN ISSUE: checking when all options have expired/exercised and we need to close out the rest of the portfolio.  <<<
 
 
->>>>>>>>>>> TODOS as of 7/30 <<<<<<<<<<<<<
-
-> moving to plotly  
+>>>>>>>>>>> TODOS as of 8/01 <<<<<<<<<<<<<
 
 
-
-----------------------------------------------
-
-> capability to handle forex? what would this entail? Conceptualize. 
-
-> toy with the idea of different TTM buckets for each greek; see what will come of it and how much needs to be changed. 
-
-4) slippage and brokerage in handle_barriers (need to figure out in what form/manner this is actually required)
+> [Done] alter pull_alt_data to accept write_dumps, start_date and end_date as parameters 
+> [Done] test new pull_alt_data and make sure it all works. 
 
 
+> [In Progress] closing out portfolio criterion when all OTC options expire (simulation.py, lines 744-762)
+> Figure out import statements for runs when moving to runs folder. 
+> Generalize signal application to more than just skews:
+	
+	0) Format of the signals file.
+	1) apply_signal
+	2) liquidate_pos
+	3) update_pos
+	4) add_skew
+	5) generate_skew_op
+
+
+> Move signal generation files from skew_lib to HistoricSimulator.scripts 
+
+
+
+------------------------------------------------------------------------
+
+> [On Hold] moving to plotly:
+	- plan is to make a gui using Tkinter and publish graphs on plotly. 
+> [On Hold] Get familiar with Tkinter or with Dash. 
+> [On Hold] Conceptualize application outline. 
+> [On Hold] capability to handle forex? what would this entail? Conceptualize. 
+> [On Hold] toy with the idea of different TTM buckets for each greek; see what will come of it and how much needs to be changed. 
+> [On Hold] slippage and brokerage in handle_barriers (need to figure out in what form/manner this is actually required)
+
+-------------------------------------------------------------------------
 
 ___________________________________________
 hedging parameters:
