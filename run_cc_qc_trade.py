@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-07-21 15:41:52
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-31 21:08:55
+# @Last Modified time: 2017-08-01 18:01:05
 
 from scripts.fetch_data import grab_data
 from scripts.util import create_straddle
@@ -16,6 +16,8 @@ from scripts.portfolio import Portfolio
 Variables required:
 1) Products, start_date, end_date, volids (optional) --> used to draw data. 
 2) Filepath to hedging (maybe alternate with a checkbox and ranges
+
+
 3) Simulation parameters:
 	> brokerage
 	> slippage 
@@ -25,6 +27,8 @@ Variables required:
 	> roll_product
 	> ttm_tol
 	> volids (if required to manually specify rollovers.)
+
+
 4) Portfolio parameters:
 	1) structure type - string. 
 	2) structure specifics:

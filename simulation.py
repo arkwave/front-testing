@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-31 20:40:02
+# @Last Modified time: 2017-07-31 21:44:54
 
 ################################ imports ###################################
 import numpy as np
@@ -461,9 +461,9 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
 
     print('##################### PNL: #####################')
     print('gross pnl: ', grosspnl)
+    print('net pnl: ', netpnl)
     print('vega pnl: ', vegapnl)
     print('gamma pnl: ', gammapnl)
-    print('net pnl: ', netpnl)
     # print('--------------------------------------------------------')
     # print('daily pnls     [gross]: ', gross_daily_values)
     # print('daily pnls     [net]: ', net_daily_values)
@@ -471,8 +471,8 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
     # print('cumulative pnl [net]: ', net_cumul_values)
     print('################################################')
 
-    gvar = np.percentile(gross_daily_values, 5)
-    cvar = np.percentile(net_daily_values, 5)
+    gvar = np.percentile(gross_daily_values, 10)
+    cvar = np.percentile(net_daily_values, 10)
 
     print('VaR [gross]: ', gvar)
     print('VaR [net]: ', cvar)
@@ -729,7 +729,7 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
     # to be cleaned out.
 
     # sanity check: if no active options, close out entire portfolio.
-    if not pf.OTC_options and not pf.hedge_options:
+    if not pf.OTC_options:
         print('all options have expired - removing hedge futures')
         deltas_to_close = set()
         for ft in pf.hedge_futures:
@@ -738,6 +738,25 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
             price = ft.get_price()
             iden = (pdt, mth, price)
             deltas_to_close.add(iden)
+
+        # case: portfolio is being closed immediately after an exercise. Treat
+        # as a cash settlement.
+        # TODO: think through this and make sure it is right.
+        if deltas_to_close:
+            if barrier_futures:
+                for pdt, mth, price in deltas_to_close:
+                    bfts_to_remove = [x for x in barrier_futures if x.get_product() == pdt and
+                                      x.get_month() == mth]
+                    barrier_futures = [
+                        x for x in barrier_futures if x not in bfts_to_remove]
+
+            if exercise_futures:
+                for pdt, mth, _ in deltas_to_close:
+                    efts_to_remove = [x for x in exercise_futures if x.get_product() == pdt and
+                                      x.get_month() == mth]
+                    exercise_futures = [
+                        x for x in exercise_futures if x not in efts_to_remove]
+
         print('feed_data - dtc: ', deltas_to_close)
         pf, cost = close_out_deltas(pf, deltas_to_close)
         total_profit -= cost
@@ -1242,11 +1261,13 @@ def rebalance(vdf, pdf, pf, hedges, counters, desc, buckets=None, brokerage=None
                          buckets=buckets, kind=hedge_type,
                          slippage=slippage, brokerage=brokerage)
 
-    """calibrate hedge object to all non-delta hedges. calibrate does one of the following things:
-
-    1) if hedge_engine is initialized with desc='exp', calibrate generates a dictionary mapping product and expiry to a vol_id, which will be used to hedge that pdt/exp combination
-
-    2) desc = 'uid' -> _calibrate generates a dictionary mapping product/underlying month to a vol_id, dependent on any ttm multipliers passed in. """
+    """
+    calibrate hedge object to all non-delta hedges. calibrate does one of the following things:
+    1) if hedge_engine is initialized with desc='exp', calibrate generates a dictionary mapping product 
+        and expiry to a vol_id, which will be used to hedge that pdt/exp combination
+    2) desc = 'uid' -> _calibrate generates a dictionary mapping product/underlying month 
+        to a vol_id, dependent on any ttm multipliers passed in. 
+    """
 
     for flag in hedges:
         if flag != 'delta':
@@ -2132,3 +2153,4 @@ if __name__ == '__main__':
 ##########################################################################
 ##########################################################################
 ##########################################################################
+########################################
