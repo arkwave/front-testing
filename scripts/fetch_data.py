@@ -2,14 +2,14 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-01 15:04:35
+# @Last Modified time: 2017-08-01 20:17:04
 
 import pandas as pd
 from sqlalchemy import create_engine
 import time
 import os
 import numpy as np
-from .prep_data import match_to_signals, get_min_start_date, clean_data, vol_by_delta, ciprice
+from .prep_data import match_to_signals, get_min_start_date, clean_data, vol_by_delta, ciprice, sanity_check
 from .global_vars import main_direc
 
 contract_mths = {
@@ -599,6 +599,10 @@ pull_alt_data + prepare_datasets for that.
                                                                direc=direc)
             final_pdf = pd.concat([final_pdf, pdf])
             final_vols = pd.concat([final_vols, vdf])
+
+    # last step: sanity check dates etc.
+    sanity_check(final_vols.value_date.unique(),
+                 final_pdf.value_date.unique(), pd.to_datetime(start_date), pd.to_datetime(end_date))
 
     print('### GRAB DATA COMPLETED ###')
     return final_vols, final_pdf, edf
