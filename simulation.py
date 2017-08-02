@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-01 18:25:44
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-08-02 21:17:58
 
 ################################ imports ###################################
 
@@ -21,7 +21,7 @@ from scripts.portfolio import Portfolio
 from scripts.classes import Option
 from scripts.prep_data import prep_portfolio, generate_hedges, sanity_check
 from scripts.fetch_data import prep_datasets, pull_alt_data
-from scripts.util import create_underlying, create_vanilla_option, create_skew, blockPrint, enablePrint
+from scripts.util import create_underlying, create_vanilla_option, create_skew, blockPrint, enablePrint, close_out_deltas
 from scripts.calc import compute_strike_from_delta, get_barrier_vol
 from scripts.hedge import Hedge
 import scripts.global_vars as gv
@@ -151,8 +151,13 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
 
 
     """
+
+    ##### timers #####
     e1 = time.clock()
     t = time.clock()
+    ##################
+
+    ########### initializing pnl variables ###########
     grosspnl = 0
     netpnl = 0
     vegapnl = 0
@@ -167,17 +172,33 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
     gross_cumul_values = []
     net_daily_values = []
     net_cumul_values = []
+    ##################################################
 
+    ############ Other useful variables: #############
     loglist = []
 
-    date_range = sorted(voldata.value_date.unique())  # [1:]
-    # print('dates: ', pd.to_datetime(date_range))
-    # print('signals: ', signals is not None)
-    # hedging frequency counters for delta, gamma, theta, vega respectively.
+    date_range = sorted(voldata.value_date.unique())
+
+    # hedging frequency counters for delta,
+    # gamma, theta, vega respectively.
     counters = [1, 1, 1, 1]
 
+    # initial value for pnl calculations.
     init_val = 0
+
+    # preallocating signals if sigval dict
+    sigvals = {}
+    if signals is not None:
+        pdts = pf.get_unique_products()
+        for pdt in pdts:
+            sigvals[(pdt, 'call')] = 0
+            sigvals[(pdt, 'put')] = 0
+
+    # boolean flag indicating missing data
+    # Note: [partially depreciated]
     broken = False
+    ##################################################
+
     for i in range(len(date_range)):
         # get the current date
         date = date_range[i]
@@ -254,10 +275,11 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
 
     # Step 5: Apply signal
         if signals is not None:
-            roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
-                'delta'][i][0] == 'roll'][0]
-            pf, cost = apply_signal(pf, vdf, pdf, signals, date, next_date,
-                                    roll_cond, strat='filo', brokerage=brokerage, slippage=slippage)
+            relevant_signals = signals[signals.value_date == date]
+            # roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
+            #     'delta'][i][0] == 'roll'][0]
+            pf, cost, sigvals = apply_signal(pf, vdf, pdf, relevant_signals, date, sigvals,
+                                             strat='filo', brokerage=brokerage, slippage=slippage)
             dailycost += cost
 
     # Step 6: Hedge - consists of rolling over hedges (if necessary), and
@@ -1411,40 +1433,6 @@ def hedge_delta_roll(pf, roll_cond, pdf, brokerage=None, slippage=None):
 ###############################################################################
 ############################ Helper functions #################################
 ###############################################################################
-
-
-# TODO: close out OTC futures as well
-def close_out_deltas(pf, dtc):
-    """Checks to see if the portfolio is emtpty but with residual deltas. Closes out all remaining future positions, resulting in an empty portfolio.
-
-    Args:
-        pf (portfolio object): The portfolio being handles
-        dtc (TYPE): deltas to close; tuple of (pdt, month, price)
-        Returns
-            tuple: updated portfolio, and cost of closing out deltas. money is spent to close short pos, and gained by selling long pos.
-    """
-    # print('simulation.closing out deltas')
-    cost = 0
-    toberemoved = []
-    print('simulation.close_out_deltas - dtc: ', dtc)
-    for pdt, mth, price in dtc:
-        # print(pdt, mth, price)
-        futures = pf.hedges[pdt][mth][1]
-        # print([str(ft) for ft in futures])
-        # toberemoved = []
-        for ft in futures:
-            # need to spend to buy back
-            val = price if ft.shorted else -price
-            cost += val
-            toberemoved.append(ft)
-
-    # print('close_out_deltas - toberemoved: ',
-    #       [str(sec) for sec in toberemoved])
-    pf.remove_security(toberemoved, 'hedge')
-    print('cost of closing out deltas: ', cost)
-
-    # print('pf after closing out deltas: ', pf)
-    return pf, cost
 
 
 def hedges_satisfied(pf, hedges):

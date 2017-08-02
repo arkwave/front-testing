@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-07-31 16:46:58
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-08-02 21:17:42
 
 
 from .portfolio import Portfolio
@@ -211,7 +211,7 @@ def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=N
     return ft, ftprice
 
 
-def create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', lots=None, kwargs=None, delta=None, strike=None, vol=None, bullet=True):
+def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None, payoff='amer', lots=None, kwargs=None, delta=None, strike=None, vol=None, bullet=True):
     """Utility method that creates an option from the info passed in. Each option is instantiated with its own future underlying object. 
 
     Args:
@@ -259,7 +259,7 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', l
     # get min start date for debugging
     min_start_date = min(pdf[pdf.pdt == pdt].value_date)
 
-    date = min_start_date if min_start_date > date else date
+    date = min_start_date if (date is None or min_start_date > date) else date
 
     # create the underlying future
     ft_shorted = shorted if char == 'call' else not shorted
@@ -578,6 +578,8 @@ def create_spread(char, volid, vdf, pdf, date, shorted, kwargs):
 
     return op1, op2
 
+# update to allow for greeks to specify lottage.
+
 
 def create_strangle(volid, vdf, pdf, date, shorted, kwargs, pf=None):
     """Utility method that creates a strangle (long or short).
@@ -814,3 +816,37 @@ def blockPrint():
 # Restore
 def enablePrint():
     sys.stdout = sys.__stdout__
+
+
+# TODO: close out OTC futures as well
+def close_out_deltas(pf, dtc):
+    """Checks to see if the portfolio is emtpty but with residual deltas. Closes out all remaining future positions, resulting in an empty portfolio.
+
+    Args:
+        pf (portfolio object): The portfolio being handles
+        dtc (TYPE): deltas to close; tuple of (pdt, month, price)
+        Returns
+            tuple: updated portfolio, and cost of closing out deltas. money is spent to close short pos, and gained by selling long pos.
+    """
+    # print('simulation.closing out deltas')
+    cost = 0
+    toberemoved = []
+    print('simulation.close_out_deltas - dtc: ', dtc)
+    for pdt, mth, price in dtc:
+        # print(pdt, mth, price)
+        futures = pf.hedges[pdt][mth][1]
+        # print([str(ft) for ft in futures])
+        # toberemoved = []
+        for ft in futures:
+            # need to spend to buy back
+            val = price if ft.shorted else -price
+            cost += val
+            toberemoved.append(ft)
+
+    # print('close_out_deltas - toberemoved: ',
+    #       [str(sec) for sec in toberemoved])
+    pf.remove_security(toberemoved, 'hedge')
+    print('cost of closing out deltas: ', cost)
+
+    # print('pf after closing out deltas: ', pf)
+    return pf, cost

@@ -756,9 +756,13 @@ class Portfolio:
 
         return call_op_vega, put_op_vega
 
-    def net_gamma_pos(self, month):
+    def net_gamma_pos(self, month, pdt=None):
         all_ops = [op for op in self.get_all_options()
                    if op.get_month() == month]
+        if pdt is not None:
+            all_ops = [x for x in all_ops if x.get_product() == pdt]
+        if not all_ops:
+            return 0
         net_gamma = sum([op.gamma for op in all_ops])
         return net_gamma
 

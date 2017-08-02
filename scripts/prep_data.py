@@ -108,7 +108,7 @@ def match_to_signals(vdf, pdf, signals):
     # vdf.value_date -= pd.Timedelta('2 day')
     # pdf.value_date -= pd.Timedelta('2 day')
 
-    v_dates = pd.to_datetime(vdf.value_date.unique())
+    # v_dates = pd.to_datetime(vdf.value_date.unique())
     # p_dates = pd.to_datetime(pdf.value_date.unique())
 
     # print('v_check 1: ', pd.Timestamp('2017-02-20') in v_dates)
@@ -125,10 +125,10 @@ def match_to_signals(vdf, pdf, signals):
     # vdf.value_date -= pd.Timedelta('1 day')
 
     # filtering relevant dates
-    vdf = vdf[(vdf.value_date > pd.Timestamp('2017-01-02')) &
-              (vdf.value_date < pd.Timestamp('2017-04-02'))]
-    pdf = pdf[(pdf.value_date > pd.Timestamp('2017-01-02')) &
-              (pdf.value_date < pd.Timestamp('2017-04-02'))]
+    # vdf = vdf[(vdf.value_date > pd.Timestamp('2017-01-02')) &
+    #           (vdf.value_date < pd.Timestamp('2017-04-02'))]
+    # pdf = pdf[(pdf.value_date > pd.Timestamp('2017-01-02')) &
+    #           (pdf.value_date < pd.Timestamp('2017-04-02'))]
 
     d1 = [x for x in vdf.value_date.unique()
           if x not in signals.value_date.unique()]
