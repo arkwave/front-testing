@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-01 20:17:04
+# @Last Modified time: 2017-08-03 15:05:30
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -364,12 +364,12 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
     vdf = vdf.sort_values('value_date')
     pdf = pdf.sort_values('value_date')
 
-    # filtering relevant dates
-    vdf = vdf[(vdf.value_date >= start_date) &
-              (vdf.value_date <= end_date)]
+    # # filtering relevant dates
+    # vdf = vdf[(vdf.value_date >= start_date) &
+    #           (vdf.value_date <= end_date)]
 
-    pdf = pdf[(pdf.value_date >= start_date) &
-              (pdf.value_date <= end_date)]
+    # pdf = pdf[(pdf.value_date >= start_date) &
+    #           (pdf.value_date <= end_date)]
 
     assert not vdf.empty
     assert not pdf.empty
@@ -563,6 +563,9 @@ pull_alt_data + prepare_datasets for that.
             vdf.value_date = pd.to_datetime(vdf.value_date)
             pdf.value_date = pd.to_datetime(pdf.value_date)
             edf.expiry_date = pd.to_datetime(edf.expiry_date)
+
+            start_date = pd.Timestamp(start_date)
+            end_date = pd.Timestamp(end_date)
 
             # filter according to start/end dates
             vdf = vdf[(vdf.value_date >= start_date) &
