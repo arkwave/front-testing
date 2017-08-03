@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-02 21:17:42
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-08-03 14:28:21
 
 
 from .portfolio import Portfolio
@@ -211,7 +211,7 @@ def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=N
     return ft, ftprice
 
 
-def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None, payoff='amer', lots=None, kwargs=None, delta=None, strike=None, vol=None, bullet=True):
+def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None, payoff='amer', lots=None, delta=None, strike=None, vol=None, bullet=True, **kwargs):
     """Utility method that creates an option from the info passed in. Each option is instantiated with its own future underlying object. 
 
     Args:
@@ -242,7 +242,7 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None, payoff='ame
     """
     # sanity checks
     print('util.create_vanilla_option - inputs: ',
-          volid, char, shorted, lots, delta, strike, vol)
+          volid, char, shorted, lots, delta, strike, vol, kwargs)
 
     if delta is None and strike is None:
         raise ValueError(
@@ -347,7 +347,7 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None, payoff='ame
             # curr_vega = op1.vega + op2.vega
             lm, dm = multipliers[pdt][1], multipliers[pdt][0]
             v1 = (newop.vega * 100) / (newop.lots * dm * lm)
-            lots_req = round((vega_req * 100) / (v1 * lm * dm))
+            lots_req = round(abs(vega_req * 100) / (abs(v1) * lm * dm))
             print('lots req: ', lots_req)
 
         if kwargs['greek'] == 'gamma':

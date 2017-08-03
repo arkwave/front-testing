@@ -284,7 +284,7 @@ class Portfolio:
         for sec in security:
             if sec.get_desc() == 'option':
                 try:
-                    op.appendleft(sec)
+                    op.append(sec)
                 except UnboundLocalError:
                     print('flag: ', flag)
             elif sec.get_desc() == 'future':
