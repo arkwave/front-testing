@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-02 21:17:58
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-08-03 16:18:00
 
 ################################ imports ###################################
 
@@ -25,7 +25,7 @@ from scripts.util import create_underlying, create_vanilla_option, create_skew, 
 from scripts.calc import compute_strike_from_delta, get_barrier_vol
 from scripts.hedge import Hedge
 import scripts.global_vars as gv
-from scripts.signal_funcs import apply_signal
+from scripts.signals import apply_signal
 
 
 # blockPrint()
@@ -103,7 +103,7 @@ np.random.seed(seed)
 ############## Main Simulation Loop #################
 #####################################################
 
-def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, brokerage=None, slippage=None, signals=None, roll_portfolio=None, roll_hedges=None, roll_product=None, ttm_tol=None):
+def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, brokerage=None, slippage=None, signals=None, roll_portfolio=None, roll_hedges=None, roll_product=None, ttm_tol=None, hedge_desc='uid'):
     """
     Each run of the simulation consists of 5 steps:
         1) Feed data into the portfolio.
@@ -187,17 +187,22 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
     init_val = 0
 
     # preallocating signals if sigval dict
+
+    print(signals is not None)
     sigvals = {}
     if signals is not None:
-        pdts = pf.get_unique_products()
+        pdts = signals.pdt.unique()
         for pdt in pdts:
+            print('pdt: ', pdt)
             sigvals[(pdt, 'call')] = 0
             sigvals[(pdt, 'put')] = 0
 
+    print('sigvals: ', sigvals)
     # boolean flag indicating missing data
     # Note: [partially depreciated]
     broken = False
     ##################################################
+    # print('signals: ', signals)
 
     for i in range(len(date_range)):
         # get the current date
@@ -275,10 +280,9 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
 
     # Step 5: Apply signal
         if signals is not None:
+            print('signals not none, applying. ')
             relevant_signals = signals[signals.value_date == date]
-            # roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
-            #     'delta'][i][0] == 'roll'][0]
-            pf, cost, sigvals = apply_signal(pf, vdf, pdf, relevant_signals, date, sigvals,
+            pf, cost, sigvals = apply_signal(pf, pdf, vdf, relevant_signals, date, sigvals,
                                              strat='filo', brokerage=brokerage, slippage=slippage)
             dailycost += cost
 
@@ -298,7 +302,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
             # dailycost += cost
 
         pf, counters, cost, roll_hedged = rebalance(
-            vdf, pdf, pf, hedges, counters, desc='uid', brokerage=brokerage, slippage=slippage)
+            vdf, pdf, pf, hedges, counters, desc=hedge_desc, brokerage=brokerage, slippage=slippage)
         dailycost += cost
 
     # Step 7: Subtract brokerage/slippage costs from rebalancing. Append to
@@ -361,7 +365,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
             vol_id = pdt + '  ' + opmth + '.' + ftmth
             tau = round(op.tau * 365)
 
-            d, g, t, v = dic[pdt][mth]
+            d, g, t, v = dic[pdt][ftmth]
 
             lst = [date, vol_id, char, tau, op_value, oplots,
                    ftprice, strike, opvol, dailypnl, dailypnl - dailycost, grosspnl, netpnl,
@@ -443,17 +447,19 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
     # appending 25d vol changes and price changes
     if signals is not None:
 
-        signals['underlying_id'] = signals.pdt + '  ' + signals.ftmth
-        signals['vol_id'] = signals.pdt + '  ' + \
-            signals.opmth + '.' + signals.ftmth
+        # signals['underlying_id'] = signals.pdt + '  ' + signals.ftmth
+        # signals['vol_id'] = signals.pdt + '  ' + \
+        #     signals.opmth + '.' + signals.ftmth
+        signals.loc[signals['call/put'] == 'call', 'call_put_id'] = 'C'
+        signals.loc[signals['call/put'] == 'put', 'call_put_id'] = 'P'
 
         df = pd.merge(signals, pricedata[['value_date', 'underlying_id',
-                                          'settle_value']],
-                      on=['value_date', 'underlying_id'])
+                                          'settle_value', 'vol_id', 'call_put_id']],
+                      on=['value_date', 'vol_id', 'call_put_id'])
         df = df.drop_duplicates()
 
         log = pd.merge(log, df[['value_date', 'vol_id', 'settle_value',
-                                'call_vol', 'put_vol', 'signal']],
+                                'signal']],
                        on=['value_date', 'vol_id'])
 
     # case where signals are None; in this case get 25d vol changes from pdf
@@ -578,37 +584,37 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
     # plt.title('Greeks over simulation period')
     # # plt.show()
 
-    if signals is not None:
-        print('signals not none, proceeding to additional plots.')
-        plt.figure()
-        # y = (log.cu_pnl_net - np.mean(log.cu_pnl_net)) / \
-        #     (log.cu_pnl_net.max() - log.cu_pnl_net.min())
+    # if signals is not None:
+    #     print('signals not none, proceeding to additional plots.')
+    #     plt.figure()
+    #     # y = (log.cu_pnl_net - np.mean(log.cu_pnl_net)) / \
+    #     #     (log.cu_pnl_net.max() - log.cu_pnl_net.min())
 
-        # y1 = log['dval_call_vol_change'] - log['dval_put_vol_change']
-        unique_log = log.drop_duplicates(subset='value_date')
+    #     # y1 = log['dval_call_vol_change'] - log['dval_put_vol_change']
+    #     unique_log = log.drop_duplicates(subset='value_date')
 
-        settle_vals = unique_log.settle_value
-        callvols = unique_log.call_vol
-        putvols = unique_log.put_vol
-        callvols *= 100
-        callvolchange = (callvols.shift(-1) - callvols).shift(1).fillna(0)
-        putvols *= 100
-        putvolchange = (putvols.shift(-1) - putvols).shift(1).fillna(0)
-        dates = unique_log.value_date
+    #     settle_vals = unique_log.settle_value
+    #     callvols = unique_log.call_vol
+    #     putvols = unique_log.put_vol
+    #     callvols *= 100
+    #     callvolchange = (callvols.shift(-1) - callvols).shift(1).fillna(0)
+    #     putvols *= 100
+    #     putvolchange = (putvols.shift(-1) - putvols).shift(1).fillna(0)
+    #     dates = unique_log.value_date
 
-        spotchange = (settle_vals.shift(-1) - settle_vals).shift(1).fillna(0)
+    #     spotchange = (settle_vals.shift(-1) - settle_vals).shift(1).fillna(0)
 
-        plt.plot(dates, spotchange, c='k',
-                 alpha=0.8, label='spot change')
+    #     plt.plot(dates, spotchange, c='k',
+    #              alpha=0.8, label='spot change')
 
-        plt.plot(dates, callvolchange,
-                 c='c', alpha=0.7, label='call_vol change')
+    #     plt.plot(dates, callvolchange,
+    #              c='c', alpha=0.7, label='call_vol change')
 
-        plt.plot(dates, putvolchange,
-                 c='r', alpha=0.7, label='put_vol change')
+    #     plt.plot(dates, putvolchange,
+    #              c='r', alpha=0.7, label='put_vol change')
 
-        plt.title('Spot Price, call_vol and put_vol changes')
-        plt.legend()
+    #     plt.title('Spot Price, call_vol and put_vol changes')
+    #     plt.legend()
 
     plt.show()
 
