@@ -886,7 +886,7 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 	>>> OPEN ISSUE: checking when all options have expired/exercised and we need to close out the rest of the portfolio.  <<<
 
 
->>>>>>>>>>> TODOS as of 8/01 <<<<<<<<<<<<<
+>>>>>>>>>>> TODOS as of 08/01 <<<<<<<<<<<<<
 
 
 > [Done] alter pull_alt_data to accept write_dumps, start_date and end_date as parameters 
@@ -897,9 +897,7 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 
 
 
-
-
->>>>>>>>>>> TODOS as of 8/02 <<<<<<<<<<<<<
+>>>>>>>>>>> TODOS as of 08/02 <<<<<<<<<<<<<
 
 > [TODO] Figure out import statements for runs when moving to runs folder. 
 > [In Progress] closing out portfolio criterion when all OTC options expire (simulation.py, lines 744-762)
@@ -914,6 +912,29 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 		> strat = dist and metric of choice. 
 	4) [Done] close_position
 	5) [Done] Cumulative signal value etc; make sure it makes sense. 
+
+
+>>>>>>>>>>> TODOS as of 08/03 <<<<<<<<<<<<<
+
+> [Done] liquidate_pos
+	> actual liquidation loop. 
+	> strat = dist and metric of choice.  
+> [Done] New concern: maintain flag. 
+> [Done] Test with fake signals, just to see if it all gets applied properly. 
+
+
+> finish up implementations in util regarding greeks -> lots 
+
+> breakeven-based delta hedging on settlements. 
+> specifying type of option to use in hedging in hedging.csv, and params.
+> roll portfolio, roll product and ttm tol in hedging file. 
+
+
+
+> generate signals logic; need to make this generic?
+> relationship between strategy and generate_signals 
+
+
 
 
 

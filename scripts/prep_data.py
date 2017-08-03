@@ -180,12 +180,14 @@ def generate_hedges(filepath):
             # hedges[greek].append(lst)
         # bound hedging
         elif row.flag == 'bound':
-            # greek = row.greek
-            if not np.isnan(row.tau):
-                tau = float(row.tau)
-                lst = [row.flag, literal_eval(row.cond), int(row.freq), tau]
-            else:
-                lst = [row.flag, literal_eval(row.cond), int(row.freq)]
+            if greek in ['gamma', 'theta', 'vega']:
+                if not np.isnan(row.tau):
+                    tau = float(row.tau)
+                    lst = [row.flag, literal_eval(row.cond), int(row.freq), tau,
+                           row.tau_spec, row.kind, row.h_greek, float(row.greekval), row.repr]
+                else:
+                    lst = [row.flag, literal_eval(row.cond), int(
+                        row.freq), row.kind, row.greek, row.greekval, row.repr]
 
         # percentage hedging
         elif row.flag == 'pct':

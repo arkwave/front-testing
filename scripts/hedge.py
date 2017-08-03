@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-28 21:08:35
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-08-03 22:03:46
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -10,6 +10,8 @@ from .util import create_straddle, create_underlying
 from .prep_data import find_cdist, contract_mths
 
 
+# TODO: accept specifications on hedge option construction from hedge
+# dictionary.
 class Hedge:
     """Class that defines a hedge object. Hedge object has two main functionalities:
     1) inferring the hedging parameters from the portfolio
@@ -18,7 +20,7 @@ class Hedge:
     Inference of hedging parameters is done via the _calibrate method, while applying hedges is done via the _apply method.
     """
 
-    def __init__(self, portfolio, hedges, vdf, pdf, desc,
+    def __init__(self, portfolio, hedges, vdf, pdf,
                  buckets=None, brokerage=None, slippage=None, **kwargs):
         """Constructor. Initializes a hedge object subject to the following parameters. 
 
@@ -34,7 +36,7 @@ class Hedge:
         self.params = kwargs
         # self.flag = flag
         self.mappings = {}
-        self.desc = desc
+        # self.desc = desc
         self.greek_repr = {}
         self.vdf = vdf
         self.pdf = pdf
@@ -43,9 +45,17 @@ class Hedge:
         self.hedges = hedges
         self.done = self.satisfied()
         self.date = pd.to_datetime(pdf.value_date.unique()[0])
+
+        self.desc, self.params = self.process_hedges()
+
         assert len([self.date]) == 1
 
         # self.params, self.greek_repr = None, None
+
+    def process_hedges(self):
+        """Helper function that sorts through the mess that is the hedge dictionary. Returns the representation used to hedge gamma/theta/vega, as well as additional parameters used to hedge the same (such as the type of structure and the specifications of that structure.)
+        """
+        pass
 
     def _calibrate(self, flag, selection_criteria='median', buckets=None):
         """Helper method that constructs the hedging parameters based on the greek representation fed into the hedge object.

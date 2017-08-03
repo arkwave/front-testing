@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-06-30 19:46:51
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-06 21:28:56
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-08-03 21:28:33
 
 ################### Imports ###################
 import pandas as pd
@@ -11,7 +11,7 @@ import pandas as pd
 
 ############################## Main Function ################################
 
-def generate_skew_signals(dataframe, init_pos=0, strategy=None, strat_str=None):
+def generate_skew_signals(pdf, vdf, init_pos=0, strategy=None, strat_str=None):
     """
     #########################################
     Main function that generates the signals based on the dataframe and the dictionary of strategies passed in. This function does the following things:
@@ -54,13 +54,15 @@ def generate_skew_signals(dataframe, init_pos=0, strategy=None, strat_str=None):
     Returns:
         TYPE: Dataframe of signals 
     """
-    # dictionary mapping vol_id to prev value of skew percentile.
+    # dictionary mapping vol_id to prev value of metric.
     prev_vals = {}
     # dictionary mapping vol_id to prev position held on that vol_id
     pos_dic = {}
     # assigning important variables.
-    dataframe.value_date = pd.to_datetime(dataframe.value_date)
-    dates = pd.to_datetime(dataframe.value_date.unique())
+    pdf.value_date = pd.to_datetime(pdf.value_date)
+    vdf.value_date = pd.to_datetime(vdf.value_date)
+
+    dates = pd.to_datetime(vdf.value_date.unique())
 
     # dictionary of the form date : {vol_id: {callvol, putvol, atmvol, signal}}
     final_dic = {}
@@ -68,13 +70,15 @@ def generate_skew_signals(dataframe, init_pos=0, strategy=None, strat_str=None):
     # main loop
     for date in dates:
         final_dic[date] = {}
-        relevant_data = dataframe[dataframe.value_date == date]
-        vids = relevant_data.vol_id.unique()
+        relevant_prices = pdf[pdf.value_date == date]
+        relevant_vols = vdf[vdf.value_date == date]
+        vids = relevant_prices.vol_id.unique()
         # filter each unique vol_id per given day.
         for vid in vids:
             # preallocate a dictionary for each vid pertaining to each date.
             if vid not in final_dic[date]:
-                final_dic[date][vid] = {}
+                final_dic[date][(vid, 'call')] = {}
+                final_dic[date][(vid, 'put')] = {}
 
             # grab the current position of this vol_id, add to dictionary if it
             # is not present. TODO: reconcile this with rolling over.
@@ -83,29 +87,37 @@ def generate_skew_signals(dataframe, init_pos=0, strategy=None, strat_str=None):
 
             # at this point, should technically be filtered down to one row,
             # i.e. one particular vol_id at on one particular day.
-            vid_daily_data = relevant_data[relevant_data.vol_id == vid]
+            v_prices = relevant_prices[relevant_prices.vol_id == vid]
+            v_vols = relevant_vols[relevant_vols.vol_id == vid]
+
+            prev_vals, pos_dic, sig_values = strategy(v_prices, v_vols,
+                                                      prev_vals, pos_dic, vid)
+
+            # sig values should be a list of lists, with each list containing:
+            # strike, call/put, lots, greek, greekval, signal, product.
+
             # print(vid_daily_data.columns)
 
-            # grab the previous percentile value, if it exists.
-            pval = prev_vals[vid] if vid in prev_vals else 0
-            curr_val = vid_daily_data.pct.values[0]
-            prev_vals[vid] = curr_val
+            # # grab the previous percentile value, if it exists.
+            # pval = prev_vals[vid] if vid in prev_vals else 0
+            # curr_val = vid_daily_data.pct.values[0]
+            # prev_vals[vid] = curr_val
 
-            # set current position of this vid
-            curr_pos = pos_dic[vid]
+            # # set current position of this vid
+            # curr_pos = pos_dic[vid]
 
-            # assigning relevant columns to final_dic.
-            final_dic[date][vid]['pct'] = curr_val
-            final_dic[date][vid]['skew'] = vid_daily_data['skew'].values[0]
-            final_dic[date][vid]['call_vol'] = \
-                vid_daily_data.call_vol.values[0]
+            # # assigning relevant columns to final_dic.
+            # final_dic[date][vid]['pct'] = curr_val
+            # final_dic[date][vid]['skew'] = vid_daily_data['skew'].values[0]
+            # final_dic[date][vid]['call_vol'] = \
+            #     vid_daily_data.call_vol.values[0]
 
-            final_dic[date][vid]['put_vol'] = \
-                vid_daily_data.put_vol.values[0]
+            # final_dic[date][vid]['put_vol'] = \
+            #     vid_daily_data.put_vol.values[0]
 
-            if 'atm_vol' in vid_daily_data.columns:
-                final_dic[date][vid]['atm_vol'] = \
-                    vid_daily_data.atm_vol.values[0]
+            # if 'atm_vol' in vid_daily_data.columns:
+            #     final_dic[date][vid]['atm_vol'] = \
+            #         vid_daily_data.atm_vol.values[0]
 
             # TODO: can try to replace this with a more general formulation.
             magnitude = curr_val - pval

@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-03 16:18:00
+# @Last Modified time: 2017-08-03 21:59:43
 
 ################################ imports ###################################
 
@@ -1207,7 +1207,7 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60, fla
     return pf, total_cost
 
 
-def rebalance(vdf, pdf, pf, hedges, counters, desc, buckets=None, brokerage=None, slippage=None, hedge_type='straddle'):
+def rebalance(vdf, pdf, pf, hedges, counters, desc, buckets=None, brokerage=None, slippage=None):
     """Function that handles EOD greek hedging. Calls hedge_delta and hedge_gamma_vega.
 
     Notes:
@@ -1290,8 +1290,9 @@ def rebalance(vdf, pdf, pf, hedges, counters, desc, buckets=None, brokerage=None
     hedge_count = 0
 
     # initialize hedge engine.
+
     hedge_engine = Hedge(pf, hedges, vdf, pdf, desc,
-                         buckets=buckets, kind=hedge_type,
+                         buckets=buckets,
                          slippage=slippage, brokerage=brokerage)
 
     """
@@ -1333,13 +1334,9 @@ def rebalance(vdf, pdf, pf, hedges, counters, desc, buckets=None, brokerage=None
     if hedgearr[0] and 'delta' in hedges:
         # grabbing condition that indicates zeroing condition on
         # delta
-        # hedge_type = hedges['delta']
-        # hedge_type = [hedge_type[i] for i in range(len(hedge_type)) if hedge_type[
-        #     i][0] == 'static'][0][1]
 
         fee = hedge_engine.apply('delta')
         cost += fee
-        # cost += hedge_engine.apply(pf, 'delta', hedge_type)
 
     else:
         print('no delta hedging specifications found')

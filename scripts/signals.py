@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-08-02 18:00:14
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-03 19:03:11
+# @Last Modified time: 2017-08-03 20:22:14
 import pandas as pd
 from .util import create_vanilla_option, close_out_deltas
 import numpy as np
@@ -239,7 +239,8 @@ def liquidate_position(pf, vol_id, char, greek, greekval, signal,
             raise ValueError(
                 'liquidation strategy set to dist, but no metric provided.')
         metric = kwargs['metric']
-        if metric[0] == 'skew':
+
+        if metric[0] == 'delta':
             dval = metric[1]
             relevant_ops = sorted(
                 relevant_ops, key=lambda x: abs(abs(x.delta/x.lots) - dval))
