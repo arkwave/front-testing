@@ -102,7 +102,8 @@ pf.add_security([qc1, qc2, cc1, cc2], 'OTC')
 
 # print('portfolio: ', pf)
 
-hedges = generate_hedges('hedging.csv')
+hedges, roll_portfolio, pf_ttm_tol, pf_roll_product, \
+    roll_hedges, h_ttm_tol, h_roll_product = generate_hedges('hedging.csv')
 
 print('hedges: ', hedges)
 
@@ -116,8 +117,7 @@ b3 = [0, 70, 120, 170]
 
 t = timer()
 # pf = generate_portfolio()
-hedge = Hedge(pf, hedges, test_vdf, test_pdf,
-              desc='uid', type='straddle', brokerage=1)
+hedge = Hedge(pf, hedges, test_vdf, test_pdf,)
 
 for key in hedges:
     if key != 'delta':
@@ -128,16 +128,16 @@ print(pprint.pformat(hedge.params))
 print(pprint.pformat(hedge.greek_repr))
 print(pprint.pformat(hedge.mappings))
 
-print(hedge.satisfied(pf))
+print(hedge.satisfied())
 
-print('~~~~ HEDGING VEGA ~~~~~~')
-x = hedge.apply(pf, 'vega')
+# print('~~~~ HEDGING VEGA ~~~~~~')
+# x = hedge.apply('vega')
 print('~~~~ HEDGING GAMMA~~~~~~')
-# y = hedge.apply(pf, 'gamma')
+y = hedge.apply('gamma')
 
 hedge.refresh()
 
 print(pprint.pformat(hedge.greek_repr))
-print(hedge.satisfied(pf))
+print(hedge.satisfied())
 
 print('elapsed: ', timer() - t)
