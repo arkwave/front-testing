@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-03 17:32:57
+# @Last Modified time: 2017-08-04 13:20:15
 
 
 from .portfolio import Portfolio
@@ -338,20 +338,21 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None, payoff='ame
             lm, dm = multipliers[pdt][1], multipliers[pdt][0]
             t1 = (newop.theta * 365)/(newop.lots * lm * dm)
             # t2 = (op2.theta * 365) / (op2.lots * lm * dm)
-            lots_req = round(((theta_req) * 365) / (t1 * lm * dm))
+            lots_req = round((abs(theta_req) * 365) / abs(t1 * lm * dm))
 
         if kwargs['greek'] == 'vega':
             vega_req = float(kwargs['greekval'])
-            # if shorted:
-            #     vega_req = -vega_req
-            # curr_vega = op1.vega + op2.vega
             lm, dm = multipliers[pdt][1], multipliers[pdt][0]
             v1 = (newop.vega * 100) / (newop.lots * dm * lm)
             lots_req = round(abs(vega_req * 100) / (abs(v1) * lm * dm))
             print('lots req: ', lots_req)
 
         if kwargs['greek'] == 'gamma':
-            pass
+            gamma_req = float(kwargs['greekval'])
+            lm, dm = multipliers[pdt][1], multipliers[pdt][0]
+            g1 = (gamma_req * dm) / (newop.lots * lm)
+            lots_req = round(abs(gamma_req) * dm) / (abs(g1) * lm)
+            print('lots_req: ', lots_req)
 
         newop.update_lots(lots_req)
         newop.underlying.update_lots(lots_req)
@@ -560,9 +561,6 @@ def create_spread(char, volid, vdf, pdf, date, shorted, kwargs):
         # delta1, delta2 = delta1/100, delta2/100
     elif 'strike' in kwargs:
         strike1, strike2 = kwargs['strike']
-    pdt = volid.split()[0]
-
-    lm, dm = multipliers[pdt][1], multipliers[pdt][0]
 
     # long call spread : buy itm call, sell otm call.
     # short call spread: sell itm call, buy otm call
@@ -581,7 +579,7 @@ def create_spread(char, volid, vdf, pdf, date, shorted, kwargs):
 # update to allow for greeks to specify lottage.
 
 
-def create_strangle(volid, vdf, pdf, date, shorted, kwargs, pf=None):
+def create_strangle(volid, vdf, pdf, date, shorted, pf=None, **kwargs):
     """Utility method that creates a strangle (long or short).
 
     Args:
@@ -603,19 +601,25 @@ def create_strangle(volid, vdf, pdf, date, shorted, kwargs, pf=None):
     lot1, lot2 = None, None
     pdt = volid.split()[0]
     char1, char2 = kwargs['chars']
+
+    print('chars:', char1, char2)
+
     lm, dm = multipliers[pdt][1], multipliers[pdt][0]
 
-    if 'strike' in kwargs:
-        strike1, strike2 = kwargs['strike']
+    strike1, strike2 = kwargs['strike'] if 'strike' in kwargs else None, None
 
-    if 'lots' in kwargs:
-        lot1, lot2 = kwargs['lots']
+    lot1, lot2 = kwargs['lots'] if 'lots' in kwargs else None, None
+
+    if 'delta' in kwargs:
+        delta1, delta2 = kwargs['delta']
+
+    print('deltas: ', delta1, delta2)
 
     print('util.create_strangle - lot1, lot2: ', lot1, lot2)
     op1 = create_vanilla_option(
-        vdf, pdf, volid, char1, shorted, date, strike=strike1, lots=lot1)
+        vdf, pdf, volid, char1, shorted, date, strike=strike1, lots=lot1, delta=delta1)
     op2 = create_vanilla_option(
-        vdf, pdf, volid, char2, shorted, date, strike=strike2, lots=lot2)
+        vdf, pdf, volid, char2, shorted, date, strike=strike2, lots=lot2, delta=delta2)
 
     # setting lots based on greek value passed in
     if 'greek' in kwargs:
@@ -649,7 +653,7 @@ def create_strangle(volid, vdf, pdf, date, shorted, kwargs, pf=None):
             print('theta req: ', theta_req)
             t1 = (op1.theta * 365)/(op1.lots * lm * dm)
             t2 = (op2.theta * 365) / (op2.lots * lm * dm)
-            lots_req = round(((theta_req) * 365) / ((t1 + t2) * lm * dm))
+            lots_req = round((abs(theta_req) * 365) / (abs(t1 + t2) * lm * dm))
 
         op1.update_lots(lots_req)
         op2.update_lots(lots_req)
@@ -719,18 +723,15 @@ def create_skew(volid, vdf, pdf, date, shorted, delta, ftprice, **kwargs):
 
     if kwargs['greek'] == 'vega':
         vega_req = float(kwargs['greekval'])
-        if shorted:
-            vega_req = -vega_req
-        # curr_vega = op1.vega + op2.vega
         lm, dm = multipliers[pdt][1], multipliers[pdt][0]
         v1 = (op1.vega * 100) / (op1.lots * dm * lm)
-        lots_req = round((vega_req * 100) / (v1 * lm * dm))
+        lots_req = round(abs(vega_req * 100) / (abs(v1) * lm * dm))
         print('lots req: ', lots_req)
-
         op1.update_lots(lots_req)
         op2.update_lots(lots_req)
         op1.underlying.update_lots(lots_req)
         op2.underlying.update_lots(lots_req)
+
     return op1, op2
 
 
@@ -797,7 +798,7 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
             print('util.create_straddle - theta req: ', theta_req)
             t1 = (op1.theta * 365) / (op1.lots * lm * dm)
             t2 = (op2.theta * 365) / (op2.lots * lm * dm)
-            lots_req = round(((theta_req) * 365) / ((t1 + t2) * lm * dm))
+            lots_req = round((abs(theta_req) * 365) / (abs(t1 + t2) * lm * dm))
 
         print('util.create_straddle - lots_req: ', lots_req)
         op1.update_lots(lots_req)
