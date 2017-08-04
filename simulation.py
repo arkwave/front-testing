@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-03 21:59:43
+# @Last Modified time: 2017-08-04 18:15:45
 
 ################################ imports ###################################
 
@@ -103,7 +103,10 @@ np.random.seed(seed)
 ############## Main Simulation Loop #################
 #####################################################
 
-def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, brokerage=None, slippage=None, signals=None, roll_portfolio=None, roll_hedges=None, roll_product=None, ttm_tol=None, hedge_desc='uid'):
+def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, brokerage=None,
+                   slippage=None, signals=None,
+                   roll_portfolio=None, pf_ttm_tol=None, pf_roll_product=None,
+                   roll_hedges=None, h_ttm_tol=None, h_roll_product=None):
     """
     Each run of the simulation consists of 5 steps:
         1) Feed data into the portfolio.
@@ -282,16 +285,18 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
         if signals is not None:
             print('signals not none, applying. ')
             relevant_signals = signals[signals.value_date == date]
-            pf, cost, sigvals = apply_signal(pf, pdf, vdf, relevant_signals, date, sigvals,
-                                             strat='filo', brokerage=brokerage, slippage=slippage)
+            pf, cost, sigvals = apply_signal(pf, pdf, vdf, relevant_signals, date,
+                                             sigvals, strat='filo',
+                                             brokerage=brokerage, slippage=slippage)
             dailycost += cost
 
     # Step 6: Hedge - consists of rolling over hedges (if necessary), and
     # controlling greek levels of hedges
         cost = 0
         if roll_portfolio:
-            pf, cost = roll_over(
-                pf, vdf, pdf, date, brokerage=brokerage, slippage=slippage, flag='OTC', atm_roll=True, target_product=roll_product, ttm_tol=ttm_tol)
+            pf, cost = roll_over(pf, vdf, pdf, date, brokerage=brokerage,
+                                 slippage=slippage, flag='OTC', atm_roll=True,
+                                 target_product=pf_roll_product, ttm_tol=pf_ttm_tol)
             dailycost += cost
 
         # if roll_hedges:
@@ -301,8 +306,9 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, broke
 
             # dailycost += cost
 
-        pf, counters, cost, roll_hedged = rebalance(
-            vdf, pdf, pf, hedges, counters, desc=hedge_desc, brokerage=brokerage, slippage=slippage)
+        pf, counters, cost, roll_hedged = rebalance(vdf, pdf, pf, hedges,
+                                                    counters,
+                                                    brokerage=brokerage, slippage=slippage)
         dailycost += cost
 
     # Step 7: Subtract brokerage/slippage costs from rebalancing. Append to
@@ -1145,6 +1151,8 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60, fla
     toberemoved = []
     roll_all = False
 
+    print('simulation.roll_over - ttm_tol: ', ttm_tol)
+
     # check target_volid roll check
     if target_product:
         prod = target_product
@@ -1207,7 +1215,7 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60, fla
     return pf, total_cost
 
 
-def rebalance(vdf, pdf, pf, hedges, counters, desc, buckets=None, brokerage=None, slippage=None):
+def rebalance(vdf, pdf, pf, hedges, counters, buckets=None, brokerage=None, slippage=None):
     """Function that handles EOD greek hedging. Calls hedge_delta and hedge_gamma_vega.
 
     Notes:
@@ -1291,7 +1299,7 @@ def rebalance(vdf, pdf, pf, hedges, counters, desc, buckets=None, brokerage=None
 
     # initialize hedge engine.
 
-    hedge_engine = Hedge(pf, hedges, vdf, pdf, desc,
+    hedge_engine = Hedge(pf, hedges, vdf, pdf,
                          buckets=buckets,
                          slippage=slippage, brokerage=brokerage)
 
@@ -1326,17 +1334,15 @@ def rebalance(vdf, pdf, pf, hedges, counters, desc, buckets=None, brokerage=None
                 cost += fee
                 # cost += hedge_engine.apply(pf, 'theta', 'bound')
             hedge_engine.refresh()
-
+    # check if delta hedging is required. if so, perform. else, skip.
+        if hedgearr[0] and 'delta' in hedges:
+            # grabbing condition that indicates zeroing condition on
+            # delta
+            fee = hedge_engine.apply('delta')
+            cost += fee
         hedge_count += 1
         done_hedging = hedge_engine.satisfied()
-
-    # check if delta hedging is required. if so, perform. else, skip.
-    if hedgearr[0] and 'delta' in hedges:
-        # grabbing condition that indicates zeroing condition on
-        # delta
-
-        fee = hedge_engine.apply('delta')
-        cost += fee
+        print('done hedging: ', done_hedging)
 
     else:
         print('no delta hedging specifications found')
@@ -1637,7 +1643,8 @@ if __name__ == '__main__':
     print('PORTFOLIO PREPARED. GENERATING HEDGES... [5/7]')
 
     # generate hedges #
-    hedges = generate_hedges(hedge_path)
+    hedges, roll_portfolio, pf_ttm_tol, pf_roll_product, \
+        roll_hedges, h_ttm_tol, h_roll_product = generate_hedges(hedge_path)
 
     e1 = time.clock() - t
     print('TOTAL PREP TIME: ', e1)

@@ -1,3 +1,4 @@
-greek,flag,cond,freq,subcond,tau
-delta,zero,,1,,
-delta,roll,50,1,"(30,70)"
+greek,flag,cond,freq,subcond,tau,tau_spec,kind,spectype,spec,repr
+delta,zero,,1,,,,,,,
+delta,roll,50,1,"(30,70)",,,,,,
+gen,portfolio,TRUE,,,60,,,product,CC,

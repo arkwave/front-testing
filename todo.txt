@@ -883,7 +883,7 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 			- HUGE delta accumulations close to expiry. 
 
 
-	>>> OPEN ISSUE: checking when all options have expired/exercised and we need to close out the rest of the portfolio.  <<<
+
 
 
 >>>>>>>>>>> TODOS as of 08/01 <<<<<<<<<<<<<
@@ -923,22 +923,54 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 > [Done] Test with fake signals, just to see if it all gets applied properly. 
 
 
-> finish up implementations in util regarding greeks -> lots 
+
+
+>>>>>>>>>>>> TODOS as of 08/04 <<<<<<<<<<<<<
+
+> [Done] finish up implementations in util regarding greeks -> lots 
+> [Done] specifying type of option to use in hedging in hedging.csv, and params.
+
+> roll portfolio, roll product and ttm tol in hedging file. 
+	- [Done] updating generate_hedges to take into account the new xlsx format. 
+	- [Done] update hedge object to read buckets from row.subcond if desc = exp. 
+
+
+
+>>>>>>>>>>>>>> TODOS as of 08/05 <<<<<<<<<<<<<<<
+
+
+> Debug and make sure everything recently implemented is working with no glitches/problems:
+	1) new hedging object - process_hedges/calibrate/add_hedges. 
+	2) grab_data with filtering. 
+	3) implementation regarding greeks and lots in utils. 
+
+> callstrike vs putstrike paradigm for options, and calculating the conditions for op-delta roll. 
+
+> hedging after timestep. 
+
+> generalizing atm roll in roll_over. 
+
+> instead of zeroing delta, requiring delta at a fixed value (i.e. maintain 5)
+	- related: implement a future signals thing. 
+
 
 > breakeven-based delta hedging on settlements. 
-> specifying type of option to use in hedging in hedging.csv, and params.
-> roll portfolio, roll product and ttm tol in hedging file. 
+
+> net vega position problem --> maintaining a primary position of sorts. 
+	- example: in the case of an event in CC and no corresponding event in QC, we want to still maintain net 0 vega across both positions; i.e. one will have
+		to be hedged basis the other
+
+> solve the rolling vega issue for short positions (i.e. open issue (1))
 
 
 
-> generate signals logic; need to make this generic?
-> relationship between strategy and generate_signals 
 
 
 
 
 
-------------------------------------------------------------------------
+
+-------------------------- On Hold: ------------------------
 
 > [On Hold] moving to plotly:
 	- plan is to make a gui using Tkinter and publish graphs on plotly. 
@@ -948,15 +980,35 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 > [On Hold] toy with the idea of different TTM buckets for each greek; see what will come of it and how much needs to be changed. 
 > [On Hold] slippage and brokerage in handle_barriers (need to figure out in what form/manner this is actually required)
 
--------------------------------------------------------------------------
+------------------------------------------------------------
+
+######################################### Open Issues ###############################################
+
+---------------------
+| as of: 08/04/2017 |
+---------------------
+
+> ISSUE: specifying a value for hedging gamma/theta/vega forces that value to be met, irrespective of sign of the desired position. 
+	- e.g. : initial position is a short CC straddle with -9 gamma, value in hedging requires 50. 
+			--> adds on 59 gamma with of long straddles to 'hedge', resulting in overall 
+				long CC position when we desired a short position. 
+
+> ISSUE: checking when all options have expired/exercised and we need to close out the rest of the portfolio.
+
+######################################################################################################
+
 
 ___________________________________________
 hedging parameters:
-delta,zero,,1,,
-delta,roll,50,1,"(40,60)"
-gamma,bound,"(-10, 10)",1,,0.5
-vega,bound,"(-1000, 1000)",1,,0.164383562
+delta,zero,,1,,,,,,,
+delta,roll,50,1,"(30,70)",,,,,,
+gamma,bound,"(45, 55)",1,,0.5,years,straddle,strike,atm,uid
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+
+
 
 
 =====================

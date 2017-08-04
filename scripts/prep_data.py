@@ -170,24 +170,47 @@ def generate_hedges(filepath):
     df = pd.read_csv(filepath)
     hedges = OrderedDict()
     lst = []
+
+    roll_portfolio, pf_ttm_tol, pf_roll_product = None, None, None
+    roll_hedges, h_ttm_tol, h_roll_product = None, None, None
+
     for i in df.index:
         row = df.iloc[i]
         # static hedging
         greek = row.greek
+        # initial check: ascertain whether or not general rolling conditions
+        # have been included.
+        if greek == 'gen':
+            if row.flag == 'portfolio':
+                roll_portfolio = True if row.cond else False
+                pf_ttm_tol = row.tau if not np.isnan(row.tau) else 30
+                pf_roll_product = row.spec if row.spectype == 'product' else None
+
+            elif row.flag == 'hedges':
+                roll_hedges = True if row.cond else False
+                h_ttm_tol = row.tau if not np.isnan(row.tau) else 30
+                h_roll_product = row.spec if row.spectype == 'product' else None
+            continue
+
         if row.flag == 'zero':
-            # greek = row.greek
             lst = [row.flag, int(row.freq)]
-            # hedges[greek].append(lst)
+
         # bound hedging
         elif row.flag == 'bound':
+            spec = str(row.spec) if row.spec == 'atm' else float(
+                row.spec)
+            spectype = str(row.spectype)
             if greek in ['gamma', 'theta', 'vega']:
+                rep = row.repr
+                subcond = literal_eval(row.subcond) if rep == 'exp' else None
                 if not np.isnan(row.tau):
+                    print('prep_data.generate_hedges - tau not nan. ')
                     tau = float(row.tau)
-                    lst = [row.flag, literal_eval(row.cond), int(row.freq), tau,
-                           row.tau_spec, row.kind, row.h_greek, float(row.greekval), row.repr]
+                    lst = [row.flag, list(literal_eval(row.cond)), int(row.freq), tau,
+                           row.tau_spec, row.kind, spectype, spec, subcond, row.repr]
                 else:
-                    lst = [row.flag, literal_eval(row.cond), int(
-                        row.freq), row.kind, row.greek, row.greekval, row.repr]
+                    lst = [row.flag, literal_eval(row.cond), int(row.freq),
+                           row.kind, spectype, spec, subcond, row.repr]
 
         # percentage hedging
         elif row.flag == 'pct':
@@ -203,7 +226,8 @@ def generate_hedges(filepath):
         else:
             hedges[greek] = [lst]
 
-    return hedges
+    return hedges, roll_portfolio, pf_ttm_tol, \
+        pf_roll_product,  roll_hedges, h_ttm_tol, h_roll_product
 
 
 # def read_data(epath, specpath, signals=None, start_date=None, end_date=None, test=False, writeflag=None, write=False, pdt=None, opmth=None, ftmth=None):
