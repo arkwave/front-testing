@@ -938,6 +938,7 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 
 >>>>>>>>>>>>>> TODOS as of 08/05 <<<<<<<<<<<<<<<
 
+> done_hedging returning None; why?
 
 > Debug and make sure everything recently implemented is working with no glitches/problems:
 	1) new hedging object - process_hedges/calibrate/add_hedges. 
