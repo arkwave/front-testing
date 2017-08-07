@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-03 15:05:30
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-08-07 17:43:23
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -35,200 +35,14 @@ contract_mths = {
 }
 
 
-def pull_relevant_data(pf_path=None, sigpath=None, signals=None, start_date=None, end_date=None, pdt=None, opmth=None, ftmth=None):
-    """
-    Pulls relevant data based on one of two conditions:
-            1. Securities specified in the portfolio, or 
-            2. Securities specified in the signal file to be applied. 
-        Portfolio takes precedence over signals if both are supplied. Data is pulled according to the following steps:
-            1. get all unique underlying ids and vol ids
-            2. get all relevant underlying id information from price table
-            3. get all relevant settlement vol surfaces from vol table 
-
-    Args:
-        pf_path (str, optional): path to a csv specifiying portfolio
-        sigpath (str, optional): path to a csv specifying signals to be applied. 
-        signals (None, optional): Description
-        start_date (None, optional): Description
-        end_date (None, optional): Description
-        pdt (None, optional): Description
-        opmth (None, optional): Description
-        ftmth (None, optional): Description
-
-    Returns:
-        tuple: price and volatility dataframes. 
-
-    Raises:
-        ValueError: Raised if neither pf_path nor sigpath are specified. 
-    """
-    uids, volids = None, None
-
-    # FIXME: make sure this works for len(pdt) > 1
-    if not any(i is None for i in [pdt, opmth, ftmth]):
-        print('pulling based on product, opmth and ftmth')
-        # NOTE: Currently defaults to pulling ALL contract-month options prior
-        # to the current contract month in the same year.
-        ft_month = ftmth[0]
-        ft_yr = ftmth[1]
-        index = contract_mths[pdt].index(ft_month)
-        relevant_uids = contract_mths[pdt][:(index + 1)]
-
-        uids = [pdt + '  ' + x + ft_yr for x in relevant_uids]
-        volids = [pdt + '  ' + x + ft_yr + '.' +
-                  x + ft_yr for x in relevant_uids]
-
-    elif pf_path is not None and not pd.read_csv(pf_path).empty:
-        pf = pd.read_csv(pf_path)
-        if not pf.empty:
-            print('pulling from pf_path')
-            # getting unique vol_ids from portfolio
-            ops = pf[pf.Type == 'Option']
-            fts = set(pf[pf.Type == 'Future'].vol_id)
-            op_uids = set(ops.vol_id.str.split('.').str[0])
-            uids = list(op_uids.union(fts))
-            volids = list(set(ops.vol_id.unique()))
-            # get pdt len for future ops
-
-    elif sigpath is not None:
-        print('pulling from sigpath')
-        df = pd.read_csv(sigpath)
-        df['length'] = df.pdt.str.len()
-        df['vidspace'] = ''
-        df.loc[df.length == 2, 'vidspace'] = 1
-        df.loc[df.length == 1, 'vidspace'] = 2
-        # handling spaces. irritating.
-        placeholder = pd.Series([' '] * len(df.length))
-        df['underlying_id'] = df.pdt + placeholder*(2-df.length) + df.ftmth
-
-        df['vol_id'] = df.pdt + placeholder * \
-            df.vidspace + df.opmth + '.' + df.ftmth
-        uids = df.underlying_id.unique()
-        volids = df.vol_id.unique()
-
-    elif signals is not None:
-        print('pulling from signals')
-        df = signals.copy()
-        df['length'] = df.pdt.str.len()
-        df['vidspace'] = ''
-        df.loc[df.length == 2, 'vidspace'] = 1
-        df.loc[df.length == 1, 'vidspace'] = 2
-        # handling spaces. irritating.
-        placeholder = pd.Series([' '] * len(df.length))
-        df['underlying_id'] = df.pdt + placeholder*(2-df.length) + df.ftmth
-
-        df['vol_id'] = df.pdt + placeholder * \
-            df.vidspace + df.opmth + '.' + df.ftmth
-        uids = df.underlying_id.unique()
-        volids = df.vol_id.unique()
-
-    else:
-        raise ValueError('no valid inputs; cannot draw data')
-
-    # creating SQL engine, drawing data
-    user = 'sumit'
-    password = 'Olam1234'
-
-    engine = create_engine(
-        'postgresql://' + user + ':' + password + '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
-    connection = engine.connect()
-
-    # construct queries
-    price_query, vol_query = construct_queries(uids, volids,
-                                               start_date=start_date, end_date=end_date)
-
-    # reading in the query
-    pdf = pd.read_sql(price_query, connection, columns=[
-        'ticker', 'valuedate', 'px_settle'])
-
-    vdf = pd.read_sql(vol_query, connection)
-
-    connection.close()
-
-    # handling column names etc
-    pdf['underlying_id'] = pdf.ticker.str[:2].str.strip() + '  ' + \
-        pdf.ticker.str[2:4]
-    # print('pdf after draw: ', pdf)
-
-    vdf.volid = vdf.volid.str.split().str[
-        0] + '  ' + vdf.volid.str.split().str[1]
-
-    pdf = pdf[['underlying_id', 'valuedate', 'px_settle']]
-
-    pdf.columns = ['underlying_id', 'value_date', 'settle_value']
-    vdf.columns = ['value_date', 'vol_id',
-                   'strike', 'call_put_id', 'settle_vol']
-
-    # sorting data types
-    pdf.value_date = pd.to_datetime(pdf.value_date)
-    vdf.value_date = pd.to_datetime(vdf.value_date)
-
-    pdf = pdf.sort_values('value_date')
-    vdf = vdf.sort_values('value_date')
-
-    # resetting indices
-    pdf.reset_index(drop=True, inplace=True)
-    vdf.reset_index(drop=True, inplace=True)
-
-    return pdf, vdf
-
-
-def construct_queries(uids, volids, start_date=None, end_date=None):
-    """Dynamically constructs SQL query to draw relevant information from the database
-    based on input flags. 
-
-    Args:
-        uids (TYPE): list of unique underlying IDs
-        volids (TYPE): list of unique vol_ids
-        start_date (None, optional): simulation start date
-        end_date (None, optional): simulation end date 
-
-    Returns:
-        TYPE: Description
-    """
-    uids = [" ".join(x.split()) + ' Comdty'for x in uids]
-    print('uids: ', uids)
-    print('volids: ', volids)
-
-    # constructing baseline queries
-    price_query = 'select ticker, valuedate, px_settle from view_future_data where ticker '
-    vol_query = 'select value_date, volid, strike, call_put_id, settle_vol from public.table_opera_option_vol_surface where volid '
-
-    # constructing filter statements
-    price_filter = '= ' + "'" + \
-        uids[0] + "'" if len(uids) == 1 else ' in ' + \
-        str(tuple(map(str, uids)))
-
-    vol_filter = 'like ' + \
-        str("'" + volids[0] + "'") if len(volids) == 1 else ' in ' + \
-        str(tuple(map(str, volids)))
-
-    # updating filter statement based on start/end dates inputted
-    start = "".join(start_date.strftime('%Y-%m-%d').split('-')
-                    ) if start_date is not None else ''
-    end = "".join(end_date.strftime('%Y-%m-%d').split('-')
-                  ) if end_date is not None else ''
-
-    if start_date is not None:
-        price_filter += ' and valuedate >= ' + "'" + start + "'"
-        vol_filter += ' and value_date >= ' + "'" + start + "'"
-    if end_date is not None:
-        price_filter += ' and valuedate <= ' + "'" + end + "'"
-        vol_filter += ' and value_date <= ' + "'" + end + "'"
-
-    price_query = price_query + price_filter
-    vol_query = vol_query + vol_filter
-
-    print('price query: ', price_query)
-    print('vol query: ', vol_query)
-
-    return price_query, vol_query
-
-
 def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False):
     """Utility function that draws/cleans data from the alternate data table. 
 
     Args:
         pdt (string): The product being drawn from the database
+        start_date (None, optional): Description
+        end_date (None, optional): Description
+        write_dump (bool, optional): Description
 
     Returns:
         tuple: vol dataframe, price dataframe, raw dataframe. 
@@ -338,10 +152,13 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
         edf (dataframe): Dataframe of option expiries 
         start_date (pd Timestamp): start date of the simulation
         end_date (pd Timestamp): end date of the simulation
+        pdt (TYPE): Description
         specpath (str, optional): path to a portfolio specs csv
         signals (None, optional): path to a signals dataframe
         test (bool, optional): flag that indicates if dataframes should be written.
         write (bool, optional): Descriptio
+        writepath (None, optional): Description
+        direc (TYPE, optional): Description
 
     Returns:
         Tuple: vol, price, expiry, cleaned_price and start date. 
@@ -353,32 +170,18 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
 
     start_date = pd.to_datetime(start_date)
     end_date = pd.to_datetime(end_date)
-    # sanity checking
-    print('start_date: ', start_date)
-    print('end_date: ', end_date)
 
-    # fixing datetimes
+    # sanity checking
     vdf.value_date = pd.to_datetime(vdf.value_date)
     pdf.value_date = pd.to_datetime(pdf.value_date)
 
     vdf = vdf.sort_values('value_date')
     pdf = pdf.sort_values('value_date')
 
-    # # filtering relevant dates
-    # vdf = vdf[(vdf.value_date >= start_date) &
-    #           (vdf.value_date <= end_date)]
-
-    # pdf = pdf[(pdf.value_date >= start_date) &
-    #           (pdf.value_date <= end_date)]
-
     assert not vdf.empty
     assert not pdf.empty
 
     vid_list = vdf.vol_id.unique()
-    # p_list = pdf.underlying_id.unique()
-
-    # print('util.prep_datasets - vid_list: ', vid_list)
-    # print('util.prep_datasets - p_list: ', p_list)
 
     if os.path.exists(specpath):
         specs = pd.read_csv(specpath)
@@ -389,19 +192,12 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
         signals.value_date = pd.to_datetime(signals.value_date)
         vdf, pdf = match_to_signals(vdf, pdf, signals)
 
-    # print('vid list: ', vid_list)
-
     # get effective start date, pick whichever is max
 
     # case 2: drawing based on pdt, ft and opmth
     dataset_start_date = get_min_start_date(
         vdf, pdf, vid_list, signals=signals)
     print('datasets start date: ', dataset_start_date)
-
-    # dataset_start_date = pd.to_datetime(dataset_start_date)
-
-    # start_date = dataset_start_date if (start_date is None) or \
-    #     ((start_date is not None) and (dataset_start_date > start_date)) else start_date
 
     print('prep_data start_date: ', start_date)
 
@@ -480,20 +276,30 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
 def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
               writepath=None, direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/',
               write=True, test=False, volids=None, write_dump=False):
-    """Utility function that allows the user to easily grab a dataset by specifying just the product,
-    start_date and end_date. Used to small datasets for the purposes of testing new functions/modules.
-DO NOT USE to generate datasets to be passed into simulation.py; use
-pull_alt_data + prepare_datasets for that.
+    """
+    Utility function that allows the user to easily grab a dataset by specifying just the product,
+    start_date and end_date. 
+
 
     Args:
-        pdt (TYPE): the product being evaluated.
-        opmth (TYPE): option month
-        ftmth (TYPE): future month
+        pdts (TYPE): Description
         start_date (TYPE): start date of the dataset desired.
         end_date (TYPE): end date of the dataset desired.
+        ftmth (TYPE): future month
+        opmth (TYPE): option month
+        sigpath (None, optional): Description
+        writepath (None, optional): Description
+        direc (TYPE, optional): Description
+        write (bool, optional): Description
+        test (bool, optional): Description
+        volids (None, optional): Description
+        write_dump (bool, optional): Description
 
     return:
         pandas dataframe: the data particular to that commodity between start and end dates.
+
+    Deleted Parameters:
+        pdt (TYPE): the product being evaluated.
     """
     print('### RUNNING GRAB_DATA ###')
     print('start_date: ', start_date)
@@ -511,12 +317,15 @@ pull_alt_data + prepare_datasets for that.
     pdts = set(pdts)
 
     for pdt in pdts:
-
         final_volpath = desired_path + pdt.lower() + '_final_vols_' + \
             sd + '_' + ed + '.csv'
         final_pricepath = desired_path + pdt.lower() + '_final_price_' + \
             sd + '_' + ed + '.csv'
         final_exppath = desired_path + 'final_option_expiry.csv'
+
+        print('final_volpath: ', final_volpath)
+        print('final_pricepath: ', final_pricepath)
+        print('final exppath: ', final_exppath)
 
         if (os.path.exists(final_volpath) and os.path.exists(final_pricepath) and os.path.exists(final_exppath)):
             print('cleaned data found, reading in and returning...')

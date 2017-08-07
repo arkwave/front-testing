@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-04 18:19:35
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-08-07 14:00:48
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -41,8 +41,8 @@ class Hedge:
         self.buckets = buckets if buckets is not None else [0, 30, 60, 90, 120]
         self.hedges = hedges
         self.desc, self.params = self.process_hedges()
-        print('self.desc: ', self.desc)
-        print('self.params: ', self.params)
+        # print('self.desc: ', self.desc)
+        # print('self.params: ', self.params)
         self.done = self.satisfied()
         self.date = pd.to_datetime(pdf.value_date.unique()[0])
 
@@ -90,9 +90,9 @@ class Hedge:
                         self.buckets = list(r_conds[-2])
 
         print('processing hedges completed')
-        print('desc: ', desc)
-        print('params: ', params)
-        
+        # print('desc: ', desc)
+        # print('params: ', params)
+
         # one last sanity check
         if desc is None:
             desc = 'uid'
@@ -513,7 +513,6 @@ class Hedge:
                 if num_lots_needed == 0:
                     print(product + ' ' + month +
                           ' delta is zero. skipping hedging.')
-                    return 0
                 else:
                     try:
                         ft, _ = create_underlying(product, month, self.pdf,
@@ -523,7 +522,6 @@ class Hedge:
                             print('adding ' + str(ft))
                     except IndexError:
                         print('price data for this day does not exist. skipping...')
-                        pass
         if self.s:
             pass
         if self.b:

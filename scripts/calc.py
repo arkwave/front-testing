@@ -181,7 +181,6 @@ def get_barrier_vol(df, product, tau, call_put_id, barlevel, order):
     Returns:
         bvol (double)         : implied volatility at the barrier as specified by the vol surface df
     """
-    print('get_barrier_vol called...')
     bvol = 0
     df['product'] = df['vol_id'].str.split().str[0]
     try:
@@ -203,7 +202,7 @@ def get_barrier_vol(df, product, tau, call_put_id, barlevel, order):
                                (df['call_put_id'] == call_put_id)])
 
         tau_vals = sorted(list(bvol_df.tau))
-        relevant_tau = min([x for x in tau_vals if x > tau])
+        relevant_tau = min([x for x in tau_vals if x >= tau])
 
         bvol = bvol_df[(bvol_df.tau == relevant_tau)].settle_vol.values[0]
 

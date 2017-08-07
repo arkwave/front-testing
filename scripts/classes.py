@@ -233,8 +233,10 @@ class Option:
         # print(s)
         try:
             assert self.tau > 0
-            delta, gamma, theta, vega = _compute_greeks(
-                self.char, self.K,  self.tau, self.vol, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc, order=self.ordering, bvol=self.bvol)
+            delta, gamma, theta, vega = _compute_greeks(self.char, self.K,  self.tau, self.vol,
+                                                        s, self.r, product, self.payoff, self.lots,
+                                                        ki=self.ki, ko=self.ko, barrier=self.barrier,
+                                                        direction=self.direc, order=self.ordering, bvol=self.bvol)
         except TypeError:
             print('char: ', self.char)
             print('strike: ', self.K)
@@ -275,8 +277,11 @@ class Option:
                 b_sigma = self.bvol
             product = self.get_product()
             s = self.underlying.get_price()
-            delta, gamma, theta, vega = _compute_greeks(
-                self.char, self.K, self.tau, sigma, s, self.r, product, self.payoff, self.lots, ki=self.ki, ko=self.ko, barrier=self.barrier, direction=self.direc, order=self.ordering, bvol=b_sigma)
+            delta, gamma, theta, vega = _compute_greeks(self.char, self.K, self.tau, sigma,
+                                                        s, self.r, product, self.payoff,
+                                                        self.lots, ki=self.ki, ko=self.ko,
+                                                        barrier=self.barrier, direction=self.direc,
+                                                        order=self.ordering, bvol=b_sigma)
             # account for shorting
             if self.shorted:
                 delta, gamma, theta, vega = -delta, -gamma, -theta, -vega
@@ -284,6 +289,7 @@ class Option:
             self.delta, self.gamma, self.theta, self.vega = delta, gamma, theta, vega
 
             self.vol = sigma
+            self.bvol = b_sigma
 
             self.price = self.compute_price()
         else:
@@ -310,7 +316,7 @@ class Option:
         product = self.underlying.get_product()
         val = _compute_value(self.char, self.tau, self.vol, self.K, s, self.r,
                              self.payoff, ki=self.ki, ko=self.ko, barrier=self.barrier,
-                             d=self.direc, product=product)
+                             d=self.direc, product=product, bvol=self.bvol)
         return val
 
     def get_price(self):
@@ -389,7 +395,8 @@ class Option:
         self.delta, self.gamma, self.theta, self.vega = 0, 0, 0, 0
 
     def check_expired(self):
-        ret = True if (self.tau <= 0 or self.ordering <= 0) else False
+        ret = True if (np.isclose(self.tau, 0) or self.tau <=
+                       0 or self.ordering <= 0) else False
         self.expired = ret
         return ret
 

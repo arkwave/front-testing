@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-04 13:20:15
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-08-07 16:41:20
 
 
 from .portfolio import Portfolio
@@ -195,8 +195,6 @@ def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=N
             print('util.create_underlying: cannot find price. printing outputs: ')
             print('uid: ', uid)
             print('date: ', date)
-            # print('debug 1: ', pdf[(pdf.value_date == date)])
-            # print('debug 2: ', pdf[(pdf.underlying_id == uid)])
             return None, 0
 
     curr_mth = date.month
@@ -601,8 +599,7 @@ def create_strangle(volid, vdf, pdf, date, shorted, pf=None, **kwargs):
     lot1, lot2 = None, None
     pdt = volid.split()[0]
     char1, char2 = kwargs['chars']
-
-    print('chars:', char1, char2)
+    delta1, delta2 = None, None
 
     lm, dm = multipliers[pdt][1], multipliers[pdt][0]
 

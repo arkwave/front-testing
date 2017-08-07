@@ -267,7 +267,6 @@ class Portfolio:
                 if data[month][0]:
                     final_dic[product][month] = data[month][2:]
 
-        # print('final_dic: ', final_dic)
         self.net_greeks = final_dic
 
     def add_security(self, security, flag):
@@ -358,7 +357,6 @@ class Portfolio:
 
         Notes: this method does 90% of all the heavy lifting in the portfolio class. Don't mess with this unless you know EXACTLY what each part is doing.
         '''
-        # print('update sec by month flag: ', flag)
         if flag == 'OTC':
             dic = self.OTC
             op = self.OTC_options
@@ -408,7 +406,6 @@ class Portfolio:
                     try:
                         if sec.get_desc() == 'option':
                             data[0].remove(sec)
-
                         else:
                             data[1].remove(sec)
                     except KeyError:
@@ -523,36 +520,32 @@ class Portfolio:
         val = 0
         # try:
         for sec in self.OTC_options:
-            lm = multipliers[sec.get_product()][1]
-            dm = multipliers[sec.get_product()][0]
+            pnl_mult = multipliers[sec.get_product()][-1]
             if sec.shorted:
-                val += -sec.lots * sec.get_price() * lm * dm
+                val += -sec.lots * sec.get_price() * pnl_mult
             else:
-                val += sec.lots * sec.get_price() * lm * dm
+                val += sec.lots * sec.get_price() * pnl_mult
 
         for sec in self.hedge_options:
-            lm = multipliers[sec.get_product()][1]
-            dm = multipliers[sec.get_product()][0]
+            pnl_mult = multipliers[sec.get_product()][-1]
             if sec.shorted:
-                val += -sec.lots * sec.get_price() * lm * dm
+                val += -sec.lots * sec.get_price() * pnl_mult
             else:
-                val += sec.lots * sec.get_price() * lm * dm
+                val += sec.lots * sec.get_price() * pnl_mult
 
         for sec in self.OTC_futures:
-            lm = multipliers[sec.get_product()][1]
-            dm = multipliers[sec.get_product()][0]
+            pnl_mult = multipliers[sec.get_product()][-1]
             if sec.shorted:
-                val += -sec.lots * sec.price * lm * dm
+                val += -sec.lots * sec.price * pnl_mult
             else:
-                val += sec.lots * sec.price * lm * dm
+                val += sec.lots * sec.price * pnl_mult
 
         for sec in self.hedge_futures:
-            lm = multipliers[sec.get_product()][1]
-            dm = multipliers[sec.get_product()][0]
+            pnl_mult = multipliers[sec.get_product()][-1]
             if sec.shorted:
-                val -= sec.lots * sec.price * lm * dm
+                val -= sec.lots * sec.price * pnl_mult
             else:
-                val += sec.lots * sec.price * lm * dm
+                val += sec.lots * sec.price * pnl_mult
 
         return val
 
@@ -721,8 +714,6 @@ class Portfolio:
     def decrement_ordering(self, product, i):
         options = self.get_all_options()
         futures = self.get_all_futures()
-        # options = self.OTC_options + self.hedge_options
-        # futures = self.OTC_futures + self.hedge_futures
         for op in options:
             if op.get_product() == product:
                 op.decrement_ordering(i)
