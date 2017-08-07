@@ -983,7 +983,7 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 
 ------------------------------------------------------------
 
-######################################### Open Issues ###############################################
+######################################### Open Issues ###################################################################
 
 ---------------------
 | as of: 08/04/2017 |
@@ -996,7 +996,17 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 
 > ISSUE: checking when all options have expired/exercised and we need to close out the rest of the portfolio.
 
-######################################################################################################
+---------------------
+| As of: 08/07/2017 |
+---------------------
+
+> Testing suite is in bad need of an update:
+	1) hedge.py, fetch_data.py and util.py have no testing whatsoever. This needs to be remedied asap. 
+	2) Portfolio and Classes objects need updates. 
+	3) Calc is more or less fine, no major additions for a long time. 
+	4) prep_data/fetch_data need a serious overhaul; go through, see what code is required and what isn't, remove/move to code dump respectively. 
+
+##########################################################################################################################
 
 
 ___________________________________________
