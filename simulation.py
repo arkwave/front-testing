@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-04 18:15:45
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-08-07 17:54:22
 
 ################################ imports ###################################
 
@@ -1210,7 +1210,7 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60, fla
     pf.update_sec_by_month(None, flag, update=True)
     pf.add_security(tobeadded, flag)
     pf.update_sec_by_month(None, flag, update=True)
-    print('pf after rollover: ', pf)
+    # print('pf after rollover: ', pf)
     print('cost of rolling over: ', total_cost)
     return pf, total_cost
 
@@ -1322,6 +1322,7 @@ def rebalance(vdf, pdf, pf, hedges, counters, buckets=None, brokerage=None, slip
     while (not done_hedging and hedge_count < 10):
         # insert the actual business of hedging here.
         for flag in hedges:
+            # print('flag: ', flag)
             if flag == 'gamma' and hedgearr[1]:
                 fee = hedge_engine.apply('gamma')
                 cost += fee
