@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-07-21 15:41:52
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-01 20:19:08
+# @Last Modified time: 2017-08-04 17:51:52
 
 from scripts.fetch_data import grab_data
 from scripts.util import create_straddle
@@ -43,6 +43,8 @@ Variables required:
 
 ######### variables ################
 yr = 2016
+# start_date = str(yr) + '-01-03'
+# end_date = str(yr) + '-03-31'
 start_date = str(yr) + '-05-02'
 end_date = str(yr) + '-12-31'
 
@@ -73,13 +75,25 @@ print('portfolio: ', pf)
 
 
 # specifying hedges.
-hedges = generate_hedges('hedging.csv')
+hedges, roll_portfolio, pf_ttm_tol, pf_roll_pdt, \
+    roll_hedges, h_ttm_tol, h_roll_product = generate_hedges('hedging.csv')
+
 print('hedges: ', hedges)
+
+print('pf ttm tol: ', pf_ttm_tol)
+print('pf roll product: ', pf_roll_pdt)
+
+# signals = pd.read_csv('signals.csv')
+# signals.value_date = pd.to_datetime(signals.value_date)
 
 
 # running simulation
-log = run_simulation(vdf, pdf, edf, pf, hedges, hedge_desc='uid')
+log = run_simulation(vdf, pdf, edf, pf, hedges,
+                     roll_portfolio=roll_portfolio, pf_ttm_tol=pf_ttm_tol,
+                     pf_roll_product=pf_roll_pdt,
+                     roll_hedges=roll_hedges, h_ttm_tol=h_ttm_tol,
+                     h_roll_product=h_roll_product)
 
-name = 'qc_cc_log'
-log.to_csv('../../QC_CC_Splits/' + str(name) +
-           '_hedge_test.csv', index=False)
+# name = str(yr) + '_qc_cc_log'
+# log.to_csv('../../QC_CC_Splits/' + str(name) +
+#            '_hedge_test.csv', index=False)

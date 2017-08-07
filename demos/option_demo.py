@@ -70,7 +70,7 @@ specpath = 'specs.csv'
 sigpath = 'datasets/small_ct/signals.csv'
 hedgepath = 'hedging.csv'
 
-yr = 6
+yr = 7
 pnls = []
 
 # vdf, pdf, df = pull_alt_data('KC')
@@ -90,62 +90,6 @@ voldump = 'datasets/data_dump/' + pdt.lower() + '_vol_dump.csv'
 start_date = pd.Timestamp('201' + str(yr) + '-05-22')
 end_date = pd.Timestamp('201' + str(yr) + '-06-15')
 
-# vdf, pdf, df = pull_alt_data()
-
-# if alt:
-#     print('pulling data')
-#     edf = pd.read_csv(epath)
-#     uids = [pdt + '  ' + u + str(yr) for u in symlst]
-#     print('uids: ', uids)
-#     volids = [pdt + '  ' + u + str(yr) + '.' + u + str(yr) for u in symlst]
-#     print('volids: ', volids)
-#     pdf = pd.read_csv(pricedump)
-#     pdf.value_date = pd.to_datetime(pdf.value_date)
-#     # cleaning prices
-#     pmask = pdf.underlying_id.isin(uids)
-#     pdf = pdf[pmask]
-#     vdf = pd.read_csv(voldump)
-#     # volid = pdt + '  ' + opmth + '.' + ftmth
-#     vmask = vdf.vol_id.isin(volids)
-#     vdf = vdf[vmask]
-#     vdf.value_date = pd.to_datetime(vdf.value_date)
-#     # filter datasets before prep
-#     # vdf = vdf[(vdf.value_date >= start_date)
-#     #           & (vdf.value_date <= end_date)]
-#     # pdf = pdf[(pdf.value_date >= start_date)
-#     #           & (pdf.value_date <= end_date)]
-
-#     vdf, pdf, edf, priceDF, start_date = prep_datasets(
-#         vdf, pdf, edf, start_date, end_date)
-#     print('finished pulling data')
-
-# else:
-#     opmth = target + str(yr)
-#     ftmth = target + str(yr)
-#     print('pulling data')
-#     vdf, pdf, edf, priceDF = read_data(
-#         epath, '', pdt=pdt, opmth=opmth, ftmth=ftmth, start_date=start_date, end_date=end_date)
-#     print('finished pulling data')
-
-# print('sanity checking data')
-# # sanity check date ranges
-# sanity_check(vdf.value_date.unique(),
-#              pdf.value_date.unique(), start_date, end_date)
-
-# print('voldata: ', vdf)
-# print('pricedf: ', pdf)
-
-print('creating portfolio')
-# create 130,000 vega atm straddles
-
-# hedge_specs = {'pdt': 'S',
-#                'opmth': 'N' + str(yr),
-#                'ftmth': 'N' + str(yr),
-#                'type': 'straddle',
-#                'strike': 'atm',
-#                'shorted': True,
-#                'greek': 'gamma',
-#                'greekval': 'portfolio'}
 
 opmth = target + str(yr)
 ftmth = target + str(yr)
