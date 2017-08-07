@@ -92,8 +92,11 @@ class Hedge:
         print('processing hedges completed')
         print('desc: ', desc)
         print('params: ', params)
-        # self.desc = desc
-        # self.params = params
+        
+        # one last sanity check
+        if desc is None:
+            desc = 'uid'
+
         return desc, params
 
     def _calibrate(self, flag, selection_criteria='median', buckets=None):
