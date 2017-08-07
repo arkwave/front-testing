@@ -3,7 +3,7 @@ from scripts.prep_data import generate_hedges, sanity_check
 
 import numpy as np
 import pandas as pd
-from scripts.util import create_straddle, create_underlying
+from scripts.util import create_straddle
 from scripts.portfolio import Portfolio
 from scripts.fetch_data import grab_data
 from scripts.hedge import Hedge

@@ -8,7 +8,7 @@ from scripts.fetch_data import grab_data
 from scripts.util import create_straddle
 import pandas as pd
 from simulation import run_simulation
-from scripts.prep_data import generate_hedges, sanity_check
+from scripts.prep_data import generate_hedges
 from scripts.portfolio import Portfolio
 
 

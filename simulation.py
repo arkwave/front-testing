@@ -17,12 +17,12 @@ from collections import OrderedDict
 
 
 # user defined imports
-from scripts.portfolio import Portfolio
+# from scripts.portfolio import Portfolio
 from scripts.classes import Option
 from scripts.prep_data import prep_portfolio, generate_hedges, sanity_check
 from scripts.fetch_data import prep_datasets, pull_alt_data
-from scripts.util import create_underlying, create_vanilla_option, create_skew, blockPrint, enablePrint, close_out_deltas
-from scripts.calc import compute_strike_from_delta, get_barrier_vol, _compute_greeks
+from scripts.util import create_underlying, create_vanilla_option, close_out_deltas
+from scripts.calc import compute_strike_from_delta, get_barrier_vol
 from scripts.hedge import Hedge
 import scripts.global_vars as gv
 from scripts.signals import apply_signal
