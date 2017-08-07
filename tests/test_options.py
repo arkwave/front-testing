@@ -476,3 +476,13 @@ def test_barrier_options2():
     except AssertionError:
         print('testoptions barr_op2: vanilla: ', p3)
         print("testoptions barr_op2: barrier: ", p4)
+
+
+def test_strike_type():
+    ft2 = Future('N7', 20, 'C', shorted=False)
+    op = Option(25, 0.5, 'call', 0.2, ft2, 'amer', False, 'N7')
+    assert op.get_strike_type() == 'callstrike'
+
+    ft2.update_price(30)
+    op.update()
+    assert op.get_strike_type() == 'putstrike'

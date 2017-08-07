@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-07 14:00:48
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-08-07 18:45:50
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
 from .util import create_straddle, create_underlying, create_strangle, create_vanilla_option
-from .prep_data import find_cdist, contract_mths
 
 
 # TODO: accept specifications on hedge option construction from hedge

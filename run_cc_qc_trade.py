@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-07-21 15:41:52
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-04 17:51:52
+# @Last Modified time: 2017-08-07 19:46:15
 
 from scripts.fetch_data import grab_data
 from scripts.util import create_straddle
@@ -10,35 +10,6 @@ import pandas as pd
 from simulation import run_simulation
 from scripts.prep_data import generate_hedges, sanity_check
 from scripts.portfolio import Portfolio
-
-
-"""
-Variables required:
-1) Products, start_date, end_date, volids (optional) --> used to draw data. 
-2) Filepath to hedging (maybe alternate with a checkbox and ranges
-
-
-3) Simulation parameters:
-	> brokerage
-	> slippage 
-	> signals
-	> roll_portfolio
-	> roll_hedges 
-	> roll_product
-	> ttm_tol
-	> volids (if required to manually specify rollovers.)
-
-
-4) Portfolio parameters:
-	1) structure type - string. 
-	2) structure specifics:
-		> strike(s)
-		> delta
-		> vol_id 
-		> init date
-		> lot specification. 
-
-"""
 
 
 ######### variables ################
@@ -61,18 +32,16 @@ vdf, pdf, edf = grab_data(pdts, start_date, end_date, volids=volids)
 
 
 # specifying portfolio
-cc1, cc2 = create_straddle('CC  U6.U6', vdf, pdf,
-                           pd.to_datetime(start_date), False, 'atm', greek='vega', greekval=50000)
+cc1, cc2 = create_straddle('CC  U6.U6', vdf, pdf, pd.to_datetime(start_date),
+                           False, 'atm', greek='vega', greekval=50000)
 
-qc1, qc2 = create_straddle('QC  U6.U6', vdf, pdf, pd.to_datetime(
-    start_date), True, 'atm', greek='vega', greekval=50000)
-
+qc1, qc2 = create_straddle('QC  U6.U6', vdf, pdf, pd.to_datetime(start_date),
+                           True, 'atm', greek='vega', greekval=50000)
 
 pf = Portfolio()
 pf.add_security([cc1, cc2, qc1, qc2], 'OTC')
 
 print('portfolio: ', pf)
-
 
 # specifying hedges.
 hedges, roll_portfolio, pf_ttm_tol, pf_roll_pdt, \
@@ -94,6 +63,4 @@ log = run_simulation(vdf, pdf, edf, pf, hedges,
                      roll_hedges=roll_hedges, h_ttm_tol=h_ttm_tol,
                      h_roll_product=h_roll_product)
 
-# name = str(yr) + '_qc_cc_log'
-# log.to_csv('../../QC_CC_Splits/' + str(name) +
-#            '_hedge_test.csv', index=False)
+log.to_csv('30dayroll.csv', index=False)

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-07 16:41:20
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-08-07 22:03:24
 
 
 from .portfolio import Portfolio
@@ -530,7 +530,10 @@ def create_butterfly(char, volid, vdf, pdf, date, shorted, kwargs):
     upper_op = create_vanilla_option(
         vdf, pdf, volid, char, shorted, date, strike=upper_strike, lots=lot4)
 
-    return lower_op, mid_op1, mid_op2, upper_op
+    ops = [lower_op, mid_op1, mid_op2, upper_op]
+    ops = create_composites(ops)
+
+    return ops
 
 
 def create_spread(char, volid, vdf, pdf, date, shorted, kwargs):
@@ -572,6 +575,8 @@ def create_spread(char, volid, vdf, pdf, date, shorted, kwargs):
     op2 = create_vanilla_option(
         vdf, pdf, volid, char, not shorted, date, delta=delta2, strike=strike2)
 
+    ops = [op1, op2]
+    ops = create_composites(ops)
     return op1, op2
 
 # update to allow for greeks to specify lottage.
@@ -657,7 +662,9 @@ def create_strangle(volid, vdf, pdf, date, shorted, pf=None, **kwargs):
         op1.underlying.update_lots(lots_req)
         op2.underlying.update_lots(lots_req)
 
-    return op1, op2
+    ops = [op1, op2]
+    ops = create_composites(ops)
+    return ops
 
 
 def create_skew(volid, vdf, pdf, date, shorted, delta, ftprice, **kwargs):
@@ -729,7 +736,10 @@ def create_skew(volid, vdf, pdf, date, shorted, delta, ftprice, **kwargs):
         op1.underlying.update_lots(lots_req)
         op2.underlying.update_lots(lots_req)
 
-    return op1, op2
+    ops = [op1, op2]
+    ops = create_composites(ops)
+
+    return ops
 
 
 def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
@@ -803,7 +813,11 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
         op1.get_underlying().update_lots(lots_req)
         op2.get_underlying().update_lots(lots_req)
 
-    return op1, op2
+    ops = [op1, op2]
+
+    ops = create_composites(ops)
+
+    return ops
 
 
 # Disable
@@ -848,3 +862,17 @@ def close_out_deltas(pf, dtc):
 
     # print('pf after closing out deltas: ', pf)
     return pf, cost
+
+
+def create_composites(lst):
+    """Helper method that assigns to every option in list every other option as a 'partner'.
+
+    Args:
+        lst (List): List of options. 
+
+    """
+    for op in lst:
+        tmp = lst.copy()
+        tmp.remove(op)
+        op.set_partners(set(tmp))
+    return lst

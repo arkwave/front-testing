@@ -98,6 +98,8 @@ class Option:
         self.rebate = rebate
         self.product = self.get_product()
         self.settlement = settlement
+        self.strike_type = 'callstrike' if self.K >= self.underlying.get_price() else 'putstrike'
+        self.partners = set()
 
     def __str__(self):
         string = '<<'
@@ -132,8 +134,12 @@ class Option:
         string += ' vol - ' + str(self.vol) + ' |'
         string += ' bvol - '
         string += str(self.bvol) if self.bvol is not None else 'None'
+        string += ' | strike type: ' + str(self.strike_type) + ' '
         string += '>>'
         return string
+
+    def set_partners(self, ops):
+        self.partners = ops
 
     def set_ordering(self, val):
         self.ordering = val
@@ -292,6 +298,7 @@ class Option:
             self.bvol = b_sigma
 
             self.price = self.compute_price()
+            self.strike_type = 'callstrike' if self.K >= s else 'putstrike'
         else:
             self.zero_option()
 
@@ -365,7 +372,7 @@ class Option:
         if self.knockedout:
             return None
         self.active = active
-        print('active: ', active)
+        # print('active: ', active)
         if active:
             s = self.underlying.get_price()
             # at the money
@@ -379,8 +386,8 @@ class Option:
                 else:
                     return -1
             elif self.char == 'put':
-                print('putop')
-                print(self.K, s)
+                # print('putop')
+                # print(self.K, s)
                 # ITM
                 if self.K > s:
                     return 1
@@ -390,6 +397,11 @@ class Option:
         else:
             # print('hit none case')
             return -np.inf
+
+    def update(self):
+        self.update_greeks()
+        self.price = self.compute_price()
+        self.strike_type = 'callstrike' if self.K >= self.underlying.get_price() else 'putstrike'
 
     def zero_option(self):
         self.delta, self.gamma, self.theta, self.vega = 0, 0, 0, 0
@@ -403,6 +415,9 @@ class Option:
     def update_lots(self, lots):
         self.lots = lots
         self.update_greeks()
+
+    def get_strike_type(self):
+        return self.strike_type
 
     def get_vol_id(self):
         return self.get_product() + '  ' + self.get_op_month() + '.' + self.get_month()
