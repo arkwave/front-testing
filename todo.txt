@@ -939,31 +939,31 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 >>>>>>>>>>>>>> TODOS as of 08/05 <<<<<<<<<<<<<<<
 
 > done_hedging returning None; why?
-
 > Debug and make sure everything recently implemented is working with no glitches/problems:
 	1) new hedging object - process_hedges/calibrate/add_hedges. 
 	2) grab_data with filtering. 
 	3) implementation regarding greeks and lots in utils. 
 
-> callstrike vs putstrike paradigm for options, and calculating the conditions for op-delta roll. 
-
-> hedging after timestep. 
-
-> generalizing atm roll in roll_over. 
-
 > instead of zeroing delta, requiring delta at a fixed value (i.e. maintain 5)
 	- related: implement a future signals thing. 
+> callstrike vs putstrike paradigm for options, and calculating the conditions for op-delta roll. 
+> hedging after timestep. 
 
 
-> breakeven-based delta hedging on settlements. 
+>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+> generalizing atm roll in roll_over. 
 
 > net vega position problem --> maintaining a primary position of sorts. 
 	- example: in the case of an event in CC and no corresponding event in QC, we want to still maintain net 0 vega across both positions; i.e. one will have
 		to be hedged basis the other
+	- solution: some kind of flag passed into kwargs specifying what the default position is?
 
 > solve the rolling vega issue for short positions (i.e. open issue (1))
 
-
+> breakeven-based delta hedging on settlements. 
 
 
 
