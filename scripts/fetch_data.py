@@ -36,7 +36,7 @@ contract_mths = {
 
 
 def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False):
-    """Utility function that draws/cleans data from the alternate data table. 
+    """Utility function that draws/cleans data from the alternate data table.
 
     Args:
         pdt (string): The product being drawn from the database
@@ -45,7 +45,7 @@ def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False):
         write_dump (bool, optional): Description
 
     Returns:
-        tuple: vol dataframe, price dataframe, raw dataframe. 
+        tuple: vol dataframe, price dataframe, raw dataframe.
 
 
     """
@@ -90,8 +90,8 @@ def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False):
     add = 1 if len(pdt) == 2 else 0
 
     # cleans up data
-    df['vol_id'] = df.security_id.str[:9+add]
-    df['call_put_id'] = df.security_id.str[9+add:11+add].str.strip()
+    df['vol_id'] = df.security_id.str[:9 + add]
+    df['call_put_id'] = df.security_id.str[9 + add:11 + add].str.strip()
     # getting 'S' from 'S Q17.Q17'
     df['pdt'] = df.vol_id.str[0:len(pdt)]
     # df['pdt'] = df.vol_id.str.split().str[0].str.strip()
@@ -102,7 +102,7 @@ def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False):
     df.opmth = df.opmth.str[0] + \
         (df.opmth.str[1:].astype(int) % 10).astype(str)
 
-    df['strike'] = df.security_id.str[10+add:].astype(float)
+    df['strike'] = df.security_id.str[10 + add:].astype(float)
 
     df['implied_vol'] = df.implied_vol / 100
 
@@ -144,12 +144,12 @@ def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False):
 
 def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
                   signals=None, test=False, write=False, writepath=None, direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/'):
-    """Utility function that does everything prep_data does, but to full datasets rather than things drawn from the database. Made because i was lazy. 
+    """Utility function that does everything prep_data does, but to full datasets rather than things drawn from the database.
 
     Args:
         vdf (dataframe): Dataframe of vols
         pdf (dataframe): Datafrane of prices
-        edf (dataframe): Dataframe of option expiries 
+        edf (dataframe): Dataframe of option expiries
         start_date (pd Timestamp): start date of the simulation
         end_date (pd Timestamp): end date of the simulation
         pdt (TYPE): Description
@@ -161,7 +161,7 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
         direc (TYPE, optional): Description
 
     Returns:
-        Tuple: vol, price, expiry, cleaned_price and start date. 
+        Tuple: vol, price, expiry, cleaned_price and start date.
 
     Raises:
         ValueError: Description
@@ -278,7 +278,7 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
               write=True, test=False, volids=None, write_dump=False):
     """
     Utility function that allows the user to easily grab a dataset by specifying just the product,
-    start_date and end_date. 
+    start_date and end_date.
 
 
     Args:
