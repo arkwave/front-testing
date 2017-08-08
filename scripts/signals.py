@@ -191,7 +191,7 @@ def liquidate_position(pf, vol_id, char, greek, greekval, signal,
             greek (string): Description
             greekval (float): Description
             signal (int): Description
-            strat (str, optional): 
+            strat (str, optional):
             **kwargs: Description
     """
 
@@ -202,8 +202,8 @@ def liquidate_position(pf, vol_id, char, greek, greekval, signal,
     opmth = vol_id.split()[1].split('.')[0]
     ftmth = vol_id.split()[1].split('.')[1]
     relevant_ops = deque([x for x in pf.OTC_options if x.char == char and
-                          x.get_product() == pdt and x.get_month() == ftmth
-                          and x.get_op_month() == opmth])
+                          x.get_product() == pdt and x.get_month() == ftmth and
+                          x.get_op_month() == opmth])
     index = indices[greek]
     residual = abs(signal) * greekval
 
@@ -243,7 +243,7 @@ def liquidate_position(pf, vol_id, char, greek, greekval, signal,
         if metric[0] == 'delta':
             dval = metric[1]
             relevant_ops = sorted(
-                relevant_ops, key=lambda x: abs(abs(x.delta/x.lots) - dval))
+                relevant_ops, key=lambda x: abs(abs(x.delta / x.lots) - dval))
 
     while residual > 0:
         if strat in ['dist', 'filo']:
@@ -255,7 +255,7 @@ def liquidate_position(pf, vol_id, char, greek, greekval, signal,
             print('op selected: ', op)
             greek_per_lot = abs(op.greeks()[index] / op.lots)
             print(greek + ' per lot: ', greek_per_lot)
-            lots_required = round(abs(residual/greek_per_lot))
+            lots_required = round(abs(residual / greek_per_lot))
             print('lots required: ', lots_required)
 
             # case 1: lots required <= lots currently in option.
@@ -316,7 +316,7 @@ def liquidate_position(pf, vol_id, char, greek, greekval, signal,
 # TODO: once hedge futures become more of a thing, need to ensure that
 # this closes them out too.
 def close_position(pf, vol_id, char):
-    """ Helper function that closes out the entire OTC position associated with a vol_id and a call/put. 
+    """ Helper function that closes out the entire OTC position associated with a vol_id and a call/put.
 
     Args:
             pf (portfolio object): Description
@@ -328,8 +328,8 @@ def close_position(pf, vol_id, char):
     pdt = vol_id.split()[0]
     opmth = vol_id.split()[1].split('.')[0]
     ftmth = vol_id.split()[1].split('.')[1]
-    ops = [x for x in pf.OTC_options if x.get_product() == pdt
-           and x.get_month() == ftmth and x.get_op_month() == opmth and x.char == char]
+    ops = [x for x in pf.OTC_options if x.get_product() == pdt and
+           x.get_month() == ftmth and x.get_op_month() == opmth and x.char == char]
 
     for op in ops:
         cost += op.get_price() if op.shorted else -op.get_price()
@@ -388,8 +388,8 @@ def add_position(pf, signal, vdf, pdf, vol_id, char, strike, date,
     if maintain:
         print('signals.add_position - maintain flag triggered.')
         desired_level = abs(newpos) * greekval
-        relevant_ops = [x for x in pf.OTC_options if x.get_product() == pdt
-                        and x.get_month() == ftmth and x.get_op_month() == opmth and x.char == char]
+        relevant_ops = [x for x in pf.OTC_options if x.get_product() == pdt and 
+                        x.get_month() == ftmth and x.get_op_month() == opmth and x.char == char]
         current_level = abs(sum([op.greeks()[index] for op in relevant_ops]))
         print('signals.add_position - current_level: ', current_level)
         print('signals.add_position - desired_level: ', desired_level)
@@ -413,8 +413,8 @@ def add_position(pf, signal, vdf, pdf, vol_id, char, strike, date,
 
     # debug statements:
     pf.add_security(tobeadded, 'OTC')
-    relevant_ops = [x for x in pf.OTC_options if x.get_product() == pdt
-                    and x.get_month() == ftmth and x.get_op_month() == opmth and x.char == char]
+    relevant_ops = [x for x in pf.OTC_options if x.get_product() == pdt and 
+                    x.get_month() == ftmth and x.get_op_month() == opmth and x.char == char]
     current_level = sum([op.greeks()[index] for op in relevant_ops])
 
     print('new current level: ', current_level)
@@ -446,8 +446,8 @@ def maintain_position(pf, pdf, vdf, vol_id, char, strike, pos, lots, greek, gree
     opmth = vol_id.split()[1].split('.')[0]
     ftmth = vol_id.split()[1].split('.')[1]
     relevant_ops = [x for x in pf.OTC_options if x.char == char and
-                    x.get_product() == pdt and x.get_month() == ftmth
-                    and x.get_op_month() == opmth]
+                    x.get_product() == pdt and x.get_month() == ftmth and 
+                    x.get_op_month() == opmth]
     index = indices[greek]
 
     curr_level = sum([op.greeks()[index] for op in relevant_ops])
@@ -483,8 +483,8 @@ def maintain_position(pf, pdf, vdf, vol_id, char, strike, pos, lots, greek, gree
                                 np.nan, greek, diff, slippage=slippage, brokerage=brokerage)
         # sanity checking.
         new_ops = [x for x in pf.OTC_options if x.char == char and
-                   x.get_product() == pdt and x.get_month() == ftmth
-                   and x.get_op_month() == opmth]
+                   x.get_product() == pdt and x.get_month() == ftmth and 
+                   x.get_op_month() == opmth]
 
         new_curr_level = sum([op.greeks()[index] for op in new_ops])
         print('new current: ', new_curr_level)

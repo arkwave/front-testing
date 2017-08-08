@@ -21,7 +21,7 @@ from collections import OrderedDict
 from scripts.classes import Option
 from scripts.prep_data import prep_portfolio, generate_hedges, sanity_check
 from scripts.fetch_data import prep_datasets, pull_alt_data
-from scripts.util import create_underlying, create_vanilla_option, close_out_deltas
+from scripts.util import create_underlying, create_vanilla_option, close_out_deltas, create_composites
 from scripts.calc import compute_strike_from_delta, get_barrier_vol
 from scripts.hedge import Hedge
 import scripts.global_vars as gv
@@ -1248,8 +1248,6 @@ def rebalance(vdf, pdf, pf, hedges, counters, buckets=None, brokerage=None, slip
 
     if not roll_hedged:
         print(' ++ ROLL HEDGING REQUIRED ++ ')
-        for op in pf.OTC_options:
-            print('delta: ', abs(op.delta / op.lots))
         roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
             'delta'][i][0] == 'roll'][0]
         pf, exp = hedge_delta_roll(
@@ -1341,27 +1339,31 @@ def hedge_delta_roll(pf, roll_cond, pdf, brokerage=None, slippage=None):
     for op in pf.OTC_options:
         # case: option has already been processed due to its partner being
         # processed.
+        print('simulation.hedge_delta_roll - option: ', op.get_product(), op.char,  round(abs(op.delta / op.lots), 2))
         if op in toberemoved:
             continue
+        composites = []
         delta = abs(op.delta / op.lots)
         # case: delta not in bounds.
         if delta > bounds[1] or delta < bounds[0]:
-            adds, rems, rcost = delta_roll(
+            print('rolling delta: ', op.get_product(), op.char, round(abs(op.delta / op.lots), 2))
+            newop, old_op, rcost = delta_roll(
                 op, roll_val, pdf, slippage=slippage, brokerage=brokerage)
-            tobeadded.extend(adds)
-            toberemoved.extend(rems)
+            toberemoved.append(old_op)
+            composites.append(newop)
             cost += rcost
             # if rolling option, roll all partners as well.
             for opx in op.partners:
-                adds, rems, rcost = delta_roll(
+                new_opx, old_opx, rcost = delta_roll(
                     opx, roll_val, pdf, slippage=slippage, brokerage=brokerage)
-                tobeadded.extend(adds)
-                toberemoved.extend(adds)
+                composites.append(new_opx)
+                toberemoved.append(old_opx)
                 cost += rcost
+        composites = create_composites(composites)
+        print('composites: ', [str(x) for x in composites])
+        tobeadded.extend(composites)
 
-    for op in tobeadded:
-        print('roll hedging - op added: ', str(op))
-        print('roll hedging - op delta: ', abs(op.delta / op.lots))
+    print('number of ops rolled: ', len(tobeadded))
     pf.remove_security(toberemoved, 'OTC')
     pf.add_security(tobeadded, 'OTC')
 
@@ -1374,7 +1376,7 @@ def hedge_delta_roll(pf, roll_cond, pdf, brokerage=None, slippage=None):
 
 
 def delta_roll(op, roll_val, pdf, slippage=None, brokerage=None):
-    """Helper function that deals with delta-rolling options 
+    """Helper function that deals with delta-rolling options.
 
     Args:
         op (TYPE): Description
@@ -1385,9 +1387,7 @@ def delta_roll(op, roll_val, pdf, slippage=None, brokerage=None):
     Returns:
         TYPE: Description
     """
-    print('delta not in bounds: ', op, abs(op.delta) / op.lots)
-    tobeadded = []
-    toberemoved = []
+    # print('delta not in bounds: ', op, abs(op.delta) / op.lots)
     cost = 0
     cpi = 'C' if op.char == 'call' else 'P'
     # get the vol from the vol_by_delta part of pdf
@@ -1410,8 +1410,8 @@ def delta_roll(op, roll_val, pdf, slippage=None, brokerage=None):
                    ki=op.ki, ko=op.ko, rebate=op.rebate,
                    ordering=op.ordering, settlement=op.settlement)
 
-    toberemoved.append(op)
-    tobeadded.append(newop)
+    # toberemoved.append(op)
+    # tobeadded.append(newop)
 
     # handle expenses: brokerage and old op price - new op price
 
@@ -1431,7 +1431,7 @@ def delta_roll(op, roll_val, pdf, slippage=None, brokerage=None):
             s_val = slippage[-1]
         cost += (s_val * (newop.lots + op.lots))
 
-    return tobeadded, toberemoved, cost
+    return newop, op, cost
 
 
 def hedges_satisfied(pf, hedges):

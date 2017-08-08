@@ -59,12 +59,18 @@ class Hedge:
         print('processing hedges')
         desc, params = None, {}
         for flag in self.hedges:
-            if flag == 'delta':
-                continue
+            # sanity check.
             if flag not in params:
                 params[flag] = {}
+            # moving onto bound-based hedging.
             all_conds = self.hedges[flag]
             r_conds = [x for x in all_conds if x[0] == 'bound']
+            s_conds = [x for x in all_conds if x[0] == 'static']
+            if s_conds:
+                s_conds = s_conds[0]
+                val = 0 if s_conds[1] == 'zero' else int(s_conds[1])
+                params[flag]['target'] = val
+
             if r_conds:
                 r_conds = r_conds[0]
                 # begin the process of assigning.
@@ -89,8 +95,6 @@ class Hedge:
                         self.buckets = list(r_conds[-2])
 
         print('processing hedges completed')
-        # print('desc: ', desc)
-        # print('params: ', params)
 
         # one last sanity check
         if desc is None:
@@ -305,8 +309,10 @@ class Hedge:
             conds = tst[greek]
             for cond in conds:
                 # static bound case
-                if cond[0] == 'zero':
-                    conditions.append((strs[greek], (-1, 1)))
+                if cond[0] == 'static':
+                    val = self.params[greek]['target']
+                    ltol, utol = val - 1, val + 1
+                    conditions.append((strs[greek], (ltol, utol)))
                 elif cond[0] == 'bound':
                     # print('to be literal eval-ed: ', hedges[greek][1])
                     c = cond[1]
@@ -344,8 +350,10 @@ class Hedge:
             conds = tst[greek]
             for cond in conds:
                 # static bound case
-                if cond[0] == 'zero':
-                    conditions.append((strs[greek], (-1, 1)))
+                if cond[0] == 'static':
+                    val = self.params[greek]['target']
+                    ltol, utol = val - 1, val + 1
+                    conditions.append((strs[greek], (ltol, utol)))
                 elif cond[0] == 'bound':
                     # print('to be literal eval-ed: ', hedges[greek][1])
                     c = cond[1]
@@ -398,14 +406,14 @@ class Hedge:
         isbounds = [conds[i] for i in range(len(conds))
                     if conds[i][0] == 'bound']
         isstatic = [conds[i] for i in range(len(conds))
-                    if conds[i][0] == 'zero']
+                    if conds[i][0] == 'static']
 
         # print('isbounds: ', isbounds)
         # print('isstatic: ', isstatic)
 
         if isstatic:
             relevant_conds = isstatic[0]
-            hedge_type = 'zero'
+            hedge_type = 'static'
 
         elif isbounds:
             relevant_conds = isbounds[0]
@@ -448,8 +456,9 @@ class Hedge:
                         print(product + ' ' + str(loc) +
                               ' ' + flag + ' within bounds. skipping...')
 
-                elif hedge_type == 'zero':
-                    cost += self.hedge(flag, product, loc, greekval, 0)
+                elif hedge_type == 'static':
+                    val = self.params[flag]['target']
+                    cost += self.hedge(flag, product, loc, greekval, val)
 
         return cost
 
@@ -463,6 +472,11 @@ class Hedge:
             loc (TYPE): additional locating parameters
 
         """
+        # sanity check: since greek signs will never arbitrarily flip, wanna make sure
+        # they stay the same sign. 
+        if greekval < 0:
+            target = -target
+
         cost = 0
         reqd_val = target - greekval
 
@@ -506,12 +520,14 @@ class Hedge:
         for product in net_greeks:
             for month in net_greeks[product]:
                 # uid = product + '  ' + month
+                target = self.params['delta']['target']
                 delta = net_greeks[product][month][0]
-                shorted = True if delta > 0 else False
-                num_lots_needed = abs(round(delta))
+                delta_diff = delta - target
+                shorted = True if delta_diff > 0 else False
+                num_lots_needed = abs(round(delta_diff))
                 if num_lots_needed == 0:
                     print(product + ' ' + month +
-                          ' delta is zero. skipping hedging.')
+                          ' delta is close enough to target. skipping hedging.')
                 else:
                     try:
                         ft, _ = create_underlying(product, month, self.pdf,
