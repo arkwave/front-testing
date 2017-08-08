@@ -939,36 +939,33 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 >>>>>>>>>>>>>> TODOS as of 08/05 <<<<<<<<<<<<<<<
 
 > [Done] Port over changes from HSM to PVM 
-
 > [Done] done_hedging returning None; why?
 	- issue was a stray return statement when delta is 0 and we could skip hedging. 
-
 > [Done] Debug and make sure everything recently implemented is working with no glitches/problems:
 	1) new hedging object - process_hedges/calibrate/add_hedges. 
 	2) grab_data with filtering. 
 	3) implementation regarding greeks and lots in utils. 
-
 > [Done] hedging after timestep. 
 	> rolling over is still done before timestep, but rebalancing now happens after. 
-
 > [Done] callstrike vs putstrike paradigm for options
-
-> calculating the conditions for op-delta roll. 
-
-
-> instead of zeroing delta, requiring delta at a fixed value (i.e. maintain 5)
-	- related: implement a future signals thing. 
-
-
-
-
-
 
 
 >>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<
 
 
+>>>>>>>>>>>>>> TODOS as of 08/08 <<<<<<<<<<<<<<<
+> [Done] calculating the conditions for op-delta roll. 
 
+> [Done] instead of zeroing delta, requiring delta at a fixed value (i.e. maintain 5)
+
+> [Done] ISSUE: specifying a value for hedging gamma/theta/vega forces that value to be met, irrespective of sign of the desired position. 
+	- e.g. : initial position is a short CC straddle with -9 gamma, value in hedging requires 50. 
+			--> adds on 59 gamma with of long straddles to 'hedge', resulting in overall 
+				long CC position when we desired a short position. 
+
+	- Easy enough to do with UID representation, but what about exp representation?
+
+>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
 ##################################################### Open Issues #######################################################
@@ -979,6 +976,8 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 
 > ISSUE: checking when all options have expired/exercised and we need to close out the rest of the portfolio.
 
+> related: implement a future signals thing. 
+
 > ISSUE: Testing suite is in bad need of an update:
 	1) hedge.py, fetch_data.py and util.py have no testing whatsoever. This needs to be remedied asap. 
 	2) Portfolio and Classes objects need updates. 
@@ -986,11 +985,6 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 	4) prep_data/fetch_data need a serious overhaul; go through, see what code is required and what isn't, remove/move to code dump respectively. 
 
 > ISSUE: generalizing atm roll in roll_over. 
-
-> ISSUE: specifying a value for hedging gamma/theta/vega forces that value to be met, irrespective of sign of the desired position. 
-	- e.g. : initial position is a short CC straddle with -9 gamma, value in hedging requires 50. 
-			--> adds on 59 gamma with of long straddles to 'hedge', resulting in overall 
-				long CC position when we desired a short position. 
 
 > ISSUE: net vega position problem --> maintaining a primary position of sorts. 
 	- example: in the case of an event in CC and no corresponding event in QC, we want to still maintain net 0 vega across both positions; i.e. one will have
