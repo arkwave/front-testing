@@ -103,8 +103,8 @@ np.random.seed(seed)
 ############## Main Simulation Loop #################
 #####################################################
 
-def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None, brokerage=None,
-                   slippage=None, signals=None,
+def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None,
+                   brokerage=None, slippage=None, signals=None,
                    roll_portfolio=None, pf_ttm_tol=None, pf_roll_product=None,
                    roll_hedges=None, h_ttm_tol=None, h_roll_product=None):
     """
@@ -1385,7 +1385,7 @@ def delta_roll(op, roll_val, pdf, slippage=None, brokerage=None):
     Returns:
         TYPE: Description
     """
-    print('delta not in bounds: ', op, abs(op.delta)/op.lots)
+    print('delta not in bounds: ', op, abs(op.delta) / op.lots)
     tobeadded = []
     toberemoved = []
     cost = 0
