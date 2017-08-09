@@ -962,6 +962,7 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 	- e.g. : initial position is a short CC straddle with -9 gamma, value in hedging requires 50. 
 			--> adds on 59 gamma with of long straddles to 'hedge', resulting in overall 
 				long CC position when we desired a short position. 
+	- solution was one liner: if greekval < 0, target = -target
 
 	- Easy enough to do with UID representation, but what about exp representation?
 
@@ -974,13 +975,39 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 | As of: 08/07/2017 |
 ---------------------
 
+> [Done] ISSUE: generalizing atm roll in roll_over. 
+> [Done] Move bounds to bounds based on difference (doesn't really matter)
+> [Done] ISSUE: checking when all options have expired/exercised and we need to close out the rest of the portfolio.
+
+> Family-based construction and hedging parameters.
+	> [Done] combine_portfolio
+	> specifying hedging logic for each family (both read in and otherwise).
+	> 
+
+> Open issue: move from centralized hedging specifications to more general forumlation via families, possibly. 
+	- TENTATIVE SOLUTION:
+		> each family is a portfolio object.
+		> hedges now come in two types: family-specific and portfolio-wide. 
+		> family-specific hedges (and by extension hedge object) will be associated with the relevant family. 
+
+	- things that need to change:
+		1) hedging for gamma/theta/vega/delta-rolls would be family-specific. 
+		2) static delta hedging would be portfolio-wide. 
+		3) rolling over contract to next month can either be family specific (if ttm_tol only specified) or portfolio-wide (if roll_product is also specified.)
+		4) hedges [dict] would need to be altogether removed from simulation. 
+		5) hedge [object] would now be associated with a portfolio. 
+		6) creating a portfolio would now take in options/futures as well as a hedge. 
+
+
+
 > ISSUE: net vega position problem --> maintaining a primary position of sorts. 
 	- example: in the case of an event in CC and no corresponding event in QC, we want to still maintain net 0 vega across both positions; i.e. one will have
 		to be hedged basis the other
 	- solution: some kind of flag passed into kwargs specifying what the default position is?
 	- is there a more general formulation for a primary position?
+	>>> Note: this would fall under the paradigm of portfolio-wide hedging rules. <<<
 
-> ISSUE: checking when all options have expired/exercised and we need to close out the rest of the portfolio.
+
 
 > related: implement a future signals thing. 
 
@@ -989,8 +1016,6 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 	2) Portfolio and Classes objects need updates. 
 	3) Calc is more or less fine, no major additions for a long time. 
 	4) prep_data/fetch_data need a serious overhaul; go through, see what code is required and what isn't, remove/move to code dump respectively. 
-
-> ISSUE: generalizing atm roll in roll_over. 
 
 > breakeven-based delta hedging on settlements. 
 

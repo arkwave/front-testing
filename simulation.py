@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-09 13:55:08
+# @Last Modified time: 2017-08-09 17:51:47
 
 ################################ imports ###################################
 
@@ -1098,6 +1098,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
 
 
 # TODO: figure out what to do with hedge options during rollovers.
+# TODO: handling composites during roll_overs as well.
 def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60, flag=None, target_product=None, d_cond=None):
     """Utility method that checks expiries of options currently being used for hedging. If ttm < ttm_tol,
     closes out that position (and all accumulated deltas), saves lot size/strikes, and rolls it over into the
@@ -1370,7 +1371,10 @@ def hedge_delta_roll(pf, roll_cond, pdf, brokerage=None, slippage=None):
         composites = []
         delta = abs(op.delta / op.lots)
         # case: delta not in bounds.
-        if delta > bounds[1] or delta < bounds[0]:
+        diff = (delta - roll_val/100)
+        print('diff, bounds: ', diff, bounds)
+        if (diff < bounds[0]) or (diff > bounds[1]):
+            # if delta > bounds[1] or delta < bounds[0]:
             print('rolling delta: ', op.get_product(),
                   op.char, round(abs(op.delta / op.lots), 2))
             newop, old_op, rcost = delta_roll(
@@ -1509,19 +1513,22 @@ def check_roll_status(pf, hedges):
     """
     delta_conds = hedges['delta']
     found = False
+    dval = None
     # search for the roll condition
     for cond in delta_conds:
         if cond[0] == 'roll':
-            rollbounds = np.array(cond[3]) / 100
+            rollbounds = np.array(cond[3]) /100
+            dval = cond[1]
             found = True
     # if roll conditions actually exist, proceed.
     if found:
         # print('rollbounds: ', rollbounds)
         for op in pf.OTC_options:
             d = abs(op.delta / op.lots)
+            diff = (d - dval/100)
             ltol, utol = rollbounds[0], rollbounds[1]
             # sanity check
-            if d < ltol or d > utol:
+            if diff < ltol or diff > utol:
                 return False
 
         return True

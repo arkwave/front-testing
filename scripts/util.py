@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-07 22:03:24
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-08-09 17:13:54
 
 
 from .portfolio import Portfolio
@@ -239,8 +239,8 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None, payoff='ame
 
     """
     # sanity checks
-    print('util.create_vanilla_option - inputs: ',
-          volid, char, shorted, lots, delta, strike, vol, kwargs)
+    # print('util.create_vanilla_option - inputs: ',
+    #       volid, char, shorted, lots, delta, strike, vol, kwargs)
 
     if delta is None and strike is None:
         raise ValueError(
@@ -782,7 +782,7 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
                 vega_req = -pf.net_vega_pos()
             else:
                 vega_req = float(kwargs['greekval'])
-            print('util.create_straddle - vega req: ', vega_req)
+            # print('util.create_straddle - vega req: ', vega_req)
             v1 = (op1.vega * 100) / (op1.lots * dm * lm)
             v2 = (op2.vega * 100) / (op2.lots * dm * lm)
             lots_req = round((abs(vega_req) * 100) / (abs(v1 + v2) * lm * dm))
@@ -792,7 +792,7 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
                 gamma_req = -pf.net_gamma_pos()
             else:
                 gamma_req = float(kwargs['greekval'])
-            print('util.create_straddle - gamma req: ', gamma_req)
+            # print('util.create_straddle - gamma req: ', gamma_req)
             g1 = (op1.gamma * dm) / (op1.lots * lm)
             g2 = (op2.gamma * dm) / (op2.lots * lm)
             lots_req = round((abs(gamma_req) * dm) / (abs(g1 + g2) * lm))
@@ -802,12 +802,12 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
                 theta_req = -pf.net_theta_pos()
             else:
                 theta_req = float(kwargs['greekval'])
-            print('util.create_straddle - theta req: ', theta_req)
+            # print('util.create_straddle - theta req: ', theta_req)
             t1 = (op1.theta * 365) / (op1.lots * lm * dm)
             t2 = (op2.theta * 365) / (op2.lots * lm * dm)
             lots_req = round((abs(theta_req) * 365) / (abs(t1 + t2) * lm * dm))
 
-        print('util.create_straddle - lots_req: ', lots_req)
+        # print('util.create_straddle - lots_req: ', lots_req)
         op1.update_lots(lots_req)
         op2.update_lots(lots_req)
         op1.get_underlying().update_lots(lots_req)
@@ -876,3 +876,98 @@ def create_composites(lst):
         tmp.remove(op)
         op.set_partners(set(tmp))
     return lst
+
+
+def combine_portfolios(lst):
+    """Helper method that merges and returns a portfolio pf where pf.families = lst. 
+
+    Args:
+        lst (TYPE): Description
+    """
+
+    pf = Portfolio()
+    for p in lst:
+        # update the lists first. 
+        pf.OTC_options.extend(p.OTC_options)
+        pf.hedge_options.extend(p.hedge_options)
+        pf.OTC = merge_dicts(p.OTC, pf.OTC)
+        pf.hedges = merge_dicts(p.hedges, pf.hedges)
+
+    pf.set_families(lst) 
+    pf.refresh() 
+
+    return pf 
+
+
+
+def merge_dicts(d1, d2):
+    ret = {}
+    if len(d1) == 0:
+        return d2 
+    elif len(d2) == 0:
+        return d1
+    else:
+        for key in d1:
+            if key not in ret:
+                ret[key] = {}
+            # base case: key is in d1 but not d2. 
+            if key not in d2:
+                ret[key] = d1[key]
+            elif key in d2:
+                dat1, dat2 = d1[key], d2[key]
+                # case 1: nested dictionary. 
+                if isinstance(dat1, dict):
+                    nd = merge_dicts(dat1, dat2)
+                    ret[key] = nd
+                # case 2: list. 
+                elif isinstance(dat1, list):
+                    nl = merge_lists(dat1, dat2)
+                    ret[key] = nl 
+
+        for key in d2:
+            if key not in ret:
+                ret[key] = {}
+            # base case: key is in d1 but not d2. 
+            if key not in d1:
+                ret[key] = d2[key]
+            elif key in d1:
+                dat1, dat2 = d1[key], d2[key]
+                # case 1: nested dictionary. 
+                if isinstance(dat2, dict):
+                    nd = merge_dicts(dat1, dat2)
+                    ret[key] = nd
+                # case 2: list. 
+                elif isinstance(dat2, list):
+                    nl = merge_lists(dat1, dat2)
+                    ret[key] = nl 
+    return ret 
+
+
+
+
+def merge_lists(l1, l2):
+    """Helper method that merges two lists. 
+    
+    Args:
+        l1 (TYPE): Description
+        l2 (TYPE): Description
+    
+    Returns:
+        TYPE: Description
+    """
+    if len(l1) == 0:
+        return l2 
+    elif len(l2) == 0:
+        return l1
+
+    ret = [] 
+    assert len(l1) == len(l2)
+    for i in range(l1):
+        dat1, dat2 = l1[i], l2[i]
+        if isinstance(dat1, set):
+            c = dat1.copy() 
+            c.update(dat2)
+        elif isinstance(dat1, (int, long, float)):
+            c = dat1 + dat2 
+        ret.append(c)
+    return ret 

@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-07 17:43:23
+# @Last Modified time: 2017-08-09 17:12:53
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -302,8 +302,8 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
         pdt (TYPE): the product being evaluated.
     """
     print('### RUNNING GRAB_DATA ###')
-    print('start_date: ', start_date)
-    print('end_date: ', end_date)
+    # print('start_date: ', start_date)
+    # print('end_date: ', end_date)
 
     final_pdf = pd.DataFrame()
     final_vols = pd.DataFrame()
@@ -323,9 +323,9 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
             sd + '_' + ed + '.csv'
         final_exppath = desired_path + 'final_option_expiry.csv'
 
-        print('final_volpath: ', final_volpath)
-        print('final_pricepath: ', final_pricepath)
-        print('final exppath: ', final_exppath)
+        # print('final_volpath: ', final_volpath)
+        # print('final_pricepath: ', final_pricepath)
+        # print('final exppath: ', final_exppath)
 
         if (os.path.exists(final_volpath) and os.path.exists(final_pricepath) and os.path.exists(final_exppath)):
             print('cleaned data found, reading in and returning...')

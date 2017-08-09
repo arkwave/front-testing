@@ -99,6 +99,8 @@ class Portfolio:
 
         self.net_greeks = {}
 
+        self.families = []
+
         # updating initialized variables
         self.init_sec_by_month('OTC')
         self.init_sec_by_month('hedge')
@@ -123,6 +125,17 @@ class Portfolio:
 
         return str(pprint.pformat(r_dict))
 
+
+    def set_families(self, lst):
+        self.families = lst 
+
+
+    def refresh(self):
+        self.value = self.compute_value() 
+        self.update_sec_by_month(None, 'OTC', update=True)
+        self.update_sec_by_month(None, 'hedge', update=True)
+        self.compute_net_greeks()
+        
     def update_sec_lots(self, sec, flag, lots):
         """Updates the lots of a given security, updates the dictionary it is contained in, and 
         updates net_greeks 
@@ -767,6 +780,7 @@ class Portfolio:
             for mth in self.OTC[product]:
                 options = self.OTC[product][mth][0]
                 for op in options:
+
                     volid = product + '  ' + op.get_op_month() + '.' + mth
                     if volid not in dic:
                         dic[volid] = []
