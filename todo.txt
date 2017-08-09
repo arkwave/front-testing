@@ -974,6 +974,12 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 | As of: 08/07/2017 |
 ---------------------
 
+> ISSUE: net vega position problem --> maintaining a primary position of sorts. 
+	- example: in the case of an event in CC and no corresponding event in QC, we want to still maintain net 0 vega across both positions; i.e. one will have
+		to be hedged basis the other
+	- solution: some kind of flag passed into kwargs specifying what the default position is?
+	- is there a more general formulation for a primary position?
+
 > ISSUE: checking when all options have expired/exercised and we need to close out the rest of the portfolio.
 
 > related: implement a future signals thing. 
@@ -985,11 +991,6 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 	4) prep_data/fetch_data need a serious overhaul; go through, see what code is required and what isn't, remove/move to code dump respectively. 
 
 > ISSUE: generalizing atm roll in roll_over. 
-
-> ISSUE: net vega position problem --> maintaining a primary position of sorts. 
-	- example: in the case of an event in CC and no corresponding event in QC, we want to still maintain net 0 vega across both positions; i.e. one will have
-		to be hedged basis the other
-	- solution: some kind of flag passed into kwargs specifying what the default position is?
 
 > breakeven-based delta hedging on settlements. 
 
