@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-09 13:31:55
+# @Last Modified time: 2017-08-09 18:07:07
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -16,7 +16,8 @@ class Hedge:
     1) inferring the hedging parameters from the portfolio
     2) applying the relevant hedges to the portfolio.
 
-    Inference of hedging parameters is done via the _calibrate method, while applying hedges is done via the _apply method.
+    Inference of hedging parameters is done via the _calibrate method, while
+    applying hedges is done via the _apply method.
     """
 
     def __init__(self, portfolio, hedges, vdf, pdf,
@@ -27,7 +28,8 @@ class Hedge:
             portfolio (TYPE): the portfolio being hedged
             vdf (TYPE): dataframe of volatilites
             pdf (TYPE): Description
-            view (TYPE): a string description of the greek representation. valid inputs are 'exp' for greeks-by-expiry and 'uid' for greeks by underlying.
+            view (TYPE): a string description of the greek representation.
+            valid inputs are 'exp' for greeks-by-expiry and 'uid' for greeks by underlying.
             buckets (None, optional): Description
         """
         self.b = brokerage
@@ -98,12 +100,18 @@ class Hedge:
         return desc, params
 
     def _calibrate(self, flag, selection_criteria='median', buckets=None):
-        """Helper method that constructs the hedging parameters based on the greek representation fed into the hedge object.
+        """Helper method that constructs the hedging parameters based on
+        the greek representation fed into the hedge object.
 
-        Example (1): flag == 'exp' indicates that hedging is being done basis greeks bucketed according to time to maturity.
-        As such, the parameter dictionary generated is a dictionary mapping commodity and ttm to vol_id used to hedge that particular dictionary.
+        Example (1): flag == 'exp' indicates that hedging is being done basis
+        greeks bucketed according to time to maturity.
 
-        Example (2): flag == 'uid' indicates that hedging is being done basis greeks clubbed according to underlying contract, e.g. the greeks for a W Q6.U6 and W U6.U6 will be added together and
+        As such, the parameter dictionary generated is a dictionary mapping
+        commodity and ttm to vol_id used to hedge that particular dictionary.
+
+        Example (2): flag == 'uid' indicates that hedging is being done basis
+        greeks clubbed according to underlying contract, e.g. the greeks for
+        a W Q6.U6 and W U6.U6 will be added together and
         hedged
 
 
@@ -112,8 +120,9 @@ class Hedge:
             flag (TYPE):
 
 
-        Note: this does NOT check if greeks other than delta are being hedged, because delta by default is
-        hedged at the EOD by commodity/month, not on the basis of expiries. I.e. you will never use a W Q6 underlying
+        Note: this does NOT check if greeks other than delta are being hedged,
+        because delta by default is hedged at the EOD by commodity/month, not
+        on the basis of expiries. I.e. you will never use a W Q6 underlying
         to hedge the deltas from a W Q6.U6 option.
 
         """
@@ -283,7 +292,8 @@ class Hedge:
             return self.exp_hedges_satisfied()
 
     def uid_hedges_satisfied(self):
-        """Helper method that ascertains if all entries in net_greeks satisfy the conditions laid out in hedges.
+        """Helper method that ascertains if all entries in net_greeks satisfy
+        the conditions laid out in hedges.
 
         Args:
             pf (portfolio object): portfolio being hedged
@@ -372,7 +382,8 @@ class Hedge:
         return True
 
     def refresh(self):
-        """Helper method that re-inializes all values. To be used when updating portfolio to ascertain hedges have been satisfied.
+        """Helper method that re-inializes all values. To be used when updating portfolio
+        to ascertain hedges have been satisfied.
         """
         for flag in self.hedges:
             if flag != 'delta':
@@ -382,7 +393,8 @@ class Hedge:
         self.done = self.satisfied()
 
     def apply(self, flag):
-        """Main method that actually applies the hedging logic specified. The kind of structure used to hedge is specified by self.params['kind']
+        """Main method that actually applies the hedging logic specified.
+        The kind of structure used to hedge is specified by self.params['kind']
 
         Args:
             pf (TYPE): The portfolio being hedged
@@ -503,7 +515,8 @@ class Hedge:
         return cost
 
     def hedge_delta(self):
-        """Helper method that hedges delta basis net greeks, irrespective of the greek representation the object was initialized with.
+        """Helper method that hedges delta basis net greeks, irrespective of the
+        greek representation the object was initialized with.
 
         Args:
             pf (TYPE): Description
@@ -541,7 +554,8 @@ class Hedge:
 
     # TODO: shorted check for other structures, implement as and when necessary
     def pos_type(self, desc, val, flag):
-        """Helper method that checks what exactly is required given the required value of the greek, the greek itself, and the structure being used to hedge it.
+        """Helper method that checks what exactly is required given the required value
+        of the greek, the greek itself, and the structure being used to hedge it.
 
         Args:
             desc (TYPE): Description
@@ -558,7 +572,8 @@ class Hedge:
         return shorted
 
     def add_hedges(self, data, shorted, hedge_id, flag, greekval, loc):
-        """Helper method that checks the type of hedge structure specified, and creates/adds the requisite amount.
+        """Helper method that checks the type of hedge structure specified, and creates/adds
+        the requisite amount.
 
         Args:
             data (TYPE): Description
