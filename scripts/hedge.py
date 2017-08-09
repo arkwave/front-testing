@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-09 18:07:07
+# @Last Modified time: 2017-08-09 21:13:18
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -42,9 +42,10 @@ class Hedge:
         self.buckets = buckets if buckets is not None else [0, 30, 60, 90, 120]
         self.hedges = hedges
         self.desc, self.params = self.process_hedges()
-        self.done = self.satisfied()
+        # self.done = self.satisfied()
         self.date = pd.to_datetime(pdf.value_date.unique()[0])
         assert len([self.date]) == 1
+        self.calibrate_all()
 
     def process_hedges(self):
         """Helper function that sorts through the mess that is the hedge dictionary. Returns the following:
@@ -53,7 +54,7 @@ class Hedge:
             (such as the type of structure and the specifications of that structure.)
         Assigns these to self.desc and self.params respectively.
         """
-        print('processing hedges')
+        # print('processing hedges')
         desc, params = None, {}
         for flag in self.hedges:
             # sanity check.
@@ -70,6 +71,7 @@ class Hedge:
 
             if r_conds:
                 r_conds = r_conds[0]
+                # print('r_conds: ', r_conds)
                 # begin the process of assigning.
                 desc = r_conds[-1]
                 params[flag]['kind'] = r_conds[-5]
@@ -91,13 +93,25 @@ class Hedge:
                     if r_conds[-2] is not None:
                         self.buckets = list(r_conds[-2])
 
-        print('processing hedges completed')
+        # print('processing hedges completed')
 
         # one last sanity check
         if desc is None:
             desc = 'uid'
 
         return desc, params
+
+    def calibrate_all(self):
+        """Calibrates hedge object to all non-delta hedges. calibrate does one of the following things:
+        1) if hedge_engine is initialized with desc='exp', calibrate generates a 
+            dictionary mapping product and expiry to a vol_id, which will be used to 
+            hedge that pdt/exp combination
+        2) desc = 'uid' -> _calibrate generates a dictionary mapping product/underlying month
+            to a vol_id, dependent on any ttm multipliers passed in.
+        """
+        for flag in self.hedges:
+            if flag != 'delta':
+                self._calibrate(flag)
 
     def _calibrate(self, flag, selection_criteria='median', buckets=None):
         """Helper method that constructs the hedging parameters based on
@@ -415,8 +429,8 @@ class Hedge:
         isstatic = [conds[i] for i in range(len(conds))
                     if conds[i][0] == 'static']
 
-        # print('isbounds: ', isbounds)
-        # print('isstatic: ', isstatic)
+        print('isbounds: ', isbounds)
+        print('isstatic: ', isstatic)
 
         if isstatic:
             relevant_conds = isstatic[0]
@@ -453,9 +467,10 @@ class Hedge:
 
                 if hedge_type == 'bound':
                     bounds = relevant_conds[1]
+                    target = (bounds[1] + bounds[0]) / 2
                     # case: bounds are exceeded.
-                    if data[ind] < bounds[0] or data[ind] > bounds[1]:
-                        target = (bounds[1] + bounds[0]) / 2
+                    diff = data[ind] - target
+                    if diff < bounds[0] or diff > bounds[1]:
                         print('target ' + flag + ': ', target)
                         cost += self.hedge(flag, product,
                                            loc, greekval, target)

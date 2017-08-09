@@ -2,20 +2,17 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-09 17:13:54
+# @Last Modified time: 2017-08-09 21:28:45
 
 
 from .portfolio import Portfolio
 from .classes import Future, Option
-from .prep_data import find_cdist, match_to_signals, get_min_start_date, clean_data, ciprice, civols, vol_by_delta, handle_dailies
-from sqlalchemy import create_engine
+from .prep_data import find_cdist, handle_dailies
 import pandas as pd
 import numpy as np
 import os
-import time
 from .calc import compute_strike_from_delta
 import sys
-import os
 
 
 multipliers = {
@@ -76,100 +73,100 @@ contract_mths = {
 }
 
 
-def create_portfolio(pdt, opmth, ftmth, optype, vdf, pdf, **kwargs):
-    """Helper function that generates common portfolio types. Delegates construction to specific 
-     constructors, based on the input passed in. 
+# def create_portfolio(pdt, opmth, ftmth, optype, vdf, pdf, **kwargs):
+#     """Helper function that generates common portfolio types. Delegates construction to specific
+#      constructors, based on the input passed in.
 
-    Args:
-        pdt (TYPE): Product
-        opmth (TYPE): Option month, e.g. K7
-        ftmth (TYPE): Future month, e.g. K7
-        optype (TYPE): structure name. valid inputs are call, put, callspread, putspread, fence, straddle, strangle, call_butterfly and put_butterfly
-        vdf (TYPE): dataframe of vols
-        pdf (TYPE): dataframe of prices
-        **kwargs: dictionary of the form {'strikes':[], 'char':[], 'shorted':[], 'lots': [], 'greek': str, 'greekvals': [], 'atm': bool}
+#     Args:
+#         pdt (TYPE): Product
+#         opmth (TYPE): Option month, e.g. K7
+#         ftmth (TYPE): Future month, e.g. K7
+#         optype (TYPE): structure name. valid inputs are call, put, callspread, putspread, fence, straddle, strangle, call_butterfly and put_butterfly
+#         vdf (TYPE): dataframe of vols
+#         pdf (TYPE): dataframe of prices
+#         **kwargs: dictionary of the form {'strikes':[], 'char':[], 'shorted':[], 'lots': [], 'greek': str, 'greekvals': [], 'atm': bool}
 
-    Returns:
-        Portfolio object: The portfolio being created.  
-    """
-    print('kwargs: ', kwargs)
-    pf = Portfolio()
+#     Returns:
+#         Portfolio object: The portfolio being created.
+#     """
+#     print('kwargs: ', kwargs)
+#     pf = Portfolio()
 
-    # create the underlying future
-    ticksize = multipliers[pdt][-2]
-    date = max(vdf.value_date.min(), pdf.value_date.min())
-    _, ftprice = create_underlying(pdt, ftmth, pdf, date, shorted=False)
+#     # create the underlying future
+#     ticksize = multipliers[pdt][-2]
+#     date = max(vdf.value_date.min(), pdf.value_date.min())
+#     _, ftprice = create_underlying(pdt, ftmth, pdf, date, shorted=False)
 
-    # create the relevant options; get all relevant information
-    volid = pdt + '  ' + opmth + '.' + ftmth
-    shorted = kwargs['shorted']
+#     # create the relevant options; get all relevant information
+#     volid = pdt + '  ' + opmth + '.' + ftmth
+#     shorted = kwargs['shorted']
 
-    if 'atm' in kwargs and kwargs['atm']:
-        strike = round(round(ftprice / ticksize) * ticksize, 2)
+#     if 'atm' in kwargs and kwargs['atm']:
+#         strike = round(round(ftprice / ticksize) * ticksize, 2)
 
-    if optype == 'straddle':
-        op1, op2 = create_straddle(
-            volid, vdf, pdf, date, shorted, strike, kwargs)
-        ops = [op1, op2]
+#     if optype == 'straddle':
+#         op1, op2 = create_straddle(
+#             volid, vdf, pdf, date, shorted, strike, kwargs)
+#         ops = [op1, op2]
 
-    elif optype == 'skew':
-        delta = kwargs['delta']
-        op1, op2 = create_skew(volid, vdf, pdf, date,
-                               shorted, delta, ftprice, kwargs)
-        ops = [op1, op2]
+#     elif optype == 'skew':
+#         delta = kwargs['delta']
+#         op1, op2 = create_skew(volid, vdf, pdf, date,
+#                                shorted, delta, ftprice, kwargs)
+#         ops = [op1, op2]
 
-    elif optype == 'vanilla':
-        strike = kwargs['strike'] if 'strike' in kwargs else None
-        char = kwargs['char']
-        delta = kwargs['delta'] if 'delta' in kwargs else None
-        lots = kwargs['lots'] if 'lots' in kwargs else None
-        op1 = create_vanilla_option(vdf, pdf, volid, char, shorted,
-                                    date, lots=lots, delta=delta, strike=strike, kwargs=kwargs)
-        ops = [op1]
+#     elif optype == 'vanilla':
+#         strike = kwargs['strike'] if 'strike' in kwargs else None
+#         char = kwargs['char']
+#         delta = kwargs['delta'] if 'delta' in kwargs else None
+#         lots = kwargs['lots'] if 'lots' in kwargs else None
+#         op1 = create_vanilla_option(vdf, pdf, volid, char, shorted,
+#                                     date, lots=lots, delta=delta, strike=strike, kwargs=kwargs)
+#         ops = [op1]
 
-    elif optype == 'spread':
-        char = kwargs['char']
-        op1, op2 = create_spread(
-            char, volid, vdf, pdf, date, shorted, kwargs)
-        ops = [op1, op2]
+#     elif optype == 'spread':
+#         char = kwargs['char']
+#         op1, op2 = create_spread(
+#             char, volid, vdf, pdf, date, shorted, kwargs)
+#         ops = [op1, op2]
 
-    elif optype == 'fence':
-        delta = kwargs['delta']
-        op1, op2 = create_skew(volid, vdf, pdf, date,
-                               not shorted, delta, kwargs)
-        ops = [op1, op2]
+#     elif optype == 'fence':
+#         delta = kwargs['delta']
+#         op1, op2 = create_skew(volid, vdf, pdf, date,
+#                                not shorted, delta, kwargs)
+#         ops = [op1, op2]
 
-    elif optype == 'strangle':
-        op1, op2 = create_strangle(volid, vdf, pdf, date, shorted, kwargs)
-        ops = [op1, op2]
+#     elif optype == 'strangle':
+#         op1, op2 = create_strangle(volid, vdf, pdf, date, shorted, kwargs)
+#         ops = [op1, op2]
 
-    elif optype == 'butterfly':
-        char = kwargs['char']
-        op1, op2, op3, op4 = create_butterfly(
-            char, volid, vdf, pdf, date, shorted, kwargs)
-        ops = [op1, op2, op3, op4]
+#     elif optype == 'butterfly':
+#         char = kwargs['char']
+#         op1, op2, op3, op4 = create_butterfly(
+#             char, volid, vdf, pdf, date, shorted, kwargs)
+#         ops = [op1, op2, op3, op4]
 
-    pf.add_security(ops, 'OTC')
+#     pf.add_security(ops, 'OTC')
 
-    if 'hedges' in kwargs:
-        print('creating hedges')
-        dic = kwargs['hedges']
-        if dic['type'] == 'straddle':
-            # identifying the essentials
-            pdt, ftmth, opmth = dic['pdt'], dic['ftmth'], dic['opmth']
-            volid = pdt + '  ' + opmth + '.' + ftmth
-            shorted = dic['shorted']
-            # create the underlying future object
-            h_ft, h_price = create_underlying(
-                pdt, ftmth, pdf, date, shorted=False)
-            h_strike = round(round(h_price / ticksize) * ticksize, 2) \
-                if dic['strike'] == 'atm' else dic['strike']
-            h1, h2 = create_straddle(
-                volid, vdf, pdf, date, shorted, h_strike, dic, pf=pf)
+#     if 'hedges' in kwargs:
+#         print('creating hedges')
+#         dic = kwargs['hedges']
+#         if dic['type'] == 'straddle':
+#             # identifying the essentials
+#             pdt, ftmth, opmth = dic['pdt'], dic['ftmth'], dic['opmth']
+#             volid = pdt + '  ' + opmth + '.' + ftmth
+#             shorted = dic['shorted']
+#             # create the underlying future object
+#             h_ft, h_price = create_underlying(
+#                 pdt, ftmth, pdf, date, shorted=False)
+#             h_strike = round(round(h_price / ticksize) * ticksize, 2) \
+#                 if dic['strike'] == 'atm' else dic['strike']
+#             h1, h2 = create_straddle(
+#                 volid, vdf, pdf, date, shorted, h_strike, dic, pf=pf)
 
-        pf.add_security([h1, h2], 'hedge')
+#         pf.add_security([h1, h2], 'hedge')
 
-    return pf
+#     return pf
 
 
 def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=None):
@@ -361,7 +358,9 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None, payoff='ame
 # month, direc=None, barrier=None, lots=1000, bullet=True, ki=None,
 # ko=None, rebate=0, ordering=1e5, settlement='futures')
 
-def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriertype, direction, ki, ko, bullet, rebate=0, payoff='amer', lots=None, kwargs=None, vol=None, bvol=None):
+def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriertype,
+                          direction, ki, ko, bullet, rebate=0, payoff='amer', lots=None,
+                          kwargs=None, vol=None, bvol=None):
     """Helper method that creates barrier options. 
 
     Args:
@@ -667,7 +666,7 @@ def create_strangle(volid, vdf, pdf, date, shorted, pf=None, **kwargs):
     return ops
 
 
-def create_skew(volid, vdf, pdf, date, shorted, delta, ftprice, **kwargs):
+def create_skew(volid, vdf, pdf, date, shorted, delta, **kwargs):
     """Utility function that creates a skew position given dataframes and arguments. 
 
     Args:
@@ -687,43 +686,14 @@ def create_skew(volid, vdf, pdf, date, shorted, delta, ftprice, **kwargs):
         Tuple: Two options constituting a skew position (reverse fence). 
     """
     col = str(int(delta)) + 'd'
-    delta = delta/100
     pdt = volid.split()[0]
-    tau = vdf[(vdf.value_date == date) &
-              (vdf.vol_id == volid)].tau.values[0]
-    # isolate vols
-    try:
-        vol1 = pdf[(pdf.vol_id == volid) &
-                   (pdf.value_date == date) &
-                   (pdf.call_put_id == 'C')][col].values[0]
-    except IndexError:
-        print('util.create_skew - cannot find vol1')
-        print('vol_id: ', volid)
-        print('date: ', date)
-        print('cpi: ', 'C')
-
-    try:
-        vol2 = pdf[(pdf.vol_id == volid) &
-                   (pdf.value_date == date) &
-                   (pdf.call_put_id == 'P')][col].values[0]
-
-    except IndexError:
-        print('util.create_skew - cannot find vol2')
-        print('vol_id: ', volid)
-        print('date: ', date)
-        print('cpi: ', 'P')
-
-    strike1 = compute_strike_from_delta(None, delta1=delta, vol=vol1, s=ftprice,
-                                        tau=tau, char='call', pdt=pdt)
-    strike2 = compute_strike_from_delta(None,  delta1=delta, vol=vol2, s=ftprice,
-                                        tau=tau, char='put', pdt=pdt)
 
     # create_vanilla_option(vdf, pdf, ft, strike, lots, volid, char, payoff, shorted, mth, date=None)
     # creating the options
     op1 = create_vanilla_option(
-        vdf, pdf, volid, 'call', shorted, date, strike=strike1)
+        vdf, pdf, volid, 'call', shorted, date, delta=delta)
     op2 = create_vanilla_option(
-        vdf, pdf, volid, 'put', not shorted, date, strike=strike2)
+        vdf, pdf, volid, 'put', not shorted, date, delta=delta)
 
     if kwargs['greek'] == 'vega':
         vega_req = float(kwargs['greekval'])
@@ -878,96 +848,93 @@ def create_composites(lst):
     return lst
 
 
-def combine_portfolios(lst):
+def combine_portfolios(lst, hedges=None, name=None):
     """Helper method that merges and returns a portfolio pf where pf.families = lst. 
 
     Args:
         lst (TYPE): Description
     """
 
-    pf = Portfolio()
+    pf = Portfolio(None) if hedges is None else Portfolio(hedges, name)
     for p in lst:
-        # update the lists first. 
+        # update the lists first.
         pf.OTC_options.extend(p.OTC_options)
         pf.hedge_options.extend(p.hedge_options)
         pf.OTC = merge_dicts(p.OTC, pf.OTC)
         pf.hedges = merge_dicts(p.hedges, pf.hedges)
 
-    pf.set_families(lst) 
-    pf.refresh() 
+    pf.set_families(lst)
+    # pf.refresh()
 
-    return pf 
-
+    return pf
 
 
 def merge_dicts(d1, d2):
     ret = {}
     if len(d1) == 0:
-        return d2 
+        return d2
     elif len(d2) == 0:
         return d1
     else:
         for key in d1:
             if key not in ret:
                 ret[key] = {}
-            # base case: key is in d1 but not d2. 
+            # base case: key is in d1 but not d2.
             if key not in d2:
                 ret[key] = d1[key]
             elif key in d2:
                 dat1, dat2 = d1[key], d2[key]
-                # case 1: nested dictionary. 
+                # case 1: nested dictionary.
                 if isinstance(dat1, dict):
                     nd = merge_dicts(dat1, dat2)
                     ret[key] = nd
-                # case 2: list. 
+                # case 2: list.
                 elif isinstance(dat1, list):
                     nl = merge_lists(dat1, dat2)
-                    ret[key] = nl 
+                    ret[key] = nl
 
         for key in d2:
             if key not in ret:
                 ret[key] = {}
-            # base case: key is in d1 but not d2. 
+            # base case: key is in d1 but not d2.
             if key not in d1:
                 ret[key] = d2[key]
             elif key in d1:
                 dat1, dat2 = d1[key], d2[key]
-                # case 1: nested dictionary. 
+                # case 1: nested dictionary.
                 if isinstance(dat2, dict):
                     nd = merge_dicts(dat1, dat2)
                     ret[key] = nd
-                # case 2: list. 
+                # case 2: list.
                 elif isinstance(dat2, list):
                     nl = merge_lists(dat1, dat2)
-                    ret[key] = nl 
-    return ret 
-
-
+                    ret[key] = nl
+    return ret
 
 
 def merge_lists(l1, l2):
     """Helper method that merges two lists. 
-    
+
     Args:
         l1 (TYPE): Description
         l2 (TYPE): Description
-    
+
     Returns:
         TYPE: Description
     """
     if len(l1) == 0:
-        return l2 
+        return l2
     elif len(l2) == 0:
         return l1
 
-    ret = [] 
+    ret = []
     assert len(l1) == len(l2)
-    for i in range(l1):
+    for i in range(len(l1)):
         dat1, dat2 = l1[i], l2[i]
         if isinstance(dat1, set):
-            c = dat1.copy() 
+            c = dat1.copy()
             c.update(dat2)
-        elif isinstance(dat1, (int, long, float)):
-            c = dat1 + dat2 
+        elif isinstance(dat1, (int, float)):
+            c = dat1 + dat2
         ret.append(c)
-    return ret 
+    return ret

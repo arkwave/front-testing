@@ -8,6 +8,12 @@ Description    : Script contains implementation of the Portfolio class, as well 
 
 """
 
+from timeit import default_timer as timer
+from operator import add
+import pprint
+import numpy as np
+from collections import deque
+
 
 # Dictionary of multipliers for greeks/pnl calculation.
 # format  =  'product' : [dollar_mult, lot_mult, futures_tick,
@@ -34,11 +40,6 @@ multipliers = {
     'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
 }
 
-from timeit import default_timer as timer
-from operator import add
-import pprint
-import numpy as np
-from collections import deque
 
 seed = 7
 np.random.seed(seed)
@@ -83,7 +84,7 @@ class Portfolio:
 
     """
 
-    def __init__(self):
+    def __init__(self, hedge_params, name=None):
 
         self.OTC_options = deque()
         self.hedge_options = deque()
@@ -100,6 +101,10 @@ class Portfolio:
         self.net_greeks = {}
 
         self.families = []
+
+        self.name = str(name) if name is not None else None
+        self.hedge_params = hedge_params[self.name] \
+            if (self.name is not None and self.name in hedge_params) else None
 
         # updating initialized variables
         self.init_sec_by_month('OTC')
@@ -125,17 +130,49 @@ class Portfolio:
 
         return str(pprint.pformat(r_dict))
 
-
     def set_families(self, lst):
-        self.families = lst 
+        self.families = lst
 
+    def get_families(self):
+        return self.families
 
     def refresh(self):
-        self.value = self.compute_value() 
-        self.update_sec_by_month(None, 'OTC', update=True)
-        self.update_sec_by_month(None, 'hedge', update=True)
-        self.compute_net_greeks()
-        
+        self.update_by_family()
+        self.value = self.compute_value()
+        # self.update_sec_by_month(None, 'OTC', update=True)
+        # self.update_sec_by_month(None, 'hedge', update=True)
+        # self.compute_net_greeks()
+
+    def update_by_family(self):
+        from .util import combine_portfolios
+        tmp = combine_portfolios(
+            self.families, self.hedge_params, name=self.name) if self.families else None
+
+        if tmp is not None:
+            otc_fts = self.OTC_futures
+            hedge_fts = self.hedge_futures
+            self.OTC_futures.clear()
+            self.hedge_futures.clear()
+            print('otc_fts: ', [str(x) for x in otc_fts])
+            print('hedge_fts: ', [str(x) for x in hedge_fts])
+            tmp.add_security(otc_fts, 'OTC')
+            tmp.add_security(hedge_fts, 'hedge')
+
+            self.OTC = tmp.OTC
+            self.hedges = tmp.hedges
+            self.OTC_options = tmp.OTC_options
+            self.hedge_options = tmp.hedge_options
+            self.compute_net_greeks()
+
+    def check_containment(self, sec):
+        if not self.families:
+            return False, None
+        else:
+            for family in self.families:
+                if sec in family.OTC_options:
+                    return True, family
+            print('security doesnt exist in families associated with this portfolio')
+
     def update_sec_lots(self, sec, flag, lots):
         """Updates the lots of a given security, updates the dictionary it is contained in, and 
         updates net_greeks 
@@ -143,7 +180,8 @@ class Portfolio:
         Args:
             sec (list): list of securities whose lots are being updated
             flag (TYPE): indicates if this security is an OTC or hedge option
-            lots (TYPE): list of lot values, where lots[i] corresponds to the new lot value of sec[i]
+            lots (TYPE): list of lot values, where lots[i] corresponds 
+                        to the new lot value of sec[i]
         """
         ops = self.OTC_options if flag == 'OTC' else self.hedge_futures
         fts = self.OTC_futures if flag == 'OTC' else self.hedge_futures
@@ -326,6 +364,11 @@ class Portfolio:
                 print(str(sec))
                 print('specified security doesnt exist in this portfolio')
 
+        for sec in security:
+            contains, fpf = self.check_containment(sec)
+            if fpf is not None:
+                fpf.remove_security([sec], 'OTC')
+
     def remove_expired(self):
         '''Removes all expired options from the portfolio. '''
         explist = {'hedge': [], 'OTC': []}
@@ -424,20 +467,30 @@ class Portfolio:
                     except KeyError:
                         print(
                             "The security specified does not exist in this Portfolio")
+
                     # check for degenerate case when removing sec results in no
                     # securities associated to this product-month
                     ops = data[0]
                     fts = data[1]
-                    other_op = other[product][month][0]
-                    other_ft = other[product][month][1]
+                    other_op = other[product][month][0] if (
+                        (product in other) and (month in other[product])) else None
+                    other_ft = other[product][month][1] if (
+                        (product in other) and (month in other[product])) else None
+
                     if (not ops) and (not fts) and (not other_op) and (not other_ft):
                         print('degenerate case hit')
                         dic[product].pop(month)
-                        other[product].pop(month)
+                        # sanity check: pop product if no months left.
                         if len(dic[product]) == 0:
                             dic.pop(product)
-                        if len(other[product]) == 0:
-                            other.pop(product)
+                        # sanity check: other might be empty.
+                        if product not in other:
+                            pass
+                        else:
+                            if other is not None:
+                                other[product].pop(month)
+                            if len(other[product]) == 0:
+                                other.pop(product)
                         self.compute_net_greeks()
                     else:
                         self.update_greeks_by_month(
@@ -448,7 +501,6 @@ class Portfolio:
         else:
             # updating cumulative greeks on a month-by-month basis.
             d3 = self.net_greeks
-
             # reset all greeks
             for product in dic:
                 for month in dic[product]:

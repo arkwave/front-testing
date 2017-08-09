@@ -981,8 +981,22 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 
 > Family-based construction and hedging parameters.
 	> [Done] combine_portfolio
-	> specifying hedging logic for each family (both read in and otherwise).
-	> 
+	> [Done] specifying hedging logic for each family (both read in and otherwise).
+	> [Done] handling add/removes from families
+		- additional recursive call in remove_security when dealing with families. 
+		- overall containing portfolio (i.e. super-portfolio) contains all the futures.
+	> [Done] Portfolio constructor now takes in a dictionary of hedges and a name; relevant hedges are assigned by searching for portfolio's name in hedge dictionary. 
+	> fully specify rolling logic
+		- [Done] delta rolls
+		- contract rolls
+	> [Done] fully specify gamma/theta/vega hedging logic.
+	> fully specify relationship between hedge objects and portfolios they are attached to. 
+	> Make sure this all works for simple portfolios. 
+	> Trial run. 
+
+
+
+
 
 > Open issue: move from centralized hedging specifications to more general forumlation via families, possibly. 
 	- TENTATIVE SOLUTION:

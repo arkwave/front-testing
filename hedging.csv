@@ -1,4 +1,7 @@
-greek,flag,cond,freq,subcond,tau,tau_spec,kind,spectype,spec,repr
-delta,static,zero,1,,,,,,,
-delta,roll,50,1,"(30,60)",,,,,,
-gen,portfolio,TRUE,,,30,,,product,CC,
+greek,flag,cond,freq,subcond,tau,tau_spec,kind,spectype,spec,repr,family
+delta,static,zero,1,,,,,,,,all
+delta,roll,25,1,"(-5,5)",,,,,,,1
+delta,roll,50,1,"(-20,20)",,,,,,,2
+gamma,bound,"(0,10)",1,"(0,20,40,60,80)",0.5,years,straddle,strike,atm,exp,2
+delta,roll,25,1,"(-7,7)",,,,,,,3
+gen,portfolio,FALSE,,,30,,,product,CC,,all

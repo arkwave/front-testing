@@ -167,67 +167,77 @@ def generate_hedges(filepath):
             {greek: [[condition_1], [condition_2]]}
         where condition_i is a list specifying the details of the conditions imposed on that greek.
     """
-    df = pd.read_csv(filepath)
-    hedges = OrderedDict()
+    vdf = pd.read_csv(filepath)
+
     lst = []
 
     roll_portfolio, pf_ttm_tol, pf_roll_product = None, None, None
     roll_hedges, h_ttm_tol, h_roll_product = None, None, None
 
-    for i in df.index:
-        row = df.iloc[i]
-        # static hedging
-        greek = row.greek
-        # initial check: ascertain whether or not general rolling conditions
-        # have been included.
-        if greek == 'gen':
-            if row.flag == 'portfolio':
-                roll_portfolio = True if row.cond else False
-                pf_ttm_tol = row.tau if not np.isnan(row.tau) else 30
-                pf_roll_product = row.spec if row.spectype == 'product' else None
+    all_hedges = {}
 
-            elif row.flag == 'hedges':
-                roll_hedges = True if row.cond else False
-                h_ttm_tol = row.tau if not np.isnan(row.tau) else 30
-                h_roll_product = row.spec if row.spectype == 'product' else None
-            continue
+    for family in vdf.family.unique():
+        if family not in all_hedges:
+            all_hedges[family] = OrderedDict()
+        df = vdf[vdf.family == family]
+        df.reset_index(drop=True, inplace=True)
+        hedges = all_hedges[family]
+        for i in df.index:
+            row = df.iloc[i]
+            # static hedging
+            greek = row.greek
+            # initial check: ascertain whether or not general rolling conditions
+            # have been included.
+            if greek == 'gen':
+                if row.flag == 'portfolio':
+                    roll_portfolio = True if row.cond == 'TRUE' else False
+                    pf_ttm_tol = row.tau if not np.isnan(row.tau) else 30
+                    pf_roll_product = row.spec if row.spectype == 'product' else None
 
-        if row.flag == 'static':
-            cond = str(row.cond) if row.cond == 'zero' else int(row.cond)
-            lst = [row.flag, cond, int(row.freq)]
+                elif row.flag == 'hedges':
+                    roll_hedges = True if row.cond else False
+                    h_ttm_tol = row.tau if not np.isnan(row.tau) else 30
+                    h_roll_product = row.spec if row.spectype == 'product' else None
+                continue
 
-        # bound hedging
-        elif row.flag == 'bound':
-            spec = str(row.spec) if row.spec == 'atm' else float(
-                row.spec)
-            spectype = str(row.spectype)
-            if greek in ['gamma', 'theta', 'vega']:
-                rep = row.repr
-                subcond = literal_eval(row.subcond) if rep == 'exp' else None
-                if not np.isnan(row.tau):
-                    print('prep_data.generate_hedges - tau not nan. ')
-                    tau = float(row.tau)
-                    lst = [row.flag, list(literal_eval(row.cond)), int(row.freq), tau,
-                           row.tau_spec, row.kind, spectype, spec, subcond, row.repr]
-                else:
-                    lst = [row.flag, literal_eval(row.cond), int(row.freq),
-                           row.kind, spectype, spec, subcond, row.repr]
+            if row.flag == 'static':
+                cond = str(row.cond) if row.cond == 'zero' else int(row.cond)
+                lst = [row.flag, cond, int(row.freq)]
 
-        # percentage hedging
-        elif row.flag == 'pct':
-            # greek = row.greek
-            lst = [row.flag, float(row.cond), int(row.freq), row.subcond]
-        elif row.flag == 'roll':
-            # greek = row.greek
-            lst = [row.flag, float(row.cond), int(
-                row.freq), literal_eval(row.subcond)]
-        # append to the dictionary
-        if greek in hedges:
-            hedges[greek].append(lst)
-        else:
-            hedges[greek] = [lst]
+            # bound hedging
+            elif row.flag == 'bound':
+                spec = str(row.spec) if row.spec == 'atm' else float(
+                    row.spec)
+                spectype = str(row.spectype)
+                if greek in ['gamma', 'theta', 'vega']:
+                    rep = row.repr
+                    subcond = literal_eval(
+                        row.subcond) if rep == 'exp' else None
+                    if not np.isnan(row.tau):
+                        print('prep_data.generate_hedges - tau not nan. ')
+                        tau = float(row.tau)
+                        lst = [row.flag, list(literal_eval(row.cond)), int(row.freq), tau,
+                               row.tau_spec, row.kind, spectype, spec, subcond, row.repr]
+                    else:
+                        lst = [row.flag, literal_eval(row.cond), int(row.freq),
+                               row.kind, spectype, spec, row.repr]
 
-    return hedges, roll_portfolio, pf_ttm_tol, \
+            # percentage hedging
+            elif row.flag == 'pct':
+                # greek = row.greek
+                lst = [row.flag, float(row.cond), int(row.freq), row.subcond]
+            elif row.flag == 'roll':
+                # greek = row.greek
+                lst = [row.flag, float(row.cond), int(
+                    row.freq), literal_eval(row.subcond)]
+            # append to the dictionary
+            if greek in hedges:
+                hedges[greek].append(lst)
+            else:
+                hedges[greek] = [lst]
+        all_hedges[family] = hedges
+
+    return all_hedges, roll_portfolio, pf_ttm_tol, \
         pf_roll_product,  roll_hedges, h_ttm_tol, h_roll_product
 
 

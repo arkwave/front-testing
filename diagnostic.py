@@ -3,12 +3,13 @@ from scripts.prep_data import generate_hedges, sanity_check
 
 import numpy as np
 import pandas as pd
-from scripts.util import create_straddle
+from scripts.util import create_straddle, combine_portfolios, create_skew
 from scripts.portfolio import Portfolio
 from scripts.fetch_data import grab_data
-from scripts.hedge import Hedge
-from timeit import default_timer as timer
-import pprint
+# from scripts.hedge import Hedge
+# from timeit import default_timer as timer
+# import pprint
+from simulation import run_simulation
 
 multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
@@ -71,9 +72,6 @@ contract_mths = {
 ######### variables ################
 start_date = '2017-05-01'
 end_date = '2017-07-21'
-rd1 = pd.to_datetime('2017-06-30')
-rd2 = pd.to_datetime('2017-06-30')
-rollover_dates = {'QC  U7.U7': [rd1], 'CC  U7.U7': [rd2]}
 pdts = ['QC', 'CC']
 volids = ['QC  U7.U7', 'QC  Z7.Z7', 'CC  U7.U7', 'CC  Z7.Z7']
 ####################################
@@ -83,61 +81,69 @@ vdf, pdf, edf = grab_data(pdts, start_date, end_date,
                           volids=volids, write=True)
 
 sanity_check(vdf.value_date.unique(),
-             pdf.value_date.unique(), pd.to_datetime(start_date), pd.to_datetime(end_date))
+             pdf.value_date.unique(), pd.to_datetime(start_date),
+             pd.to_datetime(end_date))
+
+callop, putop = create_skew('CC  U7.U7', vdf, pdf,
+                            pd.to_datetime(start_date), False, 25, greek='vega', greekval=50000)
 
 
 cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
-    start_date), False, 'atm', greek='vega', greekval=20000)
-
-qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(
-    start_date), True, 'atm', greek='vega', greekval=20000)
-
-# print('CC Call: ', str(cc1))
-# print('CC Put: ', str(cc2))
-# print('QC Call: ', str(qc1))
-# print('QC Put: ', str(qc2))
-
-pf = Portfolio()
-pf.add_security([qc1, qc2, cc1, cc2], 'OTC')
-
-# print('portfolio: ', pf)
+    start_date), False, 'atm', greek='gamma', greekval=22)
 
 hedges, roll_portfolio, pf_ttm_tol, pf_roll_product, \
     roll_hedges, h_ttm_tol, h_roll_product = generate_hedges('hedging.csv')
 
+
+# define hedges for the 25 delta call
+pf_calls = Portfolio(hedges, 1)
+pf_calls.add_security([callop], 'OTC')
+
+
+pf_puts = Portfolio(hedges, 3)
+pf_puts.add_security([putop], 'OTC')
+
+pf_atms = Portfolio(hedges, 2)
+pf_atms.add_security([cc1, cc2], 'OTC')
+
+pf = combine_portfolios([pf_calls, pf_puts, pf_atms],
+                        hedges=hedges, name='all')
+
+pf.refresh()
+
+
+print('portfolio: ', pf)
+
+
 print('hedges: ', hedges)
 
-test_pdf = pdf[pdf.value_date == pd.to_datetime(start_date)]
-test_vdf = vdf[vdf.value_date == pd.to_datetime(start_date)]
+print('roll_portfolio: ', roll_portfolio)
+print('roll_hedges: ', roll_hedges)
 
-b1 = [0, 20, 30, 50, 80, 90]
-b2 = [0, 50, 70, 100, 150, 200]
-b3 = [0, 70, 120, 170]
-
-
-t = timer()
-# pf = generate_portfolio()
-hedge = Hedge(pf, hedges, test_vdf, test_pdf,)
-
-for key in hedges:
-    if key != 'delta':
-        hedge._calibrate(key)
+log = run_simulation(vdf, pdf, edf, pf, hedges,
+                     roll_portfolio=roll_portfolio, pf_ttm_tol=pf_ttm_tol,
+                     pf_roll_product=pf_roll_product,
+                     roll_hedges=roll_hedges, h_ttm_tol=h_ttm_tol,
+                     h_roll_product=h_roll_product)
 
 
-print(pprint.pformat(hedge.params))
-print(pprint.pformat(hedge.greek_repr))
-print(pprint.pformat(hedge.mappings))
+# t = timer()
+# # pf = generate_portfolio()
+# for dep in pf.get_families():
+#     test = Hedge(dep, dep.hedge_params, test_vdf, test_pdf)
+#     print('test_satisfied: ', test.satisfied())
+#     for key in test.hedges:
+#         if key != 'delta':
+#             print('applying ' + key)
+#             test.apply(key)
+#     print('test_satisfied: ', test.satisfied())
 
-print(hedge.satisfied())
+# pf.refresh()
 
-# print('~~~~ HEDGING VEGA ~~~~~~')
-# x = hedge.apply('vega')
-print('~~~~ HEDGING GAMMA~~~~~~')
-y = hedge.apply('gamma')
+# ov_hedge = Hedge(pf, pf.hedge_params, test_vdf, test_pdf)
+# print('overall satisfied: ', ov_hedge.satisfied())
 
-hedge.refresh()
+# for key in ov_hedge.hedges:
+#     ov_hedge.apply(key)
 
-print(pprint.pformat(hedge.greek_repr))
-print(hedge.satisfied())
-
-print('elapsed: ', timer() - t)
+# print('overall satisfied: ', ov_hedge.satisfied())
