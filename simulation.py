@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-07 22:05:03
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-08-09 13:55:08
 
 ################################ imports ###################################
 
@@ -292,9 +292,15 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None,
     # Step 6: rolling over portfolio and hedges if required.
         cost = 0
         if roll_portfolio:
+            d_cond = None
+            if 'delta' in hedges:
+                d_cond = [x for x in hedges['delta'] if x[0] == 'roll']
+                d_cond = d_cond[0][1] if d_cond else None
+
             pf, cost = roll_over(pf, vdf, pdf, date, brokerage=brokerage,
-                                 slippage=slippage, flag='OTC', atm_roll=True,
-                                 target_product=pf_roll_product, ttm_tol=pf_ttm_tol)
+                                 slippage=slippage, flag='OTC',
+                                 target_product=pf_roll_product, ttm_tol=pf_ttm_tol,
+                                 d_cond=d_cond)
 
         # if roll_hedges:
         #     pf, cost = roll_over(
@@ -634,7 +640,9 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
         ValueError: Raised if voldf is empty.
 
     Notes:
-    1) DO NOT ADD SECURITIES INSIDE THIS FUNCTION. Doing so will mess up the PnL calculations and give you vastly overinflated profits or vastly exaggerated losses, due to reliance on the compute_value function.
+    1) DO NOT ADD SECURITIES INSIDE THIS FUNCTION. Doing so will mess up the PnL calculations \
+    and give you vastly overinflated profits or vastly exaggerated losses, due to reliance on \
+    the compute_value function.
 
     """
     barrier_futures = []
@@ -992,7 +1000,8 @@ def handle_exercise(pf, brokerage=None, slippage=None):
         slippage (None, optional): Description
 
     Returns:
-        tuple: the combined PnL from exercising (if appropriate) and daily/bullet payoffs, as well as the updated portfolio.
+        tuple: the combined PnL from exercising (if appropriate) and daily/bullet payoffs, \
+        as well as the updated portfolio.
 
     Notes on implementation:
         1) options are exercised if less than or equal to 2 days to maturity, and
@@ -1089,7 +1098,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
 
 
 # TODO: figure out what to do with hedge options during rollovers.
-def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60, flag=None, atm_roll=None, target_product=None):
+def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60, flag=None, target_product=None, d_cond=None):
     """Utility method that checks expiries of options currently being used for hedging. If ttm < ttm_tol,
     closes out that position (and all accumulated deltas), saves lot size/strikes, and rolls it over into the
     next month.
@@ -1151,12 +1160,19 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60, fla
 
             # creating the new options object - getting the tau and vol
             new_vol_id = pdt + '  ' + new_ft_month + '.' + new_ft_month
-            strike, lots = op.K, op.lots
-            if atm_roll:
-                strike = 'atm'
+            lots = op.lots
+
+            r_delta = None
+            strike = None
+            # case: delta rolling value is specified.
+            if d_cond is not None:
+                if d_cond == 50:
+                    strike = 'atm'
+                else:
+                    r_delta = d_cond
 
             newop = create_vanilla_option(
-                vdf, pdf, new_vol_id, op.char, op.shorted, date, lots=lots, strike=strike)
+                vdf, pdf, new_vol_id, op.char, op.shorted, date, lots=lots, strike=strike, delta=r_delta)
 
             # cost is > 0 if newop.price > op.price
             total_cost += newop.get_price() - op.get_price()
@@ -1209,9 +1225,12 @@ def rebalance(vdf, pdf, pf, hedges, counters, buckets=None, brokerage=None, slip
 
     for greek in hedges:
         if greek == 'delta':
-            if delta_freq == hedges[greek][0][1]:
-                counters[0] = 1
-                hedgearr[0] = True
+            static = [x for x in hedges['delta'] if x[0] == 'static']
+            if static:
+                static = static[0]
+                if delta_freq == static[2]:
+                    counters[0] = 1
+                    hedgearr[0] = True
             else:
                 print('delta freq not met.')
                 counters[0] += 1
@@ -1277,6 +1296,7 @@ def rebalance(vdf, pdf, pf, hedges, counters, buckets=None, brokerage=None, slip
     # initial boolean check
     done_hedging = hedge_engine.satisfied()
 
+    # print('hedge_arr: ', hedgearr)
     # hedging non-delta greeks.
     while (not done_hedging and hedge_count < 10):
         # insert the actual business of hedging here.
@@ -1298,6 +1318,10 @@ def rebalance(vdf, pdf, pf, hedges, counters, buckets=None, brokerage=None, slip
         if hedgearr[0] and 'delta' in hedges:
             # grabbing condition that indicates zeroing condition on
             # delta
+            isstatic = [x for x in hedges['delta'] if x[0] == 'static']
+            if not isstatic:
+                continue
+            # print('applying delta hedge')
             fee = hedge_engine.apply('delta')
             cost += fee
         hedge_count += 1
@@ -1339,14 +1363,16 @@ def hedge_delta_roll(pf, roll_cond, pdf, brokerage=None, slippage=None):
     for op in pf.OTC_options:
         # case: option has already been processed due to its partner being
         # processed.
-        print('simulation.hedge_delta_roll - option: ', op.get_product(), op.char,  round(abs(op.delta / op.lots), 2))
+        print('simulation.hedge_delta_roll - option: ', op.get_product(),
+              op.char,  round(abs(op.delta / op.lots), 2))
         if op in toberemoved:
             continue
         composites = []
         delta = abs(op.delta / op.lots)
         # case: delta not in bounds.
         if delta > bounds[1] or delta < bounds[0]:
-            print('rolling delta: ', op.get_product(), op.char, round(abs(op.delta / op.lots), 2))
+            print('rolling delta: ', op.get_product(),
+                  op.char, round(abs(op.delta / op.lots), 2))
             newop, old_op, rcost = delta_roll(
                 op, roll_val, pdf, slippage=slippage, brokerage=brokerage)
             toberemoved.append(old_op)

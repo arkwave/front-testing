@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-07 18:45:50
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-08-09 13:31:55
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -40,14 +40,9 @@ class Hedge:
         self.buckets = buckets if buckets is not None else [0, 30, 60, 90, 120]
         self.hedges = hedges
         self.desc, self.params = self.process_hedges()
-        # print('self.desc: ', self.desc)
-        # print('self.params: ', self.params)
         self.done = self.satisfied()
         self.date = pd.to_datetime(pdf.value_date.unique()[0])
-
         assert len([self.date]) == 1
-
-        # self.params, self.greek_repr = None, None
 
     def process_hedges(self):
         """Helper function that sorts through the mess that is the hedge dictionary. Returns the following:
@@ -473,7 +468,7 @@ class Hedge:
 
         """
         # sanity check: since greek signs will never arbitrarily flip, wanna make sure
-        # they stay the same sign. 
+        # they stay the same sign.
         if greekval < 0:
             target = -target
 
