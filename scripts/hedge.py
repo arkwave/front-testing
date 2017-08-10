@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-10 16:23:19
+# @Last Modified time: 2017-08-10 21:34:09
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -140,6 +140,7 @@ class Hedge:
         to hedge the deltas from a W Q6.U6 option.
 
         """
+        print('-+-+-+- calibrating ' + flag + ' -+-+-+-')
         net = {}
         ttm = None
 
@@ -149,10 +150,11 @@ class Hedge:
         if self.desc == 'exp':
             # self.pf.update_sec_by_month(None, 'OTC', update=True)
             # self.pf.update_sec_by_month(None, 'hedge', update=True)
-            calibration_dic = self.pf.greeks_by_exp(
-                self.buckets) if buckets is None else self.pf.greeks_by_exp(buckets)
+            self.greek_repr = self.pf.greeks_by_exp(self.buckets) \
+                if buckets is None else self.pf.greeks_by_exp(buckets)
 
-            net = calibration_dic
+            calibration_dic = self.pf.greeks_by_exp(self.buckets) \
+                if buckets is None else self.pf.greeks_by_exp(buckets)
 
             for product in calibration_dic:
                 df = self.pdf[self.pdf.pdt == product]
@@ -215,8 +217,9 @@ class Hedge:
         elif self.desc == 'uid':
             # self.pf.update_sec_by_month(None, 'OTC', update=True)
             # self.pf.update_sec_by_month(None, 'hedge', update=True)
-            calibration_dic = self.pf.get_net_greeks()
-            net = calibration_dic
+            self.greek_repr = self.pf.get_net_greeks()
+            print('scripts.hedges.calibrate - greek repr ', self.greek_repr)
+            net = self.pf.get_net_greeks()
             for product in net:
                 df = self.pdf[self.pdf.pdt == product]
                 for month in net[product]:
@@ -281,7 +284,7 @@ class Hedge:
 
                     self.mappings[flag][loc] = volid
 
-        self.greek_repr = net
+        print('-+-+-+- done calibrating ' + flag + ' -+-+-+-')
 
     def get_bucket(self, val, buckets=None):
         """Helper method that gets the bucket associated with a given value according to self.buckets.
@@ -317,12 +320,13 @@ class Hedge:
             Boolean: indicating if the hedges are all satisfied or not.
         """
         print('--- checking uid hedges satisfied ---')
+        self.pf.update_sec_by_month(None, 'OTC', update=True)
+        self.pf.update_sec_by_month(None, 'hedge', update=True)
         strs = {'delta': 0, 'gamma': 1, 'theta': 2, 'vega': 3}
         tst = self.hedges.copy()
-        # if 'delta' in tst:
-        #     tst.pop('delta')
 
         net_greeks = self.pf.get_net_greeks()
+        self.greek_repr = net_greeks
         # delta condition:
         conditions = []
         for greek in tst:
@@ -347,11 +351,13 @@ class Hedge:
                     bound = cond[1]
                     print('scripts.hedge.check_uid_hedges: inputs - ',
                           greeks[cond[0]], bound[0], bound[1])
-                    if (abs(greeks[cond[0]]) > abs(bound[1])) or \
-                            (abs(greeks[cond[0]]) < abs(bound[0])):
+                    if (greeks[cond[0]] > bound[1]) or \
+                            (greeks[cond[0]] < bound[0]):
                         print(str(cond) + ' failed')
                         print(greeks[cond[0]], bound[0], bound[1])
+                        print('--- done checking uid hedges satisfied ---')
                         return False
+
         # rolls_satisfied = check_roll_hedges(pf, hedges)
         print('--- done checking uid hedges satisfied ---')
         return True
@@ -365,7 +371,10 @@ class Hedge:
             hedges (TYPE): Description
         """
         strs = {'delta': 0, 'gamma': 1, 'theta': 2, 'vega': 3}
-        net_greeks = self.pf.greeks_by_exp(self.buckets)
+        self.pf.update_sec_by_month(None, 'OTC', update=True)
+        self.pf.update_sec_by_month(None, 'hedge', update=True)
+        self.greek_repr = self.pf.greeks_by_exp(self.buckets)
+        net_greeks = self.greek_repr
         tst = self.hedges.copy()
         # if 'delta' in tst:
         #     tst.pop('delta')
@@ -406,12 +415,18 @@ class Hedge:
         """Helper method that re-inializes all values. To be used when updating portfolio
         to ascertain hedges have been satisfied.
         """
+        # print('scripts.hedge - pre-refresh greek repr: ', self.greek_repr)
         for flag in self.hedges:
             if flag != 'delta':
                 print('refreshing ' + flag)
                 self._calibrate(flag)
 
-        self.done = self.satisfied()
+        # sanity check: case where delta is the only hedge, and greek repr
+        # hence doesn't get updated (in fact gets wiped on refresh.)
+        if self.greek_repr == {}:
+            self.greek_repr = self.pf.get_net_greeks()
+
+        # self.done = self.satisfied()
 
     def apply(self, flag):
         """Main method that actually applies the hedging logic specified.
@@ -422,6 +437,7 @@ class Hedge:
             flag (string): the greek being hedged
         """
         # base case: flag not in hedges
+        print('======= applying ' + flag + ' hedge =========')
         if flag not in self.hedges:
             raise ValueError(flag + ' hedge is not specified in hedging.csv')
 
@@ -447,10 +463,12 @@ class Hedge:
         if flag == 'delta':
             fee = self.hedge_delta()
             # cost += self.hedge_delta(pf)
+            print('======= done ' + flag + ' hedge =========')
             return fee
 
         # print('flag: ', flag)
         # print('hedge_type: ', hedge_type)
+        print('greek repr: ', self.greek_repr)
         for product in self.greek_repr:
             for loc in self.greek_repr[product]:
                 print('>> hedging ' + str(product) + ' ' + str(loc) + ' <<')
@@ -461,6 +479,7 @@ class Hedge:
                     data = fulldata[1:]
                 else:
                     data = fulldata
+                print('data: ', data)
                 greekval = data[ind]
 
                 # sanity check in the case of nonzero lower bound and exp
@@ -473,9 +492,7 @@ class Hedge:
                     bounds = relevant_conds[1]
                     target = (bounds[1] + bounds[0]) / 2
                     # case: bounds are exceeded.
-                    diff = data[ind] - target
-                    if diff < bounds[0] or diff > bounds[1]:
-                        print('target ' + flag + ': ', target)
+                    if abs(greekval) < bounds[0] or abs(greekval) > bounds[1]:
                         cost += self.hedge(flag, product,
                                            loc, greekval, target)
                     else:
@@ -485,7 +502,7 @@ class Hedge:
                 elif hedge_type == 'static':
                     val = self.params[flag]['target']
                     cost += self.hedge(flag, product, loc, greekval, val)
-
+        print('======= done ' + flag + ' hedge =========')
         return cost
 
     def hedge(self, flag, product, loc, greekval, target):
@@ -504,8 +521,12 @@ class Hedge:
             target = -target
 
         cost = 0
+        print('target ' + flag + ': ', target)
+        print('current ' + flag + ': ', greekval)
+
         reqd_val = target - greekval
 
+        print('required ' + flag + ': ', reqd_val)
         # all hedging info is contained in self.params[flag]
         data = self.params[flag]
 
@@ -605,13 +626,13 @@ class Hedge:
         """
         ops = None
         try:
-            print(data['kind'], data['spectype'], data['spec'])
+            # print(data['kind'], data['spectype'], data['spec'])
             if data['kind'] == 'straddle':
                 if data['spectype'] == 'strike':
                     strike = data['spec']
                 ops = create_straddle(hedge_id, self.vdf, self.pdf, self.date,
                                       shorted, strike=strike, greek=flag, greekval=greekval)
-                print('added straddle: ' + str([str(op) for op in ops]))
+                print('added straddle with ' + str(greekval) + ' ' + str(flag))
 
             elif data['kind'] == 'strangle':
                 strike1, strike2, delta1, delta2 = None, None, None, None

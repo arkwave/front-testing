@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-10 16:12:55
+# @Last Modified time: 2017-08-10 21:41:44
 
 ################################ imports ###################################
 
@@ -103,7 +103,7 @@ np.random.seed(seed)
 ############## Main Simulation Loop #################
 #####################################################
 
-def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None,
+def run_simulation(voldata, pricedata, expdata, pf, end_date=None,
                    brokerage=None, slippage=None, signals=None,
                    roll_portfolio=None, pf_ttm_tol=None, pf_roll_product=None,
                    roll_hedges=None, h_ttm_tol=None, h_roll_product=None):
@@ -140,18 +140,25 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None,
         pricedata (TYPE): Description
         expdata (TYPE): Description
         pf (TYPE): Description
-        hedges (TYPE): Description
         end_date (None, optional): Description
         brokerage (None, optional): Description
         slippage (None, optional): Description
         signals (TYPE): Description
         roll_portfolio (None, optional): Description
+        pf_ttm_tol (None, optional): Description
+        pf_roll_product (None, optional): Description
         roll_hedges (None, optional): Description
-        roll_product (None, optional): Description
-        ttm_tol (None, optional): Description
+        h_ttm_tol (None, optional): Description
+        h_roll_product (None, optional): Description
 
     Returns:
         TYPE: Description
+
+
+    Deleted Parameters:
+        hedges (TYPE): Description
+        roll_product (None, optional): Description
+        ttm_tol (None, optional): Description
 
 
     """
@@ -311,15 +318,13 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None,
             # dailycost += cost
 
     # Step 7: Decrement timestep after all computation steps
-
         # calculate number of days to step
         num_days = 0 if next_date is None else (
             pd.Timestamp(next_date) - pd.Timestamp(date)).days
         pf.timestep(num_days * timestep)
 
-    # Step 8: Hedge - consists of rolling over hedges (if necessary), and
-    # controlling greek levels of hedges
-
+    # Step 8: Hedge - bring greek levels across portfolios (and families) into
+    # line with target levels.
         pf, counters, cost, roll_hedged = rebalance(vdf, pdf, pf,
                                                     counters,
                                                     brokerage=brokerage, slippage=slippage)
@@ -417,12 +422,12 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None,
 
     ##########################################################################
 
+
+##########################################################################
+##########################################################################
+##########################################################################
+
     # Step 10: Plotting results/data viz
-
-##########################################################################
-##########################################################################
-##########################################################################
-
     ######################### PRINTING OUTPUT ###########################
     log = pd.DataFrame(loglist)
 
@@ -1164,11 +1169,13 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60,
             strike = None
             # case: delta rolling value is specified.
             if d_cond is not None:
+                print('d_cond not None: ', d_cond)
                 if d_cond == 50:
                     strike = 'atm'
                 else:
-                    r_delta = d_cond
 
+                    r_delta = d_cond
+            print('strike, r_delta: ', strike, r_delta)
             newop = create_vanilla_option(vdf, pdf, new_vol_id, op.char, op.shorted,
                                           date, lots=lots, strike=strike, delta=r_delta)
 
@@ -1268,11 +1275,11 @@ def rebalance(vdf, pdf, pf, counters, buckets=None, brokerage=None, slippage=Non
 
     hedge_count = 0
 
-    # initialize hedge engines for each family in the portfolio
-    for dep in pf.get_families():
-        # print('dep name: ', dep.name)
+    # case: no families (i.e. simple portfolio)
+    if not pf.get_families():
+        print('simulation.rebalance - simple portfolio hedging. ')
         # print('hedges for this dep: ', dep.hedge_params)
-        hedge_engine = Hedge(dep, dep.hedge_params, vdf, pdf,
+        hedge_engine = Hedge(pf, pf.hedge_params, vdf, pdf,
                              buckets=buckets,
                              slippage=slippage, brokerage=brokerage)
 
@@ -1282,40 +1289,86 @@ def rebalance(vdf, pdf, pf, counters, buckets=None, brokerage=None, slippage=Non
         # hedging non-delta greeks.
         while (not done_hedging and hedge_count < 3):
             # insert the actual business of hedging here.
-            for flag in dep.hedge_params:
-                # print('flag: ', flag)
+            for flag in pf.hedge_params:
                 if flag == 'gamma' and hedgearr[1]:
                     fee = hedge_engine.apply('gamma')
                     cost += fee
+                    hedge_engine.refresh()
                 elif flag == 'vega' and hedgearr[3]:
                     fee = hedge_engine.apply('vega')
                     cost += fee
-                    # cost += hedge_engine.apply(pf, 'vega', 'bound')
+                    hedge_engine.refresh()
                 elif flag == 'theta' and hedgearr[2]:
                     fee = hedge_engine.apply('theta')
                     cost += fee
-                    # cost += hedge_engine.apply(pf, 'theta', 'bound')
-                hedge_engine.refresh()
+                    hedge_engine.refresh()
+
+            # debug statements
+            print('overall hedge params: ', pf.hedge_params)
+
+            # hedging delta after non-delta greeks.
+            if hedgearr[0] and 'delta' in pf.hedge_params:
+                # grabbing condition that indicates zeroing condition on
+                # delta
+                print('hedging delta')
+                fee = hedge_engine.apply('delta')
+                # fee = ov_hedge.apply('delta')
+                cost += fee
+
+            hedge_count += 1
+            done_hedging = hedge_engine.satisfied()
+            print('pf hedges satisfied: ', done_hedging)
+
+    # case: composite portfolio
+    else:
+        print('simulation.rebalance - composite portfolio hedging.')
+        # initialize hedge engines for each family in the portfolio
+        for dep in pf.get_families():
+            hedge_engine = Hedge(dep, dep.hedge_params, vdf, pdf,
+                                 buckets=buckets,
+                                 slippage=slippage, brokerage=brokerage)
+
+            # initial boolean check
+            done_hedging = hedge_engine.satisfied()
+
+            # hedging non-delta greeks.
+            while (not done_hedging and hedge_count < 3):
+                # insert the actual business of hedging here.
+                for flag in dep.hedge_params:
+                    if flag == 'gamma' and hedgearr[1]:
+                        fee = hedge_engine.apply('gamma')
+                        cost += fee
+                        hedge_engine.refresh()
+                    elif flag == 'vega' and hedgearr[3]:
+                        fee = hedge_engine.apply('vega')
+                        cost += fee
+                        hedge_engine.refresh()
+                    elif flag == 'theta' and hedgearr[2]:
+                        fee = hedge_engine.apply('theta')
+                        cost += fee
+                        hedge_engine.refresh()
 
                 hedge_count += 1
-            done_hedging = hedge_engine.satisfied()
-            print('dep hedges satisfied: ', done_hedging)
+                done_hedging = hedge_engine.satisfied()
+                print('dep hedges satisfied: ', done_hedging)
 
-        # check if delta hedging is required. if so, perform. else, skip.
-    pf.refresh()
+        # refresh after hedging individual families
+        pf.refresh()
 
-    print('simulation.rebalance - portfolio after refresh: ', pf)
+        print('simulation.rebalance - portfolio after refresh: ', pf)
 
-    # debug statements
-    print('overall hedge params: ', pf.hedge_params)
+        # debug statements
+        print('overall hedge params: ', pf.hedge_params)
 
-    if hedgearr[0] and 'delta' in pf.hedge_params:
-        # grabbing condition that indicates zeroing condition on
-        # delta
-        print('hedging delta')
-        ov_hedge = Hedge(pf, pf.hedge_params, vdf, pdf)
-        fee = ov_hedge.apply('delta')
-        cost += fee
+        # hedging delta overall after all family-specific hedges have been
+        # handled.
+        if hedgearr[0] and 'delta' in pf.hedge_params:
+            # grabbing condition that indicates zeroing condition on
+            # delta
+            print('hedging delta')
+            ov_hedge = Hedge(pf, pf.hedge_params, vdf, pdf)
+            fee = ov_hedge.apply('delta')
+            cost += fee
 
     print('hedging completed. ')
     return (pf, counters, cost, droll)
@@ -1460,44 +1513,6 @@ def delta_roll(op, roll_val, pdf, slippage=None, brokerage=None):
         cost += (s_val * (newop.lots + op.lots))
 
     return newop, op, cost
-
-
-def hedges_satisfied(pf, hedges):
-    """Helper method that ascertains if all entries in net_greeks satisfy
-     the conditions laid out in hedges.
-
-    Args:
-        pf (portfolio object): portfolio being hedged
-        hedges (ordered dictionary): contains hedge information/specifications
-
-    Returns:
-        Boolean: indicating if the hedges are all satisfied or not.
-    """
-    strs = {'delta': 0, 'gamma': 1, 'theta': 2, 'vega': 3}
-    net_greeks = pf.net_greeks
-    # delta condition:
-    conditions = []
-    for greek in hedges:
-        conds = hedges[greek]
-        for cond in conds:
-            # static bound case
-            if cond[0] == 'static':
-                conditions.append((strs[greek], (-1, 1)))
-            elif cond[0] == 'bound':
-                # print('to be literal eval-ed: ', hedges[greek][1])
-                c = cond[1]
-                tup = (strs[greek], c)
-                conditions.append(tup)
-    # bound_and_static = True
-    for pdt in net_greeks:
-        for month in net_greeks[pdt]:
-            greeks = net_greeks[pdt][month]
-            for cond in conditions:
-                bound = cond[1]
-                if (greeks[cond[0]] > bound[1]) or (greeks[cond[0]] < bound[0]):
-                    return False
-    # rolls_satisfied = check_roll_hedges(pf, hedges)
-    return True
 
 
 def check_roll_status(pf):
@@ -1675,12 +1690,14 @@ if __name__ == '__main__':
     print('SANITY CHECKING COMPLETE. PREPPING PORTFOLIO... [4/7]')
     ##########################################################################
 
+    # TODO: change this completely.
     # generate portfolio #
     pf, _ = prep_portfolio(vdf, pdf, filepath=specpath)
 
     print('--------------------------------------------------------')
     print('PORTFOLIO PREPARED. GENERATING HEDGES... [5/7]')
 
+    # TODO: need to find a new use for this.
     # generate hedges #
     hedges, roll_portfolio, pf_ttm_tol, pf_roll_product, \
         roll_hedges, h_ttm_tol, h_roll_product = generate_hedges(hedge_path)
@@ -1701,7 +1718,7 @@ if __name__ == '__main__':
     print('HEDGES GENERATED. RUNNING SIMULATION... [6/7]')
 
     # # run simulation #
-    log = run_simulation(vdf, pdf, edf, pf, hedges,
+    log = run_simulation(vdf, pdf, edf, pf,
                          brokerage=gv.brokerage, slippage=gv.slippage, signals=signals)
 
 
@@ -1718,5 +1735,8 @@ if __name__ == '__main__':
 ##########################################################################
 ########################################
 ########
+###
+########
+###
 ###
 ########

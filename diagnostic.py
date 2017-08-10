@@ -99,12 +99,14 @@ hedges, roll_portfolio, pf_ttm_tol, pf_roll_product, \
 pf_calls = Portfolio(hedges, 1)
 pf_calls.add_security([callop], 'OTC')
 
-
 pf_puts = Portfolio(hedges, 3)
 pf_puts.add_security([putop], 'OTC')
 
 pf_atms = Portfolio(hedges, 2)
 pf_atms.add_security([cc1, cc2], 'OTC')
+
+# pf = Portfolio(hedges, 1)
+# pf.add_security([callop, putop, cc1, cc2], 'OTC')
 
 pf = combine_portfolios([pf_calls, pf_puts, pf_atms],
                         hedges=hedges, name='all')
@@ -120,11 +122,11 @@ print('hedges: ', hedges)
 print('roll_portfolio: ', roll_portfolio)
 print('roll_hedges: ', roll_hedges)
 
-log = run_simulation(vdf, pdf, edf, pf, hedges,
-                     roll_portfolio=roll_portfolio, pf_ttm_tol=pf_ttm_tol,
-                     pf_roll_product=pf_roll_product,
-                     roll_hedges=roll_hedges, h_ttm_tol=h_ttm_tol,
-                     h_roll_product=h_roll_product)
+# log = run_simulation(vdf, pdf, edf, pf, hedges,
+#                      roll_portfolio=roll_portfolio, pf_ttm_tol=pf_ttm_tol,
+#                      pf_roll_product=pf_roll_product,
+#                      roll_hedges=roll_hedges, h_ttm_tol=h_ttm_tol,
+#                      h_roll_product=h_roll_product)
 
 
 # t = timer()

@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-07-21 15:41:52
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-10 16:23:46
+# @Last Modified time: 2017-08-10 19:31:32
 
 from scripts.fetch_data import grab_data
 from scripts.util import create_straddle, combine_portfolios
@@ -16,8 +16,8 @@ from scripts.portfolio import Portfolio
 yr = 2017
 # start_date = str(yr) + '-01-03'
 # end_date = str(yr) + '-03-31'
-start_date = str(yr) + '-04-10'
-end_date = str(yr) + '-07-31'
+start_date = '2016-10-03'
+end_date = '2017-01-20'
 
 
 pdts = ['QC', 'CC']
@@ -26,7 +26,7 @@ pdts = ['QC', 'CC']
 #           'CC  Z6.Z6', 'QC  H7.H7', 'CC  H7.H7',
 #           'CC  K7.K7', 'QC  K7.K7', 'CC  N7.N7', 'QC  N7.N7']
 
-volids = ['CC  U7.U7', 'QC  U7.U7']
+volids = ['CC  H7.H7', 'QC  H7.H7']
 
 ####################################
 
@@ -35,11 +35,11 @@ vdf, pdf, edf = grab_data(pdts, start_date, end_date, volids=volids)
 
 
 # specifying portfolio
-cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(start_date),
-                           False, 'atm', greek='theta', greekval=10000)
-
-qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(start_date),
+cc1, cc2 = create_straddle('CC  H7.H7', vdf, pdf, pd.to_datetime(start_date),
                            True, 'atm', greek='theta', greekval=10000)
+
+qc1, qc2 = create_straddle('QC  H7.H7', vdf, pdf, pd.to_datetime(start_date),
+                           False, 'atm', greek='theta', greekval=10000)
 
 # specifying hedges.
 hedges, roll_portfolio, pf_ttm_tol, pf_roll_pdt, \
