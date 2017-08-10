@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-09 21:13:18
+# @Last Modified time: 2017-08-10 16:23:19
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -74,9 +74,9 @@ class Hedge:
                 # print('r_conds: ', r_conds)
                 # begin the process of assigning.
                 desc = r_conds[-1]
-                params[flag]['kind'] = r_conds[-5]
-                params[flag]['spectype'] = r_conds[-4]
-                params[flag]['spec'] = r_conds[-3]
+                params[flag]['kind'] = r_conds[-4]
+                params[flag]['spectype'] = r_conds[-3]
+                params[flag]['spec'] = r_conds[-2]
                 # case: r_conds contains ttm values to use for hedging.
                 if len(r_conds) == 10:
                     if r_conds[4] == 'days':
@@ -316,6 +316,7 @@ class Hedge:
         Returns:
             Boolean: indicating if the hedges are all satisfied or not.
         """
+        print('--- checking uid hedges satisfied ---')
         strs = {'delta': 0, 'gamma': 1, 'theta': 2, 'vega': 3}
         tst = self.hedges.copy()
         # if 'delta' in tst:
@@ -326,6 +327,7 @@ class Hedge:
         conditions = []
         for greek in tst:
             conds = tst[greek]
+            print('conds: ', conds)
             for cond in conds:
                 # static bound case
                 if cond[0] == 'static':
@@ -343,10 +345,15 @@ class Hedge:
                 greeks = net_greeks[pdt][month]
                 for cond in conditions:
                     bound = cond[1]
-                    if (greeks[cond[0]] > bound[1]) or (greeks[cond[0]] < bound[0]):
+                    print('scripts.hedge.check_uid_hedges: inputs - ',
+                          greeks[cond[0]], bound[0], bound[1])
+                    if (abs(greeks[cond[0]]) > abs(bound[1])) or \
+                            (abs(greeks[cond[0]]) < abs(bound[0])):
                         print(str(cond) + ' failed')
+                        print(greeks[cond[0]], bound[0], bound[1])
                         return False
         # rolls_satisfied = check_roll_hedges(pf, hedges)
+        print('--- done checking uid hedges satisfied ---')
         return True
 
     def exp_hedges_satisfied(self):
@@ -428,9 +435,6 @@ class Hedge:
                     if conds[i][0] == 'bound']
         isstatic = [conds[i] for i in range(len(conds))
                     if conds[i][0] == 'static']
-
-        print('isbounds: ', isbounds)
-        print('isstatic: ', isstatic)
 
         if isstatic:
             relevant_conds = isstatic[0]
@@ -522,10 +526,11 @@ class Hedge:
         ops = self.add_hedges(data, shorted, hedge_id, flag, reqd_val, loc)
 
         # computing slippage/brokerage if required.
-        if self.s:
-            pass
-        if self.b:
-            cost += self.b * sum([op.lots for op in ops])
+        if ops:
+            if self.s:
+                pass
+            if self.b:
+                cost += self.b * sum([op.lots for op in ops])
 
         return cost
 
@@ -536,7 +541,7 @@ class Hedge:
         Args:
             pf (TYPE): Description
         """
-        print('hedging delta')
+        # print('hedging delta')
         cost = 0
         ft = None
         net_greeks = self.pf.get_net_greeks()
@@ -600,6 +605,7 @@ class Hedge:
         """
         ops = None
         try:
+            print(data['kind'], data['spectype'], data['spec'])
             if data['kind'] == 'straddle':
                 if data['spectype'] == 'strike':
                     strike = data['spec']
@@ -620,9 +626,17 @@ class Hedge:
                                       strike=[strike1, strike2],
                                       delta=[delta1, delta2], greek=flag, greekval=greekval)
                 print('added strangle: ' + str([str(op) for op in ops]))
+
             elif data['kind'] == 'vanilla':
                 raise NotImplementedError(
                     'hedging with vanilla options has not yet been implemented.')
+
+            # sanity check
+            for op in ops:
+                if op.lots < 1:
+                    print('lots req < 1; ' + flag +
+                          ' is within bounds. skipping hedging.')
+                    return []
 
             self.pf.add_security(list(ops), 'hedge')
 

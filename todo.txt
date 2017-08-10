@@ -995,6 +995,8 @@ gamma,bound,"(-5000, 5000)",1,,0.5
 	> Trial run. 
 
 
+> adjusting signals to include family paradigm 
+
 
 
 

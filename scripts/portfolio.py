@@ -151,17 +151,19 @@ class Portfolio:
         if tmp is not None:
             otc_fts = self.OTC_futures
             hedge_fts = self.hedge_futures
-            self.OTC_futures.clear()
-            self.hedge_futures.clear()
-            print('otc_fts: ', [str(x) for x in otc_fts])
-            print('hedge_fts: ', [str(x) for x in hedge_fts])
+            # print('otc_fts: ', [str(x) for x in otc_fts])
+            # print('hedge_fts: ', [str(x) for x in hedge_fts])
             tmp.add_security(otc_fts, 'OTC')
             tmp.add_security(hedge_fts, 'hedge')
+            self.OTC_futures.clear()
+            self.hedge_futures.clear()
 
             self.OTC = tmp.OTC
             self.hedges = tmp.hedges
             self.OTC_options = tmp.OTC_options
             self.hedge_options = tmp.hedge_options
+            self.OTC_futures = tmp.OTC_futures
+            self.hedge_futures = tmp.hedge_futures
             self.compute_net_greeks()
 
     def check_containment(self, sec):

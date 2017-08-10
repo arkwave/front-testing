@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-09 22:08:38
+# @Last Modified time: 2017-08-10 16:12:55
 
 ################################ imports ###################################
 
@@ -320,7 +320,7 @@ def run_simulation(voldata, pricedata, expdata, pf, hedges, end_date=None,
     # Step 8: Hedge - consists of rolling over hedges (if necessary), and
     # controlling greek levels of hedges
 
-        pf, counters, cost, roll_hedged = rebalance(vdf, pdf, pf, hedges,
+        pf, counters, cost, roll_hedged = rebalance(vdf, pdf, pf,
                                                     counters,
                                                     brokerage=brokerage, slippage=slippage)
 
@@ -1190,7 +1190,7 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60,
     return pf, total_cost
 
 
-def rebalance(vdf, pdf, pf, hedges, counters, buckets=None, brokerage=None, slippage=None):
+def rebalance(vdf, pdf, pf, counters, buckets=None, brokerage=None, slippage=None):
     """Function that handles EOD greek hedging. Calls hedge_delta and hedge_gamma_vega.
 
     Args:
@@ -1210,46 +1210,46 @@ def rebalance(vdf, pdf, pf, hedges, counters, buckets=None, brokerage=None, slip
     # return both the portfolio, as well as the gain/loss from short/long pos
     # hedging delta, gamma, vega.
     delta_freq, gamma_freq, theta_freq, vega_freq = counters
-    hedgearr = [False, False, False, False]
+    hedgearr = [True, True, True, True]
     droll = None
     # updating counters
     if pf.empty():
         return pf, counters, 0, False
 
-    for greek in hedges:
-        if greek == 'delta':
-            static = [x for x in hedges['delta'] if x[0] == 'static']
-            if static:
-                static = static[0]
-                if delta_freq == static[2]:
-                    counters[0] = 1
-                    hedgearr[0] = True
-            else:
-                print('delta freq not met.')
-                counters[0] += 1
-        elif greek == 'gamma':
-            if gamma_freq == hedges[greek][0][2]:
-                counters[1] = 1
-                hedgearr[1] = True
-            else:
-                print('gamma freq not met')
-                counters[1] += 1
-        elif greek == 'vega':
-            if vega_freq == hedges[greek][0][2]:
-                counters[3] = 1
-                hedgearr[3] = True
-            else:
-                print('vega freq not met')
-                counters[3] += 1
-        elif greek == 'theta':
-            if theta_freq == hedges[greek][0][2]:
-                counters[2] = 1
-                hedgearr[2] = True
-            else:
-                print('gamma freq not met')
-                counters[2] += 1
+    # for greek in hedges:
+    #     if greek == 'delta':
+    #         static = [x for x in hedges['delta'] if x[0] == 'static']
+    #         if static:
+    #             static = static[0]
+    #             if delta_freq == static[2]:
+    #                 counters[0] = 1
+    #                 hedgearr[0] = True
+    #         else:
+    #             print('delta freq not met.')
+    #             counters[0] += 1
+    #     elif greek == 'gamma':
+    #         if gamma_freq == hedges[greek][0][2]:
+    #             counters[1] = 1
+    #             hedgearr[1] = True
+    #         else:
+    #             print('gamma freq not met')
+    #             counters[1] += 1
+    #     elif greek == 'vega':
+    #         if vega_freq == hedges[greek][0][2]:
+    #             counters[3] = 1
+    #             hedgearr[3] = True
+    #         else:
+    #             print('vega freq not met')
+    #             counters[3] += 1
+    #     elif greek == 'theta':
+    #         if theta_freq == hedges[greek][0][2]:
+    #             counters[2] = 1
+    #             hedgearr[2] = True
+    #         else:
+    #             print('gamma freq not met')
+    #             counters[2] += 1
 
-    roll_hedged = check_roll_status(pf, hedges)
+    roll_hedged = check_roll_status(pf)
     droll = not roll_hedged
 
     cost = 0
@@ -1259,18 +1259,19 @@ def rebalance(vdf, pdf, pf, hedges, counters, buckets=None, brokerage=None, slip
         print('deltas within bounds. skipping roll_hedging')
 
     if not roll_hedged:
-        print(' ++ ROLL HEDGING REQUIRED ++ ')
-        roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
-            'delta'][i][0] == 'roll'][0]
+        print('-------- ROLL HEDGING REQUIRED ---------')
+
         pf, exp = hedge_delta_roll(
-            pf, roll_cond, pdf, brokerage=brokerage, slippage=slippage)
+            pf, pdf, brokerage=brokerage, slippage=slippage)
         cost += exp
+        print('-------- ROLL HEDGING COMPLETED ---------')
 
     hedge_count = 0
 
-    # initialize hedge engine.
-
+    # initialize hedge engines for each family in the portfolio
     for dep in pf.get_families():
+        # print('dep name: ', dep.name)
+        # print('hedges for this dep: ', dep.hedge_params)
         hedge_engine = Hedge(dep, dep.hedge_params, vdf, pdf,
                              buckets=buckets,
                              slippage=slippage, brokerage=brokerage)
@@ -1281,7 +1282,7 @@ def rebalance(vdf, pdf, pf, hedges, counters, buckets=None, brokerage=None, slip
         # hedging non-delta greeks.
         while (not done_hedging and hedge_count < 3):
             # insert the actual business of hedging here.
-            for flag in hedges:
+            for flag in dep.hedge_params:
                 # print('flag: ', flag)
                 if flag == 'gamma' and hedgearr[1]:
                     fee = hedge_engine.apply('gamma')
@@ -1298,20 +1299,25 @@ def rebalance(vdf, pdf, pf, hedges, counters, buckets=None, brokerage=None, slip
 
                 hedge_count += 1
             done_hedging = hedge_engine.satisfied()
+            print('dep hedges satisfied: ', done_hedging)
 
         # check if delta hedging is required. if so, perform. else, skip.
     pf.refresh()
+
+    print('simulation.rebalance - portfolio after refresh: ', pf)
+
+    # debug statements
+    print('overall hedge params: ', pf.hedge_params)
+
     if hedgearr[0] and 'delta' in pf.hedge_params:
         # grabbing condition that indicates zeroing condition on
         # delta
-        ov_hedge = Hedge(pf, pf.hedge_params, test_vdf, test_pdf)
+        print('hedging delta')
+        ov_hedge = Hedge(pf, pf.hedge_params, vdf, pdf)
         fee = ov_hedge.apply('delta')
         cost += fee
 
-    else:
-        print('hedging completed.')
-        print('conditions satisfied: ', hedge_engine.satisfied())
-
+    print('hedging completed. ')
     return (pf, counters, cost, droll)
 
 
@@ -1319,7 +1325,7 @@ def rebalance(vdf, pdf, pf, hedges, counters, buckets=None, brokerage=None, slip
 ####################### Skew-Related Functions ######################
 #####################################################################
 
-def hedge_delta_roll(fpf, roll_cond, pdf, brokerage=None, slippage=None):
+def hedge_delta_roll(fpf, pdf, brokerage=None, slippage=None):
     """Rolls delta of the option back to a value specified in hedge dictionary if op.delta 
     exceeds certain bounds.
 
@@ -1337,23 +1343,31 @@ def hedge_delta_roll(fpf, roll_cond, pdf, brokerage=None, slippage=None):
     # print('hedge_delta_roll conds: ', roll_cond)
 
     cost = 0
-    roll_val, bounds = roll_cond[1], np.array(roll_cond[3]) / 100
 
-    toberemoved = []
-    tobeadded = []
     for pf in fpf.get_families():
+        print(' --- handling rolling for family ' + str(pf.name) + ' ---')
+        toberemoved = []
+        tobeadded = []
+        hedges = pf.hedge_params
+        # isolate roll conditions if they exist.
+        roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
+            'delta'][i][0] == 'roll']
+        if roll_cond:
+            roll_cond = roll_cond[0]
+            # print('simulation.hedge_delta_roll - roll_conds: ', roll_cond)
+            roll_val, bounds = roll_cond[1], np.array(roll_cond[3]) / 100
         for op in pf.OTC_options:
             # case: option has already been processed due to its partner being
             # processed.
-            print('simulation.hedge_delta_roll - option: ', op.get_product(),
-                  op.char,  round(abs(op.delta / op.lots), 2))
+            # print('simulation.hedge_delta_roll - option: ', op.get_product(),
+            #       op.char,  round(abs(op.delta / op.lots), 2))
             if op in toberemoved:
                 continue
             composites = []
             delta = abs(op.delta / op.lots)
             # case: delta not in bounds.
             diff = (delta - roll_val/100)
-            print('diff, bounds: ', diff, bounds)
+            # print('diff, bounds: ', diff, bounds)
             if (diff < bounds[0]) or (diff > bounds[1]):
                 # if delta > bounds[1] or delta < bounds[0]:
                 print('rolling delta: ', op.get_product(),
@@ -1371,12 +1385,14 @@ def hedge_delta_roll(fpf, roll_cond, pdf, brokerage=None, slippage=None):
                     toberemoved.append(old_opx)
                     cost += rcost
             composites = create_composites(composites)
-            print('composites: ', [str(x) for x in composites])
+            # print('composites: ', [str(x) for x in composites])
             tobeadded.extend(composites)
 
         print('number of ops rolled: ', len(tobeadded))
+        print('ops to be removed: ', [str(x) for x in toberemoved])
         pf.remove_security(toberemoved, 'OTC')
         pf.add_security(tobeadded, 'OTC')
+        print(' --- finished rolling for family ' + str(pf.name) + ' ---')
 
     fpf.refresh()
     return fpf, cost
@@ -1484,7 +1500,7 @@ def hedges_satisfied(pf, hedges):
     return True
 
 
-def check_roll_status(pf, hedges):
+def check_roll_status(pf):
     """Checks to see if delta-roll conditions, if they exist, are satisfied.
 
     Args:
@@ -1496,6 +1512,9 @@ def check_roll_status(pf, hedges):
     """
     bool_list = [True] * len(pf.get_families())
     for fa in pf.get_families():
+        # print('simulation.check_roll_status - family: ', fa.name)
+        hedges = fa.hedge_params
+        # print('simulation.check_roll_status - dep: ', hedges)
         index = pf.get_families().index(fa)
         delta_conds = hedges['delta'] if 'delta' in hedges else None
         found = False
@@ -1510,15 +1529,22 @@ def check_roll_status(pf, hedges):
                 rollbounds = np.array(roll_cond[3]) / 100
                 dval = roll_cond[1]
                 found = True
+
         # if roll conditions actually exist, proceed.
         if found:
-            # print('rollbounds: ', rollbounds)
-            for op in pf.OTC_options:
+            # print('simulation.check_roll_status - rollbounds: ', rollbounds)
+            # print('simulation.check_roll_status - target: ', dval/100)
+            for op in fa.OTC_options:
                 d = abs(op.delta / op.lots)
                 diff = (d - dval/100)
+                # print('simulation.check_roll_status - op delta :', d)
+                # print('simulation.check_roll_status - diff :', diff)
                 ltol, utol = rollbounds[0], rollbounds[1]
                 # sanity check
                 if diff < ltol or diff > utol:
+                    # print('roll check failed')
+                    # print('diff < ltol: ', diff, ltol, diff < ltol)
+                    # print('diff > utol: ', diff, utol, diff > ltol)
                     bool_list[index] = False
 
     return all([i for i in bool_list])
@@ -1691,4 +1717,6 @@ if __name__ == '__main__':
 ##########################################################################
 ##########################################################################
 ########################################
+########
+###
 ########

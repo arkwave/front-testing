@@ -85,11 +85,11 @@ sanity_check(vdf.value_date.unique(),
              pd.to_datetime(end_date))
 
 callop, putop = create_skew('CC  U7.U7', vdf, pdf,
-                            pd.to_datetime(start_date), False, 25, greek='vega', greekval=50000)
+                            pd.to_datetime(start_date), False, 25, greek='vega', greekval=50000, composites=False)
 
 
 cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
-    start_date), False, 'atm', greek='gamma', greekval=22)
+    start_date), False, 'atm', greek='vega', greekval=100000, composites=True)
 
 hedges, roll_portfolio, pf_ttm_tol, pf_roll_product, \
     roll_hedges, h_ttm_tol, h_roll_product = generate_hedges('hedging.csv')
