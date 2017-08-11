@@ -992,18 +992,26 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 	> [Done] Portfolio constructor now takes in a dictionary of hedges and a name; relevant hedges are assigned by searching for portfolio's name in hedge dictionary. 
 	> fully specify rolling logic
 		- [Done] delta rolls
-		
 	> [Done] fully specify gamma/theta/vega hedging logic.
 	> [Done] fully specify relationship between hedge objects and portfolios they are attached to. 
 	> [Done] Make sure this all works for simple portfolios. 
 	> [Done] Trial run. 
-
 	> [Done] go through and make sure refresh/recomputations are called correctly and aren't messes. 
 	
-	> Contract rolls:
-		- make compatible with families paradigm.
-		- handle option composites. 
 
+
+--------------------
+| As of 08/11/2017 |
+--------------------
+
+> [Done] Fuse together families and composites. 
+> [Done] callspread/putspread roll example --> each leg can be placed into a different 'family' and it would work just fine with no hitches. 
+> [Done] check_roll_status and roll_hedging for simple portfolios. 
+
+
+> Contract rolls:
+	- make compatible with families paradigm.
+	- handle option composites. 
 
 > ISSUE: net vega position problem --> maintaining a primary position of sorts. 
 	- example: in the case of an event in CC and no corresponding event in QC, we want to still maintain net 0 vega across both positions; i.e. one will have
@@ -1013,32 +1021,28 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 	>>> Note: this would fall under the paradigm of portfolio-wide hedging rules. <<<
 
 
+
 > ISSUE: C1/C2 rather than a vol_id 
 
 
 
-BIG TODO:
-	> adjusting signals to include family paradigm 
 
 
-> related: implement a future signals thing.
+-------------
+| NEXT WEEK |
+-------------
 
-> Legacy TODOs:
-	1) closing out deltas in the case of exercise. 
-	2) proper computation of gamma/vega pnl (double check just to make sure this is absolutely right. )
-	3) proper conceptualizing of slippage, aside from flat-value. bring all in line to this. 
-	4) Prep_portfolio needs to be completely re-imagined to account for both families and composites. 
+> moving to plotly:
+	- plan is to make a gui using Tkinter and publish graphs on plotly. 
 
+> Get familiar with Tkinter or with Dash. 
 
-> ISSUE: Testing suite is in bad need of an update:
-	1) hedge.py, fetch_data.py and util.py have no testing whatsoever. This needs to be remedied asap. 
-	2) Portfolio and Classes objects need updates. 
-	3) Calc is more or less fine, no major additions for a long time. 
-	4) prep_data/fetch_data need a serious overhaul; go through, see what code is required and what isn't, remove/move to code dump respectively. 
-
-> breakeven-based delta hedging on settlements. 
+> Conceptualize application outline. 
 
 
+
+
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ON HOLD <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
 ********** Notes on certain issues: ***********
@@ -1064,11 +1068,29 @@ BIG TODO:
 
 
 -------------------------- On Hold: ------------------------
+BIG TODO:
+	> adjusting signals to include family paradigm 
 
-> [On Hold] moving to plotly:
-	- plan is to make a gui using Tkinter and publish graphs on plotly. 
-> [On Hold] Get familiar with Tkinter or with Dash. 
-> [On Hold] Conceptualize application outline. 
+
+> related: implement a future signals thing.
+
+> Legacy TODOs:
+	1) closing out deltas in the case of exercise. 
+	2) proper computation of gamma/vega pnl (double check just to make sure this is absolutely right. )
+	3) proper conceptualizing of slippage, aside from flat-value. bring all in line to this. 
+	4) Prep_portfolio needs to be completely re-imagined to account for both families and composites. 
+
+
+> ISSUE: Testing suite is in bad need of an update:
+	1) hedge.py, fetch_data.py and util.py have no testing whatsoever. This needs to be remedied asap. 
+	2) Portfolio and Classes objects need updates. 
+	3) Calc is more or less fine, no major additions for a long time. 
+	4) prep_data/fetch_data need a serious overhaul; go through, see what code is required and what isn't, remove/move to code dump respectively. 
+
+> breakeven-based delta hedging on settlements. 
+
+
+
 > [On Hold] capability to handle forex? what would this entail? Conceptualize. 
 > [On Hold] toy with the idea of different TTM buckets for each greek; see what will come of it and how much needs to be changed. 
 > [On Hold] slippage and brokerage in handle_barriers (need to figure out in what form/manner this is actually required)

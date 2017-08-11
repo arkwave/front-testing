@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-11 16:06:36
+# @Last Modified time: 2017-08-11 17:00:06
 
 ################################ imports ###################################
 
@@ -1223,39 +1223,6 @@ def rebalance(vdf, pdf, pf, counters, buckets=None, brokerage=None, slippage=Non
     if pf.empty():
         return pf, counters, 0, False
 
-    # for greek in hedges:
-    #     if greek == 'delta':
-    #         static = [x for x in hedges['delta'] if x[0] == 'static']
-    #         if static:
-    #             static = static[0]
-    #             if delta_freq == static[2]:
-    #                 counters[0] = 1
-    #                 hedgearr[0] = True
-    #         else:
-    #             print('delta freq not met.')
-    #             counters[0] += 1
-    #     elif greek == 'gamma':
-    #         if gamma_freq == hedges[greek][0][2]:
-    #             counters[1] = 1
-    #             hedgearr[1] = True
-    #         else:
-    #             print('gamma freq not met')
-    #             counters[1] += 1
-    #     elif greek == 'vega':
-    #         if vega_freq == hedges[greek][0][2]:
-    #             counters[3] = 1
-    #             hedgearr[3] = True
-    #         else:
-    #             print('vega freq not met')
-    #             counters[3] += 1
-    #     elif greek == 'theta':
-    #         if theta_freq == hedges[greek][0][2]:
-    #             counters[2] = 1
-    #             hedgearr[2] = True
-    #         else:
-    #             print('gamma freq not met')
-    #             counters[2] += 1
-
     roll_hedged = check_roll_status(pf)
     droll = not roll_hedged
 
@@ -1395,11 +1362,105 @@ def hedge_delta_roll(fpf, pdf, brokerage=None, slippage=None):
     """
     # print('hedge_delta_roll conds: ', roll_cond)
 
-    cost = 0
-
     # initializing dictionary mapping pf -> processed options in that pf.
-    processed = {}
 
+    if not fpf.get_families():
+        print('--- delta rolls: simple portfolio case ---')
+        return hedge_delta_roll_simple(fpf, pdf, brokerage=brokerage, slippage=slippage)
+
+    else:
+        print(' --- delta rolls: composite case ---')
+        return hedge_delta_roll_comp(fpf, pdf, brokerage=brokerage, slippage=slippage)
+
+
+def hedge_delta_roll_simple(pf, pdf, brokerage=None, slippage=None):
+    """Rolls delta of the option back to a value specified in hedge dictionary if op.delta exceeds certain bounds.
+    Args:
+        pf (object): Portfolio being hedged
+        roll_cond (list): list of the form ['roll', value, frequency, bound]
+        vdf (pandas df): volatility data frame containing information for current day
+        pdf (pandas df): price dataframe containing information for current day
+        brokerage (int, optional): brokerage fees per lot
+        slippage (int, optional): slippage loss
+    Returns:
+        tuple: updated portfolio and cost of purchasing/selling options.
+    """
+    # print('hedge_delta_roll conds: ', roll_cond)
+
+    cost = 0
+    hedges = pf.hedge_params
+    # isolating roll conditions.
+    roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
+        'delta'][i][0] == 'roll']
+    if roll_cond:
+        # case: roll conditions found.
+        roll_cond = roll_cond[0]
+        roll_val, bounds = roll_cond[1], np.array(roll_cond[3]) / 100
+    else:
+        # case: no roll conditions found.
+        print('no roll conditions found for family ' + str(pf.name))
+        return pf, 0
+    roll_val, bounds = roll_cond[1], np.array(roll_cond[3]) / 100
+
+    toberemoved = []
+
+    for op in pf.OTC_options.copy():
+        # case: option has already been processed due to its partner being
+        # processed.
+        print('simulation.hedge_delta_roll - option: ', op.get_product(),
+              op.char,  round(abs(op.delta / op.lots), 2))
+        if op in toberemoved:
+            print('option already handled')
+            continue
+        composites = []
+        delta = abs(op.delta / op.lots)
+        # case: delta not in bounds.
+        diff = (delta - roll_val/100)
+        print('diff, bounds: ', diff, bounds)
+        if (diff < bounds[0]) or (diff > bounds[1]):
+            # if delta > bounds[1] or delta < bounds[0]:
+            print('rolling delta: ', op.get_product(),
+                  op.char, round(abs(op.delta / op.lots), 2))
+            newop, old_op, rcost = delta_roll(pf,
+                                              op, roll_val, pdf, slippage=slippage, brokerage=brokerage)
+            toberemoved.append(old_op)
+            composites.append(newop)
+            cost += rcost
+            # if rolling option, roll all partners as well.
+            for opx in op.partners:
+                new_opx, old_opx, rcost = delta_roll(pf,
+                                                     opx, roll_val, pdf, slippage=slippage, brokerage=brokerage)
+                composites.append(new_opx)
+                toberemoved.append(old_opx)
+                cost += rcost
+        composites = create_composites(composites)
+        print('composites: ', [str(x) for x in composites])
+
+    print('number of ops rolled: ', len(toberemoved))
+    # pf.remove_security(toberemoved, 'OTC')
+    # pf.add_security(tobeadded, 'OTC')
+
+    return pf, cost
+
+
+def hedge_delta_roll_comp(fpf, pdf, brokerage=None, slippage=None):
+    """Helper function that handles delta hedge rolling for portfolios consisting
+    of multiple families. 
+
+    Args:
+        fpf (TYPE): Description
+        pdf (TYPE): Description
+        brokerage (None, optional): Description
+        slippage (None, optional): Description
+
+    Returns:
+        TYPE: Description
+
+    Raises:
+        ValueError: Description
+    """
+    cost = 0
+    processed = {}
     for pf in fpf.get_families():
         print(' --- handling rolling for family ' + str(pf.name) + ' ---')
         # initial sanity checks.
@@ -1541,7 +1602,6 @@ def delta_roll(pf, op, roll_val, pdf, slippage=None, brokerage=None):
     #       str(newop) + ' to pf ' + str(pf.name))
 
     pf.remove_security([op], 'OTC')
-
     pf.add_security([newop], 'OTC')
 
     return newop, op, cost
@@ -1557,12 +1617,13 @@ def check_roll_status(pf):
     Returns:
         boolean: True if delta is within bounds, false otherwise.
     """
-    bool_list = [True] * len(pf.get_families())
-    for fa in pf.get_families():
+    fa_lst = pf.get_families() if pf.get_families() else [pf]
+    bool_list = [True] * len(fa_lst)
+    for fa in fa_lst:
         # print('simulation.check_roll_status - family: ', fa.name)
         hedges = fa.hedge_params
         # print('simulation.check_roll_status - dep: ', hedges)
-        index = pf.get_families().index(fa)
+        index = fa_lst.index(fa)
         delta_conds = hedges['delta'] if 'delta' in hedges else None
         found = False
         dval = None
@@ -1595,7 +1656,6 @@ def check_roll_status(pf):
                     bool_list[index] = False
 
     return all([i for i in bool_list])
-
 
 #######################################################################
 #######################################################################
