@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-11 19:02:46
+# @Last Modified time: 2017-08-11 22:09:27
 
 
 from .portfolio import Portfolio
@@ -13,7 +13,6 @@ import numpy as np
 import os
 from .calc import compute_strike_from_delta
 import sys
-
 
 multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
@@ -946,3 +945,25 @@ def merge_lists(l1, l2):
             c = dat1 + dat2
         ret.append(c)
     return ret
+
+
+def volids_from_ci(date_range, product, ci):
+    from itertools import cycle, dropwhile
+    dates_to_volid = {}
+
+    for date in date_range:
+        mths = cycle(contract_mths[product])
+        yr = date.year % 2010
+        mth = month_to_sym[date.month]
+        print('mth: ', mth)
+        cy = dropwhile(lambda i: i < mth, mths)
+        tar = next(cy)
+        taryr = yr
+        for i in range(ci):
+            tar = next(cy)
+        # case: wrapped around.
+        if tar < mth:
+            taryr += 1
+        tarfin = tar + str(taryr)
+        dates_to_volid[date] = product + '  ' + tarfin + '.' + tarfin
+    return dates_to_volid

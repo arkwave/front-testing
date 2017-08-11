@@ -10,7 +10,7 @@ from scripts.fetch_data import grab_data
 # from timeit import default_timer as timer
 # import pprint
 from simulation import run_simulation
-
+import pprint
 multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
     'LSU': [1, 50, 0.1, 10, 50],
@@ -71,67 +71,87 @@ contract_mths = {
 
 ######### variables ################
 start_date = '2017-05-01'
-end_date = '2017-07-21'
+end_date = '2017-12-31'
 pdts = ['QC', 'CC']
 volids = ['QC  U7.U7', 'QC  Z7.Z7', 'CC  U7.U7', 'CC  Z7.Z7']
 ####################################
 
+from scripts.util import volids_from_ci
+date_range = pd.bdate_range(start_date, end_date)
 
-vdf, pdf, edf = grab_data(pdts, start_date, end_date,
-                          volids=volids, write=True)
+x = volids_from_ci(date_range, 'CC', 2)
 
-sanity_check(vdf.value_date.unique(),
-             pdf.value_date.unique(), pd.to_datetime(start_date),
-             pd.to_datetime(end_date))
-
-callop, putop = create_skew('CC  U7.U7', vdf, pdf,
-                            pd.to_datetime(start_date), False, 31, greek='vega', greekval=50000, composites=True)
+print(pprint.pformat(x))
 
 
-cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
-    start_date), False, 'atm', greek='vega', greekval=100000, composites=True)
+# vdf, pdf, edf = grab_data(pdts, start_date, end_date,
+#                           volids=volids, write=True)
 
-hedges, roll_portfolio, pf_ttm_tol, pf_roll_product, \
-    roll_hedges, h_ttm_tol, h_roll_product = generate_hedges('hedging.csv')
+# sanity_check(vdf.value_date.unique(),
+#              pdf.value_date.unique(), pd.to_datetime(start_date),
+#              pd.to_datetime(end_date))
 
-
-# define hedges for the 25 delta call
-pf_calls = Portfolio(hedges, 1)
-pf_calls.add_security([callop], 'OTC')
-
-pf_puts = Portfolio(hedges, 3)
-pf_puts.add_security([putop], 'OTC')
-
-pf_atms = Portfolio(hedges, 2)
-pf_atms.add_security([cc1, cc2], 'OTC')
-
-# pf = Portfolio(hedges, 1)
-# pf.add_security([callop, putop, cc1, cc2], 'OTC')
-
-pf = combine_portfolios([pf_calls, pf_puts, pf_atms],
-                        hedges=hedges, name='all')
-
-pf.refresh()
+# callop, putop = create_skew('CC  U7.U7', vdf, pdf,
+# pd.to_datetime(start_date), False, 31, greek='vega', greekval=50000,
+# composites=True)
 
 
-print('portfolio: ', pf)
+# cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
+# start_date), False, 'atm', greek='vega', greekval=100000,
+# composites=True)
+
+# hedges, roll_portfolio, pf_ttm_tol, pf_roll_product, \
+#     roll_hedges, h_ttm_tol, h_roll_product = generate_hedges('hedging.csv')
 
 
-print('hedges: ', hedges)
+# # define hedges for the 25 delta call
+# pf_calls = Portfolio(hedges, 1)
+# pf_calls.add_security([callop], 'OTC')
 
-print('roll_portfolio: ', roll_portfolio)
-print('roll_hedges: ', roll_hedges)
+# pf_puts = Portfolio(hedges, 3)
+# pf_puts.add_security([putop], 'OTC')
+
+# pf_atms = Portfolio(hedges, 2)
+# pf_atms.add_security([cc1, cc2], 'OTC')
+
+# # pf = Portfolio(hedges, 1)
+# # pf.add_security([callop, putop, cc1, cc2], 'OTC')
+
+# pf = combine_portfolios([pf_calls, pf_puts, pf_atms],
+#                         hedges=hedges, name='all')
+
+# pf.refresh()
 
 
-from wip import hedge_delta_roll
-from simulation import rebalance
-
-test_pdf = pdf[pdf.value_date == pd.Timestamp('2017-05-02')]
-test_vdf = vdf[vdf.value_date == pd.Timestamp('2017-05-02')]
-counters = [1, 1, 1, 1]
-pf, counters, cost, roll_hedged = rebalance(test_vdf, test_pdf, pf, counters)
+# print('portfolio: ', pf)
 
 
+# print('hedges: ', hedges)
+
+# print('roll_portfolio: ', roll_portfolio)
+# print('roll_hedges: ', roll_hedges)
+
+
+# # from wip import hedge_delta_roll
+# from simulation import rebalance, roll_over
+# # from wip import roll_over
+
+# date = pd.Timestamp('2017-05-02')
+
+# test_pdf = pdf[pdf.value_date == date]
+# test_vdf = vdf[vdf.value_date == date]
+# counters = [1, 1, 1, 1]
+
+
+# pf, counters, cost, roll_hedged = rebalance(test_vdf, test_pdf, pf, counters)
+# pf.refresh()
+# print('>>>>>>>>>>>> PF BEFORE ROLLOVER: ', pf.hedges)
+
+
+# pf, total_cost = roll_over(pf, test_vdf, test_pdf,
+# date, target_product='CC', ttm_tol=100, flag='OTC')
+
+# pf, counters, cost, roll_hedged = rebalance(test_vdf, test_pdf, pf, counters)
 # pf, cost = hedge_delta_roll(pf, test_pdf)
 
 

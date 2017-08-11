@@ -1010,15 +1010,15 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 > [Done] updated check_roll_status and hedge_delta_roll to be applied to all options rather than just OTC.
 > [Done] Contract rolls:
 	- make compatible with families paradigm.
-	- handle option composites. 
-
-
-> ISSUE: net vega position problem --> maintaining a primary position of sorts. 
+	- handle option composites.
+> [Done] ISSUE: net vega position problem --> maintaining a primary position of sorts. 
 	- example: in the case of an event in CC and no corresponding event in QC, we want to still maintain net 0 vega across both positions; i.e. one will have
 		to be hedged basis the other
 	- solution: some kind of flag passed into kwargs specifying what the default position is?
 	- is there a more general formulation for a primary position?
 	>>> Note: this would fall under the paradigm of portfolio-wide hedging rules. <<<
+
+
 
 
 > ISSUE: C1/C2 rather than a vol_id 

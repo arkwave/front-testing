@@ -310,78 +310,6 @@ def test_hedge_vega_long():
         print('#########################')
 
 
-# def test_joint_vega_gamma():
-#     hedges = {'gamma': ['bound', (-3000, 3000), 1],
-#               'vega':  ['bound', (-3000, 3000), 1],
-#               'delta': ['static', 'zero', 1],
-#               'theta': ['bound', (-1000, 1000), 1]}
-#     pf = generate_portfolio('long')
-#     min_date = min(vdf.value_date)
-#     vdf1 = vdf[vdf.value_date == min_date]
-#     pdf1 = pdf[pdf.value_date == min_date]
-#     product = 'C'
-#     month = 'K7'
-#     ordering = pf.compute_ordering(product, month)
-
-#     g_inputs = gen_hedge_inputs(
-#         hedges, vdf1, pdf1, month, pf, product, ordering, 'gamma')
-
-#     greek1 = g_inputs[6]
-
-#     # print('####################################################')
-#     # print('init long gamma: ', greek1)
-#     # print('init long gamma: ', greek2)
-#     # print('####################################################')
-#     net = pf.get_net_greeks()
-#     # init_vega = net['C']['K7'][3]
-#     init_gamma = net['C']['K7'][1]
-
-#     # assert init_vega == greek2
-#     assert init_gamma == greek1
-
-#     pf = hedge(pf, g_inputs, product, month, 'gamma')
-#     # print('####################################################')
-#     # print('gamma after gamma hedging: ', pf.net_greeks['C']['K7'][1])
-#     # print('vega after gamma hedging: ', pf.net_greeks['C']['K7'][3])
-#     # print('####################################################')
-
-#     # print('####################################################')
-#     # print('vega before vega hedging: ', pf.net_greeks['C']['K7'][3])
-#     # print('gamma before vega hedging: ', pf.net_greeks['C']['K7'][1])
-#     # print('####################################################')
-
-#     # print('####################################################')
-#     v_inputs = gen_hedge_inputs(
-#         hedges, vdf1, pdf1, month, pf, product, ordering, 'vega')
-#     greek2 = v_inputs[6]
-#     mid_vega = pf.net_greeks['C']['K7'][3]
-#     assert greek2 == mid_vega
-
-#     pf = hedge(pf, v_inputs, product, month, 'vega')
-
-#     # print('vega after vega hedging: ', pf.net_greeks['C']['K7'][3])
-#     # print('gamma after vega hedging: ', pf.net_greeks['C']['K7'][1])
-#     # print('####################################################')
-#     # print('####################################################')
-#     # print('vega hedging expenditure: ', expenditure)
-#     # print('gamma hedging expenditure: ', expenditure2)
-#     # print('####################################################')
-#     # print('####################################################')
-#     end_vega = pf.net_greeks['C']['K7'][3]
-#     end_gamma = pf.net_greeks['C']['K7'][1]
-
-#     try:
-#         assert end_vega < 3000 and end_vega > -3000
-#         # print('end short vega: ', end_vega)
-#     except AssertionError:
-#         print('vega hedging failed: ', end_vega, hedges['vega'])
-#     try:
-#         assert end_gamma < 3000 and end_gamma > -3000
-#         # print('end short gamma: ', end_gamma)
-#     except AssertionError:
-#         print('gamma hedging failed: ', end_gamma, hedges['gamma'])
-
-
 def test_delta_hedging_long():
     pf = generate_portfolio('long')
     cond = 'zero'
@@ -429,37 +357,16 @@ def test_delta_hedging_short():
 
 
 def test_check_roll_status():
-    # pf = generate_portfolio('long')
-    ft5 = Future('N7', 350, 'C')
-    op5 = Option(
-        360, 0.238356164383561, 'put', 0.25, ft5, 'amer', False,
-        'N7', ordering=2)
-    op6 = Option(
-        340, 0.238356164383561, 'call', 0.25, ft5, 'amer', False,
-        'N7', ordering=2)
-    print('init deltas: ', abs(op5.delta/op5.lots), abs(op6.delta/op6.lots))
-    pf = Portfolio()
-    pf.add_security([op5, op6], 'OTC')
-    # print('INITIAL PF: ', pf)
-    voldf = pd.read_csv('datasets/small_data/final_price.csv')
-    voldf.value_date = pd.to_datetime(voldf.value_date)
-    # mask = voldf.value_date.isin(datelist)
-    relv_vols = voldf[voldf.value_date == pd.Timestamp('2017-03-28 00:00:00')]
-    # print('relv_vols: ', relv_vols)
-    hedges = generate_hedges('hedging.csv')
-    # print('hedges: ', hedges)
-    res = check_roll_status(pf, hedges)
-    assert res is False
-    # perform rolling hedge
-    roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
-        'delta'][i][0] == 'roll'][0]
-    pf1, cost = hedge_delta_roll(pf, roll_cond, relv_vols)
-    # print('ENDING PF: ', pf1)
-    res2 = check_roll_status(pf1, hedges)
-    try:
-        for op in pf.OTC_options:
-            print('resultant delta: ', abs(op.delta/op.lots))
-        assert res2 is True
-    except AssertionError:
-        for op in pf.OTC_options:
-            print('roll hedge failed: delta: ', abs(op.delta/op.lots))
+    pass
+
+
+def test_hedge_delta_roll():
+    pass
+
+
+def test_roll_over():
+    pass
+
+
+def test_contract_roll():
+    pass

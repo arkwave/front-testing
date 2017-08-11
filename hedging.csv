@@ -3,4 +3,4 @@ delta,static,zero,1,,,,,,,,all
 delta,roll,25,1,"(-5,5)",,,,,,,1
 delta,roll,50,1,"(-20,20)",,,,,,,2
 delta,roll,25,1,"(-7,7)",,,,,,,3
-gen,portfolio,FALSE,,,30,,,product,CC,,all
+gen,portfolio,TRUE,,,30,,,product,CC,,all

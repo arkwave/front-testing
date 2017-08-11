@@ -472,3 +472,11 @@ def test_compute_ordering():
 
     assert pf.compute_ordering('C', 'N7') == 1
     assert pf.compute_ordering('C', 'K7') == 0
+
+
+def test_refresh():
+    pass
+
+
+def test_family_containing():
+    pass
