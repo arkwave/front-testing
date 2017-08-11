@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-11 18:58:23
+# @Last Modified time: 2017-08-11 19:11:57
 
 ################################ imports ###################################
 
@@ -190,10 +190,6 @@ def run_simulation(voldata, pricedata, expdata, pf, end_date=None,
 
     date_range = sorted(voldata.value_date.unique())
 
-    # hedging frequency counters for delta,
-    # gamma, theta, vega respectively.
-    counters = [1, 1, 1, 1]
-
     # initial value for pnl calculations.
     init_val = 0
 
@@ -312,9 +308,8 @@ def run_simulation(voldata, pricedata, expdata, pf, end_date=None,
 
     # Step 8: Hedge - bring greek levels across portfolios (and families) into
     # line with target levels.
-        pf, counters, cost, roll_hedged = rebalance(vdf, pdf, pf,
-                                                    counters,
-                                                    brokerage=brokerage, slippage=slippage)
+        pf, cost, roll_hedged = rebalance(vdf, pdf, pf, brokerage=brokerage,
+                                          slippage=slippage)
 
     # Step 9: Subtract brokerage/slippage costs from rebalancing. Append to
     # relevant lists.
@@ -1253,31 +1248,34 @@ def contract_roll(pf, op, vdf, pdf, date, flag):
     return pf, cost, newop, op, iden
 
 
-def rebalance(vdf, pdf, pf, counters, buckets=None, brokerage=None, slippage=None):
+def rebalance(vdf, pdf, pf, buckets=None, brokerage=None, slippage=None):
     """Function that handles EOD greek hedging. Calls hedge_delta and hedge_gamma_vega.
 
     Args:
         vdf (pandas dataframe): Dataframe of volatilities
         pdf (pandas dataframe): Dataframe of prices
         pf (object): portfolio object
-        hedges (dict): Dictionary of hedging conditions
-        counters (TYPE): Description
+        buckets (None, optional): Description
         brokerage (None, optional): Description
         slippage (None, optional): Description
 
     Returns:
         tuple: portfolio, counters
+
+    Deleted Parameters:
+        hedges (dict): Dictionary of hedging conditions
+        counters (TYPE): Description
     """
     # compute the gamma and vega of atm straddles; one call + one put.
     # compute how many such deals are required. add to appropriate pos.
     # return both the portfolio, as well as the gain/loss from short/long pos
     # hedging delta, gamma, vega.
-    delta_freq, gamma_freq, theta_freq, vega_freq = counters
     hedgearr = [True, True, True, True]
     droll = None
-    # updating counters
+
+    # sanity check
     if pf.empty():
-        return pf, counters, 0, False
+        return pf, 0, False
 
     roll_hedged = check_roll_status(pf)
     droll = not roll_hedged
@@ -1394,12 +1392,8 @@ def rebalance(vdf, pdf, pf, counters, buckets=None, brokerage=None, slippage=Non
             cost += fee
 
     print('hedging completed. ')
-    return (pf, counters, cost, droll)
+    return (pf,  cost, droll)
 
-
-#####################################################################
-####################### Skew-Related Functions ######################
-#####################################################################
 
 def hedge_delta_roll(fpf, pdf, brokerage=None, slippage=None):
     """Rolls delta of the option back to a value specified in hedge dictionary if op.delta 
@@ -1883,10 +1877,3 @@ if __name__ == '__main__':
 ##########################################################################
 ##########################################################################
 ##########################################################################
-########################################
-########
-###
-########
-###
-###
-########
