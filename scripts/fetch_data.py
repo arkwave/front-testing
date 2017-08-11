@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-09 17:12:53
+# @Last Modified time: 2017-08-11 20:15:29
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -60,6 +60,11 @@ def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False):
 
     # user = input('DB Username: ')
     # password = input('DB Password: ')
+
+    if isinstance(start_date, pd.Timestamp):
+        start_date = start_date.strftime('%Y-%m-%d')
+    if isinstance(end_date, pd.Timestamp):
+        end_date = end_date.strftime('%Y-%m-%d')
 
     engine = create_engine(
         'postgresql://' + user + ':' + password + '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')

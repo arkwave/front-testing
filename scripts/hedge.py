@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-10 21:34:09
+# @Last Modified time: 2017-08-11 19:56:44
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -517,8 +517,8 @@ class Hedge:
         """
         # sanity check: since greek signs will never arbitrarily flip, wanna make sure
         # they stay the same sign.
-        if greekval < 0:
-            target = -target
+        # if greekval < 0:
+        #     target = -target
 
         cost = 0
         print('target ' + flag + ': ', target)
@@ -632,7 +632,8 @@ class Hedge:
                     strike = data['spec']
                 ops = create_straddle(hedge_id, self.vdf, self.pdf, self.date,
                                       shorted, strike=strike, greek=flag, greekval=greekval)
-                print('added straddle with ' + str(greekval) + ' ' + str(flag))
+                gv = greekval if not shorted else -greekval
+                print('added straddle with ' + str(gv) + ' ' + str(flag))
 
             elif data['kind'] == 'strangle':
                 strike1, strike2, delta1, delta2 = None, None, None, None

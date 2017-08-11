@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-11 19:11:57
+# @Last Modified time: 2017-08-11 19:43:19
 
 ################################ imports ###################################
 
@@ -1565,17 +1565,20 @@ def hedge_delta_roll_comp(fpf, pdf, brokerage=None, slippage=None):
                 for opx in op.partners:
                     print('rolling delta: ', opx.get_product(),
                           opx.char, round(abs(opx.delta / opx.lots), 2))
-                    pf2 = fpf.get_family_containing(opx)
-                    if pf2 is None:
+                    if opx in pf.get_all_options():
+                        tar = pf
+                    else:
+                        tar = fpf.get_family_containing(opx)
+                    if tar is None:
                         raise ValueError(str(opx) + ' belongs to a \
                                             non-existent family.')
 
-                    new_opx, old_opx, rcost = delta_roll(pf2, opx, roll_val, pdf, flag,
+                    new_opx, old_opx, rcost = delta_roll(tar, opx, roll_val, pdf, flag,
                                                          slippage=slippage, brokerage=brokerage)
                     composites.append(new_opx)
-                    if pf2 not in processed:
-                        processed[pf2] = []
-                    processed[pf2].append(old_opx)
+                    if tar not in processed:
+                        processed[tar] = []
+                    processed[tar].append(old_opx)
                     cost += rcost
                 composites = create_composites(composites)
             else:

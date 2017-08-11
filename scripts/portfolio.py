@@ -369,7 +369,7 @@ class Portfolio:
         for sec in security:
             fpf = self.get_family_containing(sec)
             if fpf is not None:
-                fpf.remove_security([sec], 'OTC')
+                fpf.remove_security([sec], flag)
 
     def remove_expired(self):
         '''Removes all expired options from the portfolio. '''
