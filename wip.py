@@ -1,175 +1,183 @@
-import numpy as np
-from scripts.util import create_composites
-from scripts.calc import compute_strike_from_delta
-from scripts.classes import Option
+from scripts.util import close_out_deltas, create_underlying, create_vanilla_option, create_composites
+contract_mths = {
+
+    'LH':  ['G', 'J', 'K', 'M', 'N', 'Q', 'V', 'Z'],
+    'LSU': ['H', 'K', 'Q', 'V', 'Z'],
+    'QC': ['H', 'K', 'N', 'U', 'Z'],
+    'SB':  ['H', 'K', 'N', 'V'],
+    'CC':  ['H', 'K', 'N', 'U', 'Z'],
+    'CT':  ['H', 'K', 'N', 'Z'],
+    'KC':  ['H', 'K', 'N', 'U', 'Z'],
+    'W':   ['H', 'K', 'N', 'U', 'Z'],
+    'S':   ['F', 'H', 'K', 'N', 'Q', 'U', 'X'],
+    'C':   ['H', 'K', 'N', 'U', 'Z'],
+    'BO':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
+    'LC':  ['G', 'J', 'M', 'Q', 'V' 'Z'],
+    'LRC': ['F', 'H', 'K', 'N', 'U', 'X'],
+    'KW':  ['H', 'K', 'N', 'U', 'Z'],
+    'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
+    'COM': ['G', 'K', 'Q', 'X'],
+    'OBM': ['H', 'K', 'U', 'Z'],
+    'MW':  ['H', 'K', 'N', 'U', 'Z']
+}
 
 
-def hedge_delta_roll(fpf, pdf, brokerage=None, slippage=None):
-    """Rolls delta of the option back to a value specified in hedge dictionary if op.delta 
-    exceeds certain bounds.
+# TODO: figure out what to do with hedge options during rollovers.
+# TODO: handling composites during roll_overs as well.
+
+def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60,
+              flag=None, target_product=None):
+    """Utility method that checks expiries of options currently being used for hedging. 
+        If ttm < ttm_tol, closes out that position (and all accumulated deltas), 
+        saves lot size/strikes, and rolls it over into the
+        next month.
 
     Args:
-        pf (object): Portfolio being hedged
-        roll_cond (list): list of the form ['roll', value, frequency, bound]
-        vdf (pandas df): volatility data frame containing information for current day
-        pdf (pandas df): price dataframe containing information for current day
-        brokerage (int, optional): brokerage fees per lot
-        slippage (int, optional): slippage loss
+        pf (TYPE): portfolio being hedged
+        vdf (TYPE): volatility dataframe
+        pdf (TYPE): price dataframe
+        brokerage (TYPE, optional): brokerage amount
+        slippage (TYPE, optional): slippage amount
+        ttm_tol (int, optional): tolerance level for time to maturity.
 
     Returns:
-        tuple: updated portfolio and cost of purchasing/selling options.
+        tuple: updated portfolio and cost of operations undertaken
     """
-    # print('hedge_delta_roll conds: ', roll_cond)
+    # from itertools import cycle
+    total_cost = 0
+    deltas_to_close = set()
+    toberemoved = []
+    roll_all = False
 
-    cost = 0
+    print('simulation.roll_over - ttm_tol: ', ttm_tol)
 
-    # initializing dictionary mapping pf -> processed options in that pf.
+    # check target_volid roll check
+
+    if target_product:
+        prod = target_product
+        ops = [op for op in pf.get_all_options() if op.get_product() == prod]
+        if ops[0].tau * 365 <= ttm_tol:
+            roll_all = True
+
+    print('roll_all: ', roll_all)
+    fa_lst = pf.get_families() if pf.get_families else [pf]
     processed = {}
 
-    for pf in fpf.get_families():
-        # initial sanity checks.
-        if pf not in processed:
-            processed[pf] = []
+    for fa in fa_lst:
+        # case: first time processing this family.
+        if fa not in processed:
+            processed[fa] = []
         else:
-            # TODO: figure out what happens with hedge options.
-            # case: number of options processed = number of relevant options,
-            # meaning all have been rolled.
-            if len(processed[pf]) == len(pf.OTC_options):
+            # case where all options have been processed.
+            if len(processed[fa]) == len(fa.OTC_options):
                 continue
 
-        print(' --- handling rolling for family ' + str(pf.name) + ' ---')
+        dic = fa.OTC_options if flag == 'OTC' else fa.hedge_options
+        processed_ops = processed[fa]
 
-        # grab list of processed options for this portfolio.
-        processed_ops = processed[pf]
-        hedges = pf.hedge_params
-
-        # isolating roll conditions.
-        roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
-            'delta'][i][0] == 'roll']
-        if roll_cond:
-            # case: roll conditions found.
-            roll_cond = roll_cond[0]
-            roll_val, bounds = roll_cond[1], np.array(roll_cond[3]) / 100
-        else:
-            # case: no roll conditions found.
-            print('no roll conditions found for family ' + str(pf.name))
-            continue
-
-        # starting of per-option rolling logic.
-        for op in pf.OTC_options.copy():
-            # case: option has already been processed due to its partner being
-            # processed.
+        for op in dic.copy():
             if op in processed_ops:
                 continue
             composites = []
-            delta = abs(op.delta / op.lots)
-            # case: delta not in bounds.
-            diff = (delta - roll_val/100)
-            # print('diff, bounds: ', diff, bounds)
-            if (diff < bounds[0]) or (diff > bounds[1]):
-                # if delta > bounds[1] or delta < bounds[0]:
-                print('rolling delta: ', op.get_product(),
-                      op.char, round(abs(op.delta / op.lots), 2))
-                newop, old_op, rcost = delta_roll(pf, op, roll_val, pdf,
-                                                  slippage=slippage, brokerage=brokerage)
-                processed_ops.append(old_op)
+            needtoroll = (op.tau * 365 < ttm_tol) or roll_all
+            if needtoroll:
+                print('rolling option ' + str(op))
+                toberemoved.append(op)
+                # creating the underlying future object
+                fa, cost, newop, old_op, iden = contract_roll(
+                    fa, op, vdf, pdf, date, flag)
                 composites.append(newop)
-                cost += rcost
-                # if rolling option, roll all partners as well.
+                processed_ops.append(old_op)
+                deltas_to_close.add(iden)
+                total_cost += cost
                 for opx in op.partners:
-                    print('rolling delta: ', opx.get_product(),
-                          opx.char, round(abs(opx.delta / opx.lots), 2))
-                    pf2 = fpf.get_family_containing(opx)
-                    if pf2 is None:
-                        raise ValueError(str(opx) + ' belongs to a \
-                                            non-existent family.')
 
-                    new_opx, old_opx, rcost = delta_roll(pf2, opx, roll_val, pdf,
-                                                         slippage=slippage, brokerage=brokerage)
+                    if not pf.get_families():
+                        tar = fa
+                    else:
+                        tar = pf.get_family_containing(opx)
+                    fa2, cost2, new_opx, old_opx, iden_2 = contract_roll(
+                        tar, opx, vdf, pdf, date, flag)
                     composites.append(new_opx)
-                    if pf2 not in processed:
-                        processed[pf2] = []
-                    processed[pf2].append(old_opx)
-                    cost += rcost
-                    composites = create_composites(composites)
-            else:
-                processed_ops.append(op)
-                print('op' + str(op) + ' is within bounds. skipping...')
+                    if fa2 not in processed:
+                        processed[fa2] = []
+                    processed[fa2].append(old_opx)
+                    total_cost += cost2
+                composites = create_composites(composites)
 
-    print(' --- finished rolling for family ' + str(pf.name) + ' ---')
+    # print('roll_over: pre refresh pf.hedges - ', pf.hedges)
+    pf.refresh()
+    # print('roll_over: post refresh pf.hedges - ', pf.hedges)
+    print('deltas to close: ', deltas_to_close)
+    pf, cost = close_out_deltas(pf, deltas_to_close)
+    total_cost += cost
+    # print('pf after rollover: ', pf)
+    print('cost of rolling over: ', total_cost)
+
     for x in processed:
-        print('ops processed belonging to ' + x.name + ':')
+        print('ops contract rolled belonging to ' + x.name + ':')
         print([str(i) for i in processed[x]])
 
-    fpf.refresh()
-    return fpf, cost
+    pf.refresh()
+    return pf, total_cost
 
 
-def delta_roll(pf, op, roll_val, pdf, slippage=None, brokerage=None):
-    """Helper function that deals with delta-rolling options.
+def contract_roll(pf, op, vdf, pdf, date, flag):
+    """Helper method that deals with contract rolliing if needed.
 
     Args:
+        pf (TYPE): Description
         op (TYPE): Description
-        roll_val (TYPE): Description
-        slippage (None, optional): Description
-        brokerage (None, optional): Description
-
-    Returns:
-        TYPE: Description
+        vdf (TYPE): Description
+        pdf (TYPE): Description
     """
-    # print('delta not in bounds: ', op, abs(op.delta) / op.lots)
 
-    print('handling ' + str(op) + ' from family ' + pf.name)
-    print('family rolling conds: ', pf.hedge_params['delta'])
+    # isolating a roll condition if it exists.
+    d_cond = None
+    if 'delta' in pf.hedge_params:
+        d_cond = [x for x in pf.hedge_params['delta'] if x[0] == 'roll']
+        d_cond = d_cond[0][1] if d_cond else None
 
-    cost = 0
-    cpi = 'C' if op.char == 'call' else 'P'
-    # get the vol from the vol_by_delta part of pdf
-    col = str(int(roll_val)) + 'd'
-    try:
-        vid = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
-        vol = pdf.loc[(pdf.call_put_id == cpi) &
-                      (pdf.vol_id == vid), col].values[0]
-        # print('vol found')
-    except IndexError:
-        print('[ERROR] hedge_delta_roll: vol not found. Inputs: ', cpi, vid)
-        vol = op.vol
+    pdt = op.get_product()
+    ftmth = op.underlying.get_month()
+    ft_month, ft_yr = ftmth[0], ftmth[1]
+    index = contract_mths[pdt].index(ft_month) + 1
+    # case: rollover to the next year
+    if index >= len(contract_mths[pdt]):
+        ft_yr = str(int(ft_yr) + 1)
 
-    strike = compute_strike_from_delta(
-        op, delta1=roll_val / 100, vol=vol)
-    # print('roll_hedging - newop tau: ', op.tau)
-    newop = Option(strike, op.tau, op.char, vol, op.underlying,
-                   op.payoff, op.shorted, op.month, direc=op.direc,
-                   barrier=op.barrier, lots=op.lots, bullet=op.bullet,
-                   ki=op.ki, ko=op.ko, rebate=op.rebate,
-                   ordering=op.ordering, settlement=op.settlement)
+    new_ft_month = contract_mths[pdt][
+        index % len(contract_mths[pdt])] + ft_yr
 
-    # handle expenses: brokerage and old op price - new op price
+    new_ft, ftprice = create_underlying(
+        pdt, new_ft_month, pdf, date)
 
-    val = -(op.compute_price() - newop.compute_price())
-    cost += val
+    ftprice = new_ft.get_price()
 
-    if brokerage:
-        cost += (brokerage * (op.lots + newop.lots))
+    # identifying deltas to close
+    iden = (pdt, ftmth, ftprice)
 
-    if slippage:
-        ttm = newop.tau * 365
-        if ttm < 60:
-            s_val = slippage[0]
-        elif ttm >= 60 and ttm < 120:
-            s_val = slippage[1]
+    # creating the new options object - getting the tau and vol
+    new_vol_id = pdt + '  ' + new_ft_month + '.' + new_ft_month
+    lots = op.lots
+
+    r_delta = None
+    strike = None
+    # case: delta rolling value is specified.
+    if d_cond is not None:
+        print('d_cond not None: ', d_cond)
+        if d_cond == 50:
+            strike = 'atm'
         else:
-            s_val = slippage[-1]
-        cost += (s_val * (newop.lots + op.lots))
+            r_delta = d_cond
+    print('strike, r_delta: ', strike, r_delta)
+    newop = create_vanilla_option(vdf, pdf, new_vol_id, op.char, op.shorted,
+                                  date, lots=lots, strike=strike, delta=r_delta)
 
-    # handle adds and removes.
-    # print('simulation.hedge_delta_roll - removing ' +
-    #       str(op) + ' from pf ' + str(pf.name))
-    # print('simulation.hedge_delta_roll - adding ' +
-    #       str(newop) + ' to pf ' + str(pf.name))
+    # cost is > 0 if newop.price > op.price
+    cost = newop.get_price() - op.get_price()
 
-    pf.remove_security([op], 'OTC')
+    pf.remove_security([op], flag)
+    pf.add_security([newop], flag)
 
-    pf.add_security([newop], 'OTC')
-
-    return newop, op, cost
+    return pf, cost, newop, op, iden

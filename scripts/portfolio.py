@@ -489,7 +489,9 @@ class Portfolio:
                         if product not in other:
                             pass
                         else:
-                            if other is not None:
+                            if (other is not None) and \
+                                    (product in other) and \
+                                    (month in other[product]):
                                 other[product].pop(month)
                             if len(other[product]) == 0:
                                 other.pop(product)
