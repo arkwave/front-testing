@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-10 21:41:44
+# @Last Modified time: 2017-08-11 16:06:36
 
 ################################ imports ###################################
 
@@ -1397,24 +1397,42 @@ def hedge_delta_roll(fpf, pdf, brokerage=None, slippage=None):
 
     cost = 0
 
+    # initializing dictionary mapping pf -> processed options in that pf.
+    processed = {}
+
     for pf in fpf.get_families():
         print(' --- handling rolling for family ' + str(pf.name) + ' ---')
-        toberemoved = []
-        tobeadded = []
+        # initial sanity checks.
+        if pf not in processed:
+            processed[pf] = []
+        else:
+            # TODO: figure out what happens with hedge options.
+            # case: number of options processed = number of relevant options.
+            if len(processed[pf]) == len(pf.OTC_options):
+                print(' --- finished rolling for family ' + str(pf.name) + ' ---')
+                continue
+
+        # grab list of processed options for this portfolio.
+        processed_ops = processed[pf]
         hedges = pf.hedge_params
-        # isolate roll conditions if they exist.
+
+        # isolating roll conditions.
         roll_cond = [hedges['delta'][i] for i in range(len(hedges['delta'])) if hedges[
             'delta'][i][0] == 'roll']
         if roll_cond:
+            # case: roll conditions found.
             roll_cond = roll_cond[0]
-            # print('simulation.hedge_delta_roll - roll_conds: ', roll_cond)
             roll_val, bounds = roll_cond[1], np.array(roll_cond[3]) / 100
-        for op in pf.OTC_options:
+        else:
+            # case: no roll conditions found.
+            print('no roll conditions found for family ' + str(pf.name))
+            continue
+
+        # starting of per-option rolling logic.
+        for op in pf.OTC_options.copy():
             # case: option has already been processed due to its partner being
             # processed.
-            # print('simulation.hedge_delta_roll - option: ', op.get_product(),
-            #       op.char,  round(abs(op.delta / op.lots), 2))
-            if op in toberemoved:
+            if op in processed_ops:
                 continue
             composites = []
             delta = abs(op.delta / op.lots)
@@ -1425,38 +1443,41 @@ def hedge_delta_roll(fpf, pdf, brokerage=None, slippage=None):
                 # if delta > bounds[1] or delta < bounds[0]:
                 print('rolling delta: ', op.get_product(),
                       op.char, round(abs(op.delta / op.lots), 2))
-                newop, old_op, rcost = delta_roll(
-                    op, roll_val, pdf, slippage=slippage, brokerage=brokerage)
-                toberemoved.append(old_op)
+                newop, old_op, rcost = delta_roll(pf, op, roll_val, pdf,
+                                                  slippage=slippage, brokerage=brokerage)
+                processed_ops.append(old_op)
                 composites.append(newop)
                 cost += rcost
                 # if rolling option, roll all partners as well.
                 for opx in op.partners:
-                    new_opx, old_opx, rcost = delta_roll(
-                        opx, roll_val, pdf, slippage=slippage, brokerage=brokerage)
-                    composites.append(new_opx)
-                    toberemoved.append(old_opx)
-                    cost += rcost
-            composites = create_composites(composites)
-            # print('composites: ', [str(x) for x in composites])
-            tobeadded.extend(composites)
+                    print('rolling delta: ', opx.get_product(),
+                          opx.char, round(abs(opx.delta / opx.lots), 2))
+                    pf2 = fpf.get_family_containing(opx)
+                    if pf2 is None:
+                        raise ValueError(str(opx) + ' belongs to a \
+                                            non-existent family.')
 
-        print('number of ops rolled: ', len(tobeadded))
-        print('ops to be removed: ', [str(x) for x in toberemoved])
-        pf.remove_security(toberemoved, 'OTC')
-        pf.add_security(tobeadded, 'OTC')
-        print(' --- finished rolling for family ' + str(pf.name) + ' ---')
+                    new_opx, old_opx, rcost = delta_roll(pf2, opx, roll_val, pdf,
+                                                         slippage=slippage, brokerage=brokerage)
+                    composites.append(new_opx)
+                    if pf2 not in processed:
+                        processed[pf2] = []
+                    processed[pf2].append(old_opx)
+                    cost += rcost
+                    composites = create_composites(composites)
+            else:
+                print('family ' + pf.name + ' is within bounds. skipping...')
+
+    print(' --- finished rolling for family ' + str(pf.name) + ' ---')
+    for x in processed:
+        print('ops processed belonging to ' + x.name + ':')
+        print([str(i) for i in processed[x]])
 
     fpf.refresh()
     return fpf, cost
 
 
-###############################################################################
-############################ Helper functions #################################
-###############################################################################
-
-
-def delta_roll(op, roll_val, pdf, slippage=None, brokerage=None):
+def delta_roll(pf, op, roll_val, pdf, slippage=None, brokerage=None):
     """Helper function that deals with delta-rolling options.
 
     Args:
@@ -1469,6 +1490,10 @@ def delta_roll(op, roll_val, pdf, slippage=None, brokerage=None):
         TYPE: Description
     """
     # print('delta not in bounds: ', op, abs(op.delta) / op.lots)
+
+    print('handling ' + str(op) + ' from family ' + pf.name)
+    print('family rolling conds: ', pf.hedge_params['delta'])
+
     cost = 0
     cpi = 'C' if op.char == 'call' else 'P'
     # get the vol from the vol_by_delta part of pdf
@@ -1491,9 +1516,6 @@ def delta_roll(op, roll_val, pdf, slippage=None, brokerage=None):
                    ki=op.ki, ko=op.ko, rebate=op.rebate,
                    ordering=op.ordering, settlement=op.settlement)
 
-    # toberemoved.append(op)
-    # tobeadded.append(newop)
-
     # handle expenses: brokerage and old op price - new op price
 
     val = -(op.compute_price() - newop.compute_price())
@@ -1511,6 +1533,16 @@ def delta_roll(op, roll_val, pdf, slippage=None, brokerage=None):
         else:
             s_val = slippage[-1]
         cost += (s_val * (newop.lots + op.lots))
+
+    # handle adds and removes.
+    # print('simulation.hedge_delta_roll - removing ' +
+    #       str(op) + ' from pf ' + str(pf.name))
+    # print('simulation.hedge_delta_roll - adding ' +
+    #       str(newop) + ' to pf ' + str(pf.name))
+
+    pf.remove_security([op], 'OTC')
+
+    pf.add_security([newop], 'OTC')
 
     return newop, op, cost
 

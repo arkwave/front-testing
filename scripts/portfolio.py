@@ -166,14 +166,14 @@ class Portfolio:
             self.hedge_futures = tmp.hedge_futures
             self.compute_net_greeks()
 
-    def check_containment(self, sec):
+    def get_family_containing(self, sec):
         if not self.families:
-            return False, None
+            return None
         else:
-            for family in self.families:
-                if sec in family.OTC_options:
-                    return True, family
-            print('security doesnt exist in families associated with this portfolio')
+            for f in self.families:
+                if sec in f.OTC_options:
+                    return f
+            return None
 
     def update_sec_lots(self, sec, flag, lots):
         """Updates the lots of a given security, updates the dictionary it is contained in, and 
@@ -367,7 +367,7 @@ class Portfolio:
                 print('specified security doesnt exist in this portfolio')
 
         for sec in security:
-            contains, fpf = self.check_containment(sec)
+            fpf = self.get_family_containing(sec)
             if fpf is not None:
                 fpf.remove_security([sec], 'OTC')
 
@@ -480,7 +480,7 @@ class Portfolio:
                         (product in other) and (month in other[product])) else None
 
                     if (not ops) and (not fts) and (not other_op) and (not other_ft):
-                        print('degenerate case hit')
+                        # print('degenerate case hit')
                         dic[product].pop(month)
                         # sanity check: pop product if no months left.
                         if len(dic[product]) == 0:

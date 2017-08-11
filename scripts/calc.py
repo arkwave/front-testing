@@ -902,7 +902,7 @@ def compute_strike_from_delta(option, delta1=None, vol=None, s=None, tau=None, c
     # getting ticksize, and rounding raw strike to closest available ticksize
     pdt = option.get_product() if pdt is None else pdt
     ticksize = multipliers[pdt][-2]
-    print('compute_strike_from_delta ticksize: ', pdt, ticksize)
+    # print('compute_strike_from_delta ticksize: ', pdt, ticksize)
     strike = round(round(strike / ticksize) * ticksize, 2)
     return strike
 

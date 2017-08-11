@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-10 15:38:41
+# @Last Modified time: 2017-08-11 13:23:27
 
 
 from .portfolio import Portfolio
@@ -531,9 +531,8 @@ def create_butterfly(char, volid, vdf, pdf, date, shorted, **kwargs):
 
     ops = [lower_op, mid_op1, mid_op2, upper_op]
 
-    if 'composites' in kwargs and kwargs['composites']:
+    if ('composites' in kwargs and kwargs['composites']) or ('composites' not in kwargs):
         ops = create_composites(ops)
-
     return ops
 
 
@@ -578,7 +577,7 @@ def create_spread(char, volid, vdf, pdf, date, shorted, **kwargs):
 
     ops = [op1, op2]
 
-    if 'composites' in kwargs and kwargs['composites']:
+    if ('composites' in kwargs and kwargs['composites']) or ('composites' not in kwargs):
         ops = create_composites(ops)
     return ops
 
@@ -666,7 +665,7 @@ def create_strangle(volid, vdf, pdf, date, shorted, pf=None, **kwargs):
         op2.underlying.update_lots(lots_req)
 
     ops = [op1, op2]
-    if 'composites' in kwargs and kwargs['composites']:
+    if ('composites' in kwargs and kwargs['composites']) or ('composites' not in kwargs):
         ops = create_composites(ops)
     return ops
 
@@ -712,7 +711,7 @@ def create_skew(volid, vdf, pdf, date, shorted, delta, **kwargs):
         op2.underlying.update_lots(lots_req)
 
     ops = [op1, op2]
-    if 'composites' in kwargs and kwargs['composites']:
+    if ('composites' in kwargs and kwargs['composites']) or ('composites' not in kwargs):
         ops = create_composites(ops)
 
     return ops
@@ -791,7 +790,7 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
 
     ops = [op1, op2]
 
-    if 'composites' in kwargs and kwargs['composites']:
+    if ('composites' in kwargs and kwargs['composites']) or ('composites' not in kwargs):
         ops = create_composites(ops)
 
     return ops

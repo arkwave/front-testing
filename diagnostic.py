@@ -85,7 +85,7 @@ sanity_check(vdf.value_date.unique(),
              pd.to_datetime(end_date))
 
 callop, putop = create_skew('CC  U7.U7', vdf, pdf,
-                            pd.to_datetime(start_date), False, 25, greek='vega', greekval=50000, composites=False)
+                            pd.to_datetime(start_date), False, 31, greek='vega', greekval=50000, composites=True)
 
 
 cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
@@ -121,6 +121,19 @@ print('hedges: ', hedges)
 
 print('roll_portfolio: ', roll_portfolio)
 print('roll_hedges: ', roll_hedges)
+
+
+from wip import hedge_delta_roll
+from simulation import rebalance
+
+test_pdf = pdf[pdf.value_date == pd.Timestamp('2017-05-02')]
+test_vdf = vdf[vdf.value_date == pd.Timestamp('2017-05-02')]
+counters = [1, 1, 1, 1]
+pf, counters, cost, roll_hedged = rebalance(test_vdf, test_pdf, pf, counters)
+
+
+# pf, cost = hedge_delta_roll(pf, test_pdf)
+
 
 # log = run_simulation(vdf, pdf, edf, pf, hedges,
 #                      roll_portfolio=roll_portfolio, pf_ttm_tol=pf_ttm_tol,
