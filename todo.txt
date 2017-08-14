@@ -1,4 +1,22 @@
 
+-------------
+| NEXT WEEK |
+-------------
+
+> moving to plotly:
+	- plan is to make a gui using Tkinter and publish graphs on plotly. 
+
+> Get familiar with Tkinter or with Dash. 
+
+> Conceptualize application outline. 
+
+
+
+
+
+##########################################################################################################################
+
+
 
 8/3
 
@@ -1027,49 +1045,28 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 
 
--------------
-| NEXT WEEK |
--------------
+--------------------
+| As of 08/14/2017 |
+--------------------
 
-> moving to plotly:
-	- plan is to make a gui using Tkinter and publish graphs on plotly. 
-
-> Get familiar with Tkinter or with Dash. 
-
-> Conceptualize application outline. 
+> [Done] finalize (more or less) the layout of the gui. 
 
 
-
-
->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ON HOLD <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-
-********** Notes on certain issues: ***********
-
-> Open issue: move from centralized hedging specifications to more general forumlation via families, possibly. 
-	- TENTATIVE SOLUTION:
-		> each family is a portfolio object.
-		> hedges now come in two types: family-specific and portfolio-wide. 
-		> family-specific hedges (and by extension hedge object) will be associated with the relevant family. 
-
-	- things that need to change:
-		1) hedging for gamma/theta/vega/delta-rolls would be family-specific. 
-		2) static delta hedging would be portfolio-wide. 
-		3) rolling over contract to next month can either be family specific (if ttm_tol only specified) or portfolio-wide (if roll_product is also specified.)
-		4) hedges [dict] would need to be altogether removed from simulation. 
-		5) hedge [object] would now be associated with a portfolio. 
-		6) creating a portfolio would now take in options/futures as well as a hedge. 
+> Figure out new windows for each family. 
+> figure out how to clear grid of labels when deselecting. 
+> start working on actually passing variables into simulator. 
+> adapt grab_data to default to SQL query rather than dumps so that directory is not at all relevant. 
+> try to get data pulling and simple portfolio specs up and running by wednesday.
 
 
 
 
-##########################################################################################################################
+
 
 
 -------------------------- On Hold: ------------------------
 BIG TODO:
 	> adjusting signals to include family paradigm 
-
 
 > related: implement a future signals thing.
 
@@ -1095,6 +1092,27 @@ BIG TODO:
 > [On Hold] slippage and brokerage in handle_barriers (need to figure out in what form/manner this is actually required)
 
 ------------------------------------------------------------
+
+
+
+
+
+********** Notes on certain issues: ***********
+
+> Open issue: move from centralized hedging specifications to more general forumlation via families, possibly. 
+	- TENTATIVE SOLUTION:
+		> each family is a portfolio object.
+		> hedges now come in two types: family-specific and portfolio-wide. 
+		> family-specific hedges (and by extension hedge object) will be associated with the relevant family. 
+
+	- things that need to change:
+		1) hedging for gamma/theta/vega/delta-rolls would be family-specific. 
+		2) static delta hedging would be portfolio-wide. 
+		3) rolling over contract to next month can either be family specific (if ttm_tol only specified) or portfolio-wide (if roll_product is also specified.)
+		4) hedges [dict] would need to be altogether removed from simulation. 
+		5) hedge [object] would now be associated with a portfolio. 
+		6) creating a portfolio would now take in options/futures as well as a hedge. 
+
 
 
 
