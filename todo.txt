@@ -1052,11 +1052,24 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 > [Done] finalize (more or less) the layout of the gui. 
 
 
-> Figure out new windows for each family. 
-> figure out how to clear grid of labels when deselecting. 
-> start working on actually passing variables into simulator. 
+>>> Priority <<< 
+1) see if code can be refactored.
+2) understand how the code snippets talk to each other.
+3) 
+4) data pulling from frames.
+	- get data done today.
+
 > adapt grab_data to default to SQL query rather than dumps so that directory is not at all relevant. 
 > try to get data pulling and simple portfolio specs up and running by wednesday.
+
+
+
+>>> Cosmetic: <<<
+> Figure out new windows for each family. 
+> figure out how to clear grid of labels when deselecting. 
+
+
+
 
 
 
