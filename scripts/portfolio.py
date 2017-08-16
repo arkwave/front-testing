@@ -103,8 +103,15 @@ class Portfolio:
         self.families = []
 
         self.name = str(name) if name is not None else None
-        self.hedge_params = hedge_params[self.name] \
-            if (self.name is not None and self.name in hedge_params) else None
+
+        if hedge_params is None:
+            self.hedge_params = {}
+
+        if isinstance(hedge_params, dict):
+            if self.name in hedge_params:
+                self.hedge_params = hedge_params[self.name]
+            else:
+                self.hedge_params = hedge_params
 
         # updating initialized variables
         self.init_sec_by_month('OTC')

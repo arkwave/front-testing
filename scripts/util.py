@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-11 22:09:27
+# @Last Modified time: 2017-08-16 18:13:17
 
 
 from .portfolio import Portfolio
@@ -269,8 +269,11 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None, payoff='ame
 
     # get tau
     try:
-        tau = vdf[(vdf.value_date == date) &
-                  (vdf.vol_id == volid)].tau.values[0]
+        if 'tau' in kwargs:
+            tau = kwargs['tau']
+        else:
+            tau = vdf[(vdf.value_date == date) &
+                      (vdf.vol_id == volid)].tau.values[0]
     except IndexError:
         print('util.create_vanilla_option - cannot find tau.')
         print('inputs: ', date, volid)
@@ -741,11 +744,13 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
 
     lots = kwargs['lots'] if 'lots' in kwargs else None
 
+    # create_vanilla_option(vdf, pdf, volid, char, shorted, date=None, payoff='amer', lots=None, delta=None, strike=None, vol=None, bullet=True, **kwargs)
+
     op1 = create_vanilla_option(
-        vdf, pdf, volid, char1, shorted, date, strike=strike, lots=lots)
+        vdf, pdf, volid, char1, shorted, date=date, strike=strike, lots=lots)
 
     op2 = create_vanilla_option(
-        vdf, pdf, volid, char2, shorted, date, strike=strike, lots=lots)
+        vdf, pdf, volid, char2, shorted, date=date, strike=strike, lots=lots)
 
     lots_req = op1.lots
 
