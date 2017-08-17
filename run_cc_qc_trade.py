@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-07-21 15:41:52
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-11 20:38:49
+# @Last Modified time: 2017-08-17 21:30:25
 
 from scripts.fetch_data import grab_data
 from scripts.util import create_straddle, combine_portfolios
@@ -14,18 +14,9 @@ from scripts.portfolio import Portfolio
 
 ######### variables ################
 yr = 2017
-# start_date = str(yr) + '-01-03'
-# end_date = str(yr) + '-03-31'
 start_date = '2017-07-01'
 end_date = '2017-08-10'
-
-
 pdts = ['QC', 'CC']
-
-# volids = ['QC  U6.U6', 'QC  Z6.Z6', 'CC  U6.U6',
-#           'CC  Z6.Z6', 'QC  H7.H7', 'CC  H7.H7',
-#           'CC  K7.K7', 'QC  K7.K7', 'CC  N7.N7', 'QC  N7.N7']
-
 volids = ['CC  Z7.Z7', 'QC  Z7.Z7']
 
 ####################################
@@ -53,8 +44,8 @@ print('hedges: ', hedges)
 
 # pf.add_security([cc1, cc2, qc1, qc2], 'OTC')
 
-# pf_cc = Portfolio(hedges, 1)
-# pf_cc.add_security([cc1, cc2], 'OTC')
+pf_cc = Portfolio(hedges, 1)
+pf_cc.add_security([cc1, cc2], 'OTC')
 
 # pf = pf_cc
 
@@ -62,10 +53,10 @@ pf_qc = Portfolio(hedges, 2)
 pf_qc.add_security([qc1, qc2], 'OTC')
 
 
-pf = pf_qc
+# pf = pf_qc
 
-# pf = combine_portfolios([pf_cc, pf_qc], hedges=hedges,
-#                         name='all', refresh=True)
+pf = combine_portfolios([pf_cc, pf_qc], hedges=hedges,
+                        name='all', refresh=True)
 
 pf.refresh()
 

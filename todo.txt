@@ -1039,8 +1039,6 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 
 
-> ISSUE: C1/C2 rather than a vol_id 
-
 
 
 
@@ -1053,31 +1051,62 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 
 >>> Priority <<< 
-1) see if code can be refactored.
-2) understand how the code snippets talk to each other.
-3) 
-4) data pulling from frames.
+1) [Done] see if code can be refactored.
+2) [Done] understand how the code snippets talk to each other.
+
+4) [Done] data pulling from frames.
 	- get data done today.
-
-> adapt grab_data to default to SQL query rather than dumps so that directory is not at all relevant. 
-> try to get data pulling and simple portfolio specs up and running by wednesday.
-
-
-
->>> Cosmetic: <<<
-> Figure out new windows for each family. 
-> figure out how to clear grid of labels when deselecting. 
+5) [Done] pass date into PortfolioFrame object to allow for creation. 
+> [Done] adapt grab_data to default to SQL query rather than dumps so that directory is not at all relevant. 
+> [Done] figure out how to clear grid of labels when deselecting. 
+> [Done] Figure out import issue. 
+> [Done] Tickbox for writing text log. 
+> [Done] Writing log to csv. 
+> [Done] Plotting functionality in plotly. 
 
 
 
 
 
 
+> Updating test suite. (Issue 1)
+	- [Done] Portfolio
+	- Option
+	- Simulation
+	- Hedge 
+	- Util
 
 
 
 
--------------------------- On Hold: ------------------------
+
+
+
+
+-------------------------- OPEN ISSUES: ------------------------
+
+TODO:
+> implement sanity check and selection method for datasets; store the last x datasets 
+  for easy retreival. 
+	- sanity check on the basis of: 
+	1) start_date and end_date. 
+	2) products 
+	3) vol_ids if present. 
+	> dictionary mapping tuple of (sd, ed, pd, volids) -> (vdf, pdf) where sd = sd passed in. 
+
+> composites in simulator. 
+
+
+>>> Implementation-Centric <<<
+> ISSUE: Testing suite is in bad need of an update:
+	1) hedge.py, fetch_data.py and util.py have no testing whatsoever. This needs to be remedied asap. 
+	2) Portfolio and Classes objects need updates. 
+	3) Calc is more or less fine, no major additions for a long time. 
+	4) prep_data/fetch_data need a serious overhaul; go through, see what code is required and what isn't, remove/move to code dump respectively. 
+
+> ISSUE: C1/C2 rather than a vol_id 
+
+
 BIG TODO:
 	> adjusting signals to include family paradigm 
 
@@ -1090,19 +1119,14 @@ BIG TODO:
 	4) Prep_portfolio needs to be completely re-imagined to account for both families and composites. 
 
 
-> ISSUE: Testing suite is in bad need of an update:
-	1) hedge.py, fetch_data.py and util.py have no testing whatsoever. This needs to be remedied asap. 
-	2) Portfolio and Classes objects need updates. 
-	3) Calc is more or less fine, no major additions for a long time. 
-	4) prep_data/fetch_data need a serious overhaul; go through, see what code is required and what isn't, remove/move to code dump respectively. 
-
 > breakeven-based delta hedging on settlements. 
 
-
-
-> [On Hold] capability to handle forex? what would this entail? Conceptualize. 
-> [On Hold] toy with the idea of different TTM buckets for each greek; see what will come of it and how much needs to be changed. 
 > [On Hold] slippage and brokerage in handle_barriers (need to figure out in what form/manner this is actually required)
+
+
+>>> Cosmetic: <<<
+> Figure out new windows for each family. 
+
 
 ------------------------------------------------------------
 
@@ -1127,6 +1151,15 @@ BIG TODO:
 		6) creating a portfolio would now take in options/futures as well as a hedge. 
 
 
+{'all': OrderedDict([('delta', [['static', 'zero', 1]])]), 
+   '1': OrderedDict([('delta', [['roll', 25.0, 1, (-5, 5)]])]), 
+   '2': OrderedDict([('delta', [['roll', 50.0, 1, (-20, 20)]])]), 
+   '3': OrderedDict([('delta', [['roll', 25.0, 1, (-7, 7)]])])}
+
+
+{ '2': OrderedDict([('delta', [['static', 'zero', 1], ['roll', 50.0, 1, (-10, 10)]]), 
+				   ('theta', [['bound', (9000, 11000), 1, 'straddle', 'strike', 'atm', 'uid']])]), 
+'all': OrderedDict()}
 
 
 ___________________________________________

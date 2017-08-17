@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-08-09 17:01:19
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-09 18:04:15
+# @Last Modified time: 2017-08-17 13:39:05
 
 from scripts.util import combine_portfolios, create_straddle
 from scripts.fetch_data import grab_data
@@ -73,13 +73,13 @@ def test_combine_portfolios():
     qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(
         start_date), True, 'atm', greek='vega', greekval=20000)
 
-    pf1 = Portfolio()
+    pf1 = Portfolio(None)
     pf1.add_security([qc1, qc2], 'OTC')
 
-    pf2 = Portfolio()
+    pf2 = Portfolio(None)
     pf2.add_security([cc1, cc2], 'OTC')
 
-    pf3 = combine_portfolios([pf1, pf2])
+    pf3 = combine_portfolios([pf1, pf2], refresh=True)
 
     # OTC check
     otc = pf1.OTC.copy()

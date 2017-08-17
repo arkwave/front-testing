@@ -355,10 +355,10 @@ def test_euro_barrier_greeks():
         d1, g1, t1, v1 = deltas[i], gammas[i], thetas[i], vegas[i]
         try:
             d, g, t, v = _euro_barrier_euro_greeks(
-                char, tau, vol, k, s, 0, payoff, direc, 'C', ki, ko, lots, barvol=bvol)
+                char, tau, vol, k, s, 0, payoff, direc, 'C', ki, ko, lots, bvol=bvol)
         except TypeError:
             print(_euro_barrier_euro_greeks(
-                char, tau, vol, k, s, 0, payoff, direc, 'C', ki, ko, lots, barvol=bvol) is None)
+                char, tau, vol, k, s, 0, payoff, direc, 'C', ki, ko, lots, bvol=bvol) is None)
         # g1, t1, v1 = g1/dollar_mult, t1*dollar_mult, v1*dollar_mult
         try:
             assert np.isclose(d, d1)
@@ -401,7 +401,7 @@ def test_euro_barrier_pricing():
         direction = directions[i]
         payoff = 'amer'
         val = _barrier_euro(char, tau, vol, k, s, 0,
-                            payoff, direction, ki, ko, product, barvol=vol)
+                            payoff, direction, ki, ko, product, bvol=vol)
         try:
             assert np.isclose(val, actual)
         except AssertionError:

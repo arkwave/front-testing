@@ -77,11 +77,11 @@ volids = ['QC  U7.U7', 'QC  Z7.Z7', 'CC  U7.U7', 'CC  Z7.Z7']
 ####################################
 
 from scripts.util import volids_from_ci
-date_range = pd.bdate_range(start_date, end_date)
+# date_range = pd.bdate_range(start_date, end_date)
 
-x = volids_from_ci(date_range, 'CC', 2)
+# x = volids_from_ci(date_range, 'CC', 2)
 
-print(pprint.pformat(x))
+# print(pprint.pformat(x))
 
 
 # vdf, pdf, edf = grab_data(pdts, start_date, end_date,
@@ -100,8 +100,9 @@ print(pprint.pformat(x))
 # start_date), False, 'atm', greek='vega', greekval=100000,
 # composites=True)
 
-# hedges, roll_portfolio, pf_ttm_tol, pf_roll_product, \
-#     roll_hedges, h_ttm_tol, h_roll_product = generate_hedges('hedging.csv')
+hedges, roll_portfolio, pf_ttm_tol, pf_roll_product, \
+    roll_hedges, h_ttm_tol, h_roll_product = generate_hedges(
+        'cc_qc_hedges.csv')
 
 
 # # define hedges for the 25 delta call

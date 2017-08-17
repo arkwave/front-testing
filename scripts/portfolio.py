@@ -352,7 +352,7 @@ class Portfolio:
         self.newly_added.extend(security)
         self.update_sec_by_month(True, flag)
 
-    def remove_security(self, security, flag):
+    def remove_security(self, security, flag, listonly=False):
         # removes a security from the portfolio, updates relevant list and
         # adjusts greeks of the portfolio.
         if flag == 'OTC':
@@ -362,21 +362,20 @@ class Portfolio:
             op = self.hedge_options
             ft = self.hedge_futures
         self.toberemoved.extend(security)
-        self.update_sec_by_month(False, flag)
+        if not listonly:
+            self.update_sec_by_month(False, flag)
         for sec in security:
-            try:
-                if sec.get_desc() == 'option':
-                    op.remove(sec)
-                elif sec.get_desc() == 'future':
-                    ft.remove(sec)
-            except ValueError:
-                print(str(sec))
-                print('specified security doesnt exist in this portfolio')
-
-        for sec in security:
-            fpf = self.get_family_containing(sec)
-            if fpf is not None:
-                fpf.remove_security([sec], flag)
+            if sec.get_desc() == 'option':
+                op.remove(sec)
+            elif sec.get_desc() == 'future':
+                ft.remove(sec)
+                # return -1
+        if self.families:
+            for sec in security:
+                fpf = self.get_family_containing(sec)
+                if fpf is not None:
+                    fpf.remove_security([sec], flag, listonly=True)
+                    fpf.update_sec_by_month(None, flag, update=True)
 
     def remove_expired(self):
         '''Removes all expired options from the portfolio. '''
@@ -467,15 +466,17 @@ class Portfolio:
                 for sec in target:
                     product = sec.get_product()
                     month = sec.get_month()
-                    data = dic[product][month]
                     try:
+                        data = dic[product][month]
                         if sec.get_desc() == 'option':
                             data[0].remove(sec)
                         else:
                             data[1].remove(sec)
-                    except KeyError:
-                        print(
-                            "The security specified does not exist in this Portfolio")
+                    except (KeyError, ValueError):
+                        errorstr = str(sec) + " does not exist in Portfolio "
+                        errorstr += self.name if self.name is not None else ''
+                        raise ValueError(errorstr)
+                        # return -1
 
                     # check for degenerate case when removing sec results in no
                     # securities associated to this product-month
@@ -513,7 +514,12 @@ class Portfolio:
             # updating cumulative greeks on a month-by-month basis.
             d3 = self.net_greeks
             # reset all greeks
-            for product in dic:
+            # print('dic-update: ', self.name, dic)
+            for product in dic.copy():
+                # pathological case. remove.
+                if dic[product] == {}:
+                    dic.pop(product)
+                    continue
                 for month in dic[product]:
                     dic[product][month][2:] = [0, 0, 0, 0]
             # for product in d2:

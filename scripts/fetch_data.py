@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-11 20:15:29
+# @Last Modified time: 2017-08-17 14:31:49
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -86,8 +86,8 @@ def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False):
     print('query: ', query)
     df = pd.read_sql_query(query, connection)
 
-    df.to_csv('datasets/data_dump/' + pdt.lower() +
-              '_raw_data.csv', index=False)
+    # df.to_csv('datasets/data_dump/' + pdt.lower() +
+    #           '_raw_data.csv', index=False)
 
     print('finished pulling data')
     print('elapsed: ', time.clock() - t)

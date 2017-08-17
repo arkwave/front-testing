@@ -7,10 +7,29 @@ Python version : 3.5
 Description    : File contains tests for the Portfolio class methods in portfolio.py
 
 """
+import pandas as pd
+from scripts.util import create_straddle, combine_portfolios
+from scripts.fetch_data import grab_data
 from scripts.portfolio import Portfolio
 from scripts.classes import Option, Future
+from collections import OrderedDict
 import copy
 import numpy as np
+import unittest as un
+
+
+######### variables ################
+yr = 2017
+start_date = '2017-07-01'
+end_date = '2017-08-10'
+pdts = ['QC', 'CC']
+volids = ['CC  Z7.Z7', 'QC  Z7.Z7']
+
+####################################
+
+# grabbing data
+vdf, pdf, edf = grab_data(pdts, start_date, end_date,
+                          volids=volids, write_dump=True)
 
 
 def generate_portfolio():
@@ -43,7 +62,7 @@ def generate_portfolio():
     OTCs, hedges = [op1, op2, ft7, op4, ft6], [op5, op3, ft8, ft9]
 
     # creating portfolio
-    pf = Portfolio()
+    pf = Portfolio(None)
     pf.add_security(hedges, 'hedge')
     pf.add_security(OTCs, 'OTC')
 
@@ -79,8 +98,14 @@ def test_add_multiple():
 def test_remove_dne():
     pf = generate_portfolio()
     ft = Future('N7', 50, 'D')
-    assert pf.remove_security([ft], 'OTC') == -1
-    assert pf.remove_security([ft], 'hedge') == -1
+    tc = un.TestCase
+    with tc.assertRaises(pf.remove_security, ValueError) as e1:
+        pf.remove_security([ft], 'OTC')
+    with tc.assertRaises(pf.remove_security, ValueError) as e2:
+        pf.remove_security([ft], 'hedge')
+
+    assert isinstance(e1.exception, ValueError)
+    assert isinstance(e2.exception, ValueError)
 
 
 def test_OTC_pos():
@@ -277,7 +302,7 @@ def test_remove_expired_2():
     ft = Future('H7', 30, 'C')
     op = Option(
         35, 0.05, 'call', 0.4245569263291844, ft, 'amer', False, 'Z7')
-    pf = Portfolio()
+    pf = Portfolio(None)
     pf.add_security([op], 'OTC')
     net = pf.get_net_greeks()['C']['H7']
     net = np.array(net)
@@ -288,7 +313,7 @@ def test_remove_expired_2():
         print('pre-exp: ', net)
     # decrement tau, expiring option.
     pf.timestep(0.05)
-    assert op.check_expired() == True
+    assert op.check_expired()
     pf.remove_expired()
     net = pf.get_net_greeks()
     try:
@@ -298,10 +323,10 @@ def test_remove_expired_2():
 
 
 def test_ordering():
-    ft = Future('H7', 30, 'C')
+    ft = Future('H7', 30, 'C', ordering=2)
     op = Option(
         35, 0.05, 'call', 0.4245569263291844, ft, 'amer', True, 'Z7', ordering=2)
-    pf = Portfolio()
+    pf = Portfolio(None)
     pf.add_security([op], 'OTC')
     init_ord = op.get_ordering()
     assert init_ord == 2
@@ -311,12 +336,12 @@ def test_ordering():
     pf.decrement_ordering('C', 1)
     fin_ord = op.get_ordering()
     assert fin_ord == 0
-    assert op.check_expired() == True
+    assert op.check_expired()
     pf.remove_expired()
     dic = pf.OTC
     try:
         assert len(dic) == 0
-    except:
+    except AssertionError:
         print('test_ordering: ', dic)
 
 
@@ -387,7 +412,7 @@ def test_price_vol_change():
     ft = Future('M7', 30, 'C')
     op1 = Option(
         35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'Z7')
-    pf = Portfolio()
+    pf = Portfolio(None)
     pf.add_security([op1], 'OTC')
     init_net = copy.deepcopy(pf.get_net_greeks())
     vol = 0.6
@@ -401,27 +426,27 @@ def test_price_vol_change():
     # print('old: ', init_net)
     try:
         assert new_net != init_net
-    except:
+    except AssertionError:
         print('new_net: ', new_net)
         print('init_net: ', init_net)
 
 
 def test_decrement_ordering():
     # assume current month is H. Contract mths are H K N U Z.
-    ft = Future('N7', 30, 'C')
+    ft = Future('N7', 30, 'C', ordering=2)
     # H7.M7 option
     op1 = Option(
         35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'H7', ordering=2)
-    ft2 = Future('K7', 30, 'C')
+    ft2 = Future('K7', 30, 'C', ordering=1)
     # H7.K7 option
     op2 = Option(25, 0.01, 'put', 0.25, ft2, 'amer', False, 'H7', ordering=1)
     # initial checks
     assert op1.get_ordering() == 2
     assert op2.get_ordering() == 1
-    assert op1.check_expired() == False
-    assert op2.check_expired() == False
+    assert not op1.check_expired()
+    assert not op2.check_expired()
 
-    pf = Portfolio()
+    pf = Portfolio(None)
     pf.add_security([op1], 'OTC')
     pf.add_security([op2], 'OTC')
 
@@ -435,9 +460,9 @@ def test_decrement_ordering():
     assert len(netgreeks) == 2
 
     pf.decrement_ordering('C', 1)
-    assert op2.expired == True
+    assert op2.expired
     assert op2.ordering == 0
-    assert op1.expired == False
+    assert not op1.expired
     assert op1.ordering == 1
 
     # before removal; len should be the same.
@@ -454,16 +479,19 @@ def test_decrement_ordering():
 
 def test_compute_ordering():
     # assume current month is H. Contract mths are H K N U Z.
-    ft = Future('N7', 30, 'C')
+    ft = Future('N7', 30, 'C', ordering=2)
     # H7.M7 option
     op1 = Option(
-        35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'H7', ordering=2)
-    ft2 = Future('K7', 30, 'C')
+        35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'H7', ordering=ft.get_ordering())
+    ft2 = Future('K7', 30, 'C', ordering=1)
     # H7.K7 option
-    op2 = Option(25, 0.01, 'put', 0.25, ft2, 'amer', False, 'H7', ordering=1)
-    pf = Portfolio()
+    op2 = Option(25, 0.01, 'put', 0.25, ft2, 'amer',
+                 False, 'H7', ordering=ft2.get_ordering())
+    pf = Portfolio(None)
     pf.add_security([op1], 'OTC')
     pf.add_security([op2], 'OTC')
+
+    # print('actual: ', pf.compute_ordering('C', 'N7'))
 
     assert pf.compute_ordering('C', 'N7') == 2
     assert pf.compute_ordering('C', 'K7') == 1
@@ -474,9 +502,198 @@ def test_compute_ordering():
     assert pf.compute_ordering('C', 'K7') == 0
 
 
+""" To be added:
+1) Testing families access etc. 
+2) Testing refresh. 
+3) Test family containing. 
+"""
+
+
+def comp_portfolio(refresh=False):
+    # creating the options.
+    ccops = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+                            False, 'atm', greek='theta', greekval=10000)
+    qcops = create_straddle('QC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+                            True, 'atm', greek='theta', greekval=10000)
+    # create the hedges.
+    gen_hedges = OrderedDict({'delta': [['static', 'zero', 1]]})
+    cc_hedges_s = {'delta': [['static', 'zero', 1],
+                             ['roll', 50, 1, (-10, 10)]]}
+
+    cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
+                   'theta': [['bound', (-11000, -9000), 1, 'straddle',
+                              'strike', 'atm', 'uid']]}
+
+    qc_hedges = {'delta': [['roll', 50, 1, (-15, 15)]],
+                 'theta': [['bound', (9000, 11000), 1, 'straddle',
+                            'strike', 'atm', 'uid']]}
+    cc_hedges_s = OrderedDict(cc_hedges_s)
+    cc_hedges_c = OrderedDict(cc_hedges_c)
+    qc_hedges = OrderedDict(qc_hedges)
+
+    # create one simple and one complex portfolio.
+    pf_simple = Portfolio(cc_hedges_s, name='cc_simple')
+    pf_simple.add_security(ccops, 'OTC')
+
+    pfcc = Portfolio(cc_hedges_c, name='cc_comp')
+    pfcc.add_security(ccops, 'OTC')
+    pfqc = Portfolio(qc_hedges, name='qc_comp')
+    pfqc.add_security(qcops, 'OTC')
+
+    pf_comp = combine_portfolios(
+        [pfcc, pfqc], hedges=gen_hedges, refresh=refresh, name='full')
+
+    return pf_simple, pf_comp, ccops, qcops, pfcc, pfqc
+
+
 def test_refresh():
-    pass
+    # checking that values are passed the right way during refresh.
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(False)
+
+    pf_comp.refresh()
+
+    pftest = Portfolio(None)
+    pftest.add_security(ccops + qcops, 'OTC')
+
+    # check net greeks.
+    assert pftest.get_net_greeks() == pf_comp.get_net_greeks()
+
+    # check options.
+    assert pftest.get_all_options() == pf_comp.get_all_options()
+
+    # check OTC and Hedge dictionaries.
+    assert pftest.OTC == pf_comp.OTC
+    assert pftest.hedges == pf_comp.hedges
+
+    # check the individual constituent families to make sure refresh doesn't
+    # affect them
+    qcfam = [x for x in pf_comp.families if x.get_unique_products() == {'QC'}][
+        0]
+    qctest = Portfolio(None)
+    qctest.add_security(qcops, 'OTC')
+
+    assert qcfam.OTC == qctest.OTC
+    assert qcfam.net_greeks == qctest.net_greeks
+    assert qcfam.OTC_options == qctest.OTC_options
+
+    ccfam = [x for x in pf_comp.families if x.get_unique_products() == {'CC'}][
+        0]
+    cctest = Portfolio(None)
+    cctest.add_security(ccops, 'OTC')
+
+    assert ccfam.OTC == cctest.OTC
+    assert ccfam.net_greeks == cctest.net_greeks
+    assert ccfam.OTC_options == cctest.OTC_options
 
 
 def test_family_containing():
-    pass
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
+    cop1, cop2 = ccops
+    qop1, qop2 = qcops
+    assert pf_comp.get_family_containing(cop1) == pfcc
+    assert pf_comp.get_family_containing(cop2) == pfcc
+    assert pf_comp.get_family_containing(qop1) == pfqc
+    assert pf_comp.get_family_containing(qop2) == pfqc
+
+
+def test_removing_from_composite():
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
+
+    cop1, cop2 = ccops
+    qop1, qop2 = qcops
+
+    init = pf_comp.net_greeks.copy()
+    # print('initial net: ', pf_comp.net_greeks)
+
+    # first test
+    pf_comp.remove_security([cop1], 'OTC')
+
+    assert cop1 not in pfcc.OTC_options
+    assert cop1 not in pfcc.OTC['CC']['Z7'][0]
+
+    # intermediate test
+    x1 = pfcc.net_greeks.copy()
+    x1.update(pfqc.net_greeks.copy())
+
+    # print('x1: ', x1)
+    # print('actual: ', pf_comp.net_greeks)
+
+    assert x1 == pf_comp.get_net_greeks()
+
+    # print('pre-add net: ', pf_comp.net_greeks)
+    pfcc.add_security([cop1], 'OTC')
+
+    assert pf_comp.net_greeks != init
+
+    # print('bef refresh: ', pf_comp.net_greeks)
+    pf_comp.refresh()
+
+    assert pf_comp.net_greeks == init
+    # print('aft refresh: ', pf_comp.net_greeks)
+    # second test.
+    pf_comp.remove_security([qop1], 'OTC')
+    assert qop1 not in pfqc.OTC_options
+    assert qop1 not in pfqc.OTC['QC']['Z7'][0]
+
+    # net greeks test.
+    try:
+        x = pfcc.net_greeks.copy()
+        x.update(pfqc.net_greeks.copy())
+        assert x == pf_comp.net_greeks
+    except AssertionError:
+        print('FAILURE: test_portfolio.test_removing_from_composite')
+        print('netnewgreeks: ', x)
+        print('actual: ', pf_comp.net_greeks)
+
+
+def test_degenerate_case():
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
+
+    init_net_greeks = pf_comp.get_net_greeks().copy()
+
+    pf_comp.remove_security(ccops, 'OTC')
+    try:
+        assert pfcc.empty()
+    except AssertionError:
+        print('test_portfolio.test_degenerate_case - failure: ', pfcc.OTC)
+    # check to see if 'CC' is still in the dict.
+    assert 'CC' not in pf_comp.OTC
+
+    pfcc.add_security(ccops, 'OTC')
+
+    # check that net_greeks are still that of qc before refresh.
+    assert pf_comp.net_greeks == pfqc.net_greeks
+
+    pf_comp.refresh()
+
+    # check to ensure that the net greeks stay the same
+    assert init_net_greeks == pf_comp.net_greeks
+
+
+def test_family_timestep():
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
+    cc_old_ttm = ccops[0].tau
+    qc_old_ttm = qcops[0].tau
+    pf_comp.timestep(1/365)
+
+    for op in pfcc.OTC_options:
+        assert op.tau == cc_old_ttm - (1/365)
+
+    for op in pfqc.OTC_options:
+        assert op.tau == qc_old_ttm - (1/365)
+
+
+def test_get_volid_mappings():
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
+    x = pf_comp.get_volid_mappings()
+
+    assert set(x['CC  Z7.Z7']) == set(ccops)
+    assert set(x['QC  Z7.Z7']) == set(qcops)
+
+    y = pf_simple.get_volid_mappings()
+    assert set(y['CC  Z7.Z7']) == set(ccops)
+
+
+def test_get_unique_products():
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
+    assert pf_comp.get_unique_products() == {'CC', 'QC'}

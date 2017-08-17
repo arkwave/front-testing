@@ -2,14 +2,13 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-11 19:43:19
+# @Last Modified time: 2017-08-17 22:01:11
 
 ################################ imports ###################################
 
 # general imports
 import numpy as np
 import pandas as pd
-import os
 import copy
 import time
 import matplotlib.pyplot as plt
@@ -17,15 +16,12 @@ from collections import OrderedDict
 
 
 # user defined imports
-# from scripts.portfolio import Portfolio
-from scripts.classes import Option
-from scripts.prep_data import prep_portfolio, generate_hedges, sanity_check
-from scripts.fetch_data import prep_datasets, pull_alt_data
-from scripts.util import create_underlying, create_vanilla_option, close_out_deltas, create_composites
-from scripts.calc import compute_strike_from_delta, get_barrier_vol
-from scripts.hedge import Hedge
-import scripts.global_vars as gv
-from scripts.signals import apply_signal
+# from .scripts.prep_data import prep_portfolio, generate_hedges, sanity_check
+# from .scripts.fetch_data import prep_datasets, pull_alt_data
+from .scripts.util import create_underlying, create_vanilla_option, close_out_deltas, create_composites, blockPrint
+from .scripts.calc import get_barrier_vol
+from .scripts.hedge import Hedge
+from .scripts.signals import apply_signal
 
 
 # blockPrint()
@@ -106,7 +102,7 @@ np.random.seed(seed)
 def run_simulation(voldata, pricedata, expdata, pf, end_date=None,
                    brokerage=None, slippage=None, signals=None,
                    roll_portfolio=None, pf_ttm_tol=None, pf_roll_product=None,
-                   roll_hedges=None, h_ttm_tol=None, h_roll_product=None):
+                   roll_hedges=None, h_ttm_tol=None, h_roll_product=None, plot_results=True):
     """
     Each run of the simulation consists of 5 steps:
         1) Feed data into the portfolio.
@@ -300,12 +296,6 @@ def run_simulation(voldata, pricedata, expdata, pf, end_date=None,
                                  slippage=slippage,
                                  target_product=pf_roll_product, ttm_tol=pf_ttm_tol)
 
-    # Step 7: Decrement timestep after all computation steps
-        # calculate number of days to step
-        num_days = 0 if next_date is None else (
-            pd.Timestamp(next_date) - pd.Timestamp(date)).days
-        pf.timestep(num_days * timestep)
-
     # Step 8: Hedge - bring greek levels across portfolios (and families) into
     # line with target levels.
         pf, cost, roll_hedged = rebalance(vdf, pdf, pf, brokerage=brokerage,
@@ -341,6 +331,12 @@ def run_simulation(voldata, pricedata, expdata, pf, end_date=None,
     # Step 10: Initialize init_val to be used in the next loop.
         init_val = pf.compute_value()
         print('[11]  EOD PORTFOLIO: ', pf)
+
+    # Step 7: Decrement timestep after all computation steps
+        # calculate number of days to step
+        num_days = 0 if next_date is None else (
+            pd.Timestamp(next_date) - pd.Timestamp(date)).days
+        pf.timestep(num_days * timestep)
 
     # Step 11: Logging relevant output to csv
     ##########################################################################
@@ -462,7 +458,7 @@ def run_simulation(voldata, pricedata, expdata, pf, end_date=None,
     print('net pnl: ', netpnl)
     print('vega pnl: ', vegapnl)
     print('gamma pnl: ', gammapnl)
-    print('################################################')
+    print('################# OTHER INFORMATION: ##################')
 
     gvar = np.percentile(gross_daily_values, 10)
     cvar = np.percentile(net_daily_values, 10)
@@ -479,105 +475,109 @@ def run_simulation(voldata, pricedata, expdata, pf, end_date=None,
     e2 = time.clock() - e1
     print('SIMULATION RUNTIME: ', e2)
 
+    print('######################################################')
     # plotting histogram of daily pnls
-    plt.figure()
-    plt.hist(gross_daily_values, bins=20,
-             alpha=0.6, label='gross pnl distribution')
-    plt.hist(net_daily_values, bins=20,
-             alpha=0.6, label='net pnl distribution')
-    plt.title('PnL Distribution: Gross/Net')
-    plt.legend()
-    # plt.show()
 
-    # plotting gross pnl values
-    plt.figure()
-    colors = ['c' if x >= 0 else 'r' for x in gross_daily_values]
-    xvals = list(range(1, len(gross_daily_values) + 1))
-    plt.bar(xvals, net_daily_values, align='center',
-            color=colors, alpha=0.6, label='net daily values')
-    plt.plot(xvals, gross_cumul_values, c='b',
-             alpha=0.8, label='gross cumulative pnl')
-    plt.plot(xvals, net_cumul_values, c='r',
-             alpha=0.8, label='net cumulative pnl')
-    plt.plot(xvals, gamma_pnl_cumul, c='g', alpha=0.5, label='cu. gamma pnl')
-    plt.plot(xvals, vega_pnl_cumul, c='y', alpha=0.5, label='cu. vega pnl')
-    plt.title('gross/net pnl daily')
-    plt.legend()
-    # plt.show()
+    if plot_results:
+        plt.figure()
+        plt.hist(gross_daily_values, bins=20,
+                 alpha=0.6, label='gross pnl distribution')
+        plt.hist(net_daily_values, bins=20,
+                 alpha=0.6, label='net pnl distribution')
+        plt.title('PnL Distribution: Gross/Net')
+        plt.legend()
+        # plt.show()
 
-    # cumulative gamma/vega/cumulpnl values
-    plt.figure()
-    # colors = ['c' if x >= 0 else 'r' for x in gamma_pnl_daily]
-    plt.plot(log.value_date, log.cu_gamma_pnl, color='c',
-             alpha=0.6, label='cu. gamma pnl')
-    plt.plot(log.value_date, log.cu_vega_pnl,
-             color='m', alpha=0.6, label='cu. vega pnl')
-    plt.plot(log.value_date, log.cu_pnl_gross, color='k',
-             alpha=0.8, label='gross pnl')
-    plt.title('gamma/vega/cumulative pnls')
-    plt.legend()
-    # plt.show()
+        # plotting gross pnl values
+        plt.figure()
+        colors = ['c' if x >= 0 else 'r' for x in gross_daily_values]
+        xvals = list(range(1, len(gross_daily_values) + 1))
+        plt.bar(xvals, net_daily_values, align='center',
+                color=colors, alpha=0.6, label='net daily values')
+        plt.plot(xvals, gross_cumul_values, c='b',
+                 alpha=0.8, label='gross cumulative pnl')
+        plt.plot(xvals, net_cumul_values, c='r',
+                 alpha=0.8, label='net cumulative pnl')
+        plt.plot(xvals, gamma_pnl_cumul, c='g',
+                 alpha=0.5, label='cu. gamma pnl')
+        plt.plot(xvals, vega_pnl_cumul, c='y', alpha=0.5, label='cu. vega pnl')
+        plt.title('gross/net pnl daily')
+        plt.legend()
+        # plt.show()
 
-    # # net values
-    # plt.figure()
-    # # colors = ['c' if x >= 0 else 'r' for x in gamma_pnl_daily]
-    # plt.plot(log.value_date, log.eod_gamma_pnl, color='c',
-    #          alpha=0.6, label='eod gamma pnl')
-    # plt.plot(log.value_date, log.eod_vega_pnl,
-    #          color='m', alpha=0.6, label='eod vega pnl')
-    # plt.plot(log.value_date, log.eod_pnl_gross, color='k',
-    #          alpha=0.8, label='eod pnl')
-    # plt.title('gamma/vega/daily eod pnls')
-    # plt.legend()
-    # # plt.show()
+        # cumulative gamma/vega/cumulpnl values
+        plt.figure()
+        # colors = ['c' if x >= 0 else 'r' for x in gamma_pnl_daily]
+        plt.plot(log.value_date, log.cu_gamma_pnl, color='c',
+                 alpha=0.6, label='cu. gamma pnl')
+        plt.plot(log.value_date, log.cu_vega_pnl,
+                 color='m', alpha=0.6, label='cu. vega pnl')
+        plt.plot(log.value_date, log.cu_pnl_gross, color='k',
+                 alpha=0.8, label='gross pnl')
+        plt.title('gamma/vega/cumulative pnls')
+        plt.legend()
+        # plt.show()
 
-    # # plotting greeks with pnl
-    # plt.figure()
-    # # plt.plot(xvals, net_cumul_values, c='k',
-    # #          alpha=0.8, label='net cumulative pnl')
-    # plt.plot(log.value_date, log.net_delta, c='y', alpha=0.8, label='delta')
-    # plt.plot(log.value_date, log.net_gamma, c='g', alpha=0.8, label='gamma')
-    # plt.plot(log.value_date, log.net_theta, c='b', alpha=0.8, label='theta')
-    # plt.plot(log.value_date, log.net_vega, c='r', alpha=0.8, label='vega')
-    # # plt.plot(log.value_date, log.cu_pnl_net, c='k',
-    # #          alpha=0.6, label='cumulative pnl')
-    # plt.legend()
-    # plt.title('Greeks over simulation period')
-    # # plt.show()
+        # # net values
+        # plt.figure()
+        # # colors = ['c' if x >= 0 else 'r' for x in gamma_pnl_daily]
+        # plt.plot(log.value_date, log.eod_gamma_pnl, color='c',
+        #          alpha=0.6, label='eod gamma pnl')
+        # plt.plot(log.value_date, log.eod_vega_pnl,
+        #          color='m', alpha=0.6, label='eod vega pnl')
+        # plt.plot(log.value_date, log.eod_pnl_gross, color='k',
+        #          alpha=0.8, label='eod pnl')
+        # plt.title('gamma/vega/daily eod pnls')
+        # plt.legend()
+        # # plt.show()
 
-    # if signals is not None:
-    #     print('signals not none, proceeding to additional plots.')
-    #     plt.figure()
-    #     # y = (log.cu_pnl_net - np.mean(log.cu_pnl_net)) / \
-    #     #     (log.cu_pnl_net.max() - log.cu_pnl_net.min())
+        # # plotting greeks with pnl
+        # plt.figure()
+        # # plt.plot(xvals, net_cumul_values, c='k',
+        # #          alpha=0.8, label='net cumulative pnl')
+        # plt.plot(log.value_date, log.net_delta, c='y', alpha=0.8, label='delta')
+        # plt.plot(log.value_date, log.net_gamma, c='g', alpha=0.8, label='gamma')
+        # plt.plot(log.value_date, log.net_theta, c='b', alpha=0.8, label='theta')
+        # plt.plot(log.value_date, log.net_vega, c='r', alpha=0.8, label='vega')
+        # # plt.plot(log.value_date, log.cu_pnl_net, c='k',
+        # #          alpha=0.6, label='cumulative pnl')
+        # plt.legend()
+        # plt.title('Greeks over simulation period')
+        # # plt.show()
 
-    #     # y1 = log['dval_call_vol_change'] - log['dval_put_vol_change']
-    #     unique_log = log.drop_duplicates(subset='value_date')
+        # if signals is not None:
+        #     print('signals not none, proceeding to additional plots.')
+        #     plt.figure()
+        #     # y = (log.cu_pnl_net - np.mean(log.cu_pnl_net)) / \
+        #     #     (log.cu_pnl_net.max() - log.cu_pnl_net.min())
 
-    #     settle_vals = unique_log.settle_value
-    #     callvols = unique_log.call_vol
-    #     putvols = unique_log.put_vol
-    #     callvols *= 100
-    #     callvolchange = (callvols.shift(-1) - callvols).shift(1).fillna(0)
-    #     putvols *= 100
-    #     putvolchange = (putvols.shift(-1) - putvols).shift(1).fillna(0)
-    #     dates = unique_log.value_date
+        #     # y1 = log['dval_call_vol_change'] - log['dval_put_vol_change']
+        #     unique_log = log.drop_duplicates(subset='value_date')
 
-    #     spotchange = (settle_vals.shift(-1) - settle_vals).shift(1).fillna(0)
+        #     settle_vals = unique_log.settle_value
+        #     callvols = unique_log.call_vol
+        #     putvols = unique_log.put_vol
+        #     callvols *= 100
+        #     callvolchange = (callvols.shift(-1) - callvols).shift(1).fillna(0)
+        #     putvols *= 100
+        #     putvolchange = (putvols.shift(-1) - putvols).shift(1).fillna(0)
+        #     dates = unique_log.value_date
 
-    #     plt.plot(dates, spotchange, c='k',
-    #              alpha=0.8, label='spot change')
+        #     spotchange = (settle_vals.shift(-1) - settle_vals).shift(1).fillna(0)
 
-    #     plt.plot(dates, callvolchange,
-    #              c='c', alpha=0.7, label='call_vol change')
+        #     plt.plot(dates, spotchange, c='k',
+        #              alpha=0.8, label='spot change')
 
-    #     plt.plot(dates, putvolchange,
-    #              c='r', alpha=0.7, label='put_vol change')
+        #     plt.plot(dates, callvolchange,
+        #              c='c', alpha=0.7, label='call_vol change')
 
-    #     plt.title('Spot Price, call_vol and put_vol changes')
-    #     plt.legend()
+        #     plt.plot(dates, putvolchange,
+        #              c='r', alpha=0.7, label='put_vol change')
 
-    plt.show()
+        #     plt.title('Spot Price, call_vol and put_vol changes')
+        #     plt.legend()
+
+        plt.show()
 
     # preparing the log file for analytics.
     # analytics_csv = log.drop_duplicates('eod_pnl_gross')
@@ -883,9 +883,15 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
     bar_op = copy.deepcopy(op)
     # create vanilla option with the same stats as the barrier option AFTER
     # knockin.
-    vanop = Option(op.K, op.tau, op.char, op.vol, copy.deepcopy(op.underlying),
-                   op.payoff, op.shorted, op.month, lots=op.lots, ordering=op.ordering,
-                   bullet=op.bullet)
+
+    volid = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
+    vanop = create_vanilla_option(vdf, pdf, volid, op.char, op.shorted,
+                                  lots=op.lots, vol=op.vol, strike=op.K,
+                                  bullet=op.bullet)
+
+    # vanop = Option(op.K, op.tau, op.char, op.vol, copy.deepcopy(op.underlying),
+    #                op.payoff, op.shorted, op.month, lots=op.lots, ordering=op.ordering,
+    #                bullet=op.bullet)
 
     # case 1: knockin case - option is not currently knocked in.
     if op.ki is not None:
@@ -1290,7 +1296,7 @@ def rebalance(vdf, pdf, pf, buckets=None, brokerage=None, slippage=None):
         print('-------- ROLL HEDGING REQUIRED ---------')
 
         pf, exp = hedge_delta_roll(
-            pf, pdf, brokerage=brokerage, slippage=slippage)
+            pf, vdf, pdf, brokerage=brokerage, slippage=slippage)
         cost += exp
         print('-------- ROLL HEDGING COMPLETED ---------')
 
@@ -1395,7 +1401,7 @@ def rebalance(vdf, pdf, pf, buckets=None, brokerage=None, slippage=None):
     return (pf,  cost, droll)
 
 
-def hedge_delta_roll(fpf, pdf, brokerage=None, slippage=None):
+def hedge_delta_roll(fpf, vdf, pdf, brokerage=None, slippage=None):
     """Rolls delta of the option back to a value specified in hedge dictionary if op.delta 
     exceeds certain bounds.
 
@@ -1416,14 +1422,14 @@ def hedge_delta_roll(fpf, pdf, brokerage=None, slippage=None):
 
     if not fpf.get_families():
         print('--- delta rolls: simple portfolio case ---')
-        return hedge_delta_roll_simple(fpf, pdf, brokerage=brokerage, slippage=slippage)
+        return hedge_delta_roll_simple(fpf, vdf, pdf, brokerage=brokerage, slippage=slippage)
 
     else:
         print(' --- delta rolls: composite case ---')
-        return hedge_delta_roll_comp(fpf, pdf, brokerage=brokerage, slippage=slippage)
+        return hedge_delta_roll_comp(fpf, vdf, pdf, brokerage=brokerage, slippage=slippage)
 
 
-def hedge_delta_roll_simple(pf, pdf, brokerage=None, slippage=None):
+def hedge_delta_roll_simple(pf, vdf, pdf, brokerage=None, slippage=None):
     """Rolls delta of the option back to a value specified in hedge dictionary if op.delta exceeds certain bounds.
     Args:
         pf (object): Portfolio being hedged
@@ -1448,8 +1454,9 @@ def hedge_delta_roll_simple(pf, pdf, brokerage=None, slippage=None):
         roll_val, bounds = roll_cond[1], np.array(roll_cond[3]) / 100
     else:
         # case: no roll conditions found.
-        print('no roll conditions found for family ' + str(pf.name))
+        print('no roll conditions found for family')
         return pf, 0
+
     roll_val, bounds = roll_cond[1], np.array(roll_cond[3]) / 100
 
     toberemoved = []
@@ -1472,14 +1479,14 @@ def hedge_delta_roll_simple(pf, pdf, brokerage=None, slippage=None):
             # if delta > bounds[1] or delta < bounds[0]:
             print('rolling delta: ', op.get_product(),
                   op.char, round(abs(op.delta / op.lots), 2))
-            newop, old_op, rcost = delta_roll(pf, op, roll_val, pdf, flag,
+            newop, old_op, rcost = delta_roll(pf, op, roll_val, vdf, pdf, flag,
                                               slippage=slippage, brokerage=brokerage)
             toberemoved.append(old_op)
             composites.append(newop)
             cost += rcost
             # if rolling option, roll all partners as well.
             for opx in op.partners:
-                new_opx, old_opx, rcost = delta_roll(pf, opx, roll_val, pdf, flag,
+                new_opx, old_opx, rcost = delta_roll(pf, opx, roll_val, vdf, pdf, flag,
                                                      slippage=slippage, brokerage=brokerage)
                 composites.append(new_opx)
                 toberemoved.append(old_opx)
@@ -1494,7 +1501,7 @@ def hedge_delta_roll_simple(pf, pdf, brokerage=None, slippage=None):
     return pf, cost
 
 
-def hedge_delta_roll_comp(fpf, pdf, brokerage=None, slippage=None):
+def hedge_delta_roll_comp(fpf, vdf, pdf, brokerage=None, slippage=None):
     """Helper function that handles delta hedge rolling for portfolios consisting
     of multiple families. 
 
@@ -1513,7 +1520,7 @@ def hedge_delta_roll_comp(fpf, pdf, brokerage=None, slippage=None):
     cost = 0
     processed = {}
     for pf in fpf.get_families():
-        print(' --- handling rolling for family ' + str(pf.name) + ' ---')
+        # print(' --- handling rolling for family ' + str(pf.name) + ' ---')
         # initial sanity checks.
         if pf not in processed:
             processed[pf] = []
@@ -1521,7 +1528,7 @@ def hedge_delta_roll_comp(fpf, pdf, brokerage=None, slippage=None):
             # TODO: figure out what happens with hedge options.
             # case: number of options processed = number of relevant options.
             if len(processed[pf]) == len(pf.get_all_options()):
-                print(' --- finished rolling for family ' + str(pf.name) + ' ---')
+                # print(' --- finished rolling for family ' + str(pf.name) + ' ---')
                 continue
 
         # grab list of processed options for this portfolio.
@@ -1537,7 +1544,7 @@ def hedge_delta_roll_comp(fpf, pdf, brokerage=None, slippage=None):
             roll_val, bounds = roll_cond[1], np.array(roll_cond[3]) / 100
         else:
             # case: no roll conditions found.
-            print('no roll conditions found for family ' + str(pf.name))
+            # print('no roll conditions found for family ' + str(pf.name))
             continue
 
         # starting of per-option rolling logic.
@@ -1556,7 +1563,7 @@ def hedge_delta_roll_comp(fpf, pdf, brokerage=None, slippage=None):
                 # if delta > bounds[1] or delta < bounds[0]:
                 print('rolling delta: ', op.get_product(),
                       op.char, round(abs(op.delta / op.lots), 2))
-                newop, old_op, rcost = delta_roll(pf, op, roll_val, pdf, flag,
+                newop, old_op, rcost = delta_roll(pf, op, roll_val, vdf, pdf, flag,
                                                   slippage=slippage, brokerage=brokerage)
                 processed_ops.append(old_op)
                 composites.append(newop)
@@ -1573,7 +1580,7 @@ def hedge_delta_roll_comp(fpf, pdf, brokerage=None, slippage=None):
                         raise ValueError(str(opx) + ' belongs to a \
                                             non-existent family.')
 
-                    new_opx, old_opx, rcost = delta_roll(tar, opx, roll_val, pdf, flag,
+                    new_opx, old_opx, rcost = delta_roll(tar, opx, roll_val, vdf, pdf, flag,
                                                          slippage=slippage, brokerage=brokerage)
                     composites.append(new_opx)
                     if tar not in processed:
@@ -1582,18 +1589,18 @@ def hedge_delta_roll_comp(fpf, pdf, brokerage=None, slippage=None):
                     cost += rcost
                 composites = create_composites(composites)
             else:
-                print('family ' + pf.name + ' is within bounds. skipping...')
+                print('family is within bounds. skipping...')
 
-    print(' --- finished delta rolling for family ' + str(pf.name) + ' ---')
+    # print(' --- finished delta rolling for family ' + str(pf.name) + ' ---')
     for x in processed:
-        print('ops delta-rolled belonging to ' + x.name + ':')
+        # print('ops delta-rolled belonging to ' + x.name + ':')
         print([str(i) for i in processed[x]])
 
     fpf.refresh()
     return fpf, cost
 
 
-def delta_roll(pf, op, roll_val, pdf, flag, slippage=None, brokerage=None):
+def delta_roll(pf, op, roll_val, vdf, pdf, flag, slippage=None, brokerage=None):
     """Helper function that deals with delta-rolling options.
 
     Args:
@@ -1607,30 +1614,19 @@ def delta_roll(pf, op, roll_val, pdf, flag, slippage=None, brokerage=None):
     """
     # print('delta not in bounds: ', op, abs(op.delta) / op.lots)
 
-    print('handling ' + str(op) + ' from family ' + pf.name)
+    # print('handling ' + str(op) + ' from family ' + pf.name)
     print('family rolling conds: ', pf.hedge_params['delta'])
 
     cost = 0
-    cpi = 'C' if op.char == 'call' else 'P'
-    # get the vol from the vol_by_delta part of pdf
-    col = str(int(roll_val)) + 'd'
-    try:
-        vid = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
-        vol = pdf.loc[(pdf.call_put_id == cpi) &
-                      (pdf.vol_id == vid), col].values[0]
-        # print('vol found')
-    except IndexError:
-        print('[ERROR] hedge_delta_roll: vol not found. Inputs: ', cpi, vid)
-        vol = op.vol
 
-    strike = compute_strike_from_delta(
-        op, delta1=roll_val / 100, vol=vol)
-    # print('roll_hedging - newop tau: ', op.tau)
-    newop = Option(strike, op.tau, op.char, vol, op.underlying,
-                   op.payoff, op.shorted, op.month, direc=op.direc,
-                   barrier=op.barrier, lots=op.lots, bullet=op.bullet,
-                   ki=op.ki, ko=op.ko, rebate=op.rebate,
-                   ordering=op.ordering, settlement=op.settlement)
+    vol_id = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
+    newop = create_vanilla_option(vdf, pdf, vol_id, op.char, op.shorted,
+                                  lots=op.lots, delta=roll_val)
+    # newop = Option(strike, op.tau, op.char, vol, op.underlying,
+    #                op.payoff, op.shorted, op.month, direc=op.direc,
+    #                barrier=op.barrier, lots=op.lots, bullet=op.bullet,
+    #                ki=op.ki, ko=op.ko, rebate=op.rebate,
+    #                ordering=op.ordering, settlement=op.settlement)
 
     # handle expenses: brokerage and old op price - new op price
 
@@ -1723,150 +1719,152 @@ def check_roll_status(pf):
 # functions in an external scripts, global vars is not intrisically
 # relevant, but can be used to specify filepaths which are then called.
 
-if __name__ == '__main__':
+# if __name__ == '__main__':
 
-    #################### initializing default params ###################
+#     #################### initializing default params ###################
 
-    # fix portfolio start date #
-    start_date = gv.start_date
-    # filepath to portfolio specs. #
-    specpath = gv.portfolio_path
-    # fix end date of simulation #
-    end_date = gv.end_date
-    # path to hedging conditions #
-    hedge_path = gv.hedge_path
-    # final paths to datasets #
-    volpath, pricepath, exppath, sigpath = gv.final_paths
-    # raw paths
-    epath = gv.raw_exp_path
+#     # fix portfolio start date #
+#     start_date = gv.start_date
+#     # filepath to portfolio specs. #
+#     specpath = gv.portfolio_path
+#     # fix end date of simulation #
+#     end_date = gv.end_date
+#     # path to hedging conditions #
+#     hedge_path = gv.hedge_path
+#     # final paths to datasets #
+#     volpath, pricepath, exppath, sigpath = gv.final_paths
+#     # raw paths
+#     epath = gv.raw_exp_path
 
-    ####################################################################
+#     ####################################################################
 
-    print('--------------------------------------------------------')
-    print('DEFAULT PARAMETERS INITIALIZED. READING IN DATA... [1/7]')
-    ##########################################################################
+#     print('--------------------------------------------------------')
+#     print('DEFAULT PARAMETERS INITIALIZED. READING IN DATA... [1/7]')
+#     ##########################################################################
 
-    t = time.clock()
+#     t = time.clock()
 
-    writeflag = 'small' if 'small' in volpath else 'full'
-    print('writeflag: ', writeflag)
+#     writeflag = 'small' if 'small' in volpath else 'full'
+#     print('writeflag: ', writeflag)
 
-    # printing existence of the paths
-    print('vol: ', os.path.exists(volpath))
-    print('price: ', os.path.exists(pricepath))
-    print('exp: ', os.path.exists(exppath))
-    # print('roll: ', os.path.exists(rollpath))
+#     # printing existence of the paths
+#     print('vol: ', os.path.exists(volpath))
+#     print('price: ', os.path.exists(pricepath))
+#     print('exp: ', os.path.exists(exppath))
+#     # print('roll: ', os.path.exists(rollpath))
 
-    # error check in case signals are not being used this sim
-    signals = None if sigpath is None else pd.read_csv(sigpath)
-    if signals is not None:
-        signals.value_date = pd.to_datetime(signals.value_date)
+#     # error check in case signals are not being used this sim
+#     signals = None if sigpath is None else pd.read_csv(sigpath)
+#     if signals is not None:
+#         signals.value_date = pd.to_datetime(signals.value_date)
 
-    # if data exists/has been prepared/saved, reads it in.
-    if os.path.exists(volpath) and os.path.exists(pricepath)\
-            and os.path.exists(exppath):
-            # and os.path.exists(rollpath):
-        print('--------------------------------------------------------')
-        print('DATA EXISTS. READING IN... [2/7]')
-        print('datasets listed below: ')
-        print('voldata : ', volpath)
-        print('pricepath: ', pricepath)
-        print('exppath: ', exppath)
-        # print('rollpath: ', rollpath)
+#     # if data exists/has been prepared/saved, reads it in.
+#     if os.path.exists(volpath) and os.path.exists(pricepath)\
+#             and os.path.exists(exppath):
+#             # and os.path.exists(rollpath):
+#         print('--------------------------------------------------------')
+#         print('DATA EXISTS. READING IN... [2/7]')
+#         print('datasets listed below: ')
+#         print('voldata : ', volpath)
+#         print('pricepath: ', pricepath)
+#         print('exppath: ', exppath)
+#         # print('rollpath: ', rollpath)
 
-        vdf, pdf, edf = pd.read_csv(volpath), pd.read_csv(
-            pricepath), pd.read_csv(exppath)
-        # rolldf = pd.read_csv(rollpath)
-        if signals is not None:
-            print('sigpath: ', sigpath)
+#         vdf, pdf, edf = pd.read_csv(volpath), pd.read_csv(
+#             pricepath), pd.read_csv(exppath)
+#         # rolldf = pd.read_csv(rollpath)
+#         if signals is not None:
+#             print('sigpath: ', sigpath)
 
-        print('--------------------------------------------------------')
+#         print('--------------------------------------------------------')
 
-        # sorting out date types
-        vdf.value_date = pd.to_datetime(vdf.value_date)
-        pdf.value_date = pd.to_datetime(pdf.value_date)
-        edf.expiry_date = pd.to_datetime(edf.expiry_date)
+#         # sorting out date types
+#         vdf.value_date = pd.to_datetime(vdf.value_date)
+#         pdf.value_date = pd.to_datetime(pdf.value_date)
+#         edf.expiry_date = pd.to_datetime(edf.expiry_date)
 
-        vdf, pdf, edf, roll_df, start_date = prep_datasets(
-            vdf, pdf, edf, start_date, end_date, gv.pdt, signals=signals, test=False, write=True)
+#         vdf, pdf, edf, roll_df, start_date = prep_datasets(
+# vdf, pdf, edf, start_date, end_date, gv.pdt, signals=signals,
+# test=False, write=True)
 
-    # if data does not exist as specified, reads in the relevant data.
-    else:
-        print('--------------------------------------------------------')
-        print('current_dir: ', os.getcwd())
-        print('DATA NOT FOUND. PREPARING... [2/7]')
+#     # if data does not exist as specified, reads in the relevant data.
+#     else:
+#         print('--------------------------------------------------------')
+#         print('current_dir: ', os.getcwd())
+#         print('DATA NOT FOUND. PREPARING... [2/7]')
 
-        print('paths inputted: ')
-        print('voldata : ', volpath)
-        print('pricepath: ', pricepath)
-        print('exppath: ', exppath)
-        print('--------------------------------------------------------')
+#         print('paths inputted: ')
+#         print('voldata : ', volpath)
+#         print('pricepath: ', pricepath)
+#         print('exppath: ', exppath)
+#         print('--------------------------------------------------------')
 
-        if sigpath:
-            signals = pd.read_csv(sigpath)
-            signals.value_date = pd.to_datetime(signals.value_date)
-        else:
-            signals = None
+#         if sigpath:
+#             signals = pd.read_csv(sigpath)
+#             signals.value_date = pd.to_datetime(signals.value_date)
+#         else:
+#             signals = None
 
-        vdf, pdf, raw_data = pull_alt_data(gv.pdt)
-        edf = pd.read_csv(epath)
-        edf.expiry_date = pd.to_datetime(edf.expiry_date)
+#         vdf, pdf, raw_data = pull_alt_data(gv.pdt)
+#         edf = pd.read_csv(epath)
+#         edf.expiry_date = pd.to_datetime(edf.expiry_date)
 
-        vdf, pdf, edf, rolldf, alt_start_date = prep_datasets(
-            vdf, pdf, edf, start_date, end_date, gv.pdt, signals=signals, test=False, write=True)
+#         vdf, pdf, edf, rolldf, alt_start_date = prep_datasets(
+# vdf, pdf, edf, start_date, end_date, gv.pdt, signals=signals,
+# test=False, write=True)
 
-        # vdf, pdf, edf, rolldf = read_data(
-        # epath, specpath, signals=signals, test=False,  writeflag=writeflag,
-        # start_date=start_date, end_date=end_date)
+#         # vdf, pdf, edf, rolldf = read_data(
+#         # epath, specpath, signals=signals, test=False,  writeflag=writeflag,
+#         # start_date=start_date, end_date=end_date)
 
-    print('DATA READ-IN COMPLETE. SANITY CHECKING... [3/7]')
-    print('READ-IN RUNTIME: ', time.clock() - t)
+#     print('DATA READ-IN COMPLETE. SANITY CHECKING... [3/7]')
+#     print('READ-IN RUNTIME: ', time.clock() - t)
 
-    ######################### check sanity of data ###########################
+#     ######################### check sanity of data #####################
 
-    # handle data types.
-    vdates = pd.to_datetime(sorted(vdf.value_date.unique()))
-    pdates = pd.to_datetime(sorted(pdf.value_date.unique()))
-    if signals is not None:
-        sig_dates = pd.to_datetime(sorted(signals.value_date.unique()))
+#     # handle data types.
+#     vdates = pd.to_datetime(sorted(vdf.value_date.unique()))
+#     pdates = pd.to_datetime(sorted(pdf.value_date.unique()))
+#     if signals is not None:
+#         sig_dates = pd.to_datetime(sorted(signals.value_date.unique()))
 
-    # check to see that date ranges are equivalent for both price and vol data
-    sanity_check(vdates, pdates, start_date, end_date, signals=signals)
+#     # check to see that date ranges are equivalent for both price and vol data
+#     sanity_check(vdates, pdates, start_date, end_date, signals=signals)
 
-    print('--------------------------------------------------------')
-    print('SANITY CHECKING COMPLETE. PREPPING PORTFOLIO... [4/7]')
-    ##########################################################################
+#     print('--------------------------------------------------------')
+#     print('SANITY CHECKING COMPLETE. PREPPING PORTFOLIO... [4/7]')
+#     ##########################################################################
 
-    # TODO: change this completely.
-    # generate portfolio #
-    pf, _ = prep_portfolio(vdf, pdf, filepath=specpath)
+#     # TODO: change this completely.
+#     # generate portfolio #
+#     pf, _ = prep_portfolio(vdf, pdf, filepath=specpath)
 
-    print('--------------------------------------------------------')
-    print('PORTFOLIO PREPARED. GENERATING HEDGES... [5/7]')
+#     print('--------------------------------------------------------')
+#     print('PORTFOLIO PREPARED. GENERATING HEDGES... [5/7]')
 
-    # TODO: need to find a new use for this.
-    # generate hedges #
-    hedges, roll_portfolio, pf_ttm_tol, pf_roll_product, \
-        roll_hedges, h_ttm_tol, h_roll_product = generate_hedges(hedge_path)
+#     # TODO: need to find a new use for this.
+#     # generate hedges #
+#     hedges, roll_portfolio, pf_ttm_tol, pf_roll_product, \
+#         roll_hedges, h_ttm_tol, h_roll_product = generate_hedges(hedge_path)
 
-    e1 = time.clock() - t
-    print('TOTAL PREP TIME: ', e1)
+#     e1 = time.clock() - t
+#     print('TOTAL PREP TIME: ', e1)
 
-    ###############################################################
-    # print statements for informational purposes #
-    print('START DATE: ', start_date)
-    print('END DATE: ', end_date)
-    print('Portfolio: ', pf)
-    print('NUM OPS: ', len(pf.OTC_options))
-    print('Hedge Conditions: ', hedges)
-    print('Brokerage: ', gv.brokerage)
-    print('Slippage: ', gv.slippage)
-    print('--------------------------------------------------------')
-    print('HEDGES GENERATED. RUNNING SIMULATION... [6/7]')
+#     ###############################################################
+#     # print statements for informational purposes #
+#     print('START DATE: ', start_date)
+#     print('END DATE: ', end_date)
+#     print('Portfolio: ', pf)
+#     print('NUM OPS: ', len(pf.OTC_options))
+#     print('Hedge Conditions: ', hedges)
+#     print('Brokerage: ', gv.brokerage)
+#     print('Slippage: ', gv.slippage)
+#     print('--------------------------------------------------------')
+#     print('HEDGES GENERATED. RUNNING SIMULATION... [6/7]')
 
-    # # run simulation #
-    log = run_simulation(vdf, pdf, edf, pf,
-                         brokerage=gv.brokerage, slippage=gv.slippage, signals=signals)
+#     # # run simulation #
+#     log = run_simulation(vdf, pdf, edf, pf,
+# brokerage=gv.brokerage, slippage=gv.slippage, signals=signals)
 
 
 ##########################################################################

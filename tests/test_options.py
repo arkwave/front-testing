@@ -486,3 +486,11 @@ def test_strike_type():
     ft2.update_price(30)
     op.update()
     assert op.get_strike_type() == 'putstrike'
+
+
+def test_composities():
+    pass
+
+
+def test_diff_underlying():
+    pass
