@@ -1060,14 +1060,20 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 > [Done] adapt grab_data to default to SQL query rather than dumps so that directory is not at all relevant. 
 > [Done] figure out how to clear grid of labels when deselecting. 
 > [Done] Figure out import issue. 
+
+
+
+
 > [Done] Tickbox for writing text log. 
 > [Done] Writing log to csv. 
 > [Done] Plotting functionality in plotly. 
 
 
+> [Done] Visualize vol curve button/functionality. 
+> [Done] button option to keep vols/price constant.
+	> [Done] add in to simulation as well.  
 
-
-
+> [Done] Sumit's visualization requirements 
 
 > Updating test suite. (Issue 1)
 	- [Done] Portfolio
@@ -1075,6 +1081,9 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 	- Simulation
 	- Hedge 
 	- Util
+
+
+
 
 
 
@@ -1113,10 +1122,11 @@ BIG TODO:
 > related: implement a future signals thing.
 
 > Legacy TODOs:
-	1) closing out deltas in the case of exercise. 
-	2) proper computation of gamma/vega pnl (double check just to make sure this is absolutely right. )
+	1) [Done] closing out deltas in the case of exercise. 
+	2) [Done] proper computation of gamma/vega pnl (double check just to make 	
+	   sure this is absolutely right. )
 	3) proper conceptualizing of slippage, aside from flat-value. bring all in line to this. 
-	4) Prep_portfolio needs to be completely re-imagined to account for both families and composites. 
+	4) [Might not be needed] Prep_portfolio needs to be completely re-imagined to account for both families and composites. 
 
 
 > breakeven-based delta hedging on settlements. 
