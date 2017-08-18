@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-17 14:31:49
+# @Last Modified time: 2017-08-18 16:24:26
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -35,7 +35,7 @@ contract_mths = {
 }
 
 
-def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False):
+def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False, direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/'):
     """Utility function that draws/cleans data from the alternate data table.
 
     Args:
@@ -137,11 +137,11 @@ def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False):
     vdf.reset_index(drop=True, inplace=True)
 
     if write_dump:
-        if not os.path.isdir('datasets/data_dump'):
-            os.mkdir('datasets/data_dump')
-        vdf.to_csv('datasets/data_dump/' + pdt.lower() +
+        if not os.path.isdir(direc + 'datasets/data_dump'):
+            os.mkdir(direc + 'datasets/data_dump')
+        vdf.to_csv(direc + 'datasets/data_dump/' + pdt.lower() +
                    '_vol_dump.csv', index=False)
-        pdf.to_csv('datasets/data_dump/' + pdt.lower() +
+        pdf.to_csv(direc + 'datasets/data_dump/' + pdt.lower() +
                    '_price_dump.csv', index=False)
 
     return vdf, pdf, df
@@ -224,7 +224,7 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
     final_price = pdf
 
     # final preprocessing steps
-    final_price = ciprice(pdf)
+    # final_price = ciprice(pdf)
     # print('final price: ', final_price)
     # final_vol = civols(vdf, final_price)
 
@@ -362,11 +362,12 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
                 print('dumps dont exist, pulling raw data')
                 if write_dump:
                     print('pulling and saving dumps')
-                    vdf, pdf, raw_df = pull_alt_data(pdt, write_dump=True)
+                    vdf, pdf, raw_df = pull_alt_data(
+                        pdt, write_dump=True, direc=direc)
                 else:
                     print('pulling relevant data; not saving dumps')
                     vdf, pdf, raw_df = pull_alt_data(
-                        pdt, start_date, end_date, write_dump=False)
+                        pdt, start_date, end_date, write_dump=False, direc=direc)
             else:
                 print('dumps exist, reading in')
                 vdf = pd.read_csv(volpath)

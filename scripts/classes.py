@@ -408,7 +408,7 @@ class Option:
 
     def check_expired(self):
         ret = True if (np.isclose(self.tau, 0) or self.tau <=
-                       0 or self.ordering <= 0) else False
+                       0) else False
         self.expired = ret
         return ret
 

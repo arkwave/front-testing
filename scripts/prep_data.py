@@ -586,6 +586,7 @@ def ciprice(pricedata, rollover='opex'):
         for product in products:
             df = pricedata[pricedata.pdt == product]
             # lst = contract_mths[product]
+            assert not df.empty
             most_recent = []
             by_date = None
             try:
@@ -741,14 +742,17 @@ def vol_by_delta(voldata, pricedata):
 
                     dic = dict(zip(delta_labels, vols))
                     # adding the relevant values from the indexing dataframe
+
                     dic['pdt'] = pdt
                     dic['vol_id'] = vid
                     dic['value_date'] = date
                     dic['call_put_id'] = ind
+                    dic['minval'] = df.delta.values.min()
+                    dic['maxval'] = df.delta.values.max()
                     dlist.append(dic)
 
     vbd = pd.DataFrame(dlist, columns=delta_labels.extend([
-                       'pdt', 'vol_id', 'value_date', 'call_put_id']))
+                       'pdt', 'vol_id', 'value_date', 'call_put_id', 'minval', 'maxval']))
 
     vbd = pd.merge(vdf, vbd, on=['pdt', 'vol_id', 'value_date', 'call_put_id'])
 

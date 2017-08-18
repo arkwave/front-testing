@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-17 22:01:11
+# @Last Modified time: 2017-08-18 16:01:54
 
 ################################ imports ###################################
 
@@ -99,8 +99,8 @@ np.random.seed(seed)
 ############## Main Simulation Loop #################
 #####################################################
 
-def run_simulation(voldata, pricedata, expdata, pf, end_date=None,
-                   brokerage=None, slippage=None, signals=None,
+def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=False,
+                   end_date=None, brokerage=None, slippage=None, signals=None,
                    roll_portfolio=None, pf_ttm_tol=None, pf_roll_product=None,
                    roll_hedges=None, h_ttm_tol=None, h_roll_product=None, plot_results=True):
     """
@@ -261,7 +261,7 @@ def run_simulation(voldata, pricedata, expdata, pf, end_date=None,
     # Step 3: Feed data into the portfolio.
         pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
             = feed_data(vdf, pdf, pf, prev_date,
-                        init_val, brokerage=brokerage, slippage=slippage)
+                        init_val, brokerage=brokerage, slippage=slippage, flat_vols=flat_vols, flat_price=flat_price)
 
         # dailycost -= profit
         # print('cost after feed data: ', dailycost)
@@ -601,7 +601,7 @@ def run_simulation(voldata, pricedata, expdata, pf, end_date=None,
 ########################## Helper functions ##############################
 ##########################################################################
 
-def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None):
+def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None, flat_vols=False, flat_price=False):
     """
     This function does the following:
         1) Computes current value of portfolio.
@@ -655,14 +655,18 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
         for ft in pf.get_all_futures():
             pdt = ft.get_product()
             try:
-                uid = ft.get_product() + '  ' + ft.get_month()
-                val = pdf[(pdf.pdt == pdt) &
-                          (pdf.underlying_id == uid)].settle_value.values[0]
-                # print('UPDATED - new price: ', val)
-                pf, cost, fts = handle_barriers(
-                    voldf, pdf, ft, val, pf, date)
-                barrier_futures.extend(fts)
-                ft.update_price(val)
+                # case: flat price.
+                if flat_price:
+                    ft.update_price(ft.get_price())
+                else:
+                    uid = ft.get_product() + '  ' + ft.get_month()
+                    val = pdf[(pdf.pdt == pdt) &
+                              (pdf.underlying_id == uid)].settle_value.values[0]
+                    # print('UPDATED - new price: ', val)
+                    pf, cost, fts = handle_barriers(
+                        voldf, pdf, ft, val, pf, date)
+                    barrier_futures.extend(fts)
+                    ft.update_price(val)
 
             # index error would occur only if data is missing.
             except IndexError:
@@ -786,45 +790,51 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None
         # print('feed_data - ticksize: ', ticksize, op.get_product())
         strike = round(round(strike / ticksize) * ticksize, 2)
         vid = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
-        try:
-            val = voldf[(voldf.pdt == product) & (voldf.strike == strike) &
-                        (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
-            df_tau = min(val.tau, key=lambda x: abs(x - tau))
-            strike_vol = val[val.tau == df_tau].settle_vol.values[0]
-            # print('UPDATED - new vol: ', strike_vol)
-        except (IndexError, ValueError):
-            # print('### VOLATILITY DATA MISSING ###')
-            # print('product: ', product)
-            # print('strike: ', strike)
-            # print('order: ', order)
-            # print('vid: ', vid)
-            # print('call put id: ', cpi)
-            # print('tau: ', df_tau)
-            # broken = True
-            strike_vol = op.vol
-            # break
 
-        try:
-            if op.barrier is not None:
-                barlevel = op.ki if op.ki is not None else op.ko
-                b_val = voldf[(voldf.pdt == product) & (voldf.strike == barlevel) &
-                              (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
-                df_tau = min(b_val.tau, key=lambda x: abs(x - tau))
-                b_vol = val[val.tau == df_tau].settle_vol.values[0]
-                # print('UPDATED - new barrier vol: ', b_vol)
-        except (IndexError, ValueError):
-            # print('### BARRIER VOLATILITY DATA MISSING ###')
-            # print('product: ', product)
-            # print('strike: ', barlevel)
-            # print('order: ', order)
-            # print('vid: ', vid)
-            # print('call put id: ', cpi)
-            # print('tau: ', df_tau)
-            # broken = True
-            b_vol = op.bvol
-            # break
+        # case: flat vols.
+        if flat_vols:
+            op.update_greeks(vol=op.vol, bvol=op.bvol)
+        else:
+            try:
+                val = voldf[(voldf.pdt == product) & (voldf.strike == strike) &
+                            (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
+                df_tau = min(val.tau, key=lambda x: abs(x - tau))
+                strike_vol = val[val.tau == df_tau].settle_vol.values[0]
+                # print('UPDATED - new vol: ', strike_vol)
+            except (IndexError, ValueError):
+                # print('### VOLATILITY DATA MISSING ###')
+                # print('product: ', product)
+                # print('strike: ', strike)
+                # print('order: ', order)
+                # print('vid: ', vid)
+                # print('call put id: ', cpi)
+                # print('tau: ', df_tau)
+                # broken = True
+                strike_vol = op.vol
+                # break
 
-        op.update_greeks(vol=strike_vol, bvol=b_vol)
+            try:
+                if op.barrier is not None:
+                    barlevel = op.ki if op.ki is not None else op.ko
+                    b_val = voldf[(voldf.pdt == product) & (voldf.strike == barlevel) &
+                                  (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
+                    df_tau = min(b_val.tau, key=lambda x: abs(x - tau))
+                    b_vol = val[val.tau == df_tau].settle_vol.values[0]
+                    # print('UPDATED - new barrier vol: ', b_vol)
+            except (IndexError, ValueError):
+                # print('### BARRIER VOLATILITY DATA MISSING ###')
+                # print('product: ', product)
+                # print('strike: ', barlevel)
+                # print('order: ', order)
+                # print('vid: ', vid)
+                # print('call put id: ', cpi)
+                # print('tau: ', df_tau)
+                # broken = True
+                b_vol = op.bvol
+                # break
+
+            op.update_greeks(vol=strike_vol, bvol=b_vol)
+
     # (today's price, today's vol) - (today's price, yesterday's vol)
     vega_pnl = pf.compute_value() - intermediate_val \
         if (init_val != 0 and intermediate_val != 0) else 0
