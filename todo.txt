@@ -1062,8 +1062,6 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 > [Done] Figure out import issue. 
 
 
-
-
 > [Done] Tickbox for writing text log. 
 > [Done] Writing log to csv. 
 > [Done] Plotting functionality in plotly. 
@@ -1075,18 +1073,33 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 > [Done] Sumit's visualization requirements 
 
-> Updating test suite. (Issue 1)
+
+--------------------
+| As of 08/21/2017 |
+--------------------
+
+> [Done] Reconcile timestep before hedge with timestep after pnl calc
+
+> Updating test suite. (Issue 1) <<<<<<<<<<< Priority this week. 
 	- [Done] Portfolio
 	- Option
 	- Simulation
 	- Hedge 
 	- Util
 
+> Plotly visualization:
+	- same contract vol surface on two different days. 
+	- more descriptive statistics:
+		- drawdown
+		- labeling when the rolls happened (i.e. different color when log.delta_rolled) 
 
+> GUI Dev:
+	- integrate with Portfolio VAR Module. 
+	- need to fix/debug assign_ci / ciprice / civols. pretty badly. 
+	- get ordering back into place in HistoricSimulator as a variable. 
 
-
-
-
+> General Dev:
+	- drawdown requirement 0
 
 
 
@@ -1103,15 +1116,20 @@ TODO:
 	3) vol_ids if present. 
 	> dictionary mapping tuple of (sd, ed, pd, volids) -> (vdf, pdf) where sd = sd passed in. 
 
-> composites in simulator. 
+> composites in simulator that are NOT part of the same family. --> flag to mark these two options as composites. 
 
 
 >>> Implementation-Centric <<<
+
 > ISSUE: Testing suite is in bad need of an update:
 	1) hedge.py, fetch_data.py and util.py have no testing whatsoever. This needs to be remedied asap. 
 	2) Portfolio and Classes objects need updates. 
 	3) Calc is more or less fine, no major additions for a long time. 
 	4) prep_data/fetch_data need a serious overhaul; go through, see what code is required and what isn't, remove/move to code dump respectively. 
+
+
+> breakeven-based delta hedging on settlements. 
+
 
 > ISSUE: C1/C2 rather than a vol_id 
 
@@ -1119,19 +1137,18 @@ TODO:
 BIG TODO:
 	> adjusting signals to include family paradigm 
 
-> related: implement a future signals thing.
+	> related: implement a future signals thing.
+
+
+3) proper conceptualizing of slippage, aside from flat-value. bring all in line to this. 
+
+
+
 
 > Legacy TODOs:
 	1) [Done] closing out deltas in the case of exercise. 
 	2) [Done] proper computation of gamma/vega pnl (double check just to make 	
 	   sure this is absolutely right. )
-	3) proper conceptualizing of slippage, aside from flat-value. bring all in line to this. 
-	4) [Might not be needed] Prep_portfolio needs to be completely re-imagined to account for both families and composites. 
-
-
-> breakeven-based delta hedging on settlements. 
-
-> [On Hold] slippage and brokerage in handle_barriers (need to figure out in what form/manner this is actually required)
 
 
 >>> Cosmetic: <<<
