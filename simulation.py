@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-18 22:38:52
+# @Last Modified time: 2017-08-21 19:12:30
 
 ################################ imports ###################################
 
@@ -296,12 +296,21 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
                                  slippage=slippage,
                                  target_product=pf_roll_product, ttm_tol=pf_ttm_tol)
 
+    # Step 7: Timestep for rebalancing purposes.
+        num_days = 0 if next_date is None else (
+            pd.Timestamp(next_date) - pd.Timestamp(date)).days
+        pf.timestep(num_days * timestep)
+
     # Step 8: Hedge - bring greek levels across portfolios (and families) into
     # line with target levels.
         pf, cost, roll_hedged = rebalance(vdf, pdf, pf, brokerage=brokerage,
                                           slippage=slippage)
 
-    # Step 9: Subtract brokerage/slippage costs from rebalancing. Append to
+    # Step 9: timestep OTC options back to current day to initialize value for
+    # next loop.
+        pf.timestep(-num_days*timestep, allops=False)
+
+    # Step 10: Subtract brokerage/slippage costs from rebalancing. Append to
     # relevant lists.
 
         # gamma/vega pnls
@@ -328,17 +337,14 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         print('[10.6] Cumulative Gamma PNL: ', gammapnl)
         print('[10.7] Cumulative PNL (net): ', netpnl)
 
-    # Step 10: Initialize init_val to be used in the next loop.
+    # Step 11: Initialize init_val to be used in the next loop.
         init_val = pf.compute_value()
         print('[11]  EOD PORTFOLIO: ', pf)
 
-    # Step 7: Decrement timestep after all computation steps
-        # calculate number of days to step
-        num_days = 0 if next_date is None else (
-            pd.Timestamp(next_date) - pd.Timestamp(date)).days
+    # Step 12: timestep after all operations have been performed.
         pf.timestep(num_days * timestep)
 
-    # Step 11: Logging relevant output to csv
+    # Step 13: Logging relevant output to csv
     ##########################################################################
 
         # Portfolio-wide information

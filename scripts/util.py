@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-18 21:31:10
+# @Last Modified time: 2017-08-21 16:49:00
 
 
 from .portfolio import Portfolio
@@ -739,6 +739,10 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
     Deleted Parameters:
         ft (Future object): Future object underlying this straddle
     """
+
+    assert not vdf.empty
+    assert not pdf.empty
+
     pdt = volid.split()[0]
     char1, char2 = 'call', 'put'
     lm, dm = multipliers[pdt][1], multipliers[pdt][0]

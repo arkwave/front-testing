@@ -12,6 +12,7 @@ from scripts.util import create_straddle, combine_portfolios
 from scripts.fetch_data import grab_data
 from scripts.portfolio import Portfolio
 from scripts.classes import Option, Future
+from scripts.hedge import Hedge
 from collections import OrderedDict
 import copy
 import numpy as np
@@ -334,15 +335,7 @@ def test_ordering():
     new_ord = op.get_ordering()
     assert new_ord == 1
     pf.decrement_ordering('C', 1)
-    fin_ord = op.get_ordering()
-    assert fin_ord == 0
-    assert op.check_expired()
-    pf.remove_expired()
-    dic = pf.OTC
-    try:
-        assert len(dic) == 0
-    except AssertionError:
-        print('test_ordering: ', dic)
+    assert op.ordering == 0
 
 
 def test_compute_value():
@@ -460,7 +453,6 @@ def test_decrement_ordering():
     assert len(netgreeks) == 2
 
     pf.decrement_ordering('C', 1)
-    assert op2.expired
     assert op2.ordering == 0
     assert not op1.expired
     assert op1.ordering == 1
@@ -468,13 +460,6 @@ def test_decrement_ordering():
     # before removal; len should be the same.
     assert len(netgreeks) == 2
     # print(netgreeks['K7'])
-
-    pf.remove_expired()
-    fingreeks = pf.get_net_greeks()['C']
-    assert len(fingreeks) == 1
-
-    finotc = pf.OTC['C']
-    assert len(finotc) == 1
 
 
 def test_compute_ordering():
@@ -697,3 +682,38 @@ def test_get_volid_mappings():
 def test_get_unique_products():
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
     assert pf_comp.get_unique_products() == {'CC', 'QC'}
+
+
+def test_timestep():
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
+
+    # testing simple portfolio
+    pf = pf_simple
+    init_val = pf.compute_value()
+    init_netgreeks = pf.get_net_greeks()
+    # timestep
+    pf.timestep(1/365)
+    pf.timestep(-1/365)
+    newval = pf.compute_value()
+    new_netgreeks = pf.get_net_greeks().copy()
+    assert newval == init_val
+    assert init_netgreeks == new_netgreeks
+
+    # test composite portfolios.
+    init_val = pf_comp.compute_value()
+    init_netgreeks = pf_comp.get_net_greeks().copy()
+    # timestep
+    pf_comp.timestep(1/365)
+    pf_comp.timestep(-1/365)
+    newval = pf_comp.compute_value()
+    new_netgreeks = pf_comp.get_net_greeks().copy()
+    assert newval == init_val
+    assert init_netgreeks == new_netgreeks
+
+
+def test_timestep_rebalance():
+    from simulation import rebalance
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
+
+    # replicated the exact steps in simulation.
+    # first: test simple portfolio.

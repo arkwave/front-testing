@@ -780,8 +780,8 @@ class Portfolio:
         retr.extend(port_futures)
         return retr
 
-    def timestep(self, value):
-        all_options = self.get_all_options()
+    def timestep(self, value, allops=True):
+        all_options = self.get_all_options() if allops else self.OTC_options
         for option in all_options:
             option.update_tau(value)
 
