@@ -13,7 +13,7 @@ from scripts.classes import Option, Future
 from scripts.portfolio import Portfolio
 from scripts.prep_data import read_data, generate_hedges
 import scripts.global_vars as gv
-from simulation import hedge, hedge_delta_roll, check_roll_status, gen_hedge_inputs
+from scripts.simulation import hedge, hedge_delta_roll, check_roll_status, gen_hedge_inputs
 import numpy as np
 import pandas as pd
 import time

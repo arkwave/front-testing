@@ -288,13 +288,14 @@ def test_remove_expired_1():
     prev_net = copy.deepcopy(pf.get_net_greeks())
     pf.timestep(0.01)
     pf.remove_expired()
+    assert len(pf.OTC['C']) == 2
     curr_net = copy.deepcopy(pf.get_net_greeks())
     try:
         assert curr_net != prev_net
-        assert curr_net == init_net
     except AssertionError:
         print('rem_exp_1 curr: ', curr_net)
         print('rem_exp_1 prev: ', prev_net)
+        print('rem_exp_1 init: ', init_net)
     assert 'M7' not in pf.OTC['C']
     assert len(pf.OTC_options) == 3
 
@@ -385,8 +386,8 @@ def test_exercise_option():
 
     # add option
     ft = Future('M7', 50, 'C')
-    op1 = Option(
-        35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'Z7')
+    op1 = Option(35, 0.01, 'call', 0.4245569263291844,
+                 ft, 'amer', False, 'Z7')
     pf.add_security([op1], 'OTC')
 
     assert len(pf.OTC_options) == 4
@@ -403,8 +404,8 @@ def test_exercise_option():
 
 def test_price_vol_change():
     ft = Future('M7', 30, 'C')
-    op1 = Option(
-        35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'Z7')
+    op1 = Option(35, 0.01, 'call', 0.4245569263291844,
+                 ft, 'amer', False, 'Z7')
     pf = Portfolio(None)
     pf.add_security([op1], 'OTC')
     init_net = copy.deepcopy(pf.get_net_greeks())
@@ -428,11 +429,12 @@ def test_decrement_ordering():
     # assume current month is H. Contract mths are H K N U Z.
     ft = Future('N7', 30, 'C', ordering=2)
     # H7.M7 option
-    op1 = Option(
-        35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'H7', ordering=2)
+    op1 = Option(35, 0.01, 'call', 0.4245569263291844,
+                 ft, 'amer', False, 'H7', ordering=2)
     ft2 = Future('K7', 30, 'C', ordering=1)
     # H7.K7 option
-    op2 = Option(25, 0.01, 'put', 0.25, ft2, 'amer', False, 'H7', ordering=1)
+    op2 = Option(25, 0.01, 'put', 0.25, ft2,
+                 'amer', False, 'H7', ordering=1)
     # initial checks
     assert op1.get_ordering() == 2
     assert op2.get_ordering() == 1
@@ -466,8 +468,8 @@ def test_compute_ordering():
     # assume current month is H. Contract mths are H K N U Z.
     ft = Future('N7', 30, 'C', ordering=2)
     # H7.M7 option
-    op1 = Option(
-        35, 0.01, 'call', 0.4245569263291844, ft, 'amer', False, 'H7', ordering=ft.get_ordering())
+    op1 = Option(35, 0.01, 'call', 0.4245569263291844, ft, 'amer',
+                 False, 'H7', ordering=ft.get_ordering())
     ft2 = Future('K7', 30, 'C', ordering=1)
     # H7.K7 option
     op2 = Option(25, 0.01, 'put', 0.25, ft2, 'amer',
@@ -488,9 +490,9 @@ def test_compute_ordering():
 
 
 """ To be added:
-1) Testing families access etc. 
-2) Testing refresh. 
-3) Test family containing. 
+1) Testing families access etc.
+2) Testing refresh.
+3) Test family containing.
 """
 
 
@@ -535,7 +537,13 @@ def test_refresh():
     # checking that values are passed the right way during refresh.
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(False)
 
+    init_net = pf_comp.get_net_greeks()
+
     pf_comp.refresh()
+
+    post_refresh = pf_comp.get_net_greeks()
+
+    assert init_net != post_refresh
 
     pftest = Portfolio(None)
     pftest.add_security(ccops + qcops, 'OTC')
@@ -687,17 +695,33 @@ def test_get_unique_products():
 def test_timestep():
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
 
+    # print('pf.net_greeks: ', pf_simple.net_greeks)
+
     # testing simple portfolio
     pf = pf_simple
     init_val = pf.compute_value()
-    init_netgreeks = pf.get_net_greeks()
+    init_netgreeks = copy.deepcopy(pf.get_net_greeks())
+    # print('init_netgreeks: ', init_netgreeks)
     # timestep
     pf.timestep(1/365)
+    # pf.update_sec_by_month(None, 'OTC', update=True)
+    # pf.update_sec_by_month(None, 'hedge', update=True)
+
+    assert pf.net_greeks != init_netgreeks
+    assert pf.get_net_greeks() != init_netgreeks
+
     pf.timestep(-1/365)
+    # pf.update_sec_by_month(None, 'OTC', update=True)
+    # pf.update_sec_by_month(None, 'hedge', update=True)
+
     newval = pf.compute_value()
     new_netgreeks = pf.get_net_greeks().copy()
     assert newval == init_val
-    assert init_netgreeks == new_netgreeks
+    try:
+        assert init_netgreeks == new_netgreeks
+    except AssertionError:
+        print('init: ', init_netgreeks)
+        print('new: ', new_netgreeks)
 
     # test composite portfolios.
     init_val = pf_comp.compute_value()
@@ -711,9 +735,83 @@ def test_timestep():
     assert init_netgreeks == new_netgreeks
 
 
-def test_timestep_rebalance():
-    from simulation import rebalance
+def test_timestep_delta_hedging_simple():
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
 
     # replicated the exact steps in simulation.
     # first: test simple portfolio.
+    init_ttm = pf_simple.OTC_options[0].tau
+
+    relevant_vols = vdf[vdf.value_date == vdf.value_date.min()]
+    relevant_prices = pdf[pdf.value_date == pdf.value_date.min()]
+
+    hedge_engine = Hedge(pf_simple, pf_simple.hedge_params,
+                         relevant_vols, relevant_prices)
+
+    # time step before hedging delta.
+    pf = pf_simple
+    pf.timestep(1/365)
+    intermediate_ttm = pf.OTC_options[0].tau
+    fee = hedge_engine.apply('delta')
+    # reverse the timestep.
+    pf.timestep(-1/365, allops=False)
+
+    new_ttm = pf.OTC_options[0].tau
+
+    assert new_ttm == init_ttm
+    assert np.isclose(intermediate_ttm, new_ttm - 1/365)
+
+
+def test_timestep_delta_hedging_comp():
+
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
+
+    # replicated the exact steps in simulation.
+    # first: test simple portfolio.
+
+    pf = pf_comp
+
+    cc_init_ttm = ccops[0].tau
+    qc_init_ttm = qcops[0].tau
+
+    relevant_vols = vdf[vdf.value_date == vdf.value_date.min()]
+    relevant_prices = pdf[pdf.value_date == pdf.value_date.min()]
+
+    hedge_engine = Hedge(pf, pf.hedge_params,
+                         relevant_vols, relevant_prices)
+
+    # time step before hedging delta.
+    pf.timestep(1/365)
+
+    pf.refresh()
+
+    cc_intermediate_ttm = ccops[0].tau
+
+    # print('cc_intermediate: ', cc_intermediate_ttm)
+    qc_intermediate_ttm = qcops[0].tau
+
+    fee = hedge_engine.apply('delta')
+
+    pf.refresh()
+
+    cc_ttm = ccops[0].tau
+    qc_ttm = qcops[0].tau
+
+    # print('cc_intermediate post hedge: ', cc_ttm)
+    # ensure the refresh doesn't fuck with the ttm.
+    assert cc_ttm == cc_intermediate_ttm
+    assert qc_ttm == qc_intermediate_ttm
+
+    # reverse the timestep.
+    pf.timestep(-1/365, allops=False)
+
+    cc_new = ccops[0].tau
+    qc_new = qcops[0].tau
+
+    # print('cc_new: ', cc_new)
+
+    assert qc_new == qc_init_ttm
+    assert cc_new == cc_init_ttm
+
+    assert np.isclose(cc_intermediate_ttm, cc_new - 1/365)
+    assert np.isclose(qc_intermediate_ttm, qc_new - 1/365)

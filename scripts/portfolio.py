@@ -144,11 +144,12 @@ class Portfolio:
         return self.families
 
     def refresh(self):
-        self.update_by_family()
+        if not self.families:
+            self.update_sec_by_month(None, 'OTC', update=True)
+            self.update_sec_by_month(None, 'hedge', update=True)
+        else:
+            self.update_by_family()
         self.value = self.compute_value()
-        # self.update_sec_by_month(None, 'OTC', update=True)
-        # self.update_sec_by_month(None, 'hedge', update=True)
-        # self.compute_net_greeks()
 
     def update_by_family(self):
         from .util import combine_portfolios
@@ -419,7 +420,8 @@ class Portfolio:
 
         Outputs : Updates OTC, hedges and net_greeks dictionaries.
 
-        Notes: this method does 90% of all the heavy lifting in the portfolio class. Don't mess with this unless you know EXACTLY what each part is doing.
+        Notes: this method does 90% of all the heavy lifting in the portfolio 
+            class. Don't mess with this unless you know EXACTLY what each part is doing.
         '''
         if flag == 'OTC':
             dic = self.OTC
@@ -594,7 +596,9 @@ class Portfolio:
                 data[2] -= delta
 
     def compute_value(self):
-        """Computes the value of this portfolio by summing across all securities contained within. Current computation takes (value of OTC positions - value of hedge positions)
+        """Computes the value of this portfolio by summing across all securities 
+        contained within. Current computation takes 
+        (value of OTC positions - value of hedge positions)
 
         Returns:
             double: The value of this portfolio.
@@ -632,7 +636,9 @@ class Portfolio:
         return val
 
     def exercise_option(self, sec, flag):
-        """Exercises an option if it is in-the-money. This consist of removing an object object from the relevant dictionary (i.e. either OTC- or hedge-pos), and adding a future to the relevant dictionary. Documentation for 'moneyness' can be found in classes.py in the Options class.
+        """Exercises an option if it is in-the-money. This consist of removing an object object 
+        from the relevant dictionary (i.e. either OTC- or hedge-pos), and adding a future to the 
+        relevant dictionary. Documentation for 'moneyness' can be found in classes.py in the Options class.
 
         Args:
             sec (Option) : the options object to be exercised.
@@ -780,10 +786,18 @@ class Portfolio:
         retr.extend(port_futures)
         return retr
 
-    def timestep(self, value, allops=True):
-        all_options = self.get_all_options() if allops else self.OTC_options
+    def timestep(self, value, allops=True, ops=False):
+        if ops:
+            all_options = ops
+        else:
+            if allops:
+                all_options = self.get_all_options()
+            else:
+                all_options = self.OTC_options
         for option in all_options:
             option.update_tau(value)
+
+        self.refresh()
 
     def get_net_greeks(self):
         return self.net_greeks
@@ -854,7 +868,6 @@ class Portfolio:
                     if volid not in dic:
                         dic[volid] = []
                     dic[volid].append(op)
-                    # dic[volid] = []
 
         # now handle hedges
         for product in self.hedges:
@@ -865,7 +878,6 @@ class Portfolio:
                     if volid not in dic:
                         dic[volid] = []
                     dic[volid].append(op)
-                    # dic[volid] = []
 
         return dic
 
