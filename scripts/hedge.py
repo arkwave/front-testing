@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-11 19:56:44
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-08-21 15:03:03
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -610,6 +610,12 @@ class Hedge:
             elif flag == 'theta':
                 shorted = True if val > 0 else False
 
+        elif desc in ('call', 'put'):
+            if flag in ('gamma', 'vega'):
+                shorted = True if val < 0 else False
+            elif flag == 'theta':
+                shorted = True if val > 0 else False
+
         return shorted
 
     def add_hedges(self, data, shorted, hedge_id, flag, greekval, loc):
@@ -649,9 +655,33 @@ class Hedge:
                                       delta=[delta1, delta2], greek=flag, greekval=greekval)
                 print('added strangle: ' + str([str(op) for op in ops]))
 
-            elif data['kind'] == 'vanilla':
-                raise NotImplementedError(
-                    'hedging with vanilla options has not yet been implemented.')
+            elif data['kind'] == 'call':
+                dval, strike = None, None
+                if data['spectype'] == 'delta':
+                    dval = data['spec']
+
+                if data['spectype'] == 'strike':
+                    strike = data['spectype']
+
+                op = create_vanilla_option(self.vdf, self.pdf, hedge_id, 'call',
+                                           shorted, delta=dval, strike=strike, greek=flag, greekval=greekval)
+                ops = [op]
+                gv = greekval if not shorted else -greekval
+                print('added call with ' + str(gv) + ' ' + str(flag))
+
+            elif data['kind'] == 'put':
+                dval, strike = None, None
+                if data['spectype'] == 'delta':
+                    dval = data['spec']
+
+                if data['spectype'] == 'strike':
+                    strike = data['spectype']
+
+                op = create_vanilla_option(self.vdf, self.pdf, hedge_id, 'put',
+                                           shorted, delta=dval, strike=strike, greek=flag, greekval=greekval)
+                ops = [op]
+                gv = greekval if not shorted else -greekval
+                print('added call with ' + str(gv) + ' ' + str(flag))
 
             # sanity check
             for op in ops:
