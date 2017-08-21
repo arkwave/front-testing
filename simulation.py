@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-18 16:01:54
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-08-18 22:38:52
 
 ################################ imports ###################################
 
@@ -423,26 +423,26 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
                                 'signal']],
                        on=['value_date', 'vol_id'])
 
-    # case where signals are None; in this case get 25d vol changes from pdf
-    elif signals is None:
-        rel_prices = pricedata[['value_date', 'vol_id', 'call_put_id', '25d']]
-        calls = rel_prices[rel_prices.call_put_id == 'C'][
-            ['vol_id', 'value_date', '25d']]
-        calls.columns = ['vol_id', 'value_date', '25d_c']
+    # # case where signals are None; in this case get 25d vol changes from pdf
+    # elif signals is None:
+    #     rel_prices = pricedata[['value_date', 'vol_id', 'call_put_id', '25d']]
+    #     calls = rel_prices[rel_prices.call_put_id == 'C'][
+    #         ['vol_id', 'value_date', '25d']]
+    #     calls.columns = ['vol_id', 'value_date', '25d_c']
 
-        puts = rel_prices[rel_prices.call_put_id == 'P'][
-            ['vol_id', 'value_date', '25d']]
-        puts.columns = ['vol_id', 'value_date', '25d_p']
+    #     puts = rel_prices[rel_prices.call_put_id == 'P'][
+    #         ['vol_id', 'value_date', '25d']]
+    #     puts.columns = ['vol_id', 'value_date', '25d_p']
 
-        # print('call columns: ', calls.columns)
-        # print('log columns: ', log.columns)
+    #     # print('call columns: ', calls.columns)
+    #     # print('log columns: ', log.columns)
 
-        log = pd.merge(log, calls, on=['vol_id', 'value_date'])
-        log = pd.merge(log, puts, on=['vol_id', 'value_date'])
+    #     log = pd.merge(log, calls, on=['vol_id', 'value_date'])
+    #     log = pd.merge(log, puts, on=['vol_id', 'value_date'])
 
-        # print('columns after merge: ', log.columns)
-        log['25d_c'] = (log['25d_c'].shift(-1) - log['25d_c']).shift(1)
-        log['25d_p'] = (log['25d_p'].shift(-1) - log['25d_p']).shift(1)
+    #     # print('columns after merge: ', log.columns)
+    #     log['25d_c'] = (log['25d_c'].shift(-1) - log['25d_c']).shift(1)
+    #     log['25d_p'] = (log['25d_p'].shift(-1) - log['25d_p']).shift(1)
 
     elapsed = time.clock() - t
 
