@@ -104,58 +104,6 @@ def test_check_active_ki_american():
     assert op2.knockedin == True
 
 
-# def test_check_active_ko_euro():
-#     # testing Options.check_active on European barrier knock-out options.
-#     ft = Future('march', 300, 'C')
-#     strike = 300
-#     tau = 327/365
-#     vol = 0.2
-#     payoff = 'euro'
-#     direc = 'up'
-#     barrier = 'euro'
-
-#     # testing up and out
-#     # test 1: up and out at 50, spot at 30.
-#     op = Option(strike, tau, 'call', vol, ft, payoff, False, 'Z7',
-#                 direc=direc, barrier=barrier, bullet=False, ko=500)
-#     # op.update_tau(0.01)
-#     assert op.check_active() == True
-#     assert op.knockedout == False
-
-#     op.update_tau(327/365)
-
-#     assert op.check_active() == False
-#     assert op.knockedout == False
-
-#     # test 2: up and out at 20, spot at 30
-#     op = Option(strike, tau, 'call', vol, ft, payoff, False, 'Z7',
-#                 direc=direc, barrier=barrier, bullet=False, ko=200)
-#     assert op.check_active() == True
-#     assert op.knockedout == True
-
-#     # devil's advocate: up and out at 20, spot falls from 30 to 10. Option is
-#     # still knocked out, but still active since not expired.
-#     ft.update_price(100)
-#     assert op.check_active() == True
-#     assert op.knockedout == True
-
-#     # testing down and out.
-#     # test 3: down and out at 50, spot at 70.
-#     ft2 = Future('march', 700, 'C')
-#     strike2 = 750
-#     direc2 = 'down'
-#     barrier2 = 'amer'
-#     op2 = Option(strike2, tau, 'call', vol, ft2, payoff, False, 'Z7',
-#                  direc=direc2, barrier=barrier2, bullet=False, ko=500)
-#     assert op2.check_active() == True
-#     assert op2.knockedout == False
-
-#     # test 4: down and out at 50, spot at 49.
-#     ft2.update_price(490)
-#     assert op2.check_active() == False
-#     assert op2.knockedout == True
-
-
 def test_check_active_ki_euro():
     # testing Options.check_active on European barrier knock-in options.
     # testing check_active on american barrier knock-in options.
@@ -314,92 +262,6 @@ def test_moneyness_american():
     assert op2.moneyness() == None
 
 
-# def test_moneyness_euro():
-#     # tests Options.moneyness() for european barrier options.
-
-#     # call options
-#     ft = Future('march', 300, 'C')
-#     strike = 300
-#     tau = 327/365
-#     vol = 0.2
-#     payoff = 'euro'
-#     op = Option(strike, tau, 'call', vol, ft, payoff, False, 'Z7',
-#                 direc='up', barrier='euro', bullet=False, ko=500)
-#     # at the money
-#     assert op.moneyness() == 0
-#     # in the money
-#     ft.update_price(350)
-#     assert op.moneyness() == 1
-#     # out of the money
-#     ft.update_price(200)
-#     assert op.moneyness() == -1
-#     # hit barrier; knocked out.
-#     ft.update_price(500)
-#     # remains active since it's a european barrier option. self.knockedout =
-#     # True.
-#     assert op.check_active() == True
-#     assert op.knockedout == True
-#     assert op.moneyness() is None
-#     # futher changes should not affect moneyness since option has knocked out.
-#     ft.update_price(200)
-#     assert op.moneyness() is None
-#     ft.update_price(350)
-#     assert op.moneyness() is None
-
-#     # put options
-#     strike2 = 200
-#     ft2 = Future('march', 200, 'C')
-#     op2 = Option(strike2, tau, 'put', vol, ft2, payoff, False, 'Z7',
-#                  direc='up', barrier='euro', bullet=False, ko=500)
-#     assert op2.moneyness() == 0
-#     ft2.update_price(300)
-#     assert op2.moneyness() == -1
-#     ft2.update_price(100)
-#     assert op2.moneyness() == 1
-#     ft2.update_price(500)
-#     try:
-#         assert op2.moneyness() is None
-#     except AssertionError:
-#         print('activity  : ', op2.active)
-#         print('KO status : ', op2.knockedout)
-#         print('activity2 : ', op2.active)
-#         print('moneyness : ', op2.moneyness())
-#         print('activity3 : ', op2.active)
-#         if op2.moneyness() is None:
-#             print("TRUE")
-
-
-# def test_updates_passed():
-#     ft = Future('march', 300, 'C')
-#     strike = 300
-#     tau = 327/365
-#     vol = 0.2
-#     payoff = 'euro'
-#     op = Option(strike, tau, 'call', vol, ft, payoff, False, 'Z7',
-#                 direc='up', barrier='euro', bullet=False, ko=500)
-#     initial_val = op.get_price()
-#     d1, g1, t1, v1 = op.greeks()
-
-#     ft.update_price(400)
-#     curr_val = op.get_price()
-#     d2, g2, t2, v2 = op.greeks()
-#     # check greeks have updated.
-#     assert [d1, g1, t1, v1] != [d2, g2, t2, v2]
-#     assert d2 != d1
-#     # check that current value has increased.
-#     assert initial_val != curr_val
-#     assert initial_val < curr_val
-#     # breaks knockout barrier; option is no longer active.
-#     ft.update_price(500)
-#     assert op.underlying.get_price() >= op.ko
-#     try:
-#         assert op.check_active() == True
-#         assert op.knockedout == True
-#     except AssertionError:
-#         print('Knockout: ', op.knockedout)
-#         print('Activity: ', op.check_active())
-
-
 def test_zero_options():
     ft = Future('march', 30, 'C')
     strike = 30
@@ -486,11 +348,3 @@ def test_strike_type():
     ft2.update_price(30)
     op.update()
     assert op.get_strike_type() == 'putstrike'
-
-
-def test_composities():
-    pass
-
-
-def test_diff_underlying():
-    pass

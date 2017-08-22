@@ -291,7 +291,7 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
 
     # Step 6: rolling over portfolio and hedges if required.
         cost = 0
-        if roll_portfolio:
+        if roll_portfolio:          
             pf, cost = roll_over(pf, vdf, pdf, date, brokerage=brokerage,
                                  slippage=slippage,
                                  target_product=pf_roll_product, ttm_tol=pf_ttm_tol)
@@ -663,7 +663,6 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None,
                     uid = ft.get_product() + '  ' + ft.get_month()
                     val = pdf[(pdf.pdt == pdt) &
                               (pdf.underlying_id == uid)].settle_value.values[0]
-                    # print('UPDATED - new price: ', val)
                     pf, cost, fts = handle_barriers(
                         voldf, pdf, ft, val, pf, date)
                     barrier_futures.extend(fts)
@@ -717,8 +716,9 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None,
     total_profit = exercise_profit + barrier_profit
 
     # refresh portfolio after price updates.
-    pf.update_sec_by_month(None, 'OTC', update=True)
-    pf.update_sec_by_month(None, 'hedge', update=True)
+    pf.refresh()
+    # pf.update_sec_by_month(None, 'OTC', update=True)
+    # pf.update_sec_by_month(None, 'hedge', update=True)
 
     # removing expiries
     pf.remove_expired()
@@ -841,8 +841,9 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None,
         if (init_val != 0 and intermediate_val != 0) else 0
 
     # updating portfolio after modifying underlying objects
-    pf.update_sec_by_month(None, 'OTC', update=True)
-    pf.update_sec_by_month(None, 'hedge', update=True)
+    pf.refresh()
+    # pf.update_sec_by_month(None, 'OTC', update=True)
+    # pf.update_sec_by_month(None, 'hedge', update=True)
 
     # print('Portfolio After Feed: ', pf)
     # print('[7]  NET GREEKS: ', str(pprint.pformat(pf.net_greeks)))
@@ -899,10 +900,6 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
     vanop = create_vanilla_option(vdf, pdf, volid, op.char, op.shorted,
                                   lots=op.lots, vol=op.vol, strike=op.K,
                                   bullet=op.bullet)
-
-    # vanop = Option(op.K, op.tau, op.char, op.vol, copy.deepcopy(op.underlying),
-    #                op.payoff, op.shorted, op.month, lots=op.lots, ordering=op.ordering,
-    #                bullet=op.bullet)
 
     # case 1: knockin case - option is not currently knocked in.
     if op.ki is not None:
@@ -1234,7 +1231,7 @@ def contract_roll(pf, op, vdf, pdf, date, flag):
     new_ft, ftprice = create_underlying(
         pdt, new_ft_month, pdf, date)
 
-    ftprice = new_ft.get_price()
+    print('new ft: ', new_ft)
 
     # identifying deltas to close
     iden = (pdt, ftmth, ftprice)
@@ -1647,11 +1644,6 @@ def delta_roll(pf, op, roll_val, vdf, pdf, flag, slippage=None, brokerage=None):
     vol_id = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
     newop = create_vanilla_option(vdf, pdf, vol_id, op.char, op.shorted,
                                   lots=op.lots, delta=roll_val)
-    # newop = Option(strike, op.tau, op.char, vol, op.underlying,
-    #                op.payoff, op.shorted, op.month, direc=op.direc,
-    #                barrier=op.barrier, lots=op.lots, bullet=op.bullet,
-    #                ki=op.ki, ko=op.ko, rebate=op.rebate,
-    #                ordering=op.ordering, settlement=op.settlement)
 
     # handle expenses: brokerage and old op price - new op price
 
@@ -1670,12 +1662,6 @@ def delta_roll(pf, op, roll_val, vdf, pdf, flag, slippage=None, brokerage=None):
         else:
             s_val = slippage[-1]
         cost += (s_val * (newop.lots + op.lots))
-
-    # handle adds and removes.
-    # print('simulation.hedge_delta_roll - removing ' +
-    #       str(op) + ' from pf ' + str(pf.name))
-    # print('simulation.hedge_delta_roll - adding ' +
-    #       str(newop) + ' to pf ' + str(pf.name))
 
     pf.remove_security([op], flag)
     pf.add_security([newop], flag)
@@ -1696,9 +1682,7 @@ def check_roll_status(pf):
     fa_lst = pf.get_families() if pf.get_families() else [pf]
     bool_list = [True] * len(fa_lst)
     for fa in fa_lst:
-        # print('simulation.check_roll_status - family: ', fa.name)
         hedges = fa.hedge_params
-        # print('simulation.check_roll_status - dep: ', hedges)
         index = fa_lst.index(fa)
         delta_conds = hedges['delta'] if 'delta' in hedges else None
         found = False
@@ -1716,19 +1700,12 @@ def check_roll_status(pf):
 
         # if roll conditions actually exist, proceed.
         if found:
-            # print('simulation.check_roll_status - rollbounds: ', rollbounds)
-            # print('simulation.check_roll_status - target: ', dval/100)
             for op in fa.get_all_options():
                 d = abs(op.delta / op.lots)
                 diff = (d - dval/100)
-                # print('simulation.check_roll_status - op delta :', d)
-                # print('simulation.check_roll_status - diff :', diff)
                 ltol, utol = rollbounds[0], rollbounds[1]
                 # sanity check
                 if diff < ltol or diff > utol:
-                    # print('roll check failed')
-                    # print('diff < ltol: ', diff, ltol, diff < ltol)
-                    # print('diff > utol: ', diff, utol, diff > ltol)
                     bool_list[index] = False
 
     return all([i for i in bool_list])

@@ -9,23 +9,28 @@ Description    : File contains tests for methods in simulation.py
 """
 
 # Imports
+from scripts.fetch_data import grab_data 
 from scripts.classes import Option, Future
 from scripts.portfolio import Portfolio
-from scripts.prep_data import read_data, generate_hedges
-import scripts.global_vars as gv
-from scripts.simulation import hedge, hedge_delta_roll, check_roll_status, gen_hedge_inputs
+from scripts.simulation import hedge_delta_roll, check_roll_status, \
+                               handle_exercise, contract_roll
+from scripts.util import create_straddle, combine_portfolios 
+from collections import OrderedDict 
 import numpy as np
 import pandas as pd
-import time
-# import numpy as np
+import copy 
 
-t = time.clock()
-vdf, pdf, edf, priceD = read_data(gv.test_vol_data,
-                                  gv.test_price_data,
-                                  gv.test_exp_data,
-                                  gv.test_start_date, test=True)
-elapsed = time.clock() - t
-print('[test_simulation] data read-in elapsed: ', elapsed)
+
+
+############## variables ###########
+yr = 2017
+start_date = '2017-07-01'
+end_date = '2017-08-10'
+pdts = ['QC', 'CC']
+
+# grabbing data
+vdf, pdf, edf = grab_data(pdts, start_date, end_date, write_dump=True)
+####################################
 
 
 def generate_portfolio(flag):
@@ -69,7 +74,7 @@ def generate_portfolio(flag):
     OTCs, hedges = [op1, op2, op3], [op4, op5]
 
     # creating portfolio
-    pf = Portfolio()
+    pf = Portfolio(None)
     pf.add_security(OTCs, 'OTC')
     pf.add_security(hedges, 'OTC')
     # for sec in hedges:
@@ -135,238 +140,273 @@ def test_feed_data_updates():
         print('init2: ', init2)
 
 
-def test_gen_inputs():
-    hedges = {'vega': [['bound', (-10, 10), 1]],
-              'delta': [['static', 'zero', 3]],
-              'gamma': [['bound', (-10, 10), 1]],
-              'theta': [['bound', (-10, 10), 1]]}
+def comp_portfolio(refresh=False):
+    # creating the options.
+    ccops = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+                            False, 'atm', greek='theta', greekval=10000)
+    qcops = create_straddle('QC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+                            True, 'atm', greek='theta', greekval=10000)
+    # create the hedges.
+    gen_hedges = OrderedDict({'delta': [['static', 'zero', 1]]})
+    cc_hedges_s = {'delta': [['static', 'zero', 1],
+                             ['roll', 50, 1, (-10, 10)]]}
 
-    # hedges = {'delta': 'zero', 'gamma': (-10, 10), 'vega': (-10, 10)}
-    pf = generate_portfolio('long')
-    min_date = min(vdf.value_date)
-    vdf1 = vdf[vdf.value_date == min_date]
-    pdf1 = pdf[pdf.value_date == min_date]
-    product = 'C'
-    month = 'K7'
-    ordering = pf.compute_ordering(product, month)
-    ginputs = gen_hedge_inputs(
-        hedges, vdf1, pdf1, month, pf, product, ordering, 'gamma')
+    cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
+                   'theta': [['bound', (-11000, -9000), 1, 'straddle',
+                              'strike', 'atm', 'uid']]}
 
-    # basic tests
-    assert len(ginputs) == 9
-    price, k, cvol, pvol, tau, underlying, greek, bound, order = ginputs
-    assert bound == hedges['gamma'][0][1]
-    assert greek == pf.get_net_greeks()['C']['K7'][1]
+    qc_hedges = {'delta': [['roll', 50, 1, (-15, 15)]],
+                 'theta': [['bound', (9000, 11000), 1, 'straddle',
+                            'strike', 'atm', 'uid']]}
+    cc_hedges_s = OrderedDict(cc_hedges_s)
+    cc_hedges_c = OrderedDict(cc_hedges_c)
+    qc_hedges = OrderedDict(qc_hedges)
 
-    vinputs = gen_hedge_inputs(
-        hedges, vdf1, pdf1, month, pf, product, ordering, 'vega')
+    # create one simple and one complex portfolio.
+    pf_simple = Portfolio(cc_hedges_s, name='cc_simple')
+    pf_simple.add_security(ccops, 'OTC')
 
-    price, k, cvol, pvol, tau, underlying, greek, bound, order = vinputs
-    assert greek == pf.get_net_greeks()['C']['K7'][3]
+    pfcc = Portfolio(cc_hedges_c, name='cc_comp')
+    pfcc.add_security(ccops, 'OTC')
+    pfqc = Portfolio(qc_hedges, name='qc_comp')
+    pfqc.add_security(qcops, 'OTC')
+
+    pf_comp = combine_portfolios(
+        [pfcc, pfqc], hedges=gen_hedges, refresh=refresh, name='full')
+
+    return pf_simple, pf_comp, ccops, qcops, pfcc, pfqc
 
 
-def test_hedge_gamma_long():
-    hedges = {'gamma': [['bound', (-3000, 3000), 1]],
-              'vega':  [['bound', (-3000, 3000), 1]],
-              'delta': [['static', 'zero', 1]],
-              'theta': [['bound', (-1000, 1000), 1]]}
+def test_handle_exercise_simple():
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
 
-    pf = generate_portfolio('long')
-    min_date = min(vdf.value_date)
-    vdf1 = vdf[vdf.value_date == min_date]
-    pdf1 = pdf[pdf.value_date == min_date]
-    product = 'C'
-    month = 'K7'
-    ordering = pf.compute_ordering(product, month)
-    inputs = gen_hedge_inputs(
-        hedges, vdf1, pdf1, month, pf, product, ordering, 'gamma')
-    greek = inputs[6]
-    # print('#########################')
-    # print('init long gamma: ', greek)
+    # testing exercise for simple portfolio. 
+    pf = copy.deepcopy(pf_simple)
+    ref_op = pf.OTC_options[0]
+    cc_ttm = ref_op.tau  
+    
+    # check to ensure that tau > tol does not trigger exercise. 
+    diff = cc_ttm - 2/365 
+    pf.timestep(diff)
+    # check to ensure timestep happened.
+    assert np.isclose(ref_op.tau, 2/365)
 
-    # gamma hedging from above.
-    net = pf.get_net_greeks()
-    init_gamma = net['C']['K7'][1]
-    # assert init_gamma not in range(*hedges['gamma'][1])
-    assert init_gamma == greek
-    pf, cost = hedge(pf, inputs, product, month, 'gamma')
-    # print(inputs, product, month)
-    # print('gamma long hedging expenditure: ', expenditure)
-    end_gamma = pf.net_greeks['C']['K7'][1]
-    # print('end long gamma: ', end_gamma)
-    # print('#########################')
+    # first exercise.  
+    profit, pf, exercised, tobeadded = handle_exercise(pf)
+    assert not exercised 
+
+    # now check that it does handle exercises when within tol. 
+    pf.timestep(1/365)
+    assert np.isclose(ref_op.tau, 1/365)
+    # make a copy of options for reference. 
+    init_net = copy.deepcopy(pf.get_net_greeks())
+    refops = copy.deepcopy(pf.OTC_options) 
+
+    profit, pf, exercised, tobeadded = handle_exercise(pf)
+    print('pf.OTC_options: ', pf.OTC_options)
+    # exercise would be TRUE if any option was exercised. 
+    assert exercised == any([op.exercise() for op in refops])
+    # check that tau gets set to 0 
+    assert [op.tau for op in pf.OTC_options] == [0, 0]
+
+    # check that net greeks DO NOT go flat after exercise. 
     try:
-        assert end_gamma < 10 and end_gamma > -10
-
+        assert pf.get_net_greeks() == init_net
     except AssertionError:
-        print('gamma long hedging failed: ', end_gamma, hedges['gamma'])
-        print('#########################')
+        print('[Failure] test_simulation.test_handle_exercise')
+        print('actual: ', pf.get_net_greeks())
+        print('expected: ', init_net)
+
+    # removing expired 
+    pf.remove_expired() 
+
+    # now check that greeks go flat. 
+    assert pf.get_net_greeks() == {}
 
 
-def test_hedge_gamma_short():
-    # gamma hedging from below
-    hedges = {'gamma': [['bound', (-3000, 3000), 1]],
-              'vega':  [['bound', (-3000, 3000), 1]],
-              'delta': [['static', 'zero', 1]],
-              'theta': [['bound', (-1000, 1000), 1]]}
-    pf = generate_portfolio('short')
-    min_date = min(vdf.value_date)
-    vdf1 = vdf[vdf.value_date == min_date]
-    pdf1 = pdf[pdf.value_date == min_date]
-    product = 'C'
-    month = 'K7'
-    ordering = pf.compute_ordering(product, month)
-    inputs = gen_hedge_inputs(
-        hedges, vdf1, pdf1, month, pf, product, ordering, 'gamma')
-    greek = inputs[6]
+def test_handle_exercise_composite():
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    # testing exercise for COMPOSITE portfolios. 
+    pf = copy.deepcopy(pf_comp)
+    ref_op_cc = next(iter(pf.OTC['CC']['Z7'][0]))
+    ref_op_qc = next(iter(pf.OTC['QC']['Z7'][0]))
+    cc_ttm = ref_op_cc.tau  
+    qc_ttm = ref_op_qc.tau 
+    # check to ensure that tau > tol does not trigger exercise. 
+    diff = cc_ttm - 2/365 
+    pf.timestep(diff)
+    # check to ensure timestep happened.
+    assert np.isclose(ref_op_cc.tau, 2/365)
 
-    # print('init short gamma: ', greek)
+    # first exercise.  
+    profit, pf, exercised, tobeadded = handle_exercise(pf)
+    assert not exercised 
 
-    net = pf.get_net_greeks()
-    init_gamma = net['C']['K7'][1]
-    # assert init_gamma not in range(*hedges['gamma'][1])
-    assert init_gamma == greek
-    pf2, cost = hedge(pf, inputs, product, month, 'gamma')
-    # print('gamma short hedging expenditure: ', expenditure)
-    end_gamma = pf2.net_greeks['C']['K7'][1]
-    # print('end short gamma: ', end_gamma)
-    # print('#########################')
+    # now check that it does handle exercises when within tol. 
+    pf.timestep(1/365)
+    assert np.isclose(ref_op_cc.tau, 1/365)
+    # make a copy of options for reference. 
+    init_net = copy.deepcopy(pf.get_net_greeks())
+    refops = copy.deepcopy(pf.OTC_options) 
+
+    profit, pf, exercised, tobeadded = handle_exercise(pf)
+    # print('pf.OTC_options: ', pf.OTC_options)
+    # exercise would be TRUE if any option was exercised. 
+    assert exercised == any([op.exercise() for op in refops])
+    # check that tau gets set to 0 
+    assert [op.tau for op in pf.OTC['CC']['Z7'][0]] == [0, 0]
+
+    # check that net greeks DO NOT go flat after exercise. 
     try:
-        assert end_gamma < 10 and end_gamma > -10
-
+        assert pf.get_net_greeks() == init_net
     except AssertionError:
-        print('gamma short hedging failed: ', end_gamma, hedges['gamma'])
-        print('#########################')
+        print('##### [Failure] test_simulation.test_handle_exercise #####')
+        print('actual: ', pf.get_net_greeks())
+        print('expected: ', init_net)
+        print('##########################################################')
+    # removing expired 
+    pf.remove_expired() 
 
+    prerefresh_OTC = pf.OTC 
+    prerefresh_net = pf.get_net_greeks() 
 
-def test_hedge_vega_short():
-    hedges = {'gamma': [['bound', (-3000, 3000), 1]],
-              'vega':  [['bound', (-3000, 3000), 1]],
-              'delta': [['static', 'zero', 1]],
-              'theta': [['bound', (-1000, 1000), 1]]}
-    pf = generate_portfolio('short')
-    min_date = min(vdf.value_date)
-    vdf1 = vdf[vdf.value_date == min_date]
-    pdf1 = pdf[pdf.value_date == min_date]
-    product = 'C'
-    month = 'K7'
-    ordering = pf.compute_ordering(product, month)
-    inputs = gen_hedge_inputs(
-        hedges, vdf1, pdf1, month, pf, product, ordering, 'vega')
-    # print('short vega input: ', inputs)
-    # print('short vega underlying: ', str(inputs[5]))
-    greek = inputs[6]
-    # print('init short vega: ', greek)
+    # now check that greeks go flat. 
+    assert 'CC' not in pf.OTC 
+    assert 'CC' not in pf.get_net_greeks() 
 
-    net = pf.get_net_greeks()
-    init_vega = net['C']['K7'][3]
-    # assert init_vega not in range(*hedges['vega'][1])
-    assert init_vega == greek
-    pf2, cost = hedge(pf, inputs, product, month, 'vega')
-    # print('vega hedging expenditure: ', expenditure)
-    end_vega = pf2.net_greeks['C']['K7'][3]
-    # print('end short vega: ', end_vega)
-    # print('#########################')
+    # check that the family containing CC is no longer valid,
+    # i.e. contain check fails.
     try:
-        assert end_vega < 300 and end_vega > -300
-
+        assert pf.get_family_containing(ref_op_cc) is None 
     except AssertionError:
-        print('vega short hedging failed: ', end_vega, hedges['vega'])
-        print('#########################')
+        print('########################################################')
+        print('[Failure] test_simulation.test_handle_exercise_composite')
+        print('actual: ', pf.get_family_containing(ref_op_cc))
+        print('expected: ', 'None')
+        print('#########################################################')
 
+    # explicitly check the family to make sure CC ops have been removed. 
+    ccfam = [x for x in pf.families if x.name == 'cc_comp'][0]
+    assert ccfam.empty() 
+    assert 'CC' not in ccfam.OTC 
+    assert 'CC' not in ccfam.get_net_greeks()
 
-def test_hedge_vega_long():
-    hedges = {'gamma': [['bound', (-3000, 3000), 1]],
-              'vega':  [['bound', (-3000, 3000), 1]],
-              'delta': [['static', 'zero', 1]],
-              'theta': [['bound', (-1000, 1000), 1]]}
-    pf = generate_portfolio('long')
-    min_date = min(vdf.value_date)
-    vdf1 = vdf[vdf.value_date == min_date]
-    pdf1 = pdf[pdf.value_date == min_date]
-    product = 'C'
-    month = 'K7'
-    ordering = pf.compute_ordering(product, month)
-    inputs = gen_hedge_inputs(
-        hedges, vdf1, pdf1, month, pf, product, ordering, 'vega')
-    # print('long vega inputs: ', inputs)
-    greek = inputs[6]
-    # print('init long vega: ', greek)
+    # check to make sure that the qc family is intact. 
+    qcfam = [x for x in pf.families if x.name == 'qc_comp'][0]
+    assert not qcfam.empty() 
+    assert 'QC' in qcfam.OTC 
+    assert 'QC' in qcfam.get_net_greeks() 
+    # timestep back to the original 
+    qcfam.timestep(-diff-1/365)
 
-    net = pf.get_net_greeks()
-    init_vega = net['C']['K7'][3]
-    # assert init_vega not in range(*hedges['vega'][1])
-    assert init_vega == greek
-    pf2, cost = hedge(pf, inputs, product, month, 'vega')
-    # print('vega hedging expenditure: ', expenditure)
-    end_vega = pf2.net_greeks['C']['K7'][3]
+    assert qcfam.get_net_greeks() == pfqc.get_net_greeks() 
 
-    try:
-        assert end_vega < 300 and end_vega > -300
-        # print('end long vega: ', end_vega)
-        # print('#########################')
-    except AssertionError:
-        print('vega long hedging failed: ', end_vega, hedges['vega'])
-        print('#########################')
+    # final check: refresh shouldn't mess with anything.
+    pf.refresh() 
+    assert pf.OTC == prerefresh_OTC
+    assert pf.get_net_greeks() == prerefresh_net
 
-
-def test_delta_hedging_long():
-    pf = generate_portfolio('long')
-    cond = 'zero'
-    min_date = min(vdf.value_date)
-    vdf1 = vdf[vdf.value_date == min_date]
-    pdf1 = pdf[pdf.value_date == min_date]
-    product = 'C'
-    month = 'K7'
-    assert len(pf.hedge_futures) == 0
-    # print('init_pf_long', pf)
-    ordering = pf.compute_ordering(product, month)
-    pf, hedge, fees = hedge_delta(
-        cond, vdf1, pdf1, pf, month, product, ordering)
-    # print('hedge_long: ', hedge)
-    # print('end_pf_long: ', pf)
-    assert hedge.shorted == True
-    assert len(pf.hedge_futures) == 1
-
-
-def test_delta_hedging_short():
-    pf = generate_portfolio('short')
-    # print(pf.net_greeks)
-    cond = 'zero'
-    min_date = min(vdf.value_date)
-    vdf1 = vdf[vdf.value_date == min_date]
-    pdf1 = pdf[pdf.value_date == min_date]
-    product = 'C'
-    month = 'K7'
-    assert len(pf.hedge_futures) == 0
-    # print('init_pf_short: ', pf)
-    ordering = pf.compute_ordering(product, month)
-    pf, hedge, fees = hedge_delta(
-        cond, vdf1, pdf1, pf, month, product, ordering)
-    # print('hedge_short: ', hedge)
-    # print('end_pf_short: ', pf)
-    try:
-        assert len(pf.hedge_futures) == 1
-    except AssertionError:
-        print('num_futures: ', len(pf.hedge_futures))
-    try:
-        assert hedge.shorted == False
-    except AssertionError:
-        print('hedge: ', hedge)
-        print('hedge type: ', hedge.shorted)
 
 
 def test_check_roll_status():
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    
+    # first: check the roll status of a simple portfolio.
+    init_cc_price = ccops[0].underlying.get_price()
+    init_qc_price = qcops[0].underlying.get_price()
+
+    # should return True, since pf_simple initialized atm. 
+    assert check_roll_status(pf_simple)
+    # save initial greeks 
+    init_greeks = pf_simple.get_net_greeks().copy()
+    # update the price to something nuts, forcing deltas to go crazy. 
+    for op in ccops:
+        op.underlying.update_price(5000)
+    pf_simple.refresh() 
+    assert pf_simple.get_net_greeks() != init_greeks 
+    assert not check_roll_status(pf_simple)
+
+    # reset ccops. 
+    for op in ccops:
+        op.underlying.update_price(init_cc_price)
+    
+    pfcc.refresh() 
+    pfqc.refresh()
+    pf_comp.refresh() 
+
+    # checking roll status of a complex portfolio. 
+    assert check_roll_status(pf_comp)
+
+    # update ccops but not qcops.     
+    for op in ccops:
+        op.underlying.update_price(5000)
+    pfcc.refresh() 
+    pfqc.refresh()
+    pf_comp.refresh()
+
+    assert not check_roll_status(pfcc)
+    assert check_roll_status(pfqc)
+    assert not check_roll_status(pf_comp)
+     
+
+    # reset cc prices, perturb QC prices. 
+    for op in ccops:
+        op.underlying.update_price(init_cc_price)
+    pfcc.refresh() 
+    pfqc.refresh()
+    pf_comp.refresh()
+
+    assert check_roll_status(pfcc)
+    assert check_roll_status(pfqc)
+    assert check_roll_status(pf_comp)
+
+    for op in qcops:
+        op.underlying.update_price(5000)
+    pfcc.refresh() 
+    pfqc.refresh()
+    pf_comp.refresh()
+
+    assert check_roll_status(pfcc)
+    assert not check_roll_status(pfqc)
+    assert not check_roll_status(pf_comp)
+    # assert not check_roll_status()
+
+
+def test_delta_roll():
+    pass 
+
+
+def test_hedge_delta_roll_simple():
     pass
 
 
-def test_hedge_delta_roll():
+def test_hedge_delta_roll_comp():
     pass
 
 
 def test_roll_over():
+    # contract roll works, this just makes sure that composites are correctly specified. 
     pass
 
 
 def test_contract_roll():
-    pass
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    pf = pf_simple 
+    ref_op = ccops[0]
+    date = pd.to_datetime(vdf.value_date.min())
+    flag = 'OTC'
+
+    pf, cost, newop, op, iden = contract_roll(pf, ref_op, vdf, pdf, date, flag)
+
+    try:
+        assert 'H8' in pf.OTC['CC']
+        assert 'H8' in pf.get_net_greeks()['CC']  
+    except AssertionError:
+        print('OTC: ', pf.OTC)
+        print('net: ', pf.get_net_greeks())
+
+
+    assert newop.get_month() == 'H8'
+    assert op == ref_op 
+    assert newop.lots == ref_op.lots 
+    assert newop.shorted == ref_op.shorted 

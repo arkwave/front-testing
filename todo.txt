@@ -1082,8 +1082,8 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 > Updating test suite. (Issue 1) <<<<<<<<<<< Priority this week. 
 	- [Done] Portfolio
-	- Option
-	- Simulation
+	- [Done] Option
+	- [Done] Simulation
 	- Hedge 
 	- Util
 
@@ -1120,25 +1120,19 @@ TODO:
 
 
 >>> Implementation-Centric <<<
-
 > ISSUE: Testing suite is in bad need of an update:
 	1) hedge.py, fetch_data.py and util.py have no testing whatsoever. This needs to be remedied asap. 
 	2) Portfolio and Classes objects need updates. 
 	3) Calc is more or less fine, no major additions for a long time. 
 	4) prep_data/fetch_data need a serious overhaul; go through, see what code is required and what isn't, remove/move to code dump respectively. 
 
-
 > breakeven-based delta hedging on settlements. 
-
 
 > ISSUE: C1/C2 rather than a vol_id 
 
-
 BIG TODO:
 	> adjusting signals to include family paradigm 
-
 	> related: implement a future signals thing.
-
 
 3) proper conceptualizing of slippage, aside from flat-value. bring all in line to this. 
 
