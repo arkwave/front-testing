@@ -4,7 +4,9 @@ Author         : Ananth Ravi Kumar
 Date created   : 7/3/2017
 Last Modified  : 4/5/2017
 Python version : 3.5
-Description    : Script contains implementation of the Option and Futures classes, as well as helper methods that set/store/manipulate instance variables. This class is used in simulation.py.
+Description    : Script contains implementation of the Option and Futures classes, 
+                 as well as helper methods that set/store/manipulate instance variables. 
+                 This class is used in simulation.py.
 
 """
 
@@ -41,8 +43,11 @@ class Option:
         23) settlement =   string indicating if the option is cash- or future-settled upon exercise
 
         Notes: 
-        1_ ki, ko, bullet, direc and barrier default to None and must be expressly overridden if an exotic option is desired.
-        2_ knockedin and knockedout should be set ONLY for options that are knockin and knockout options respectively. the program assumes this assignment is done correctly.
+        1_ ki, ko, bullet, direc and barrier default to None and must be 
+           expressly overridden if an exotic option is desired.
+        2_ knockedin and knockedout should be set ONLY for options that
+           are knockin and knockout options respectively. the program assumes
+           this assignment is done correctly.
 
     Instance Methods:
     1) get_month       : returns the month of the underlying contract.
@@ -65,10 +70,13 @@ class Option:
     18) set_ordering   : sets the ordering of this option.
     19) get_ordering   : return self.ordering
     20) get_month      : returns the month associated with this option.
-    21) get_properties : returns a dictionary containing all the non-default properties of the option. Used for daily to bullet conversion. 
+    21) get_properties : returns a dictionary containing all the non-default 
+                         properties of the option. Used for daily to bullet conversion. 
     """
 
-    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, month, direc=None, barrier=None, lots=1000, bullet=True, ki=None, ko=None, rebate=0, ordering=1e5, settlement='futures', bvol=None):
+    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, 
+                 month, direc=None, barrier=None, lots=1000, bullet=True, 
+                 ki=None, ko=None, rebate=0, ordering=1e5, settlement='futures', bvol=None):
         self.month = month
         self.barrier = barrier
         self.payoff = payoff
@@ -159,9 +167,10 @@ class Option:
         self.bvol = vol
 
     def check_active(self):
-        """Checks to see if this option object is active, i.e. if it has any value/contributes greeks. Cases are as follows:
+        """Checks to see if this option object is active, i.e. if it has any value/contributes greeks. 
+        Cases are as follows:
         1) Knock-in barrier options are considered always active until expiry.
-        2) Knock-out options with an american barrier are considered NOT active when they hit the barrier.
+        2) Knock-out options with an american barrier are considered inactive when barrier is hit.
         3) Knock-out options with a European barrier are considered always active until expiry.
         4) Vanilla options are always active until expiry.
          """
@@ -239,10 +248,11 @@ class Option:
         # print(s)
         try:
             assert self.tau > 0
-            delta, gamma, theta, vega = _compute_greeks(self.char, self.K,  self.tau, self.vol,
+            delta, gamma, theta, vega = _compute_greeks(self.char, self.K, self.tau, self.vol,
                                                         s, self.r, product, self.payoff, self.lots,
                                                         ki=self.ki, ko=self.ko, barrier=self.barrier,
-                                                        direction=self.direc, order=self.ordering, bvol=self.bvol)
+                                                        direction=self.direc, order=self.ordering, 
+                                                        bvol=self.bvol)
         except TypeError:
             print('char: ', self.char)
             print('strike: ', self.K)
@@ -365,7 +375,8 @@ class Option:
         """Checks to see the 'moneyness' of the option.
 
         Returns:
-            int: returns 1, 0, -1 for ITM, ATM and OTM options respectively, pr None if check_active() returns False 
+            int: returns 1, 0, -1 for ITM, ATM and OTM options respectively, 
+                 pr None if check_active() returns False 
         """
         active = self.check_active()
         # degenerate case: knocked out.

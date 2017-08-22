@@ -27,7 +27,8 @@ def apply_signal(pf, pdf, vdf, signals, date, sigvals,
                                   : 0/non-existent data indicates NO CHANGE
                                   : -1 indicates GO SHORT (-i*lots) or (-i*greekval)  
 
-                    # Crucial note: whether or not the specified row's option is long or short depends on the signal; shorted = True if signal < 0 else False 
+                    # Crucial note: whether or not the specified row's option is long or 
+                                    short depends on the signal; shorted = True if signal < 0 else False 
 
     This function does the following:
         1_ grabs all relevant signals for that particular day
@@ -53,11 +54,13 @@ def apply_signal(pf, pdf, vdf, signals, date, sigvals,
         signals (pandas dataframe): signals for that given day. 
         date (pandas Timestamp): current_date in the simulation. 
         sigvals (dict): dictionary mapping (product, call/put) -> current position.  
-        strat (str, optional): how to select options during liquidation case; current inputs are 'filo' or 'dist'
+        strat (str, optional): how to select options during liquidation case; 
+                               current inputs are 'filo' or 'dist'
         brokerage (int, optional): Brokerage value.
         slippage (int, optional): Slippage value. 
         metric (None, optional): if strat is set to dist, this is the method used to compare the options.
-        maintain (bool, optional): if True, maintains the greek position of each set of options rather than letting it decay over time. 
+        maintain (bool, optional): if True, maintains the greek position of each 
+                                   set of options rather than letting it decay over time. 
 
     Returns:
         TYPE: Description
@@ -125,7 +128,8 @@ def apply_signal(pf, pdf, vdf, signals, date, sigvals,
 
                     pf, cost = add_position(pf, signal, vdf, pdf, vol_id, char, strike,
                                             date, lots, greek, greekval,
-                                            slippage=slippage, brokerage=brokerage, maintain=maintain, newpos=newpos)
+                                            slippage=slippage, brokerage=brokerage, 
+                                            maintain=maintain, newpos=newpos)
 
                     sigvals[(pdt, char)] = newpos
                     print('newpos: ', sigvals[(pdt, char)])
@@ -167,7 +171,8 @@ def apply_signal(pf, pdf, vdf, signals, date, sigvals,
                         pf, cost_1 = close_position(pf, vol_id, char)
                         pf, cost_2 = add_position(pf, newpos, vdf, pdf, vol_id, char, strike,
                                                   date, lots, greek, greekval,
-                                                  slippage=slippage, brokerage=brokerage, maintain=maintain, newpos=newpos)
+                                                  slippage=slippage, brokerage=brokerage, 
+                                                  maintain=maintain, newpos=newpos)
                         cost += cost_1 + cost_2
 
                     # final: once all possible cases are handled, update
@@ -422,7 +427,8 @@ def add_position(pf, signal, vdf, pdf, vol_id, char, strike, date,
     return pf, cost
 
 
-def maintain_position(pf, pdf, vdf, vol_id, char, strike, pos, lots, greek, greekval, tol=1000, slippage=None, brokerage=None):
+def maintain_position(pf, pdf, vdf, vol_id, char, strike, pos, lots, 
+                      greek, greekval, tol=1000, slippage=None, brokerage=None):
     """Helper method that maintains the current position, guarding against 
     greeks decaying over time. 
 

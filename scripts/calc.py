@@ -28,11 +28,14 @@ Script contains implementation of the following calculation-related methods:
 
 
 Notes:
-1) Currently, European vanilla and American Vanilla are assumed to be valued the same/have the same greeks.
+1) Currently, European vanilla and American Vanilla are assumed to be 
+    valued the same/have the same greeks.
 
-2) All barrier options require that the exercise structure be European. Even if an american option is passed in, it is valued like a European.
+2) All barrier options require that the exercise structure be European.
+    Even if an american option is passed in, it is valued like a European.
 
-3) Search through the file with the flag NIU to see functions that are implemented but not currently in use.
+3) Search through the file with the flag NIU to see functions that are 
+    implemented but not currently in use.
 
 4) Greeks are scaled using lots, lot multipliers and dollar multipliers. 
 
@@ -87,7 +90,8 @@ np.random.seed(seed)
 #####################################################################
 
 
-def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None, barrier=None, d=None, product=None, order=None, bvol=None):
+def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None, 
+                   barrier=None, d=None, product=None, order=None, bvol=None):
     '''Wrapper function that computes value of option.
     Inputs: 1) ki      : Knock in value.
             2) ko      : Knock out value.
@@ -114,7 +118,8 @@ def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None, barrier=No
         if barrier == 'amer':
             return _barrier_amer(char, tau, vol, K, s, r, payoff, d, ki, ko)
         elif barrier == 'euro':
-            return _barrier_euro(char, tau, vol, K, s, r, payoff, d, ki, ko, product, order=order, bvol=bvol)
+            return _barrier_euro(char, tau, vol, K, s, r, payoff, d,
+                                 ki, ko, product, order=order, bvol=bvol)
 
 
 ################### Vanilla Option Valuation ######################
@@ -172,7 +177,8 @@ def get_barrier_vol(df, product, tau, call_put_id, barlevel, order):
     """Gets the barrier volatility associated with this barrier option from the vol surface dataframe.
 
     Args:
-        df (pandas dataframe) : dataframe of the form value_date|vol_id|strike|call_put_id|settle_vol|tau
+        df (pandas dataframe) : dataframe of the form value_date|vol_id|strike|call_put_id|
+                                                        settle_vol|tau
         product (str)         : underlying product of this option.
         tau (double)          : time to expiry in years.
         call_put_id (str)     : 'C' if call option else 'P'
@@ -225,7 +231,8 @@ def get_barrier_vol(df, product, tau, call_put_id, barlevel, order):
 
 # NOTE: Currently follows implementation taken from PnP Excel source code,
 # and so only accounts for ECUI, ECUO, EPDI, EPDO options.
-def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, order=None, rebate=0, bvol=None):
+def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, 
+                  ki, ko, product, order=None, rebate=0, bvol=None):
     """ Pricing model for options with European barriers.
 
     Inputs:
@@ -272,7 +279,9 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, ki, ko, product, o
 
 
 def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0):
-    """ Pricing model for options with american barrers. Currently, payoff is assumed to be European; consequently _compute_value defaults to computing the value of a European vanilla option.
+    """ Pricing model for options with american barrers. Currently, payoff is assumed to 
+        be European; consequently _compute_value defaults to computing 
+        the value of a European vanilla option.
 
     Inputs:
     1) Char      : call or put.
@@ -580,8 +589,12 @@ def digital_greeks(char, k, tau, vol, s, r, product, payoff, lots):
 #############################################################################
 ##################### Greek-related formulas ################################
 #############################################################################
-def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots, ki=None, ko=None, barrier=None, direction=None, order=None, bvol=None):
-    """ Wrapper method. Filters for the necessary condition, and feeds inputs to the relevant computational engine. Computes the greeks of various option profiles. Currently, american and european greeks and pricing are assumed to be the same.
+def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots,
+                    ki=None, ko=None, barrier=None, direction=None, order=None, bvol=None):
+    """ Wrapper method. Filters for the necessary condition, and feeds 
+    inputs to the relevant computational engine. Computes the greeks of
+    various option profiles. Currently, american and european greeks and
+     pricing are assumed to be the same.
 
     Inputs:  1) char   : call or put
              2) K      : strike
@@ -619,11 +632,14 @@ def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots, ki=None, ko=
         elif barrier == 'amer':
             # print('amer barrier case')
             # greeks for european options with american barrier.
-            return _euro_barrier_amer_greeks(char, tau, vol, K, s, r, payoff, direction, product, ki, ko, lots)
+            return _euro_barrier_amer_greeks(char, tau, vol, K, s, r, payoff,
+                                             direction, product, ki, ko, lots)
         elif barrier == 'euro':
             # print('euro barrier case')
             # greeks for european options with european barrier.
-            return _euro_barrier_euro_greeks(char, tau, vol, K, s, r, payoff, direction, product, ki, ko, lots, order=order, bvol=bvol)
+            return _euro_barrier_euro_greeks(char, tau, vol, K, s, r, payoff,
+                                             direction, product, ki, ko, lots,
+                                             order=order, bvol=bvol)
 
     # # american options
     # elif payoff == 'amer':
@@ -709,7 +725,8 @@ def _amer_vanilla_greeks(char, K, tau, vol, s, r, product, lots):
     return delta, gamma, theta, vega
 
 
-def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, lots, rebate=0):
+def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction,
+                              product, ki, ko, lots, rebate=0):
     """Computes greeks of european options with american barriers. 
 
     Args:
@@ -785,7 +802,8 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction, produc
 
 
 # NOTE: follows PnP implementation. Only supports ECUO, ECUI, EPDO, EPDI
-def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction, product, ki, ko, lots, order=None, rebate=0, bvol=None):
+def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction,
+                              product, ki, ko, lots, order=None, rebate=0, bvol=None):
     """Computes greeks of european options with american barriers. 
 
     Args:
@@ -997,8 +1015,9 @@ def american_iv(option, s, k, c, tau, r, product, num_iter=100):
 
 # NIU: Not in Use.
 def _CRRbinomial(output_flag, payoff, option_type, s, k, tau, r, vol, product, n=100, b=0):
-    """Implementation of a Cox-Ross-Rubinstein Binomial tree. Translalted from The Complete Guide to Options
-    Pricing Formulas, Chapter 7: Trees and Finite Difference methods by Espen Haug.
+    """Implementation of a Cox-Ross-Rubinstein Binomial tree. 
+    Translated from The Complete Guide to Options Pricing Formulas, 
+    Chapter 7: Trees and Finite Difference methods by Espen Haug.
 
     Inputs:
         output_flag   : 'greeks' or 'price'
@@ -1039,8 +1058,8 @@ def _CRRbinomial(output_flag, payoff, option_type, s, k, tau, r, vol, product, n
                 optionvalue[i] = (p*optionvalue[i+1] + (1-p)*optionvalue[i])*Df
             elif payoff == 'amer':
                 # check for max between exercise and holding.
-                optionvalue[i] = max(
-                    (z * (s * (u**i) * d**(j-i)-k)), ((p*optionvalue[i+1] + (1-p)*optionvalue[i])*Df))
+                optionvalue[i] = max((z * (s * (u**i) * d**(j-i)-k)), 
+                                     ((p*optionvalue[i+1] + (1-p)*optionvalue[i])*Df))
         if j == 2:
             returnvalue[2] = ((optionvalue[2] - optionvalue[1])/(s*u**2 - s)) - (
                 optionvalue[1] - optionvalue[0])/(s-s*d**2) / (0.5 * (s * u**2 - s * d**2))

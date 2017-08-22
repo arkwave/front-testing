@@ -169,7 +169,8 @@ contract_mths = {
 
 
 def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=None):
-    """Utility method that creates the underlying future object given a product, month, price data and date. 
+    """Utility method that creates the underlying future object 
+        given a product, month, price data and date. 
 
     Args:
         pdt (TYPE): product (e.g. 'S')
@@ -205,8 +206,11 @@ def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=N
     return ft, ftprice
 
 
-def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None, payoff='amer', lots=None, delta=None, strike=None, vol=None, bullet=True, **kwargs):
-    """Utility method that creates an option from the info passed in. Each option is instantiated with its own future underlying object. 
+def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
+                          payoff='amer', lots=None, delta=None,
+                          strike=None, vol=None, bullet=True, **kwargs):
+    """Utility method that creates an option from the info passed in.
+         Each option is instantiated with its own future underlying object. 
 
     Args:
         vdf (dataframe): dataframe of volatilities
@@ -217,7 +221,8 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None, payoff='ame
         date (pd.Timestamp, optional): date to use when selecting vol
         payoff (string): american or european payoff
         lots (int, optional): number of lots 
-        kwargs (dict, optional): dictionary containing extra delimiting factors, e.g. greek/greekvalue. 
+        kwargs (dict, optional): dictionary containing extra delimiting factors, 
+                                e.g. greek/greekvalue. 
         delta (float, optional): Delta of this option as an alternative to strike. 
         strike (float): strike of the option
         vol (float, optional): volatility of the option
@@ -488,7 +493,6 @@ def create_butterfly(char, volid, vdf, pdf, date, shorted, **kwargs):
         ft (TYPE): Description
 
     """
-    # create_vanilla_option(vdf, pdf, volid, char, shorted, date, payoff='amer', lots=None, kwargs=None, delta=None, strike=None, vol=None):
     # checks if strikes are passed in, and if there are 3 strikes.
 
     print('kwargs: ', kwargs)
@@ -549,7 +553,11 @@ def create_spread(char, volid, vdf, pdf, date, shorted, **kwargs):
         pdf (dataframe): Dataframe of prices
         date (pd Timestamp): start date of simulation
         shorted (bool): self-explanatory. 
-        kwargs (dict): dictionary of the form {'chars': ['call', 'put'], 'strike': [strike1, strike2], 'greek':(gamma theta or vega), 'greekval': the value used to determine lot size, 'lots': lottage if greek not specified.}
+        kwargs (dict): dictionary of the form 
+                        {'chars': ['call', 'put'], 'strike': [strike1, strike2],
+                        'greek':(gamma theta or vega), 
+                        'greekval': the value used to determine lot size, 
+                        'lots': lottage if greek not specified.}
 
     Deleted Parameters:
         ft (Future object): Future object underlying this straddle
@@ -596,7 +604,12 @@ def create_strangle(volid, vdf, pdf, date, shorted, pf=None, **kwargs):
         pdf (dataframe): Dataframe of prices
         date (pd Timestamp): start date of simulation
         shorted (bool): self-explanatory. 
-        kwargs (dict): dictionary of the form {'chars': ['call', 'put'], 'strike': [strike1, strike2], 'greek':(gamma theta or vega), 'greekval': the value used to determine lot size, 'lots': lottage if greek not specified.}
+        kwargs (dict): dictionary of the form 
+            {'chars': ['call', 'put'],
+             'strike': [strike1, strike2],
+             'greek':(gamma theta or vega),
+             'greekval': the value used to determine lot size,
+             'lots': lottage if greek not specified.}
         pf (portfolio, optional): Portfolio object. 
 
     Deleted Parameters:
@@ -692,10 +705,8 @@ def create_skew(volid, vdf, pdf, date, shorted, delta, **kwargs):
     Returns:
         Tuple: Two options constituting a skew position (reverse fence). 
     """
-    col = str(int(delta)) + 'd'
     pdt = volid.split()[0]
 
-    # create_vanilla_option(vdf, pdf, ft, strike, lots, volid, char, payoff, shorted, mth, date=None)
     # creating the options
     op1 = create_vanilla_option(
         vdf, pdf, volid, 'call', shorted, date, delta=delta)
@@ -731,7 +742,8 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
         shorted (bool): self-explanatory. 
         strike (float): Strike of this straddle
         kwargs (dict): dictionary of parameters. contains info regarding greek value of straddle. 
-        pf (portfolio, optional): Portfolio object. Used to determine lot-sizes of hedges on the fly. 
+        pf (portfolio, optional): Portfolio object. Used to determine lot-sizes 
+                                    of hedges on the fly. 
 
     Returns:
         Tuple: Two options constituting a straddle
@@ -749,7 +761,6 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
 
     lots = kwargs['lots'] if 'lots' in kwargs else None
 
-    # create_vanilla_option(vdf, pdf, volid, char, shorted, date=None, payoff='amer', lots=None, delta=None, strike=None, vol=None, bullet=True, **kwargs)
     tau, vol = None, None
 
     if 'vol' in kwargs:
@@ -823,13 +834,15 @@ def enablePrint():
 
 # TODO: close out OTC futures as well
 def close_out_deltas(pf, dtc):
-    """Checks to see if the portfolio is emtpty but with residual deltas. Closes out all remaining future positions, resulting in an empty portfolio.
+    """Checks to see if the portfolio is emtpty but with residual deltas. 
+    Closes out all remaining future positions, resulting in an empty portfolio.
 
     Args:
         pf (portfolio object): The portfolio being handles
         dtc (TYPE): deltas to close; tuple of (pdt, month, price)
         Returns
-            tuple: updated portfolio, and cost of closing out deltas. money is spent to close short pos, and gained by selling long pos.
+            tuple: updated portfolio, and cost of closing out deltas.
+                 money is spent to close short pos, and gained by selling long pos.
     """
     # print('simulation.closing out deltas')
     cost = 0

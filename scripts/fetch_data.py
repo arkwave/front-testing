@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 import time
 import os
 import numpy as np
-from .prep_data import match_to_signals, get_min_start_date, clean_data, vol_by_delta, ciprice, sanity_check
+from .prep_data import match_to_signals, get_min_start_date, clean_data, vol_by_delta, sanity_check
 from .global_vars import main_direc
 
 contract_mths = {
@@ -35,7 +35,8 @@ contract_mths = {
 }
 
 
-def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False, direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/'):
+def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False,
+                  direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/'):
     """Utility function that draws/cleans data from the alternate data table.
 
     Args:
@@ -66,8 +67,8 @@ def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False, direc='
     if isinstance(end_date, pd.Timestamp):
         end_date = end_date.strftime('%Y-%m-%d')
 
-    engine = create_engine(
-        'postgresql://' + user + ':' + password + '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+    engine = create_engine('postgresql://' + user + ':' + password +
+                            '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
     connection = engine.connect()
 
     query = "select security_id, settlement_date, future_settlement_value, option_expiry_date,implied_vol \
@@ -148,8 +149,10 @@ def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False, direc='
 
 
 def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
-                  signals=None, test=False, write=False, writepath=None, direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/'):
-    """Utility function that does everything prep_data does, but to full datasets rather than things drawn from the database.
+                  signals=None, test=False, write=False, writepath=None,
+                  direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/'):
+    """Utility function that does everything prep_data does, but to full 
+        datasets rather than things drawn from the database.
 
     Args:
         vdf (dataframe): Dataframe of vols
@@ -209,7 +212,8 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
     # catch errors
     if (vdf.empty or pdf.empty):
         raise ValueError(
-            '[scripts/prep_data.read_data] : Improper start date entered; resultant dataframes are empty')
+            '[scripts/prep_data.read_data] : ' +
+            'Improper start date entered; resultant dataframes are empty')
     # print('pdf: ', pdf)
     # print('vdf: ', vdf)
     # clean dataframes
@@ -279,7 +283,8 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
 
 
 def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
-              writepath=None, direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/',
+              writepath=None, 
+              direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/',
               write=True, test=False, volids=None, write_dump=False):
     """
     Utility function that allows the user to easily grab a dataset by specifying just the product,
@@ -332,7 +337,9 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
         # print('final_pricepath: ', final_pricepath)
         # print('final exppath: ', final_exppath)
 
-        if (os.path.exists(final_volpath) and os.path.exists(final_pricepath) and os.path.exists(final_exppath)):
+        if (os.path.exists(final_volpath) and
+            os.path.exists(final_pricepath) and
+            os.path.exists(final_exppath)):
             print('cleaned data found, reading in and returning...')
             vdf = pd.read_csv(final_volpath)
             pdf = pd.read_csv(final_pricepath)
@@ -413,14 +420,17 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
 
             vdf, pdf, edf, roll_df, start_date = prep_datasets(vdf, pdf, edf, start_date,
                                                                end_date, pdt, signals=signals,
-                                                               test=False, write=write, writepath=writepath,
+                                                               test=False, write=write,
+                                                               writepath=writepath,
                                                                direc=direc)
             final_pdf = pd.concat([final_pdf, pdf])
             final_vols = pd.concat([final_vols, vdf])
 
     # last step: sanity check dates etc.
     sanity_check(final_vols.value_date.unique(),
-                 final_pdf.value_date.unique(), pd.to_datetime(start_date), pd.to_datetime(end_date))
+                 final_pdf.value_date.unique(), 
+                 pd.to_datetime(start_date),
+                 pd.to_datetime(end_date))
 
     print('### GRAB DATA COMPLETED ###')
     return final_vols, final_pdf, edf

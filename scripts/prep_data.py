@@ -25,6 +25,7 @@ from ast import literal_eval
 from collections import OrderedDict
 import os as osf
 from .global_vars import pdt as gvpdt
+import copy
 # from .fetch_data import pull_relevant_data
 
 seed = 7
@@ -95,7 +96,10 @@ multipliers = {
 ###############################################################
 
 def match_to_signals(vdf, pdf, signals):
-    """Lines up the value_date convention between vdf, pdf and signals. Signals are reported at the start of the day, whereas vdf/pdf report EOD values. Additionally, settlement values for fridays are currently reported on the following Sunday. This function adjusts for that discrepancy and filters out all days in vdf/pdf that are not in signals.
+    """Lines up the value_date convention between vdf, pdf and signals. Signals are reported at 
+       the start of the day, whereas vdf/pdf report EOD values. Additionally, settlement values 
+       for fridays are currently reported on the following Sunday. This function adjusts for that 
+       discrepancy and filters out all days in vdf/pdf that are not in signals.
 
     Args:
         vdf (pandas df): dataframe of vols
@@ -463,8 +467,9 @@ def handle_dailies(dic, sim_start):
                 # creating the bullets corresponding to this daily option.
                 for tau in taus:
                     ui = copy.deepcopy(underlying)
-                    op_i = Option(strike, tau, char, vol, ui,
-                                  payoff, shorted, month, direc=direc, barrier=barrier, lots=lots, bullet=False, ki=ki, ko=ko, rebate=rebate, ordering=ordering, settlement=settlement, bvol=bvol)
+                    op_i = Option(strike, tau, char, vol, ui, payoff, shorted, month, direc=direc, 
+                                  barrier=barrier, lots=lots, bullet=False, ki=ki, ko=ko, rebate=rebate, 
+                                  ordering=ordering, settlement=settlement, bvol=bvol)
                     bullets.append(op_i)
 
             lst.extend(bullets)
@@ -488,7 +493,8 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
         > calculate time to maturity from vol_id (i.e. C Z7.Z7 --> TTM in years)
         > appends expiry date
         > generates additional fields from existing ones.
-        > assigns preliminary ordering (i.e. c1, c2 months from current month). This step involves another function civols (line 479)
+        > assigns preliminary ordering (i.e. c1, c2 months from current month). 
+          This step involves another function civols (line 479)
         > computes all-purpose label comprising of vol_id, order, and call_put_id
             - example: C Z7.Z7 4 C --> Corn Z7.Z7 call option with ordering 4
             - example: C Z7.Z7 4 P --> Corn Z7.Z7 put option with ordering 4.
@@ -804,10 +810,11 @@ def civols(vdf, pdf, rollover='opex'):
                 # iterate over all order_nums for this product. for each cont, grab
                 # entries until first breakpoint, and stack wide.
                 for ordering in order_nums:
-
+                    cols = ['pdt', 'order', 'value_date', 'underlying_id', 'vol_id', 
+                            'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
                     df2 = df[df.order == ordering]
-                    tdf = df2[(df2['value_date'] < date) & (df2['value_date'] >= breakpoint)][
-                        ['pdt', 'order', 'value_date', 'underlying_id', 'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']]
+                    tdf = df2[(df2['value_date'] < date) &
+                              (df2['value_date'] >= breakpoint)][cols]
                     # renaming columns
                     tdf.columns = ['pdt', 'order', 'value_date', 'underlying_id',
                                    'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
@@ -973,7 +980,9 @@ def find_cdist(x1, x2, lst):
 
 
 def scale_prices(pricedata):
-    """Converts price data into returns, by applying log(curr/prev). Treats each underlying security by itself so as to avoid taking the quotient of two different securities.
+    """Converts price data into returns, by applying log(curr/prev). 
+       Treats each underlying security by itself so as to avoid taking
+       the quotient of two different securities.
 
     Args:
         pricedata (pandas dataframe): Dataframe of prices, of the form returned by read_data
@@ -1037,7 +1046,8 @@ def get_expiry(pricedata, edf, rollover=None):
 
 
 def get_rollover_dates(pricedata):
-    """Generates dictionary of form {product: [c1 rollover, c2 rollover, ...]}. If ci rollover is 0, then no rollover happens.
+    """Generates dictionary of form {product: [c1 rollover, c2 rollover, ...]}. 
+       If ci rollover is 0, then no rollover happens.
 
     Args:
         pricedata (TYPE): Dataframe of prices, same format as that returned by read_data
@@ -1154,7 +1164,8 @@ def sanity_check(vdates, pdates, start_date, end_date, signals=None,):
         signals (None, optional): dataframe of signals 
 
     Raises:
-        ValueError: raised if date ranges of any of the dataframes do not line up, or if start/end dates passed in are inconsistent/require time travel. 
+        ValueError: raised if date ranges of any of the dataframes do not line up,
+                    or if start/end dates passed in are inconsistent/require time travel. 
 
     """
     if not np.array_equal(vdates, pdates):

@@ -103,8 +103,8 @@ class Hedge:
 
     def calibrate_all(self):
         """Calibrates hedge object to all non-delta hedges. calibrate does one of the following things:
-        1) if hedge_engine is initialized with desc='exp', calibrate generates a 
-            dictionary mapping product and expiry to a vol_id, which will be used to 
+        1) if hedge_engine is initialized with desc='exp', calibrate generates a
+            dictionary mapping product and expiry to a vol_id, which will be used to
             hedge that pdt/exp combination
         2) desc = 'uid' -> _calibrate generates a dictionary mapping product/underlying month
             to a vol_id, dependent on any ttm multipliers passed in.
@@ -664,7 +664,8 @@ class Hedge:
                     strike = data['spectype']
 
                 op = create_vanilla_option(self.vdf, self.pdf, hedge_id, 'call',
-                                           shorted, delta=dval, strike=strike, greek=flag, greekval=greekval)
+                                           shorted, delta=dval, strike=strike,
+                                           greek=flag, greekval=greekval)
                 ops = [op]
                 gv = greekval if not shorted else -greekval
                 print('added call with ' + str(gv) + ' ' + str(flag))
@@ -678,7 +679,8 @@ class Hedge:
                     strike = data['spectype']
 
                 op = create_vanilla_option(self.vdf, self.pdf, hedge_id, 'put',
-                                           shorted, delta=dval, strike=strike, greek=flag, greekval=greekval)
+                                           shorted, delta=dval, strike=strike,
+                                           greek=flag, greekval=greekval)
                 ops = [op]
                 gv = greekval if not shorted else -greekval
                 print('added call with ' + str(gv) + ' ' + str(flag))

@@ -260,8 +260,8 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
 
     # Step 3: Feed data into the portfolio.
         pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
-            = feed_data(vdf, pdf, pf, prev_date,
-                        init_val, brokerage=brokerage, slippage=slippage, flat_vols=flat_vols, flat_price=flat_price)
+            = feed_data(vdf, pdf, pf, prev_date, init_val, brokerage=brokerage, 
+                        slippage=slippage, flat_vols=flat_vols, flat_price=flat_price)
 
         # dailycost -= profit
         # print('cost after feed data: ', dailycost)
@@ -601,7 +601,8 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
 ########################## Helper functions ##############################
 ##########################################################################
 
-def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, slippage=None, flat_vols=False, flat_price=False):
+def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, 
+              slippage=None, flat_vols=False, flat_price=False):
     """
     This function does the following:
         1) Computes current value of portfolio.

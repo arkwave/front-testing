@@ -14,7 +14,8 @@ import pandas as pd
 def generate_skew_signals(pdf, vdf, init_pos=0, strategy=None, strat_str=None):
     """
     #########################################
-    Main function that generates the signals based on the dataframe and the dictionary of strategies passed in. This function does the following things:
+    Main function that generates the signals based on the dataframe and the dictionary
+     of strategies passed in. This function does the following things:
         1) initializes the position to be init_pos (defaults to 0)
         2) filters skew data for that given day. 
         3) selects the appropriate strategy to apply, given:
@@ -33,22 +34,25 @@ def generate_skew_signals(pdf, vdf, init_pos=0, strategy=None, strat_str=None):
 
             Notes: 
 
-            > attempting to keep this as general as possible so that signals generated on the basis of machine learning methods can be easily applied. 
+            > attempting to keep this as general as possible so that signals generated
+              on the basis of machine learning methods can be easily applied. 
 
-            > These signals could be categorical or numeric, depending on the kind of method used to generate the signal. 
+            > These signals could be categorical or numeric, depending on the
+              kind of method used to generate the signal. 
 
             > general formulation:
             - dataframe has a target column
             - strat_dic is multi-indexed according to:
                  1) direction and 
                  2) magnitude of change of value of target_column. 
-            - function mapped to by strat_dic should accept 1) current_input and 2) previous input. use these two to:
+            - function mapped to by strat should accept current_input and previous input. use these two to:
                 1) derive direction
                 2) derive current 'bucket' or bracket. 
                 3) apply the appropriate strategy. 
 
     Deleted Parameters:
-        strat_dic (TYPE): dictionary containing references to strategy-applying functions on the basis of: 1) direction and 2) current position. 
+        strat_dic (TYPE): dictionary containing references to strategy-applying
+                          functions on the basis of: 1) direction and 2) current position. 
 
 
     Returns:
@@ -137,7 +141,8 @@ def process_dic(dic, strat_str):
 
     Args:
         dic (TYPE): dictionary to convert into a dataframe.
-        strat_str (TYPE): descriptor of the strategy used, will determine the method in which dataframe is processed. 
+        strat_str (TYPE): descriptor of the strategy used, will determine
+                          the method in which dataframe is processed. 
 
     Returns:
         TYPE: Description
