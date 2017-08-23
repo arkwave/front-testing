@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-21 21:34:11
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-08-23 20:28:19
 
 ################################ imports ###################################
 
@@ -24,7 +24,7 @@ from .hedge import Hedge
 from .signals import apply_signal
 
 
-# blockPrint()
+blockPrint()
 # enablePrint()
 ###########################################################################
 ######################## initializing variables ###########################
@@ -260,7 +260,7 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
 
     # Step 3: Feed data into the portfolio.
         pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
-            = feed_data(vdf, pdf, pf, prev_date, init_val, brokerage=brokerage, 
+            = feed_data(vdf, pdf, pf, prev_date, init_val, brokerage=brokerage,
                         slippage=slippage, flat_vols=flat_vols, flat_price=flat_price)
 
         # dailycost -= profit
@@ -291,7 +291,7 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
 
     # Step 6: rolling over portfolio and hedges if required.
         cost = 0
-        if roll_portfolio:          
+        if roll_portfolio:
             pf, cost = roll_over(pf, vdf, pdf, date, brokerage=brokerage,
                                  slippage=slippage,
                                  target_product=pf_roll_product, ttm_tol=pf_ttm_tol)
@@ -601,7 +601,7 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
 ########################## Helper functions ##############################
 ##########################################################################
 
-def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None, 
+def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None,
               slippage=None, flat_vols=False, flat_price=False):
     """
     This function does the following:
@@ -1093,8 +1093,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
 ###############################################################################
 
 
-def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60,
-              flag=None, target_product=None):
+def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60, target_product=None):
     """Utility method that checks expiries of options currently being used for hedging. 
         If ttm < ttm_tol, closes out that position (and all accumulated deltas), 
         saves lot size/strikes, and rolls it over into the
@@ -1129,7 +1128,7 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60,
             roll_all = True
 
     print('roll_all: ', roll_all)
-    fa_lst = pf.get_families() if pf.get_families else [pf]
+    fa_lst = pf.get_families() if pf.get_families() else [pf]
     processed = {}
 
     # iterate over each family.
@@ -1156,7 +1155,7 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60,
             if op in processed_ops:
                 continue
             composites = []
-            needtoroll = (op.tau * 365 < ttm_tol) or roll_all
+            needtoroll = (((op.tau * 365) < ttm_tol) or roll_all)
             if needtoroll:
                 print('rolling option ' + str(op))
                 toberemoved.append(op)
@@ -1249,6 +1248,8 @@ def contract_roll(pf, op, vdf, pdf, date, flag):
             strike = 'atm'
         else:
             r_delta = d_cond
+    if strike is None:
+        strike = op.K
     print('strike, r_delta: ', strike, r_delta)
     newop = create_vanilla_option(vdf, pdf, new_vol_id, op.char, op.shorted,
                                   date, lots=lots, strike=strike, delta=r_delta)

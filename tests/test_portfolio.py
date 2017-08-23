@@ -24,13 +24,12 @@ yr = 2017
 start_date = '2017-07-01'
 end_date = '2017-08-10'
 pdts = ['QC', 'CC']
-volids = ['CC  Z7.Z7', 'QC  Z7.Z7']
 
 ####################################
 
 # grabbing data
 vdf, pdf, edf = grab_data(pdts, start_date, end_date,
-                          volids=volids, write_dump=True)
+                          write_dump=True)
 
 
 def generate_portfolio():

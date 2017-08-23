@@ -804,6 +804,9 @@ class Portfolio:
         retr.extend(port_futures)
         return retr
 
+    def get_pos_futures(self):
+        return self.OTC_futures + self.hedge_futures
+
     def timestep(self, value, allops=True, ops=False):
         if ops:
             all_options = ops

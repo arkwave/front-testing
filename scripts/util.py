@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-21 16:49:00
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-08-23 17:52:00
 
 
 from .portfolio import Portfolio
@@ -850,7 +850,10 @@ def close_out_deltas(pf, dtc):
     print('simulation.close_out_deltas - dtc: ', dtc)
     for pdt, mth, price in dtc:
         # print(pdt, mth, price)
-        futures = pf.hedges[pdt][mth][1]
+        all_fts = pf.get_pos_futures()
+        futures = [x for x in all_fts if (x.get_product() == pdt and
+                                          x.get_month() == mth)]
+
         # print([str(ft) for ft in futures])
         # toberemoved = []
         for ft in futures:
