@@ -221,7 +221,12 @@ def generate_hedges(filepath):
                         print('prep_data.generate_hedges - tau not nan. ')
                         tau = float(row.tau)
                         lst = [row.flag, list(literal_eval(row.cond)), int(row.freq), tau,
-                               row.tau_spec, row.kind, spectype, spec, subcond, row.repr]
+                               row.tau_spec, row.kind, spectype, spec]
+                        if subcond is not None:
+                            lst.extend([subcond, row.repr])
+                        else:
+                            lst.append(row.repr)
+
                     else:
                         lst = [row.flag, literal_eval(row.cond), int(row.freq),
                                row.kind, spectype, spec, row.repr]
@@ -467,8 +472,8 @@ def handle_dailies(dic, sim_start):
                 # creating the bullets corresponding to this daily option.
                 for tau in taus:
                     ui = copy.deepcopy(underlying)
-                    op_i = Option(strike, tau, char, vol, ui, payoff, shorted, month, direc=direc, 
-                                  barrier=barrier, lots=lots, bullet=False, ki=ki, ko=ko, rebate=rebate, 
+                    op_i = Option(strike, tau, char, vol, ui, payoff, shorted, month, direc=direc,
+                                  barrier=barrier, lots=lots, bullet=False, ki=ki, ko=ko, rebate=rebate,
                                   ordering=ordering, settlement=settlement, bvol=bvol)
                     bullets.append(op_i)
 
@@ -810,7 +815,7 @@ def civols(vdf, pdf, rollover='opex'):
                 # iterate over all order_nums for this product. for each cont, grab
                 # entries until first breakpoint, and stack wide.
                 for ordering in order_nums:
-                    cols = ['pdt', 'order', 'value_date', 'underlying_id', 'vol_id', 
+                    cols = ['pdt', 'order', 'value_date', 'underlying_id', 'vol_id',
                             'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
                     df2 = df[df.order == ordering]
                     tdf = df2[(df2['value_date'] < date) &

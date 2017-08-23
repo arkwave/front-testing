@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-08-21 15:03:03
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-08-23 22:16:24
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -74,30 +74,39 @@ class Hedge:
                 # print('r_conds: ', r_conds)
                 # begin the process of assigning.
                 desc = r_conds[-1]
-                params[flag]['kind'] = r_conds[-4]
-                params[flag]['spectype'] = r_conds[-3]
-                params[flag]['spec'] = r_conds[-2]
-                # case: r_conds contains ttm values to use for hedging.
-                if len(r_conds) == 10:
-                    if r_conds[4] == 'days':
-                        params[flag]['tau_val'] = r_conds[3] / 365
-                        params[flag]['tau_desc'] = 'days'
-                    elif r_conds[4] == 'years':
-                        params[flag]['tau_val'] = r_conds[3]
-                        params[flag]['tau_desc'] = 'years'
-                    elif r_conds[4] == 'ratio':
-                        params[flag]['tau_val'] = r_conds[3]
-                        params[flag]['tau_desc'] = 'ratio'
-
+                desc == 'uid' if desc is None else desc
                 if desc == 'exp':
                     if r_conds[-2] is not None:
                         self.buckets = list(r_conds[-2])
+                    params[flag]['kind'] = r_conds[-5]
+                    params[flag]['spectype'] = r_conds[-4]
+                    params[flag]['spec'] = r_conds[-3]
+                    if len(r_conds) == 10:
+                        if r_conds[4] == 'days':
+                            params[flag]['tau_val'] = r_conds[3] / 365
+                            params[flag]['tau_desc'] = 'days'
+                        elif r_conds[4] == 'years':
+                            params[flag]['tau_val'] = r_conds[3]
+                            params[flag]['tau_desc'] = 'years'
+                        elif r_conds[4] == 'ratio':
+                            params[flag]['tau_val'] = r_conds[3]
+                            params[flag]['tau_desc'] = 'ratio'
 
-        # print('processing hedges completed')
-
-        # one last sanity check
-        if desc is None:
-            desc = 'uid'
+                elif desc == 'uid':
+                    params[flag]['kind'] = r_conds[-4]
+                    params[flag]['spectype'] = r_conds[-3]
+                    params[flag]['spec'] = r_conds[-2]
+                    # case: ttm is specified for UID hedging.
+                    if len(r_conds) == 9:
+                        if r_conds[4] == 'days':
+                            params[flag]['tau_val'] = r_conds[3] / 365
+                            params[flag]['tau_desc'] = 'days'
+                        elif r_conds[4] == 'years':
+                            params[flag]['tau_val'] = r_conds[3]
+                            params[flag]['tau_desc'] = 'years'
+                        elif r_conds[4] == 'ratio':
+                            params[flag]['tau_val'] = r_conds[3]
+                            params[flag]['tau_desc'] = 'ratio'
 
         return desc, params
 
@@ -140,7 +149,7 @@ class Hedge:
         to hedge the deltas from a W Q6.U6 option.
 
         """
-        print('-+-+-+- calibrating ' + flag + ' -+-+-+-')
+        # print('-+-+-+- calibrating ' + flag + ' -+-+-+-')
         net = {}
         ttm = None
 
@@ -175,7 +184,7 @@ class Hedge:
                     # case: ttm specification exists.
                     if 'tau_val' in data:
                         ttm_modifier = data['tau_val']
-                        print('ttm modifier: ', ttm_modifier)
+                        # print('ttm modifier: ', ttm_modifier)
                         # case: ttm modifier is a ratio.
                         if data['tau_desc'] == 'ratio':
                             if selection_criteria == 'median':
@@ -184,6 +193,8 @@ class Hedge:
                         # ttm modifier is an actual value. s
                         else:
                             ttm = ttm_modifier
+                    else:
+                        ttm = max([op.tau for op in options])
 
                     # check available vol_ids and pick the closest one.
 
@@ -218,7 +229,7 @@ class Hedge:
             # self.pf.update_sec_by_month(None, 'OTC', update=True)
             # self.pf.update_sec_by_month(None, 'hedge', update=True)
             self.greek_repr = self.pf.get_net_greeks()
-            print('scripts.hedges.calibrate - greek repr ', self.greek_repr)
+            # print('scripts.hedges.calibrate - greek repr ', self.greek_repr)
             net = self.pf.get_net_greeks()
             for product in net:
                 df = self.pdf[self.pdf.pdt == product]
@@ -284,7 +295,7 @@ class Hedge:
 
                     self.mappings[flag][loc] = volid
 
-        print('-+-+-+- done calibrating ' + flag + ' -+-+-+-')
+        # print('-+-+-+- done calibrating ' + flag + ' -+-+-+-')
 
     def get_bucket(self, val, buckets=None):
         """Helper method that gets the bucket associated with a given value according to self.buckets.

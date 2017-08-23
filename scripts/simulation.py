@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-23 20:28:19
+# @Last Modified time: 2017-08-23 21:18:54
 
 ################################ imports ###################################
 
@@ -1229,6 +1229,10 @@ def contract_roll(pf, op, vdf, pdf, date, flag):
 
     new_ft, ftprice = create_underlying(
         pdt, new_ft_month, pdf, date)
+
+    if new_ft is None:
+        raise ValueError('ERROR: Contract Roll was attempted, but the information for ' +
+                         pdt + ' ' + new_ft_month + ' cannot be found in the dataset.')
 
     print('new ft: ', new_ft)
 

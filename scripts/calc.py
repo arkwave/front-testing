@@ -47,7 +47,6 @@ from scipy.stats import norm
 import numpy as np
 # from pandas import to_datetime
 import pandas as pd
-from .global_vars import final_vol_path as volpath
 
 
 # Dictionary of multipliers for greeks/pnl calculation.
@@ -90,8 +89,8 @@ np.random.seed(seed)
 #####################################################################
 
 
-def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None, 
-                   barrier=None, d=None, product=None, order=None, bvol=None):
+def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None,
+                   barrier=None, d=None, product=None, bvol=None):
     '''Wrapper function that computes value of option.
     Inputs: 1) ki      : Knock in value.
             2) ko      : Knock out value.
@@ -119,7 +118,7 @@ def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None,
             return _barrier_amer(char, tau, vol, K, s, r, payoff, d, ki, ko)
         elif barrier == 'euro':
             return _barrier_euro(char, tau, vol, K, s, r, payoff, d,
-                                 ki, ko, product, order=order, bvol=bvol)
+                                 ki, ko, product, bvol=bvol)
 
 
 ################### Vanilla Option Valuation ######################
@@ -231,8 +230,8 @@ def get_barrier_vol(df, product, tau, call_put_id, barlevel, order):
 
 # NOTE: Currently follows implementation taken from PnP Excel source code,
 # and so only accounts for ECUI, ECUO, EPDI, EPDO options.
-def _barrier_euro(char, tau, vol, k, s, r, payoff, direction, 
-                  ki, ko, product, order=None, rebate=0, bvol=None):
+def _barrier_euro(char, tau, vol, k, s, r, payoff, direction,
+                  ki, ko, product, rebate=0, bvol=None):
     """ Pricing model for options with European barriers.
 
     Inputs:
@@ -253,11 +252,6 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction,
 
     """
     barlevel = ki if ki else ko
-    call_put_id = 'C' if char == 'call' else 'P'
-    voldf = pd.read_csv(volpath)
-    voldf.value_date = pd.to_datetime(voldf.value_date)
-    bvol = get_barrier_vol(voldf, product, tau, call_put_id,
-                           barlevel, order) if bvol is None else bvol
 
     # case when barrier vol is not in vol surface; raise error.
     # if bvol is None:
@@ -824,11 +818,6 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction,
         delta, gamma, theta, vega : greeks of this instrument.
     """
     barlevel = ki if ki else ko
-    call_put_id = 'C' if char == 'call' else 'P'
-    voldf = pd.read_csv(volpath)
-    voldf.value_date = pd.to_datetime(voldf.value_date)
-    bvol = get_barrier_vol(voldf, product, tau, call_put_id,
-                           barlevel, order) if bvol is None else bvol
 
     # case when barrier vol is not in vol surface; raise error.
     # if bvol is None:
@@ -1058,7 +1047,7 @@ def _CRRbinomial(output_flag, payoff, option_type, s, k, tau, r, vol, product, n
                 optionvalue[i] = (p*optionvalue[i+1] + (1-p)*optionvalue[i])*Df
             elif payoff == 'amer':
                 # check for max between exercise and holding.
-                optionvalue[i] = max((z * (s * (u**i) * d**(j-i)-k)), 
+                optionvalue[i] = max((z * (s * (u**i) * d**(j-i)-k)),
                                      ((p*optionvalue[i+1] + (1-p)*optionvalue[i])*Df))
         if j == 2:
             returnvalue[2] = ((optionvalue[2] - optionvalue[1])/(s*u**2 - s)) - (

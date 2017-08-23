@@ -1085,7 +1085,7 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 	- [Done] Option
 	- [Done] Simulation
 	- Hedge 
-	- Util
+	- [Done] Util
 
 > Plotly visualization:
 	- same contract vol surface on two different days. 

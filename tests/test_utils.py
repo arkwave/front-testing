@@ -2,35 +2,35 @@
 # @Author: arkwave
 # @Date:   2017-08-09 17:01:19
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-17 13:39:05
+# @Last Modified time: 2017-08-23 21:06:33
 
-from scripts.util import combine_portfolios, create_straddle
+from scripts.util import combine_portfolios, create_straddle, create_vanilla_option, create_butterfly, create_skew, create_spread, create_strangle
 from scripts.fetch_data import grab_data
 from scripts.portfolio import Portfolio
-
-
+import unittest as un
 import pandas as pd
 
-######### variables ################
-start_date = '2017-05-01'
-end_date = '2017-07-21'
+############## variables ###########
+yr = 2017
+start_date = '2017-07-01'
+end_date = '2017-08-10'
 pdts = ['QC', 'CC']
-volids = ['QC  U7.U7', 'QC  Z7.Z7', 'CC  U7.U7', 'CC  Z7.Z7']
-####################################
 
+# grabbing data
 vdf, pdf, edf = grab_data(pdts, start_date, end_date,
-                          volids=volids, write=True)
+                          write_dump=True)
 
-pdf = pdf[pdf.value_date == pd.to_datetime(start_date)]
-vdf = vdf[vdf.value_date == pd.to_datetime(start_date)]
-
-
-def test_create_underlying():
-    pass
+start_date = min(pdf.value_date)
+end_date = max(pdf.value_date)
+####################################
 
 
 def test_create_vanilla_option():
-    pass
+    tc = un.TestCase
+    with tc.assertRaises(create_vanilla_option, ValueError) as e1:
+        op = create_vanilla_option(vdf, pdf, 'CC  Z7.Z7', 'call', False)
+
+    assert isinstance(e1.exception, ValueError)
 
 
 def test_create_straddle():
@@ -50,18 +50,6 @@ def test_create_spread():
 
 
 def test_create_skew():
-    pass
-
-
-def test_create_composites():
-    pass
-
-
-def test_merge_dicts():
-    pass
-
-
-def test_merge_lists():
     pass
 
 
