@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-23 21:18:54
+# @Last Modified time: 2017-08-24 20:46:30
 
 ################################ imports ###################################
 
@@ -24,7 +24,7 @@ from .hedge import Hedge
 from .signals import apply_signal
 
 
-blockPrint()
+# blockPrint()
 # enablePrint()
 ###########################################################################
 ######################## initializing variables ###########################
@@ -102,7 +102,7 @@ np.random.seed(seed)
 def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=False,
                    end_date=None, brokerage=None, slippage=None, signals=None,
                    roll_portfolio=None, pf_ttm_tol=None, pf_roll_product=None,
-                   roll_hedges=None, h_ttm_tol=None, h_roll_product=None, plot_results=True):
+                   plot_results=True):
     """
     Each run of the simulation consists of 5 steps:
         1) Feed data into the portfolio.
@@ -228,11 +228,6 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
             next_date = date_range[i + 1]
         except IndexError:
             next_date = None
-        # try to get previous date
-        try:
-            prev_date = date_range[i - 1]
-        except IndexError:
-            prev_date = None
 
         # isolate data relevant for this day.
         date = pd.to_datetime(date)
@@ -260,8 +255,7 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
 
     # Step 3: Feed data into the portfolio.
         pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
-            = feed_data(vdf, pdf, pf, prev_date, init_val, brokerage=brokerage,
-                        slippage=slippage, flat_vols=flat_vols, flat_price=flat_price)
+            = feed_data(vdf, pdf, pf, init_val, flat_vols=flat_vols, flat_price=flat_price)
 
         # dailycost -= profit
         # print('cost after feed data: ', dailycost)
@@ -601,7 +595,7 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
 ########################## Helper functions ##############################
 ##########################################################################
 
-def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None,
+def feed_data(voldf, pdf, pf, init_val, brokerage=None,
               slippage=None, flat_vols=False, flat_price=False):
     """
     This function does the following:
@@ -616,11 +610,11 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None,
         voldf (pandas dataframe): dataframe of vols in same format as returned by read_data
         pdf (pandas dataframe): dataframe of prices in same format as returned by read_data
         pf (portfolio object): portfolio specified by portfolio_specs.txt
-        dic (dictionary): dictionary of rollover dates, in the format
-                {product_i: [c_1 rollover, c_2 rollover, ... c_n rollover]}
-        prev_date (TYPE): Description
+        init_val (TYPE): Description
         brokerage (int, optional): brokerage fees per lot.
         slippage (int, optional): slippage cost
+        flat_vols (bool, optional): Description
+        flat_price (bool, optional): Description
 
     Returns:
         tuple: change in value, updated portfolio object, and whether or not there is missing data.
@@ -629,9 +623,14 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None,
         ValueError: Raised if voldf is empty.
 
     Notes:
-    1) DO NOT ADD SECURITIES INSIDE THIS FUNCTION. Doing so will mess up the PnL calculations \
-    and give you vastly overinflated profits or vastly exaggerated losses, due to reliance on \
-    the compute_value function.
+        1) DO NOT ADD SECURITIES INSIDE THIS FUNCTION. Doing so will mess up the PnL calculations \
+        and give you vastly overinflated profits or vastly exaggerated losses, due to reliance on \
+        the compute_value function.
+
+    Deleted Parameters:
+        dic (dictionary): dictionary of rollover dates, in the format
+            {product_i: [c_1 rollover, c_2 rollover, ... c_n rollover]}
+        prev_date (TYPE): Description
 
     """
     barrier_futures = []
@@ -648,7 +647,6 @@ def feed_data(voldf, pdf, pf, prev_date, init_val, brokerage=None,
         raise ValueError('vol df is empty!')
 
     # print('curr_date: ', curr_date)
-    prev_date = pd.to_datetime(prev_date)
     date = pd.to_datetime(pdf.value_date.unique()[0])
 
     # 2)  update prices of futures, underlying & portfolio alike.
@@ -1191,9 +1189,10 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60, tar
     # print('pf after rollover: ', pf)
     print('cost of contract rolling: ', total_cost)
 
-    for x in processed:
-        print('ops contract rolled belonging to ' + x.name + ':')
-        print([str(i) for i in processed[x]])
+    # for x in processed:
+    # print('ops contract rolled belonging to ' + x.name + ':')
+    # if processed:
+    #     print([str(i) for i in processed[x]])
 
     pf.refresh()
     print(' --- done contract rolling --- ')
@@ -1231,8 +1230,11 @@ def contract_roll(pf, op, vdf, pdf, date, flag):
         pdt, new_ft_month, pdf, date)
 
     if new_ft is None:
-        raise ValueError('ERROR: Contract Roll was attempted, but the information for ' +
-                         pdt + ' ' + new_ft_month + ' cannot be found in the dataset.')
+        raise ValueError('Contract Roll was attempted, but the information for ' +
+                         pdt + ' ' + new_ft_month + ' cannot be found in the dataset.\n\
+                         Reasons you could be seeing this error: \n\
+                            1) contract roll is checked but vol_ids are explicitly specified \n\
+                            2) the data for the contract we want to roll into isnt available')
 
     print('new ft: ', new_ft)
 

@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-23 17:52:00
+# @Last Modified time: 2017-08-24 20:41:47
 
 
 from .portfolio import Portfolio
@@ -280,9 +280,11 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
         else:
             tau = vdf[(vdf.value_date == date) &
                       (vdf.vol_id == volid)].tau.values[0]
-    except IndexError:
-        print('util.create_vanilla_option - cannot find tau.')
-        print('inputs: ', date, volid)
+    except IndexError as e:
+        raise IndexError(
+            'util.create_vanilla_option - cannot find ttm in dataset. Inputs are: ', date, volid) from e
+        # print()
+        # print('inputs: ', date, volid)
 
     # Case 1 : Vol is None, but strike is specified.
     if vol is None and strike is not None:
@@ -292,12 +294,9 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
                       (vdf.vol_id == volid) &
                       (vdf.call_put_id == cpi) &
                       (vdf.strike == strike)].settle_vol.values[0]
-        except IndexError:
-            print('util.create_vanilla_option - vol1 not found, inputs below: ')
-            print('date: ', date)
-            print('vol_id: ', volid)
-            print('call_put_id: ', cpi)
-            print('strike: ', strike)
+        except IndexError as e:
+            raise IndexError(
+                'util.create_vanilla_option - vol not found in the dataset. inputs are: ', date, volid, cpi, strike) from e
 
     # Case 2: Option construction is basis delta. vol and strike are None.
     elif vol is None and strike is None:
@@ -305,12 +304,14 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
             col = str(int(delta)) + 'd'
             vol = pdf[(pdf.vol_id == volid) &
                       (pdf.value_date == date) &
-                      (pdf.call_put_id == 'C')][col].values[0]
-        except IndexError:
-            print('util.create_vanilla_option - cannot find vol1')
-            print('vol_id: ', volid)
-            print('date: ', date)
-            print('cpi: ', 'C')
+                      (pdf.call_put_id == cpi)][col].values[0]
+        except IndexError as e:
+            raise IndexError(
+                'util.create_vanilla_option - cannot find vol by delta. Inputs are: ', volid, date, delta, cpi) from e
+            # print()
+            # print('vol_id: ', volid)
+            # print('date: ', date)
+            # print('cpi: ', cpi)
 
     # if delta specified, compute strike appropriate to that delta
     if delta is not None:
@@ -425,9 +426,9 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
     try:
         tau = vdf[(vdf.value_date == date) &
                   (vdf.vol_id == volid)].tau.values[0]
-    except IndexError:
-        print('util.create_vanilla_option - cannot find tau.')
-        print('inputs: ', date, volid)
+    except IndexError as e:
+        raise IndexError(
+            'util.create_barrier_option - cannot find tau given inpits: ', date, volid) from e
 
     # Case 1 : Vol is None, but strike is specified.
     if vol is None and strike is not None:
@@ -437,12 +438,9 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
                       (vdf.vol_id == volid) &
                       (vdf.call_put_id == cpi) &
                       (vdf.strike == strike)].settle_vol.values[0]
-        except IndexError:
-            print('util.create_vanilla_option - vol1 not found, inputs below: ')
-            print('date: ', date)
-            print('vol_id: ', volid)
-            print('call_put_id: ', cpi)
-            print('strike: ', strike)
+        except IndexError as e:
+            raise IndexError(
+                'util.create_barrier_option - strike not found, input: ', date, volid, cpi, strike)
 
     # get barrier vol.
     barlevel = ko if ko is not None else ki
@@ -452,12 +450,9 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
                        (vdf.vol_id == volid) &
                        (vdf.call_put_id == cpi) &
                        (vdf.strike == barlevel)].settle_vol.values[0]
-        except IndexError:
-            print('util.create_barrier_option - bvol not found. inputs below: ')
-            print('date: ', date)
-            print('vol_id: ', volid)
-            print('call_put_id: ', cpi)
-            print('strike: ', barlevel)
+        except IndexError as e:
+            raise IndexError(
+                'util.create_barrier_option - bvol not found. inputs are: ', date, volid, cpi, barlevel) from e
 
     op1 = Option(strike, tau, char, vol, ft, payoff, shorted, opmth,
                  direc=direction, barrier=barriertype, lots=lots_req,

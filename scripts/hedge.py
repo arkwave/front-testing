@@ -2,15 +2,19 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-23 22:16:24
+# @Last Modified time: 2017-08-24 19:08:38
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
-from .util import create_straddle, create_underlying, create_strangle, create_vanilla_option
+from .util import create_straddle, create_underlying, create_strangle, create_vanilla_option, blockPrint
 
+
+# blockPrint()
 
 # TODO: accept specifications on hedge option construction from hedge
 # dictionary.
+
+
 class Hedge:
     """Class that defines a hedge object. Hedge object has two main functionalities:
     1) inferring the hedging parameters from the portfolio
@@ -107,6 +111,8 @@ class Hedge:
                         elif r_conds[4] == 'ratio':
                             params[flag]['tau_val'] = r_conds[3]
                             params[flag]['tau_desc'] = 'ratio'
+            if desc is None:
+                desc = 'uid'
 
         return desc, params
 
@@ -166,7 +172,8 @@ class Hedge:
                 if buckets is None else self.pf.greeks_by_exp(buckets)
 
             for product in calibration_dic:
-                df = self.pdf[self.pdf.pdt == product]
+                df = self.pdf[(self.pdf.pdt == product) &
+                              (self.pdf.call_put_id == 'C')]
                 for exp in calibration_dic[product]:
                     loc = (product, exp)
                     if df.empty:
@@ -196,16 +203,24 @@ class Hedge:
                     else:
                         ttm = max([op.tau for op in options])
 
+                    # print('ttm: ', ttm)
+
                     # check available vol_ids and pick the closest one.
 
                     closest_tau_val = sorted(
                         df.tau, key=lambda x: abs(x - ttm))
 
+                    # print('closest_tau_val: ', closest_tau_val)
+
                     # sanity check: ensuring that the option being selected to
                     # hedge has at least 4 days to maturity (i.e. to account
                     # for a weekend)
-                    closest_tau_val = min(
-                        [x for x in closest_tau_val if x > 4 / 365])
+
+                    valid = [x for x in closest_tau_val if x > 4/365]
+
+                    closest_tau_val = valid[0]
+
+                    # print('closest_tau_val: ', closest_tau_val)
 
                     vol_ids = df[df.tau == closest_tau_val].vol_id.values
 
@@ -347,7 +362,7 @@ class Hedge:
                 # static bound case
                 if cond[0] == 'static':
                     val = self.params[greek]['target']
-                    ltol, utol = val - 1, val + 1
+                    ltol, utol = (val - 1, val + 1)
                     conditions.append((strs[greek], (ltol, utol)))
                 elif cond[0] == 'bound':
                     # print('to be literal eval-ed: ', hedges[greek][1])
@@ -359,13 +374,20 @@ class Hedge:
             for month in net_greeks[pdt]:
                 greeks = net_greeks[pdt][month]
                 for cond in conditions:
-                    bound = cond[1]
+                    ltol, utol = cond[1]
+                    index = cond[0]
+                    # sanity check: if greek is negative, flip the sign of the bounds
+                    # in the case of gamma/theta/vega
+                    if greeks[index] < 0 and index != 0:
+                        tmp = ltol
+                        ltol = -utol
+                        utol = -tmp
                     print('scripts.hedge.check_uid_hedges: inputs - ',
-                          greeks[cond[0]], bound[0], bound[1])
-                    if (greeks[cond[0]] > bound[1]) or \
-                            (greeks[cond[0]] < bound[0]):
+                          greeks[index], ltol, utol)
+                    if (greeks[index] > utol) or \
+                            (greeks[index] < ltol):
                         print(str(cond) + ' failed')
-                        print(greeks[cond[0]], bound[0], bound[1])
+                        print(greeks[index], ltol, utol)
                         print('--- done checking uid hedges satisfied ---')
                         return False
 
@@ -389,7 +411,6 @@ class Hedge:
         tst = self.hedges.copy()
         # if 'delta' in tst:
         #     tst.pop('delta')
-
         # delta condition:
         conditions = []
         for greek in tst:
@@ -415,9 +436,22 @@ class Hedge:
                 if ops:
                     print('ops is true for exp = ' + str(exp))
                     for cond in conditions:
-                        bound = cond[1]
-                        if (greeks[cond[0]] > bound[1]) or (greeks[cond[0]] < bound[0]):
-                            print(str(cond) + ' failed')
+                        ltol, utol = cond[1]
+                        index = cond[0]
+
+                        # sanity check: if greek is negative, flip the sign of the bounds
+                        # in the case of gamma/theta/vega
+                        if greeks[index] < 0 and index != 0:
+                            tmp = ltol
+                            ltol = -utol
+                            utol = -tmp
+                        print('scripts.hedge.check_exp_hedges: inputs - ',
+                              greeks[index], ltol, utol)
+                        if (greeks[index] > utol) or \
+                                (greeks[index] < ltol):
+                            print('exp hedges ' + ' ' + str(cond) + ' failed')
+                            print(greeks[index], ltol, utol)
+                            print('--- done checking exp hedges satisfied ---')
                             return False
         # rolls_satisfied = check_roll_hedges(pf, hedges)
         return True
@@ -477,9 +511,6 @@ class Hedge:
             print('======= done ' + flag + ' hedge =========')
             return fee
 
-        # print('flag: ', flag)
-        # print('hedge_type: ', hedge_type)
-        print('greek repr: ', self.greek_repr)
         for product in self.greek_repr:
             for loc in self.greek_repr[product]:
                 print('>> hedging ' + str(product) + ' ' + str(loc) + ' <<')
@@ -490,7 +521,6 @@ class Hedge:
                     data = fulldata[1:]
                 else:
                     data = fulldata
-                print('data: ', data)
                 greekval = data[ind]
 
                 # sanity check in the case of nonzero lower bound and exp
@@ -528,8 +558,8 @@ class Hedge:
         """
         # sanity check: since greek signs will never arbitrarily flip, wanna make sure
         # they stay the same sign.
-        # if greekval < 0:
-        #     target = -target
+        if greekval < 0:
+            target = -target
 
         cost = 0
         print('target ' + flag + ': ', target)
@@ -556,6 +586,8 @@ class Hedge:
 
         # adding the hedge structures.
         ops = self.add_hedges(data, shorted, hedge_id, flag, reqd_val, loc)
+
+        self.refresh()
 
         # computing slippage/brokerage if required.
         if ops:
@@ -651,6 +683,7 @@ class Hedge:
                                       shorted, strike=strike, greek=flag, greekval=greekval)
                 gv = greekval if not shorted else -greekval
                 print('added straddle with ' + str(gv) + ' ' + str(flag))
+                # print([str(x) for x in ops])
 
             elif data['kind'] == 'strangle':
                 strike1, strike2, delta1, delta2 = None, None, None, None
