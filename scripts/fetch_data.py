@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-18 16:24:26
+# @Last Modified time: 2017-08-24 22:09:21
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -68,7 +68,7 @@ def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False,
         end_date = end_date.strftime('%Y-%m-%d')
 
     engine = create_engine('postgresql://' + user + ':' + password +
-                            '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+                           '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
     connection = engine.connect()
 
     query = "select security_id, settlement_date, future_settlement_value, option_expiry_date,implied_vol \
@@ -227,6 +227,9 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
     final_vol = vdf
     final_price = pdf
 
+    assert not vdf.empty
+    assert not pdf.empty
+
     # final preprocessing steps
     # final_price = ciprice(pdf)
     # print('final price: ', final_price)
@@ -260,6 +263,8 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
             + '  ' + final_vol.vol_id.str.split().str[1]
         final_price.vol_id = final_price.vol_id.str.split().str[0]\
             + '  ' + final_price.vol_id.str.split().str[1]
+    assert not vdf.empty
+    assert not pdf.empty
 
     if write:
         desired_path = writepath if writepath is not None else direc + 'datasets/debug/'
@@ -283,7 +288,7 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
 
 
 def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
-              writepath=None, 
+              writepath=None,
               direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/',
               write=True, test=False, volids=None, write_dump=False):
     """
@@ -338,8 +343,8 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
         # print('final exppath: ', final_exppath)
 
         if (os.path.exists(final_volpath) and
-            os.path.exists(final_pricepath) and
-            os.path.exists(final_exppath)):
+                os.path.exists(final_pricepath) and
+                os.path.exists(final_exppath)):
             print('cleaned data found, reading in and returning...')
             vdf = pd.read_csv(final_volpath)
             pdf = pd.read_csv(final_pricepath)
@@ -420,7 +425,7 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
 
             vdf, pdf, edf, roll_df, start_date = prep_datasets(vdf, pdf, edf, start_date,
                                                                end_date, pdt, signals=signals,
-                                                               test=False, write=write,
+                                                               test=test, write=write,
                                                                writepath=writepath,
                                                                direc=direc)
             final_pdf = pd.concat([final_pdf, pdf])
@@ -428,7 +433,7 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
 
     # last step: sanity check dates etc.
     sanity_check(final_vols.value_date.unique(),
-                 final_pdf.value_date.unique(), 
+                 final_pdf.value_date.unique(),
                  pd.to_datetime(start_date),
                  pd.to_datetime(end_date))
 

@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-24 20:46:30
+# @Last Modified time: 2017-08-25 16:43:58
 
 ################################ imports ###################################
 
@@ -24,7 +24,7 @@ from .hedge import Hedge
 from .signals import apply_signal
 
 
-# blockPrint()
+blockPrint()
 # enablePrint()
 ###########################################################################
 ######################## initializing variables ###########################

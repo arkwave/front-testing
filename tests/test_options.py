@@ -313,11 +313,11 @@ def test_barrier_options():
     assert (p1 == p2)
     l1 = [d1, g1, t1, v1]
     l2 = [d2, g2, t2, v2]
-    try:
-        assert np.allclose(l1, l2)
-    except AssertionError:
-        print('testoptions barr_op1: vanilla: ', l1)
-        print('testoptions barr_op1: barrier: ', l2)
+    # try:
+    assert np.allclose(l1, l2)
+    # except AssertionError:
+    #     print('testoptions barr_op1: vanilla: ', l1)
+    #     print('testoptions barr_op1: barrier: ', l2)
 
 
 def test_barrier_options2():
@@ -333,11 +333,11 @@ def test_barrier_options2():
     p3 = vanop2.get_price()
     d2, g2, t2, v2 = barOp2.greeks()
     p4 = barOp2.get_price()
-    try:
-        assert p4 < p3
-    except AssertionError:
-        print('testoptions barr_op2: vanilla: ', p3)
-        print("testoptions barr_op2: barrier: ", p4)
+    # try:
+    assert p4 < p3
+    # except AssertionError:
+    #     print('testoptions barr_op2: vanilla: ', p3)
+    #     print("testoptions barr_op2: barrier: ", p4)
 
 
 def test_strike_type():

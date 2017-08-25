@@ -120,11 +120,11 @@ def test_feed_data_updates():
         ft.update_price(ft.price + 10)
 
     new_val = pf.compute_value()
-    try:
-        assert new_val != init_val
-    except AssertionError:
-        print('new: ', new_val)
-        print('init: ', init_val)
+    # try:
+    assert new_val != init_val
+    # except AssertionError:
+    #     print('new: ', new_val)
+    #     print('init: ', init_val)
 
     pf2 = generate_portfolio('long')
     init2 = pf2.compute_value()
@@ -133,11 +133,11 @@ def test_feed_data_updates():
         ft.update_price(60)
 
     new2 = pf2.compute_value()
-    try:
-        assert new2 != init2
-    except AssertionError:
-        print('new2: ', new2)
-        print('init2: ', init2)
+    # try:
+    assert new2 != init2
+    # except AssertionError:
+    #     print('new2: ', new2)
+    #     print('init2: ', init2)
 
 
 def comp_portfolio(refresh=False):
@@ -210,12 +210,12 @@ def test_handle_exercise_simple():
     assert [op.tau for op in pf.OTC_options] == [0, 0]
 
     # check that net greeks DO NOT go flat after exercise.
-    try:
-        assert pf.get_net_greeks() == init_net
-    except AssertionError:
-        print('[Failure] test_simulation.test_handle_exercise')
-        print('actual: ', pf.get_net_greeks())
-        print('expected: ', init_net)
+    # try:
+    assert pf.get_net_greeks() == init_net
+    # except AssertionError:
+    #     print('[Failure] test_simulation.test_handle_exercise')
+    #     print('actual: ', pf.get_net_greeks())
+    #     print('expected: ', init_net)
 
     # removing expired
     pf.remove_expired()
@@ -257,13 +257,13 @@ def test_handle_exercise_composite():
     assert [op.tau for op in pf.OTC['CC']['Z7'][0]] == [0, 0]
 
     # check that net greeks DO NOT go flat after exercise.
-    try:
-        assert pf.get_net_greeks() == init_net
-    except AssertionError:
-        print('##### [Failure] test_simulation.test_handle_exercise #####')
-        print('actual: ', pf.get_net_greeks())
-        print('expected: ', init_net)
-        print('##########################################################')
+    # try:
+    assert pf.get_net_greeks() == init_net
+    # except AssertionError:
+    #     print('##### [Failure] test_simulation.test_handle_exercise #####')
+    #     print('actual: ', pf.get_net_greeks())
+    #     print('expected: ', init_net)
+    #     print('##########################################################')
     # removing expired
     pf.remove_expired()
 
@@ -276,14 +276,14 @@ def test_handle_exercise_composite():
 
     # check that the family containing CC is no longer valid,
     # i.e. contain check fails.
-    try:
-        assert pf.get_family_containing(ref_op_cc) is None
-    except AssertionError:
-        print('########################################################')
-        print('[Failure] test_simulation.test_handle_exercise_composite')
-        print('actual: ', pf.get_family_containing(ref_op_cc))
-        print('expected: ', 'None')
-        print('#########################################################')
+    # try:
+    assert pf.get_family_containing(ref_op_cc) is None
+    # except AssertionError:
+    #     print('########################################################')
+    #     print('[Failure] test_simulation.test_handle_exercise_composite')
+    #     print('actual: ', pf.get_family_containing(ref_op_cc))
+    #     print('expected: ', 'None')
+    #     print('#########################################################')
 
     # explicitly check the family to make sure CC ops have been removed.
     ccfam = [x for x in pf.families if x.name == 'cc_comp'][0]
@@ -379,12 +379,12 @@ def test_contract_roll():
 
     pf, cost, newop, op, iden = contract_roll(pf, ref_op, vdf, pdf, date, flag)
 
-    try:
-        assert 'H8' in pf.OTC['CC']
-        assert 'H8' in pf.get_net_greeks()['CC']
-    except AssertionError:
-        print('OTC: ', pf.OTC)
-        print('net: ', pf.get_net_greeks())
+    # try:
+    assert 'H8' in pf.OTC['CC']
+    assert 'H8' in pf.get_net_greeks()['CC']
+    # except AssertionError:
+    #     print('OTC: ', pf.OTC)
+    #     print('net: ', pf.get_net_greeks())
 
     assert newop.get_month() == 'H8'
     assert op == ref_op
@@ -433,26 +433,26 @@ def test_rollover_no_product_simple_split():
     pf2.add_security([ccops[1]], 'OTC')
     pf = combine_portfolios([pf1, pf2], name='pf', refresh=True)
     pf, cost = roll_over(pf, r_vdf, r_pdf, date, ttm_tol=ttm_tol+1)
-    try:
-        assert 'H8' in pf.OTC['CC']
-        assert 'H8' in pf.get_net_greeks()['CC']
-        assert 'H8' in pf1.OTC['CC']
-        assert 'H8' in pf1.get_net_greeks()['CC']
-        assert 'H8' in pf2.OTC['CC']
-        assert 'H8' in pf2.get_net_greeks()['CC']
-        assert 'Z7' not in pf.OTC['CC']
-        assert 'Z7' not in pf.get_net_greeks()['CC']
-        assert 'Z7' not in pf1.OTC['CC']
-        assert 'Z7' not in pf1.get_net_greeks()['CC']
-        assert 'Z7' not in pf2.OTC['CC']
-        assert 'Z7' not in pf2.get_net_greeks()['CC']
-    except AssertionError:
-        print('total.OTC: ', pf.OTC)
-        print('total.net: ', pf.get_net_greeks())
-        print('pf1.OTC: ', pf1.OTC)
-        print('pf1.net: ', pf1.get_net_greeks())
-        print('pf2.OTC: ', pf2.OTC)
-        print('pf2.net: ', pf2.get_net_greeks())
+    # try:
+    assert 'H8' in pf.OTC['CC']
+    assert 'H8' in pf.get_net_greeks()['CC']
+    assert 'H8' in pf1.OTC['CC']
+    assert 'H8' in pf1.get_net_greeks()['CC']
+    assert 'H8' in pf2.OTC['CC']
+    assert 'H8' in pf2.get_net_greeks()['CC']
+    assert 'Z7' not in pf.OTC['CC']
+    assert 'Z7' not in pf.get_net_greeks()['CC']
+    assert 'Z7' not in pf1.OTC['CC']
+    assert 'Z7' not in pf1.get_net_greeks()['CC']
+    assert 'Z7' not in pf2.OTC['CC']
+    assert 'Z7' not in pf2.get_net_greeks()['CC']
+    # except AssertionError:
+    #     print('total.OTC: ', pf.OTC)
+    #     print('total.net: ', pf.get_net_greeks())
+    #     print('pf1.OTC: ', pf1.OTC)
+    #     print('pf1.net: ', pf1.get_net_greeks())
+    #     print('pf2.OTC: ', pf2.OTC)
+    #     print('pf2.net: ', pf2.get_net_greeks())
 
     op1 = pf.OTC_options[0]
     op2 = pf.OTC_options[1]
@@ -480,14 +480,14 @@ def test_rollover_no_product_comp():
 
     pf1 = [x for x in pf.families if x.name == 'cc_comp'][0]
 
-    try:
-        assert 'H8' in pf1.OTC['CC']
-        assert 'H8' in pf1.get_net_greeks()['CC']
-        assert 'Z7' not in pf1.OTC['CC']
-        assert 'Z7' not in pf1.get_net_greeks()['CC']
-    except AssertionError:
-        print('pfcc.OTC: ', pf1.OTC['CC'])
-        print('pfcc.net: ', pf1.get_net_greeks()['CC'])
+    # try:
+    assert 'H8' in pf1.OTC['CC']
+    assert 'H8' in pf1.get_net_greeks()['CC']
+    assert 'Z7' not in pf1.OTC['CC']
+    assert 'Z7' not in pf1.get_net_greeks()['CC']
+    # except AssertionError:
+    #     print('pfcc.OTC: ', pf1.OTC['CC'])
+    #     print('pfcc.net: ', pf1.get_net_greeks()['CC'])
 
     oplst = list(pf.OTC['CC']['H8'][0])
 

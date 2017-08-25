@@ -36,10 +36,10 @@ def ttm(df, s, edf):
     for iden in s:
         expdate = get_expiry_date(iden, edf)
         # print('Expdate: ', expdate)
-        try:
-            expdate = expdate.values[0]
-        except IndexError:
-            print('Vol ID: ', iden)
+        # try:
+        expdate = expdate.values[0]
+        # except IndexError:
+        #     print('Vol ID: ', iden)
         currdate = pd.to_datetime(df[(df['vol_id'] == iden)]['value_date'])
         timedelta = (expdate - currdate).dt.days / 365
         df.ix[df['vol_id'] == iden, 'tau'] = timedelta
@@ -82,14 +82,14 @@ def test_vanilla_pricing_settle():
         ft = Future('Z6', s, product)
         op = Option(strike, tau, 'call', vol, ft, 'euro', False, 'Z7')
         prices.append(op.get_price())
-    try:
-        assert np.allclose(prices, actuals, atol=0.1354)
-    except AssertionError:
-        print('testcalc: Passed ' + str(passed) + ' tests.')
-        print('testcalc: OptionPrice, Actual : ', str((op.get_price(), price)))
-        resid = list(map(sub, actuals, prices))
-        print('testcalc: Residuals: ', resid)
-        print('testcalc: Max residual: ', max(resid))
+    # try:
+    assert np.allclose(prices, actuals, atol=0.1354)
+    # except AssertionError:
+    #     print('testcalc: Passed ' + str(passed) + ' tests.')
+    #     print('testcalc: OptionPrice, Actual : ', str((op.get_price(), price)))
+    #     resid = list(map(sub, actuals, prices))
+    #     print('testcalc: Residuals: ', resid)
+    #     print('testcalc: Max residual: ', max(resid))
 
 
 def test_vanilla_pricing():
@@ -112,11 +112,11 @@ def test_vanilla_pricing():
         k = strikes[i]
         actual = actuals[i]
         val = _bsm_euro(char, tau, vol, k, s, 0)
-        try:
-            assert np.isclose(val, actual)
-        except AssertionError:
-            print('vanilla _ pricing _ %% error: ',
-                  (abs(val-actual)/actual) * 100)
+        # try:
+        assert np.isclose(val, actual)
+        # except AssertionError:
+        #     print('vanilla _ pricing _ %% error: ',
+        #           (abs(val-actual)/actual) * 100)
 
 
 # char, tau, vol, k, s, r, payoff, direction, ki, ko
@@ -151,10 +151,10 @@ def test_amer_barrier_pricing():
         price = prices[i]
         val = _barrier_amer(char, tau, vol, k, spot, r,
                             payoff, direction, ki, ko)
-        try:
-            assert np.isclose(val, price)
-        except AssertionError:
-            print('amerbarr _ run ' + str(i) + ': ', val, price)
+        # try:
+        assert np.isclose(val, price)
+        # except AssertionError:
+        #     print('amerbarr _ run ' + str(i) + ': ', val, price)
 
 
 def test_vanilla_greeks():

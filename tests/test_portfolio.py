@@ -152,11 +152,11 @@ def test_remove_security_futures():
     # relevant data structures. additionally, net greeks should not have
     # futures.
     pf.add_security([ft_test], 'OTC')
-    try:
-        assert set(pf.get_net_greeks()['C'].keys()) == set(
-            ['H7', 'K7'])
-    except AssertionError:
-        print('remove_sec_ft 1: ', pf.get_net_greeks()['C'].keys())
+    # try:
+    assert set(pf.get_net_greeks()['C'].keys()) == set(
+        ['H7', 'K7'])
+    # except AssertionError:
+    #     print('remove_sec_ft 1: ', pf.get_net_greeks()['C'].keys())
 
     # checking addition
     curr_OTCs = pf.get_securities_monthly('OTC')
@@ -190,11 +190,11 @@ def test_remove_security_futures():
     assert len(pf.OTC_futures) == 2
 
     # failing
-    try:
-        assert rem_net == prev_net
-    except AssertionError:
-        print('remove_sec_ft 2: ', rem_net['C'].keys())
-        print('remove_sec_ft 3: ', prev_net['C'].keys())
+    # try:
+    assert rem_net == prev_net
+    # except AssertionError:
+    #     print('remove_sec_ft 2: ', rem_net['C'].keys())
+    #     print('remove_sec_ft 3: ', prev_net['C'].keys())
 
     # failing
     try:
@@ -246,13 +246,13 @@ def test_remove_security_options():
     assert len(pf.OTC_options) == 3
     assert len(pf.get_securities_monthly('OTC')) == 3
 
-    try:
-        assert rem_net == prev_net
-    except AssertionError:
-        print(rem_OTCs['C'].keys())
-        print(pf.hedge_pos['C'].keys())
-        print(rem_net['C'].keys())
-        print(prev_net['C'].keys())
+    # try:
+    assert rem_net == prev_net
+    # except AssertionError:
+    #     print(rem_OTCs['C'].keys())
+    #     print(pf.hedge_pos['C'].keys())
+    #     print(rem_net['C'].keys())
+    #     print(prev_net['C'].keys())
 
     try:
         assert rem_OTCs == prev_OTCs
@@ -289,12 +289,12 @@ def test_remove_expired_1():
     pf.remove_expired()
     assert len(pf.OTC['C']) == 2
     curr_net = copy.deepcopy(pf.get_net_greeks())
-    try:
-        assert curr_net != prev_net
-    except AssertionError:
-        print('rem_exp_1 curr: ', curr_net)
-        print('rem_exp_1 prev: ', prev_net)
-        print('rem_exp_1 init: ', init_net)
+    # try:
+    assert curr_net != prev_net
+    # except AssertionError:
+    #     print('rem_exp_1 curr: ', curr_net)
+    #     print('rem_exp_1 prev: ', prev_net)
+    #     print('rem_exp_1 init: ', init_net)
     assert 'M7' not in pf.OTC['C']
     assert len(pf.OTC_options) == 3
 
@@ -308,19 +308,19 @@ def test_remove_expired_2():
     net = pf.get_net_greeks()['C']['H7']
     net = np.array(net)
     # print('net: ', net)
-    try:
-        assert net.all() != 0
-    except AssertionError:
-        print('pre-exp: ', net)
+    # try:
+    assert net.all() != 0
+    # except AssertionError:
+    #     print('pre-exp: ', net)
     # decrement tau, expiring option.
     pf.timestep(0.05)
     assert op.check_expired()
     pf.remove_expired()
     net = pf.get_net_greeks()
-    try:
-        assert len(net) == 0
-    except (AssertionError, IndexError, KeyError):
-        print('post-exp: ', net)
+    # try:
+    assert len(net) == 0
+    # except (AssertionError, IndexError, KeyError):
+    #     print('post-exp: ', net)
 
 
 def test_ordering():
@@ -358,22 +358,22 @@ def test_compute_value():
     # testing hedge pos
     pf.remove_security([op1], 'OTC')
 
-    try:
-        assert pf.compute_value() == init_val
-    except AssertionError:
-        print('testport compute_val remove: ', pf.compute_value(), init_val)
+    # try:
+    assert pf.compute_value() == init_val
+    # except AssertionError:
+    #     print('testport compute_val remove: ', pf.compute_value(), init_val)
 
     op2 = Option(
         35, 0.01, 'call', 0.4245569263291844, ft, 'amer', True, 'Z7')
     pf.add_security([op2], 'hedge')
     shorted = pf.compute_value()
 
-    try:
-        assert np.isclose(init_val - shorted, op2.lots *
-                          op2.get_price() * pnlmult)
-    except AssertionError:
-        print('shorted: ',  op2.lots * op2.get_price())
-        print('testport compute_val short: ', init_val, shorted)
+    # try:
+    assert np.isclose(init_val - shorted, op2.lots *
+                      op2.get_price() * pnlmult)
+    # except AssertionError:
+    #     print('shorted: ',  op2.lots * op2.get_price())
+    #     print('testport compute_val short: ', init_val, shorted)
 
 
 def test_exercise_option():
@@ -417,11 +417,11 @@ def test_price_vol_change():
     new_net = copy.deepcopy(pf.get_net_greeks())
     # print('new: ', new_net)
     # print('old: ', init_net)
-    try:
-        assert new_net != init_net
-    except AssertionError:
-        print('new_net: ', new_net)
-        print('init_net: ', init_net)
+    # try:
+    assert new_net != init_net
+    # except AssertionError:
+    #     print('new_net: ', new_net)
+    #     print('init_net: ', init_net)
 
 
 def test_decrement_ordering():
@@ -628,14 +628,14 @@ def test_removing_from_composite():
     assert qop1 not in pfqc.OTC['QC']['Z7'][0]
 
     # net greeks test.
-    try:
-        x = pfcc.net_greeks.copy()
-        x.update(pfqc.net_greeks.copy())
-        assert x == pf_comp.net_greeks
-    except AssertionError:
-        print('FAILURE: test_portfolio.test_removing_from_composite')
-        print('netnewgreeks: ', x)
-        print('actual: ', pf_comp.net_greeks)
+    # try:
+    x = pfcc.net_greeks.copy()
+    x.update(pfqc.net_greeks.copy())
+    assert x == pf_comp.net_greeks
+    # except AssertionError:
+    #     print('FAILURE: test_portfolio.test_removing_from_composite')
+    #     print('netnewgreeks: ', x)
+    #     print('actual: ', pf_comp.net_greeks)
 
 
 def test_degenerate_case():
@@ -644,10 +644,10 @@ def test_degenerate_case():
     init_net_greeks = pf_comp.get_net_greeks().copy()
 
     pf_comp.remove_security(ccops, 'OTC')
-    try:
-        assert pfcc.empty()
-    except AssertionError:
-        print('test_portfolio.test_degenerate_case - failure: ', pfcc.OTC)
+    # try:
+    assert pfcc.empty()
+    # except AssertionError:
+    #     print('test_portfolio.test_degenerate_case - failure: ', pfcc.OTC)
     # check to see if 'CC' is still in the dict.
     assert 'CC' not in pf_comp.OTC
 
@@ -715,12 +715,12 @@ def test_timestep():
 
     newval = pf.compute_value()
     new_netgreeks = pf.get_net_greeks().copy()
-    assert newval == init_val
-    try:
-        assert init_netgreeks == new_netgreeks
-    except AssertionError:
-        print('init: ', init_netgreeks)
-        print('new: ', new_netgreeks)
+    # assert newval == init_val
+    # try:
+    assert init_netgreeks == new_netgreeks
+    # except AssertionError:
+    #     print('init: ', init_netgreeks)
+    #     print('new: ', new_netgreeks)
 
     # test composite portfolios.
     init_val = pf_comp.compute_value()

@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-24 20:41:47
+# @Last Modified time: 2017-08-25 16:43:29
 
 
 from .portfolio import Portfolio
@@ -290,6 +290,7 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     if vol is None and strike is not None:
         # get vol
         try:
+            # print("Inputs: ", date.strftime('%Y-%m-%d'), volid, cpi, strike)
             vol = vdf[(vdf.value_date == date) &
                       (vdf.vol_id == volid) &
                       (vdf.call_put_id == cpi) &
@@ -614,27 +615,47 @@ def create_strangle(volid, vdf, pdf, date, shorted, pf=None, **kwargs):
         TYPE: Description
 
     """
+    print('kwargs: ', kwargs)
+    assert 'chars' in kwargs
+    assert isinstance(kwargs['chars'], list)
+    assert len(kwargs['chars']) == 2
+
+    c_delta = None
+
+    strike1, strike2 = None, None
+    delta1, delta2 = None, None
     lot1, lot2 = None, None
     pdt = volid.split()[0]
-    char1, char2 = kwargs['chars']
-    delta1, delta2 = None, None
+    char1, char2 = kwargs['chars'][0], kwargs['chars'][1]
+
+    if 'delta' in kwargs and kwargs['delta'] is not None:
+        # single delta value
+        if isinstance(kwargs['delta'], (float, int)):
+            c_delta = float(kwargs['delta'])
+        else:
+            delta1, delta2 = kwargs['delta'][0], kwargs['delta'][1]
 
     lm, dm = multipliers[pdt][1], multipliers[pdt][0]
 
-    strike1, strike2 = kwargs['strike'] if 'strike' in kwargs else None, None
+    if 'strike' in kwargs and kwargs['strike'] is not None:
+        strike1, strike2 = kwargs['strike'][0], kwargs['strike'][1]
 
-    lot1, lot2 = kwargs['lots'] if 'lots' in kwargs else None, None
-
-    if 'delta' in kwargs:
-        delta1, delta2 = kwargs['delta']
+    if 'lots' in kwargs and kwargs['lots'] is not None:
+        lot1, lot2 = kwargs['lots'][0], kwargs['lots'][1]
 
     print('deltas: ', delta1, delta2)
 
     print('util.create_strangle - lot1, lot2: ', lot1, lot2)
+
+    if c_delta is not None:
+        f_delta1, f_delta2 = c_delta, c_delta
+    else:
+        f_delta1, f_delta2 = delta1, delta2
+
     op1 = create_vanilla_option(
-        vdf, pdf, volid, char1, shorted, date, strike=strike1, lots=lot1, delta=delta1)
+        vdf, pdf, volid, char1, shorted, date, strike=strike1, lots=lot1, delta=f_delta1)
     op2 = create_vanilla_option(
-        vdf, pdf, volid, char2, shorted, date, strike=strike2, lots=lot2, delta=delta2)
+        vdf, pdf, volid, char2, shorted, date, strike=strike2, lots=lot2, delta=f_delta2)
 
     # setting lots based on greek value passed in
     if 'greek' in kwargs:
@@ -700,24 +721,56 @@ def create_skew(volid, vdf, pdf, date, shorted, delta, **kwargs):
     Returns:
         Tuple: Two options constituting a skew position (reverse fence). 
     """
+
     pdt = volid.split()[0]
+    lm, dm = multipliers[pdt][1], multipliers[pdt][0]
+    clot, plot = None, None
+    if 'lots' in kwargs and kwargs['lots'] is not None:
+        if isinstance(kwargs['lots'], (float, int)):
+            clot, plot = kwargs['lots'], kwargs['lots']
+        else:
+            clot, plot = kwargs['lots'][0], kwargs['lots'][1]
 
     # creating the options
     op1 = create_vanilla_option(
-        vdf, pdf, volid, 'call', shorted, date, delta=delta)
+        vdf, pdf, volid, 'call', shorted, date, delta=delta, lots=clot)
     op2 = create_vanilla_option(
-        vdf, pdf, volid, 'put', not shorted, date, delta=delta)
+        vdf, pdf, volid, 'put', not shorted, date, delta=delta, puts=plot)
 
-    if kwargs['greek'] == 'vega':
-        vega_req = float(kwargs['greekval'])
-        lm, dm = multipliers[pdt][1], multipliers[pdt][0]
-        v1 = (op1.vega * 100) / (op1.lots * dm * lm)
-        lots_req = round(abs(vega_req * 100) / (abs(v1) * lm * dm))
-        print('lots req: ', lots_req)
-        op1.update_lots(lots_req)
-        op2.update_lots(lots_req)
-        op1.underlying.update_lots(lots_req)
-        op2.underlying.update_lots(lots_req)
+    if 'greek' in kwargs:
+        if kwargs['greek'] == 'vega':
+            vega_req = float(kwargs['greekval'])
+            v1 = (op1.vega * 100) / (op1.lots * dm * lm)
+            lots_req = round(abs(vega_req * 100) / (abs(v1) * lm * dm))
+            print('lots req: ', lots_req)
+            op1.update_lots(lots_req)
+            op2.update_lots(lots_req)
+            op1.underlying.update_lots(lots_req)
+            op2.underlying.update_lots(lots_req)
+
+        elif kwargs['greek'] == 'gamma':
+            gamma_req = float(kwargs['greekval'])
+            g1 = (op1.gamma * dm) / (op1.lots * lm)
+            # g2 = (op2.gamma * dm) / (op2.lots * lm)
+            lots_req = round((abs(gamma_req) * dm) / (abs(g1) * lm))
+            op1.update_lots(lots_req)
+            op2.update_lots(lots_req)
+            op1.underlying.update_lots(lots_req)
+            op2.underlying.update_lots(lots_req)
+
+        elif kwargs['greek'] == 'theta':
+            theta_req = float(kwargs['greekval'])
+            print('theta req: ', theta_req)
+            t1 = (op1.theta * 365)/(op1.lots * lm * dm)
+            # t2 = (op2.theta * 365) / (op2.lots * lm * dm)
+            lots_req = round((abs(theta_req) * 365) / (abs(t1) * lm * dm))
+            print('lots req: ', lots_req)
+            op1.update_lots(lots_req)
+            print('op1.theta: ', op1.greeks()[2])
+            op2.update_lots(lots_req)
+            print('op2.theta: ', op2.greeks()[2])
+            op1.underlying.update_lots(lots_req)
+            op2.underlying.update_lots(lots_req)
 
     ops = [op1, op2]
     if ('composites' in kwargs and kwargs['composites']) or ('composites' not in kwargs):

@@ -518,6 +518,7 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
         TYPE: the cleaned dataframe, with the appropriate data transformations made.
     """
     # cleaning expiry data
+    assert not df.empty
     if flag == 'exp':
         # cleaning expiry data, handling datatypes
         df['expiry_date'] = pd.to_datetime(df['expiry_date'])
@@ -532,9 +533,11 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
         # handling data types
         df['value_date'] = pd.to_datetime(df['value_date'])
         df = df.dropna()
+        assert not df.empty
         # calculating time to expiry from vol_id
         df = ttm(df, df['vol_id'], edf)
         df = df[df.tau > 0].dropna()
+        assert not df.empty
         # generating additional identifying fields.
         df['underlying_id'] = df['vol_id'].str.split().str[0] + '  ' + \
             df['vol_id'].str.split('.').str[1]
@@ -573,6 +576,7 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
 
     df.reset_index(drop=True, inplace=True)
     df = df.dropna()
+    assert not df.empty
 
     return df
 
