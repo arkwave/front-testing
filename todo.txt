@@ -1089,17 +1089,16 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 	- [Done] Hedge 
 	- [Done] error handling in simulation script. 
 	- [RMS] fixing ttm_mod cases with exp repr 
-
 > [Done] Solve issue where all options and all families could be removed, resulting in an empty screen. 
-
 > [Done] Solved plotting issue for multi-commodity future prices.
-
 > [Done] Check to make sure skews and strangles work properly.
 	- strangles with > 1 strike or 1 delta. 
 	- skews with > 1 strike or 1 delta. 
-
 > [Done] raise errors appropriately. 
-
+> [Done] General Dev:
+	- [Done] drawdown requirement
+> [Done] drawdown in plots 
+> [Done] filtering out volids from full dataset for vis purposes. 
 
 
 -------------------
@@ -1129,10 +1128,6 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 	- something that will look for the EOD flag; one timestamp will be designated the EOD timestamp 
 		--> this is when rebalance(), signal() and pf.Timestep() will be called
 
-> General Dev:
-	- drawdown requirement
-
-
 
 
 
@@ -1147,7 +1142,6 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
     - difference is very small; on the example monitored it's 0.0006 = 0.06%
 
 
-
 > Backend Implementation
 	- proper conceptualizing of slippage, aside from flat-value. bring all in line to this. 
 	- Signals and Families
@@ -1158,7 +1152,7 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 > Plotly visualization:
 	- same contract vol surface on two different days. 
 	- more descriptive statistics:
-		- drawdown
+		- [Done] drawdown
 		- labeling when the rolls happened (i.e. different color when log.delta_rolled) 
 
 

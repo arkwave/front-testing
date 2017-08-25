@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-08-11 19:24:36
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-25 16:49:05
+# @Last Modified time: 2017-08-25 21:19:52
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios
@@ -179,6 +179,8 @@ def test_get_bucket():
     pass
 
 
+# not implemented because this function is implicitly tested throughout
+# this test file.
 def test_uid_hedges_satisfied():
     pass
 
@@ -435,8 +437,3 @@ def test_hedge():
 #     except AssertionError:
 #         print('greek_repr: ', engine.greek_repr)
 #     print('____________________ HEDGE TEST 2 END _____________________')
-
-
-def test_apply():
-
-    pass
