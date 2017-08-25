@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-25 18:17:56
+# @Last Modified time: 2017-08-25 20:14:46
 
 ################################ imports ###################################
 
@@ -363,6 +363,10 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
 
         put_vega = sum([op.vega for op in pf.get_all_options()
                         if op.K < op.underlying.get_price()])
+        if drawdown_limit is not None:
+            drawdown_val = highest_value - net_cumul_values[-1]
+            drawdown_pct = (
+                highest_value - net_cumul_values[-1])/(drawdown_limit)
 
         # option specific information
         for op in pf.OTC_options:
@@ -402,6 +406,11 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
                 lst.extend([barlevel, bvol, knockedin, knockedout])
                 cols.extend(['barlevel', 'barrier_vol',
                              'knockedin', 'knockedout'])
+
+            if drawdown_limit is not None:
+                lst.extend([drawdown_val, drawdown_pct])
+                cols.extend(['drawdown', 'drawdown_pct'])
+
             cols.extend(adcols)
 
             # getting net greeks
@@ -437,27 +446,6 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         log = pd.merge(log, df[['value_date', 'vol_id', 'settle_value',
                                 'signal']],
                        on=['value_date', 'vol_id'])
-
-    # # case where signals are None; in this case get 25d vol changes from pdf
-    # elif signals is None:
-    #     rel_prices = pricedata[['value_date', 'vol_id', 'call_put_id', '25d']]
-    #     calls = rel_prices[rel_prices.call_put_id == 'C'][
-    #         ['vol_id', 'value_date', '25d']]
-    #     calls.columns = ['vol_id', 'value_date', '25d_c']
-
-    #     puts = rel_prices[rel_prices.call_put_id == 'P'][
-    #         ['vol_id', 'value_date', '25d']]
-    #     puts.columns = ['vol_id', 'value_date', '25d_p']
-
-    #     # print('call columns: ', calls.columns)
-    #     # print('log columns: ', log.columns)
-
-    #     log = pd.merge(log, calls, on=['vol_id', 'value_date'])
-    #     log = pd.merge(log, puts, on=['vol_id', 'value_date'])
-
-    #     # print('columns after merge: ', log.columns)
-    #     log['25d_c'] = (log['25d_c'].shift(-1) - log['25d_c']).shift(1)
-    #     log['25d_p'] = (log['25d_p'].shift(-1) - log['25d_p']).shift(1)
 
     elapsed = time.clock() - t
 

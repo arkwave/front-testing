@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-24 22:09:21
+# @Last Modified time: 2017-08-25 21:07:58
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -327,7 +327,7 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
     sd = ''.join(start_date.split('-'))
     ed = ''.join(end_date.split('-'))
 
-    desired_path = direc + 'datasets/debug/'
+    desired_path = direc + 'datasets/debug/' if writepath is None else writepath
 
     pdts = set(pdts)
 
@@ -372,6 +372,12 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
             # handling prices and vos
             if not os.path.exists(volpath) or not os.path.exists(price_path):
                 print('dumps dont exist, pulling raw data')
+                s = pd.Timestamp(start_date)
+                e = pd.Timestamp(end_date)
+                diff = (e-s).days
+                if diff > 300:
+                    print('Pulling data might take a few minutes.')
+
                 if write_dump:
                     print('pulling and saving dumps')
                     vdf, pdf, raw_df = pull_alt_data(
@@ -430,6 +436,16 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
                                                                direc=direc)
             final_pdf = pd.concat([final_pdf, pdf])
             final_vols = pd.concat([final_vols, vdf])
+
+    if volids is not None:
+        print('volids: ', volids)
+        relevant_volids = volids
+        uids = [x.split()[0] + '  ' + x.split('.')[1]
+                for x in relevant_volids]
+        print('relevant volids: ', relevant_volids)
+        print('relevant uids: ', uids)
+        final_pdf = final_pdf[final_pdf.underlying_id.isin(uids)]
+        final_vols = final_vols[final_vols.vol_id.isin(relevant_volids)]
 
     # last step: sanity check dates etc.
     sanity_check(final_vols.value_date.unique(),
