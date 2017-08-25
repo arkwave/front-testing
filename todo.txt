@@ -1079,27 +1079,59 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 --------------------
 
 > [Done] Reconcile timestep before hedge with timestep after pnl calc
-
-> Updating test suite. (Issue 1) <<<<<<<<<<< Priority this week. 
+> [Done] dropdowns for hedging requirements.
+> [Done] Updating test suite. (Issue 1) <<<<<<<<<<< Priority this week. 
 	- [Done] Portfolio
 	- [Done] Option
 	- [Done] Simulation
-	- Hedge 
 	- [Done] Util
+	- [Done] error handling in ui 
+	- [Done] Hedge 
+	- [Done] error handling in simulation script. 
+	- [RMS] fixing ttm_mod cases with exp repr 
 
-> Plotly visualization:
-	- same contract vol surface on two different days. 
-	- more descriptive statistics:
-		- drawdown
-		- labeling when the rolls happened (i.e. different color when log.delta_rolled) 
+> [Done] Solve issue where all options and all families could be removed, resulting in an empty screen. 
 
-> GUI Dev:
-	- integrate with Portfolio VAR Module. 
-	- need to fix/debug assign_ci / ciprice / civols. pretty badly. 
-	- get ordering back into place in HistoricSimulator as a variable. 
+> [Done] Solved plotting issue for multi-commodity future prices.
+
+> [Done] Check to make sure skews and strangles work properly.
+	- strangles with > 1 strike or 1 delta. 
+	- skews with > 1 strike or 1 delta. 
+
+> [Done] raise errors appropriately. 
+
+
+
+-------------------
+|As of 08/28/2017 |
+-------------------
+> Expand HSM to allow for Intraday data. 
+	- flag as to whether or not data is intraday or settlement to settlement. ==> infer from dataset? pass in as input?
+	- how will this change data grabbing functions?
+	- new functions to prepare intraday data for simulation -> need samples. 
+
+	- idea: additional flag where timestep step is determined by a flag in the data. 
+	- conditional intraday delta Hedging
+		= value-based
+		= breakeven-based 
+	 	--> need to write new functions/reconceptualize delta hedging;
+	 		- rethink hedge object
+	 		- inputs. 
+
+	- timestep reconciliation; assume N intraday price moves and K intraday vol moves where N > K. Need
+	  to do the following:
+	  	1) bundle together vol and price data on the basis of timestamp. 
+	  	2) apply these together. 
+	  	> for each date in dates:
+	  		for timestamp in pdf[pdf.date == date]:
+	  			do the things. 
+
+	- something that will look for the EOD flag; one timestamp will be designated the EOD timestamp 
+		--> this is when rebalance(), signal() and pf.Timestep() will be called
 
 > General Dev:
-	- drawdown requirement 0
+	- drawdown requirement
+
 
 
 
@@ -1107,46 +1139,35 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 -------------------------- OPEN ISSUES: ------------------------
 
-TODO:
-> implement sanity check and selection method for datasets; store the last x datasets 
-  for easy retreival. 
-	- sanity check on the basis of: 
-	1) start_date and end_date. 
-	2) products 
-	3) vol_ids if present. 
-	> dictionary mapping tuple of (sd, ed, pd, volids) -> (vdf, pdf) where sd = sd passed in. 
-
-> composites in simulator that are NOT part of the same family. --> flag to mark these two options as composites. 
-
-
->>> Implementation-Centric <<<
-> ISSUE: Testing suite is in bad need of an update:
-	1) hedge.py, fetch_data.py and util.py have no testing whatsoever. This needs to be remedied asap. 
-	2) Portfolio and Classes objects need updates. 
-	3) Calc is more or less fine, no major additions for a long time. 
-	4) prep_data/fetch_data need a serious overhaul; go through, see what code is required and what isn't, remove/move to code dump respectively. 
-
-> breakeven-based delta hedging on settlements. 
-
-> ISSUE: C1/C2 rather than a vol_id 
-
-BIG TODO:
-	> adjusting signals to include family paradigm 
-	> related: implement a future signals thing.
-
-3) proper conceptualizing of slippage, aside from flat-value. bring all in line to this. 
+> Vol reconciliation 
+    - when initializing an option with delta rather than with strike, the vols are slightly different
+    even when the strikes turn out to be identical. --> leads to different delta values. 
+    - caused due to the vol_by_delta interpolation steps.
+    - explicit example run: (50, 50) strangle vs an atm straddle. 
+    - difference is very small; on the example monitored it's 0.0006 = 0.06%
 
 
 
+> Backend Implementation
+	- proper conceptualizing of slippage, aside from flat-value. bring all in line to this. 
+	- Signals and Families
+		1. adjusting signals to include family paradigm 
+		2. related: implement a future signals thing.
 
-> Legacy TODOs:
-	1) [Done] closing out deltas in the case of exercise. 
-	2) [Done] proper computation of gamma/vega pnl (double check just to make 	
-	   sure this is absolutely right. )
+
+> Plotly visualization:
+	- same contract vol surface on two different days. 
+	- more descriptive statistics:
+		- drawdown
+		- labeling when the rolls happened (i.e. different color when log.delta_rolled) 
 
 
->>> Cosmetic: <<<
-> Figure out new windows for each family. 
+> GUI Dev:
+	- [Done] need to fix/debug assign_ci / ciprice / civols. pretty badly. 
+	- integrate with Portfolio VAR Module. 
+	- get ordering back into place in HistoricSimulator as a variable.
+	- composites in simulator that are NOT part of the same family. --> flag to mark these two options as composites. 
+	- Figure out new windows for each family. 
 
 
 ------------------------------------------------------------
