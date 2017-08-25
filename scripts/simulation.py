@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-25 16:43:58
+# @Last Modified time: 2017-08-25 18:17:56
 
 ################################ imports ###################################
 
@@ -24,7 +24,7 @@ from .hedge import Hedge
 from .signals import apply_signal
 
 
-blockPrint()
+# blockPrint()
 # enablePrint()
 ###########################################################################
 ######################## initializing variables ###########################
@@ -102,7 +102,7 @@ np.random.seed(seed)
 def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=False,
                    end_date=None, brokerage=None, slippage=None, signals=None,
                    roll_portfolio=None, pf_ttm_tol=None, pf_roll_product=None,
-                   plot_results=True):
+                   plot_results=True, drawdown_limit=None):
     """
     Each run of the simulation consists of 5 steps:
         1) Feed data into the portfolio.
@@ -189,8 +189,10 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
     # initial value for pnl calculations.
     init_val = 0
 
-    # preallocating signals if sigval dict
+    # highest cumulative pnl until this point
+    highest_value = 0
 
+    # preallocating signals if sigval dict
     print(signals is not None)
     sigvals = {}
     if signals is not None:
@@ -214,6 +216,10 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
 
     # Steps 1 & 2: Error checks to prevent useless simulation runs.
         # checks to make sure if there are still non-hedge securities in pf
+        # isolate data relevant for this day.
+        date = pd.to_datetime(date)
+        print('##################### date: ', date, '################')
+
         if len(pf.OTC_options) == 0 and len(pf.OTC_futures) == 0 and not pf.empty():
             print('ALL OTC OPTIONS HAVE EXPIRED. ENDING SIMULATION...')
             break
@@ -223,15 +229,25 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
             if date >= end_date:
                 print('REACHED END OF SIMULATION.')
                 break
+
+        if drawdown_limit is not None:
+            curr_pnl = net_cumul_values[-1] if net_cumul_values else 0
+            if highest_value - curr_pnl >= drawdown_limit:
+                print('Current Drawdown: ', highest_value - curr_pnl)
+                print('DRAWDOWN LIMIT HAS BEEN BREACHED. ENDING SIMULATION...')
+                break
+            else:
+                print('Current Drawdown: ', highest_value - curr_pnl)
+                print('Current Drawdown Percentage: ',
+                      ((highest_value - curr_pnl)/(drawdown_limit)) * 100)
+
+                print('Drawdown within bounds. Continuing...')
+
         # try to get next date
         try:
             next_date = date_range[i + 1]
         except IndexError:
             next_date = None
-
-        # isolate data relevant for this day.
-        date = pd.to_datetime(date)
-        print('##################### date: ', date, '################')
 
         # filter data specific to the current day of the simulation.
         vdf = voldata[voldata.value_date == date]
@@ -312,6 +328,11 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         gross_cumul_values.append(grosspnl)
         netpnl += (dailypnl - cost)
         net_cumul_values.append(netpnl)
+
+    # Step 9.5: Update highest_value so that the next
+    # loop can check for drawdown.
+        if netpnl > highest_value:
+            highest_value = netpnl
 
     # Step 10: Initialize init_val to be used in the next loop.
         num_days = 0 if next_date is None else (
