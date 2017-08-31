@@ -24,7 +24,7 @@ pdts = ['MW']
 
 # grabbing data
 vdf, pdf, edf = grab_data(pdts, start_date, end_date,
-                          write_dump=True, test=True)
+                          write_dump=False, test=True)
 ####################################
 
 

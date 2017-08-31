@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-08-09 17:01:19
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-23 21:06:33
+# @Last Modified time: 2017-08-31 14:37:49
 
 from scripts.util import combine_portfolios, create_straddle, create_vanilla_option, create_butterfly, create_skew, create_spread, create_strangle
 from scripts.fetch_data import grab_data
@@ -18,7 +18,7 @@ pdts = ['QC', 'CC']
 
 # grabbing data
 vdf, pdf, edf = grab_data(pdts, start_date, end_date,
-                          write_dump=True)
+                          write_dump=False)
 
 start_date = min(pdf.value_date)
 end_date = max(pdf.value_date)

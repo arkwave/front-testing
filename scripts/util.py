@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-25 16:43:29
+# @Last Modified time: 2017-08-30 21:07:41
 
 
 from .portfolio import Portfolio
@@ -644,6 +644,7 @@ def create_strangle(volid, vdf, pdf, date, shorted, pf=None, **kwargs):
         lot1, lot2 = kwargs['lots'][0], kwargs['lots'][1]
 
     print('deltas: ', delta1, delta2)
+    print('c_delta: ', c_delta)
 
     print('util.create_strangle - lot1, lot2: ', lot1, lot2)
 

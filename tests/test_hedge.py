@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-08-11 19:24:36
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-25 21:19:52
+# @Last Modified time: 2017-08-31 14:37:01
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios
@@ -20,7 +20,7 @@ pdts = ['QC', 'CC']
 
 # grabbing data
 vdf, pdf, edf = grab_data(pdts, start_date, end_date,
-                          write_dump=True)
+                          write_dump=False)
 vdf.value_date = pd.to_datetime(vdf.value_date)
 pdf.value_date = pd.to_datetime(pdf.value_date)
 

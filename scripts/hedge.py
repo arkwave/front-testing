@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-25 16:42:33
+# @Last Modified time: 2017-08-31 14:12:46
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -505,7 +505,7 @@ class Hedge:
             relevant_conds = isbounds[0]
             hedge_type = 'bound'
 
-        if flag == 'delta':
+        if flag == 'delta' and hedge_type == 'static':
             fee = self.hedge_delta()
             # print('======= done ' + flag + ' hedge =========')
             return fee
@@ -649,17 +649,17 @@ class Hedge:
             flag (TYPE): Description
         """
         shorted = None
-        if desc == 'straddle':
+        if desc in ('straddle', 'strangle', 'call', 'put'):
             if flag in ('gamma', 'vega'):
                 shorted = True if val < 0 else False
             elif flag == 'theta':
                 shorted = True if val > 0 else False
 
-        elif desc in ('call', 'put'):
-            if flag in ('gamma', 'vega'):
-                shorted = True if val < 0 else False
-            elif flag == 'theta':
-                shorted = True if val > 0 else False
+        # elif desc in ('call', 'put'):
+        #     if flag in ('gamma', 'vega'):
+        #         shorted = True if val < 0 else False
+        #     elif flag == 'theta':
+                # shorted = True if val > 0 else False
 
         return shorted
 
@@ -687,12 +687,18 @@ class Hedge:
                 # print('added straddle with ' + str(gv) + ' ' + str(flag))
 
             elif data['kind'] == 'strangle':
-                strike1, strike2, delta1, delta2 = None, None, None, None
+                strike1, strike2, delta1, delta2, c_delta = None, None, None, None, None
 
                 if data['spectype'] == 'strike':
                     strike1, strike2 = data['spec']
                 elif data['spectype'] == 'delta':
-                    delta1, delta2 = data['spec']
+                    if isinstance(data['spec'], (float, int)):
+                        c_delta = data['spec']
+                    else:
+                        delta1, delta2 = data['spec']
+
+                if c_delta is not None:
+                    delta1, delta2 = c_delta, c_delta
 
                 ops = create_strangle(hedge_id, self.vdf, self.pdf, self.date,
                                       shorted, chars=['call', 'put'],

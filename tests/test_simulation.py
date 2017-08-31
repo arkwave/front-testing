@@ -29,7 +29,7 @@ pdts = ['QC', 'CC']
 
 # grabbing data
 vdf, pdf, edf = grab_data(pdts, start_date, end_date,
-                          write_dump=True)
+                          write_dump=False)
 ####################################
 
 
