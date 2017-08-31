@@ -2,10 +2,8 @@
 # @Author: Ananth
 # @Date:   2017-05-12 13:32:49
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-07-26 15:54:26
+# @Last Modified time: 2017-08-31 21:43:13
 import pandas as pd
-import os
-
 
 ################ CHANGE THESE #################
 pdt = 'W'
@@ -25,8 +23,8 @@ main_direc = 'Ananth'
 folder = 'C:/Users/' + main_direc + \
     '/Desktop/Modules/HistoricSimulator/datasets/data_dump/'
 
-if not os.path.isdir(folder):
-    os.mkdir(folder)
+# if not os.path.isdir(folder):
+#     os.mkdir(folder)
 
 # data dumps that are filtered for price/vol data
 vol_dump = folder + pdt.lower() + '_vol_dump.csv'
