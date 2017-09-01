@@ -1134,13 +1134,15 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 				2) sqlalchemy requires psycopg2 
 				3) pandas requires six, setuptools, pytz and dateutils
 				4) plotly requires requests, pprint, pkg_resources and decorator.
+				5) matplotlib should be built from wheels, as should psycopg2 to avoid DLL load errors. 
+
 
 > Debugging:
 	- [Done] strangle issue.
 	- hedging skews (or any structure that is defined component-wise rather than together) is 
 	stil a little wonky. No 'maintain' function as of yet. 
 	- Composites not yet established for options in different families. --> would take care of hedging skews. 
-
+	- [Done] edit expiry to pull from database. 
 
 
 
