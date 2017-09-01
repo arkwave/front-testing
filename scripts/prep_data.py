@@ -517,16 +517,12 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
     Returns:
         TYPE: the cleaned dataframe, with the appropriate data transformations made.
     """
-    # cleaning expiry data
     assert not df.empty
+    # cleaning expiry data
     if flag == 'exp':
         # cleaning expiry data, handling datatypes
         df['expiry_date'] = pd.to_datetime(df['expiry_date'])
         df = df[(df['year'] >= 10)]
-        s = df['opmth'].copy()
-        # taking years mod 10, i.e. S17 --> S7.
-        df.ix[:, 'opmth'] = s.str[0] + \
-            (pd.to_numeric(s.str[1:]) % 10).astype(str)
 
     # cleaning volatility data
     elif flag == 'vol':
@@ -867,7 +863,6 @@ def ttm(df, s, edf):
     df['expdate'] = ''
     for iden in s:
         expdate = get_expiry_date(iden, edf)
-        # print('Expdate: ', expdate)
         try:
             expdate = pd.to_datetime(expdate.values[0])
         except IndexError:

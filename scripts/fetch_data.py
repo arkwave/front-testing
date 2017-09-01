@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-25 21:44:04
+# @Last Modified time: 2017-09-01 15:10:19
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -392,7 +392,7 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
                 pdf = pd.read_csv(price_path)
 
             # handling datetime formats.
-            edf = pd.read_csv(direc + 'datasets/option_expiry.csv')
+            edf = pull_expdata() if edf.empty else edf
             vdf.value_date = pd.to_datetime(vdf.value_date)
             pdf.value_date = pd.to_datetime(pdf.value_date)
             edf.expiry_date = pd.to_datetime(edf.expiry_date)
@@ -455,3 +455,43 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
 
     print('### GRAB DATA COMPLETED ###')
     return final_vols, final_pdf, edf
+
+
+def pull_expdata():
+    """Helper method that pulls the relevant products' expiry dates from the database.
+
+    Args:
+        pdts (TYPE): Description
+    """
+    user = 'sumit'
+    password = 'Olam1234'
+    engine = create_engine('postgresql://' + user + ':' + password +
+                           '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+    connection = engine.connect()
+
+    init_query = 'select vol_id, expiry_date from public.table_opera_option_expiry'
+
+    df = pd.read_sql_query(init_query, connection)
+
+    # initial processing.
+    df.expiry_date = pd.to_datetime(df.expiry_date)
+
+    # assigning year variable
+    df['year'] = (df.expiry_date.dt.year % 2000)
+    df = df[df.year >= 10]
+    # assign product.
+    df['product'] = df.vol_id.str[:2].str.strip()
+    # filter out USDBRL entries.
+    df = df[df['product'] != 'US']
+    # assign opmth and ftmth variables.
+    df['opmth'] = df.vol_id.str.split().str[1].str.split('.').str[0]
+    df['ftmth'] = df.vol_id.str.split().str[1].str.split('.').str[1]
+    # filter out weekly options
+    df.loc[:, 'weekly'] = df.opmth.str.contains('W')
+    df = df[df.weekly == False]
+
+    # convert datetime formats; N11.N11 -> N1.N1
+    s = df['opmth'].copy()
+    df.ix[:, 'opmth'] = s.str[0] + (pd.to_numeric(s.str[1:]) % 10).astype(str)
+
+    return df
