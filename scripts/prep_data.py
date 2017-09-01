@@ -849,7 +849,6 @@ def civols(vdf, pdf, rollover='opex'):
 ################ Helper Functions ###################
 #####################################################
 
-# TODO: rewrite this to pull straight from db?
 def ttm(df, s, edf):
     """Takes in a vol_id (for example C Z7.Z7) and outputs the time to expiry for the option in years
 
