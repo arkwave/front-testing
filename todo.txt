@@ -1105,12 +1105,11 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 |As of 08/28/2017 |
 -------------------
 
-> Compile current simuator into an executable file, distribute. 
+> [DONE] Compile current simuator into an executable file, distribute. 
 	- failed attempts:
 		- py2exe - Does not support python 3.6
 		- pyinstaller - no support for 3.6
 		- nuitka - doesn't actually produce an executable for whatever reason.
-		- pynsist - multiarray import error from numpy. 
 		- cx_freeze 
 		   -> [Done] freezing data-files
 		   -> [Done] resolving __file__ errors. 
@@ -1125,9 +1124,6 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 			the additional dependencies for pandas and plotly that had to be
 			manually specified. 
 		
-
-		- new issue:
-			> nothing seems to be loading with pynsist-frozen version. debugging in progress. 
 			> COMPILATION TO EXE FILE IS COMPLETE.
 				- required that: 
 				1) DLLs required for tkinter and python version be of the same bitness (i.e. either x86 or x64)
@@ -1135,63 +1131,65 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 				3) pandas requires six, setuptools, pytz and dateutils
 				4) plotly requires requests, pprint, pkg_resources and decorator.
 				5) matplotlib should be built from wheels, as should psycopg2 to avoid DLL load errors. 
+				6) expdate query should be straight from database rather than from a file. 
 
 
 > Debugging:
 	- [Done] strangle issue.
-	- hedging skews (or any structure that is defined component-wise rather than together) is 
-	stil a little wonky. No 'maintain' function as of yet. 
-	- Composites not yet established for options in different families. --> would take care of hedging skews. 
 	- [Done] edit expiry to pull from database. 
 
 
 
+-------------------
+|As of 09/01/2017 |
+-------------------
 
-> Expand HSM to allow for Intraday data. 
-	- flag as to whether or not data is intraday or settlement to settlement. ==> infer from dataset? pass in as input?
-	- how will this change data grabbing functions?
-	- new functions to prepare intraday data for simulation -> need samples. 
+- composites in simulator that are NOT part of the same family. --> flag to mark these two options as composites. 
+	Sub-components:
+	0) [Done] include composite_name checkbox. 
+	1) [Done] ensure naming works properly in UI. 
+	2) update FFC.process() method:
+		- pulls options
+		- assigns composites
+		- constructs pflist. 
+		- returns pflist 
 
-	- idea: additional flag where timestep step is determined by a flag in the data. 
-	- conditional intraday delta Hedging
-		= value-based
-		= breakeven-based 
-	 	--> need to write new functions/reconceptualize delta hedging;
-	 		- rethink hedge object
-	 		- inputs. 
 
-	- timestep reconciliation; assume N intraday price moves and K intraday vol moves where N > K. Need
-	  to do the following:
-	  	1) bundle together vol and price data on the basis of timestamp. 
-	  	2) apply these together. 
-	  	> for each date in dates:
-	  		for timestamp in pdf[pdf.date == date]:
-	  			do the things. 
-
-	- something that will look for the EOD flag; one timestamp will be designated the EOD timestamp 
-		--> this is when rebalance(), signal() and pf.Timestep() will be called
-
-> Implementation requirements:
-	1) intraday delta hedge + params. 
-	2) data reconciliation. 
 
 
 
 -------------------------- OPEN ISSUES: ------------------------
-
-> Vol reconciliation 
-    - when initializing an option with delta rather than with strike, the vols are slightly different
-    even when the strikes turn out to be identical. --> leads to different delta values. 
-    - caused due to the vol_by_delta interpolation steps.
-    - explicit example run: (50, 50) strangle vs an atm straddle. 
-    - difference is very small; on the example monitored it's 0.0006 = 0.06%
-
 
 > Backend Implementation
 	- proper conceptualizing of slippage, aside from flat-value. bring all in line to this. 
 	- Signals and Families
 		1. adjusting signals to include family paradigm 
 		2. related: implement a future signals thing.
+
+	> Expand HSM to allow for Intraday data. 
+		- flag as to whether or not data is intraday or settlement to settlement. ==> infer from dataset? pass in as input?
+		- how will this change data grabbing functions?
+		- new functions to prepare intraday data for simulation -> need samples. 
+
+		- idea: additional flag where timestep step is determined by a flag in the data. 
+		- conditional intraday delta Hedging
+			= value-based
+			= breakeven-based 
+		 	--> need to write new functions/reconceptualize delta hedging;
+		 		- rethink hedge object
+		 		- inputs. 
+
+		- timestep reconciliation; assume N intraday price moves and K intraday vol moves where N > K. Need
+		  to do the following:
+		  	1) bundle together vol and price data on the basis of timestamp. 
+		  	2) apply these together. 
+		  	> for each date in dates:
+		  		for timestamp in pdf[pdf.date == date]:
+		  			do the things. 
+
+		- something that will look for the EOD flag; one timestamp will be designated the EOD timestamp 
+			--> this is when rebalance(), signal() and pf.Timestep() will be called
+
 
 
 > Plotly visualization:
@@ -1203,9 +1201,11 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 > GUI Dev:
 	- [Done] need to fix/debug assign_ci / ciprice / civols. pretty badly. 
+	- Add a 'Pull Data' button? 
+	
+
 	- integrate with Portfolio VAR Module. 
 	- get ordering back into place in HistoricSimulator as a variable.
-	- composites in simulator that are NOT part of the same family. --> flag to mark these two options as composites. 
 	- Figure out new windows for each family. 
 	- vol_ids in a dataset - no way to currently filter. 
 
