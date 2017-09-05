@@ -15,7 +15,6 @@ from operator import add
 import pprint
 import numpy as np
 from collections import deque
-import copy
 
 
 # Dictionary of multipliers for greeks/pnl calculation.

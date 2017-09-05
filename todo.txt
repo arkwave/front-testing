@@ -1160,19 +1160,18 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 | As of 09/05/2017 |
 --------------------
 
-- Fix vol_id specification/checks when pulling data 
+- [Done] replace writepath str with directory navigation. 
+- [Done] not specifying writepath throws error. 
 - [Done] PnP format to prep_portfolio format; currently, everything would be under a single family. 
 - [Done] Hedge specification for spec portfolios. 
 - [Done] File navigation in the UI 
+- [Done] Added breakeven method to portfolio.py 
 
 --------------------
 | As of 09/06/2017 |
 --------------------
 
-- Dynamic event triggers - subset of signals paradigm. > helper functions for generating signals.
-
-
-
+> Intraday data
 
 -------------------------- OPEN ISSUES: ------------------------
 
@@ -1184,21 +1183,24 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 	> Expand HSM to allow for Intraday data. 
 		- flag as to whether or not data is intraday or settlement to settlement. ==> infer from dataset? pass in as input?
-		- how will this change data grabbing functions?
-		- new functions to prepare intraday data for simulation -> need samples. 
+			- can be inferred quite easily for prices. 
 
-		- idea: additional flag where timestep step is determined by a flag in the data. 
 		- conditional intraday delta Hedging
 			= value-based
 			= breakeven-based 
 		 	--> need to write new functions/reconceptualize delta hedging;
-		 		- rethink hedge object
-		 		- inputs. 
+		 		- rethink hedge object => initialize at the start of the day, use throughout for hedging delta. 
+		 							   => can use existing framework to specify parameters (i.e. breakeven, value, etc.)
 
+		## Data processing steps: 
+		- how will this change data grabbing functions?
+		- new functions to prepare intraday data for simulation -> need samples. 
 		- timestep reconciliation; assume N intraday price moves and K intraday vol moves where N > K. Need
 		  to do the following:
-		  	1) bundle together vol and price data on the basis of timestamp. 
+			- idea: additional flag where timestep step is determined by a flag in the data. 
+		  	1) bundle together vol and price data on the basis of timestep. 
 		  	2) apply these together. 
+		  	3) can even specify breakeven requirements in the dataset if needed?
 		  	> for each date in dates:
 		  		for timestamp in pdf[pdf.date == date]:
 		  			do the things. 
