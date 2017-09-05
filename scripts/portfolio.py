@@ -15,6 +15,7 @@ from operator import add
 import pprint
 import numpy as np
 from collections import deque
+import copy
 
 
 # Dictionary of multipliers for greeks/pnl calculation.
@@ -783,8 +784,13 @@ class Portfolio:
         lst2 = ft.copy()
         return (lst1, lst2)
 
-    def get_all_options(self):
-        return self.OTC_options + self.hedge_options
+    def get_all_options(self, pdt=None, mth=None):
+        lst = self.OTC_options + self.hedge_options
+        if pdt is not None:
+            lst = [x for x in lst if x.get_product() == pdt]
+        if mth is not None:
+            lst = [x for x in lst if x.get_month() == mth]
+        return lst
 
     def get_underlying(self):
         u_set = set()
@@ -910,3 +916,21 @@ class Portfolio:
         hedge_products = list(self.hedges.keys())
 
         return set(otc_products + hedge_products)
+
+    def breakeven(self):
+        """Returns a dictionary of {pdt: {month: breakeven}} where breakeven is calculated by theta/gamma. 
+        """
+        bes = {}
+        dic = self.net_greeks
+        for pdt in dic:
+            bes[pdt] = {}
+            thetas = []
+            gammas = []
+            for mth in dic[pdt]:
+                gamma, theta = abs(dic[pdt][mth][1]), abs(dic[pdt][mth][2])
+                thetas.append(theta)
+                gammas.append(gamma)
+                bes[pdt][mth] = theta/gamma
+            total_be = sum(thetas) / sum(gammas)
+            bes[pdt]['all'] = total_be
+        return bes
