@@ -250,7 +250,7 @@ def generate_hedges(filepath):
         pf_roll_product,  roll_hedges, h_ttm_tol, h_roll_product
 
 
-def prep_portfolio(voldata, pricedata, filepath):
+def prep_portfolio(voldata, pricedata, filepath=None, spec=None):
     """Constructs the portfolio from the requisite CSV file that specifies the details of
     each security in the portfolio.
 
@@ -273,14 +273,14 @@ def prep_portfolio(voldata, pricedata, filepath):
     ftlist = {'hedge': [], 'OTC': []}
     # sim_start = min(min(voldata.value_date), min(pricedata.value_date))
     # reading in the dataframe of portfolio specifications
-    specs = pd.read_csv(filepath)
+    specs = pd.read_csv(filepath) if spec is None else spec
     specs = specs.fillna('None')
 
     if specs.empty:
         return Portfolio(), None
 
     pf_ids = specs[specs.Type == 'Option'].vol_id.unique()
-    # print('pf_ids: ', pf_ids)
+    print('pf_ids: ', pf_ids)
 
     sim_start = get_min_start_date(voldata, pricedata, pf_ids)
     print('prep_portfolio start_date: ', sim_start)
@@ -291,7 +291,7 @@ def prep_portfolio(voldata, pricedata, filepath):
     sim_start = pd.to_datetime(sim_start)
 
     t = time.time()
-    pf = Portfolio()
+    pf = Portfolio(None)
 
     curr_mth = sim_start.month
     curr_mth_sym = month_to_sym[curr_mth]
@@ -378,8 +378,16 @@ def prep_portfolio(voldata, pricedata, filepath):
                 print('call_put_id: ', volflag)
                 print('value_date: ', sim_start)
                 print('strike: ', strike)
-                raise ValueError('vol cannot be located!',
-                                 volid, volflag, sim_start, strike)
+                print('vol cannot be located! interpolating...')
+                df = voldata[(voldata['vol_id'] == volid) &
+                             (voldata['call_put_id'] == volflag) &
+                             (voldata['value_date'] == sim_start)]
+                df.sort_values(by='strike', inplace=True)
+                f1 = interp1d(df.strike, df.settle_vol,
+                              fill_value='extrapolate')
+                vol = f1(strike)
+                # raise ValueError('vol cannot be located!',
+                #                  volid, volflag, sim_start, strike)
             # american vs european payoff
             payoff = str(data.optiontype)
             # american or european barrier.
@@ -1134,7 +1142,8 @@ def get_min_start_date(vdf, pdf, lst, signals=None):
     # test = pdf.merge(vdf, on=['pdt', 'value_date', 'underlying_id', 'order'])
     # test.to_csv('datasets/merged.csv', index=False)
     sig_date = None
-    p_lst = pdf.underlying_id.unique()
+    # get relevant underlying IDs rather than iterating through all of them.
+    p_lst = [x.split()[0] + '  ' + x.split('.')[1] for x in lst]
     if signals is not None:
         signals.value_date = pd.to_datetime(signals.value_date)
         sig_date = min(signals.value_date)
@@ -1145,9 +1154,11 @@ def get_min_start_date(vdf, pdf, lst, signals=None):
             df = vdf[vdf.vol_id == vid]
             v_dates.append(min(df.value_date))
         for uid in p_lst:
+            print('uid, date: ', uid, df.value_date.min())
             df = pdf[pdf.underlying_id == uid]
             p_dates.append(df.value_date.min())
-
+        print('get_min_start_date - vdates: ', v_dates)
+        print('get_min_start_date - pdates: ', p_dates)
         return max(max(v_dates), max(p_dates))
 
     else:
