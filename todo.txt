@@ -1144,16 +1144,32 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 |As of 09/01/2017 |
 -------------------
 
-- composites in simulator that are NOT part of the same family. --> flag to mark these two options as composites. 
+- [Done] composites in simulator that are NOT part of the same family. --> flag to mark these two options as composites. 
 	Sub-components:
 	0) [Done] include composite_name checkbox. 
 	1) [Done] ensure naming works properly in UI. 
-	2) update FFC.process() method:
+	2) [Done] update FFC.process() method:
 		- pulls options
 		- assigns composites
 		- constructs pflist. 
 		- returns pflist 
 
+
+
+--------------------
+| As of 09/05/2017 |
+--------------------
+
+- Fix vol_id specification/checks when pulling data 
+- [Done] PnP format to prep_portfolio format; currently, everything would be under a single family. 
+- [Done] Hedge specification for spec portfolios. 
+- [Done] File navigation in the UI 
+
+--------------------
+| As of 09/06/2017 |
+--------------------
+
+- Dynamic event triggers - subset of signals paradigm. > helper functions for generating signals.
 
 
 
