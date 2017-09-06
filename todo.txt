@@ -1159,7 +1159,12 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 | As of 09/06/2017 |
 --------------------
 
-
+> Handling errors in other Volgraphix components. 
+	- [Done] skewhistory
+	- [Done] skewttm
+	- [Done] skewseason
+	- [Done] heatmap 
+	- [Done] comps 
 
 > Expand HSM to allow for Intraday data. 
 		- flag as to whether or not data is intraday or settlement to settlement. ==> infer from dataset? pass in as input?
@@ -1199,7 +1204,7 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 		1. adjusting signals to include family paradigm 
 		2. related: implement a future signals thing.
 
-	- refactor sim_ui/skew_funcs, remove extraneous variables and offer speedups where possible.
+	- refactor sim_ui/skew_funcs, remove extraneous repo and offer speedups where possible.
 	
 > Plotly visualization:
 	- same contract vol surface on two different days. 

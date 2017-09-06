@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from scripts.util import pnp_format
 from scripts.fetch_data import grab_data
 
 multipliers = {
@@ -59,17 +60,20 @@ contract_mths = {
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
+filepath = 'C:/Users/Ananth/Desktop/pnp_sample.xlsx'
+start_date = '2017-08-01'
+end_date = '2017-09-05'
+pdts = ['S']
 
-######### variables ################
-start_date = '2017-06-01'
-end_date = '2017-06-30'
-pdts = ['QC', 'CC']
-volids = ['QC  U7.U7', 'QC  Z7.Z7', 'CC  U7.U7', 'CC  Z7.Z7']
-####################################
+vdf, pdf, edf = grab_data(pdts, start_date, end_date)
+
+spec = pnp_format(filepath, pdts)
+
+# relevant = all_ports[all_ports.vol_id.str[:2].str.strip().isin(pdts)]
 
 
-vdf, pdf, edf = grab_data(pdts, start_date, end_date, volids=volids)
+from scripts.prep_data import prep_portfolio
 
+pf = prep_portfolio(vdf, pdf, '', spec=spec)
 
-pd.Timestamp('2017-08-04')
-pd.Timestamp('2017-06-01')
+print('pf: ', pf)
