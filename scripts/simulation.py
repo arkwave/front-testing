@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-25 20:14:46
+# @Last Modified time: 2017-09-06 19:56:07
 
 ################################ imports ###################################
 
@@ -253,33 +253,14 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         vdf = voldata[voldata.value_date == date]
         pdf = pricedata[pricedata.value_date == date]
 
-        # print('Active Options: ', [
-        #       str(op) for op in pf.get_all_options() if op.check_active()])
-
         print('Portfolio before any ops: ', pf)
-
-        # # getting SOD vega pos for all products and months
-        # if len(pf.OTC) == 0:
-        #     print('Month, SOD Vega Pos: ', (0, 0))
-        # # print('pf.OTC: ', pf.OTC)
-        # if len(pf.OTC) > 0:
-        #     for pdt in pf.OTC:
-        #         for mth in pf.OTC[pdt]:
-        #             # ops = pf.OTC[pdt][0]
-        #             print('Month, SOD Vega Pos: ',
-        #                   (mth, pf.net_vega_pos(mth, pdt)))
 
     # Step 3: Feed data into the portfolio.
         pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
             = feed_data(vdf, pdf, pf, init_val, flat_vols=flat_vols, flat_price=flat_price)
 
-        # dailycost -= profit
-        # print('cost after feed data: ', dailycost)
-
     # Step 4: Compute pnl for the day
         updated_val = pf.compute_value()
-        # print('updated value after feed: ', updated_val)
-        # print('init val: ', init_val)
         dailypnl = (updated_val -
                     init_val) + exercise_profit if (init_val != 0 and updated_val != 0) else 0
 
@@ -288,7 +269,6 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
             pf.add_security(exercise_futures, 'OTC')
         if barrier_futures:
             pf.add_security(barrier_futures, 'hedge')
-        # print('pf after resid. futures: ', pf)
 
     # Step 5: Apply signal
         if signals is not None:
@@ -311,7 +291,7 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         pf, cost, roll_hedged = rebalance(vdf, pdf, pf, brokerage=brokerage,
                                           slippage=slippage, next_date=next_date)
 
-    # Step 9: Subtract brokerage/slippage costs from rebalancing. Append to
+    # Step 8: Subtract brokerage/slippage costs from rebalancing. Append to
     # relevant lists.
 
         # gamma/vega pnls
@@ -329,7 +309,7 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         netpnl += (dailypnl - cost)
         net_cumul_values.append(netpnl)
 
-    # Step 9.5: Update highest_value so that the next
+    # Step 9: Update highest_value so that the next
     # loop can check for drawdown.
         if netpnl > highest_value:
             highest_value = netpnl
