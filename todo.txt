@@ -1,18 +1,4 @@
 
--------------
-| NEXT WEEK |
--------------
-
-> moving to plotly:
-	- plan is to make a gui using Tkinter and publish graphs on plotly. 
-
-> Get familiar with Tkinter or with Dash. 
-
-> Conceptualize application outline. 
-
-
-
-
 
 ##########################################################################################################################
 
@@ -1167,21 +1153,15 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 - [Done] File navigation in the UI 
 - [Done] Added breakeven method to portfolio.py 
 
+
+
 --------------------
 | As of 09/06/2017 |
 --------------------
 
-> Intraday data
 
--------------------------- OPEN ISSUES: ------------------------
 
-> Backend Implementation
-	- proper conceptualizing of slippage, aside from flat-value. bring all in line to this. 
-	- Signals and Families
-		1. adjusting signals to include family paradigm 
-		2. related: implement a future signals thing.
-
-	> Expand HSM to allow for Intraday data. 
+> Expand HSM to allow for Intraday data. 
 		- flag as to whether or not data is intraday or settlement to settlement. ==> infer from dataset? pass in as input?
 			- can be inferred quite easily for prices. 
 
@@ -1210,6 +1190,17 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 
 
+-------------------------- OPEN ISSUES: ------------------------
+
+> Backend Implementation
+	- proper conceptualizing of slippage, aside from flat-value. bring all in line to this. 
+	
+	- Signals and Families
+		1. adjusting signals to include family paradigm 
+		2. related: implement a future signals thing.
+
+	- refactor sim_ui/skew_funcs, remove extraneous variables and offer speedups where possible.
+	
 > Plotly visualization:
 	- same contract vol surface on two different days. 
 	- more descriptive statistics:
@@ -1220,13 +1211,8 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 > GUI Dev:
 	- [Done] need to fix/debug assign_ci / ciprice / civols. pretty badly. 
 	- Add a 'Pull Data' button? 
-	
-
 	- integrate with Portfolio VAR Module. 
-	- get ordering back into place in HistoricSimulator as a variable.
 	- Figure out new windows for each family. 
-	- vol_ids in a dataset - no way to currently filter. 
-
 
 ------------------------------------------------------------
 
