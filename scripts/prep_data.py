@@ -1228,8 +1228,12 @@ def clean_intraday_data(df, sdf):
         > if there are multiple products, reconciles the timesteps as follows:
             - for each day:
                 d1, d2 = len(p1), len(p2)
-                select min(d1, d2)
-                - for e
+                x = min(d1, d2)
+                - for e in x:
+                    find closest thing in other <= e
+                    bundle together as e. 
+    4) merges settlement data with intraday data. 
+    5) isolates beginning of settlement period. 
 
     Args:
         df (TYPE): Dataframe of intraday prices. 
@@ -1243,10 +1247,11 @@ def clean_intraday_data(df, sdf):
     df.Date = pd.to_datetime(df.Date)
     df['time'] = df.Date.dt.time.astype(pd.Timestamp)
     df['date'] = pd.to_datetime(df.Date.dt.date)
+    df['datatype'] = 'intraday'
 
     # filter out relevant columns, rename.
-    df = df[['uid', 'date', 'time', 'Price', 'Volume']]
-    df.columns = ['uid', 'value_date', 'time', 'price', 'volume']
+    df = df[['uid', 'date', 'time', 'Price', 'Volume', 'datatype']]
+    df.columns = ['uid', 'value_date', 'time', 'price', 'volume', 'datatype']
 
     # third: assign EOD to the last value of each day.
     return df
