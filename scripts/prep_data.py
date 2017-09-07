@@ -1269,10 +1269,10 @@ def clean_intraday_data(df, sdf):
                   'time', 'price', 'volume', 'datatype']
 
     ## Step 2 ##
-    df = timestep_recon(df)
+    # df = timestep_recon(df)
 
     ## Step 3 ##
-    # df = insert_settlements(df, sdf)
+    df = insert_settlements(df, sdf)
 
     ## Step 4 ##
 
@@ -1293,6 +1293,8 @@ def timestep_recon(df):
     Args:
         df (pandas dataframe): dataframe of intraday price data. 
     """
+    cols = df.columns
+    final_df = pd.DataFrame(columns=cols)
     uids = df.uid.unique()
     # base case: 1 uid.
     if len(uids) == 1:
@@ -1302,9 +1304,21 @@ def timestep_recon(df):
         # it's written.
         date_range = pd.to_datetime(df.value_date.unique())
         for date in date_range:
-            pass
+            tdf = df[df.value_date == date]
+            grps = df.groupby('uid')
+            # isolate the group with the least data
+            ords = sorted([(x[0], len(x[1])) for x in grps], lambda x: x[1])
+            target_uid, target_data = ords.pop(0)
 
-        return df
+            # TODO: fix this to transform into rows.
+            for ts in target_data.time:
+                # helper to get all the other individuals.
+                tar_price = target_data[target_data.time == ts].price.values[0]
+
+                other_prices = get_closest_price(ts, ords)
+                # bundle up into this timestamp.
+
+    return final_df
 
 
 def insert_settlements(df, sdf):
@@ -1316,10 +1330,8 @@ def insert_settlements(df, sdf):
     """
 
     sdf = sdf[sdf.call_put_id == 'C']
-
     dates = pd.to_datetime(sdf.value_date.unique())
     cols = list(df.columns)
-    print('cols: ', cols)
     final_df = pd.DataFrame(columns=cols)
     for date in dates:
         tdf = df[df.value_date == date]
@@ -1335,15 +1347,30 @@ def insert_settlements(df, sdf):
             row1 = [pdt, ftmth, uid, date, datetime.time.max,
                     settle_val, 0, 'settlement']
             row = dict(zip(cols, row1))
-            print('row: ', row)
-            print('tdf len: ', len(tdf2))
             tdf2 = tdf2.append(row, ignore_index=True)
-            print('tdf len: ', len(tdf2))
             final_df = pd.concat([final_df, tdf2])
-
+    final_df.reset_index(drop=True, inplace=True)
     return final_df
 
 
+def get_closest_price(ts, others):
+    """Helper function that takes in a timestamp, and a list of dataframes. 
+    returns price associated with timestamp from each df in others that is closest to yet lesser than ts. 
+
+    Args:
+        ts (TYPE): target timestamp
+        others (TYPE): list of dataframes. 
+    """
+    ret = []
+    for df in others:
+        valid_ts = max([x for x in df.time if x <= ts])
+        price = df[df.time == valid_ts].price.values[0]
+        uid = df.uid.unique()[0]
+        datatype = df[df.time == valid_ts].datatype.values[0]
+        ret.append((price, uid, datatype))
+    return ret
+
 ##########################################################################
 ##########################################################################
 ##########################################################################
+####
