@@ -1217,6 +1217,42 @@ def sanity_check(vdates, pdates, start_date, end_date, signals=None,):
     return
 
 
+############### Intraday Data Processing Functions ####################
+
+def clean_intraday_data(df, sdf):
+    """Helper function that processes intraday data into a usable format. Performs the f
+    following steps:
+    1) Column generation/naming: adds pdt, ftmth, uid, time and date columns.
+    2) Filters these specific columns. 
+    3) Timestep reconciliation.
+        > if there are multiple products, reconciles the timesteps as follows:
+            - for each day:
+                d1, d2 = len(p1), len(p2)
+                select min(d1, d2)
+                - for e
+
+    Args:
+        df (TYPE): Dataframe of intraday prices. 
+    """
+    # first: Convert S H8 Comdty -> S  H8
+    df['pdt'] = df.Commodity.str.split().str[0].str.strip()
+    df['ftmth'] = df.Commodity.str.split().str[1].str.strip()
+    df['uid'] = df.pdt + '  ' + df.ftmth
+
+    # second: datetime -> date and time columns.
+    df.Date = pd.to_datetime(df.Date)
+    df['time'] = df.Date.dt.time.astype(pd.Timestamp)
+    df['date'] = pd.to_datetime(df.Date.dt.date)
+
+    # filter out relevant columns, rename.
+    df = df[['uid', 'date', 'time', 'Price', 'Volume']]
+    df.columns = ['uid', 'value_date', 'time', 'price', 'volume']
+
+    # third: assign EOD to the last value of each day.
+    return df
+
 ##########################################################################
 ##########################################################################
 ##########################################################################
+####
+####
