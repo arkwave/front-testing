@@ -1,8 +1,6 @@
 import numpy as np
 import pandas as pd
-from scripts.util import pnp_format
-from scripts.fetch_data import grab_data
-
+from scripts.prep_data import process_intraday_data
 multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
     'LSU': [1, 50, 0.1, 10, 50],
@@ -60,20 +58,13 @@ contract_mths = {
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
-filepath = 'C:/Users/Ananth/Desktop/pnp_sample.xlsx'
-start_date = '2017-08-01'
-end_date = '2017-09-05'
-pdts = ['S']
 
-vdf, pdf, edf = grab_data(pdts, start_date, end_date)
+# filepath = 'datasets/s_intraday.csv'
+fp2 = 'datasets/s_intraday.xlsx'
 
-spec = pnp_format(filepath, pdts)
-
-# relevant = all_ports[all_ports.vol_id.str[:2].str.strip().isin(pdts)]
-
-
-from scripts.prep_data import prep_portfolio
-
-pf = prep_portfolio(vdf, pdf, '', spec=spec)
-
-print('pf: ', pf)
+df2 = pd.read_excel(fp2)
+df2.to_csv('datasets/s_intraday.csv', index=False)
+# df2.Date = pd.to_datetime(df2.Date)
+# df2['time'] = (df2.Date.dt.time).astype(pd.Timestamp)
+# df2['date'] = pd.to_datetime(df2.Date.dt.date)
+df = process_intraday_data(df2)

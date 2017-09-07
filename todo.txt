@@ -1166,6 +1166,20 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 	- [Done] heatmap 
 	- [Done] comps 
 
+-------------------
+| As of 09/07/2017|
+-------------------
+
+> Data Processing steps. 
+	- vol/price reconciliation on the basis of timestep. > on hold until intraday vols are available. 
+	- marking EOD. > can be done easily. 
+		> issue: settlement vs last data entry of intraday data. 
+	- rethinking the format of pdf and vdf in the absence of intraday vol data. 
+	- extra columns, which need to be solved. 
+
+_______________________________________________________
+
+
 > Expand HSM to allow for Intraday data. 
 		- flag as to whether or not data is intraday or settlement to settlement. ==> infer from dataset? pass in as input?
 			- can be inferred quite easily for prices. 
@@ -1197,11 +1211,7 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 _________________ Intraday implementation: Notes _____________________
 
-> Data Processing steps. 
-	- vol/price reconciliation on the basis of timestep. 
-	- marking EOD. 
-	- rethinking the format of pdf and vdf in the absence of intraday vol data. 
-	- extra columns, which need to be solved. 
+
 
 > Hedging steps. 
 	- delta:
@@ -1213,11 +1223,11 @@ _________________ Intraday implementation: Notes _____________________
 		> where do these params get passed in? --> need to update the GUI with an intraday feature too. 	
 		> edge case 1: multiple products, one hits breakeven and one doesn't. Do we hedge one or both or none? partners in terms of products/hedging?
 		> edge case 2: limit up/limit down implementations required?
-		> 
 
 > Feed steps
 
 > PnL Calculation
+
 
 
 
