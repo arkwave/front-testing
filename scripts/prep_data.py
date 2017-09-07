@@ -12,21 +12,21 @@ Description    : Script contains methods to read-in and format data. These metho
 ############### Imports/Global Variables ##################
 ###########################################################
 
+# User-Defined
 from .portfolio import Portfolio
 from .classes import Option, Future
 from .calc import get_barrier_vol
+# Standard Imports
 import pandas as pd
 import numpy as np
-from scipy.interpolate import PchipInterpolator, interp1d
+from scipy.interpolate import interp1d
 from scipy.stats import norm
 from math import log, sqrt
 import time
+import datetime
 from ast import literal_eval
 from collections import OrderedDict
-import os as osf
-from .global_vars import pdt as gvpdt
 import copy
-# from .fetch_data import pull_relevant_data
 
 seed = 7
 np.random.seed(seed)
@@ -1220,11 +1220,10 @@ def sanity_check(vdates, pdates, start_date, end_date, signals=None,):
 ############### Intraday Data Processing Functions ####################
 
 def clean_intraday_data(df, sdf):
-    """Helper function that processes intraday data into a usable format. Performs the f
+    """Helper function that processes intraday data into a usable format. Performs the
     following steps:
-    1) Column generation/naming: adds pdt, ftmth, uid, time and date columns.
-    2) Filters these specific columns. 
-    3) Timestep reconciliation.
+    1) Column generation/naming: adds pdt, ftmth, uid, time and date columns, filters these columns
+    2) Timestep reconciliation.
         > if there are multiple products, reconciles the timesteps as follows:
             - for each day:
                 d1, d2 = len(p1), len(p2)
@@ -1232,32 +1231,119 @@ def clean_intraday_data(df, sdf):
                 - for e in x:
                     find closest thing in other <= e
                     bundle together as e. 
-    4) merges settlement data with intraday data. 
-    5) isolates beginning of settlement period. 
+    3) merges settlement data with intraday data, marks with a flag
+    4) isolates beginning of settlement period, marks with a flag. 
+
 
     Args:
         df (TYPE): Dataframe of intraday prices. 
     """
+    from pandas.tseries.holiday import USFederalHolidayCalendar as calendar
+    ## Step 1 ##
     # first: Convert S H8 Comdty -> S  H8
     df['pdt'] = df.Commodity.str.split().str[0].str.strip()
     df['ftmth'] = df.Commodity.str.split().str[1].str.strip()
     df['uid'] = df.pdt + '  ' + df.ftmth
 
-    # second: datetime -> date and time columns.
+    # datetime -> date and time columns.
     df.Date = pd.to_datetime(df.Date)
     df['time'] = df.Date.dt.time.astype(pd.Timestamp)
     df['date'] = pd.to_datetime(df.Date.dt.date)
+
+    cal = calendar()
+    holidays = pd.to_datetime(cal.holidays(
+        start=df.date.min(), end=df.date.max())).tolist()
+    print('holidays: ', holidays)
+
+    df = df[~df.date.isin(holidays)]
+    df = df[df.date.dt.dayofweek < 5]
+
+    # adding in flags used to isolate intraday vs settlement and intraday vs
+    # settlement period
     df['datatype'] = 'intraday'
 
     # filter out relevant columns, rename.
-    df = df[['uid', 'date', 'time', 'Price', 'Volume', 'datatype']]
-    df.columns = ['uid', 'value_date', 'time', 'price', 'volume', 'datatype']
+    df = df[['pdt', 'ftmth', 'uid', 'date',
+             'time', 'Price', 'Volume', 'datatype']]
+    df.columns = ['pdt', 'ftmth', 'uid', 'value_date',
+                  'time', 'price', 'volume', 'datatype']
 
-    # third: assign EOD to the last value of each day.
+    ## Step 2 ##
+    df = timestep_recon(df)
+
+    ## Step 3 ##
+    # df = insert_settlements(df, sdf)
+
+    ## Step 4 ##
+
     return df
 
+
+def timestep_recon(df):
+    """Helper method that reconciles timesteps for multi-product or multi-contract intraday simulations. Does the following:
+    > for each day:
+        get unique dataframes for each product/contract. 
+        isolate dataset with minimum values.
+        > for each timestamp in minimum:
+            get closest timestamp in others that are <= timestamp. 
+            bundle together under timestamp. 
+
+    Base case: if df only contains 1 product and 1 contract, returns the dataframe with no modifications.   
+
+    Args:
+        df (pandas dataframe): dataframe of intraday price data. 
+    """
+    uids = df.uid.unique()
+    # base case: 1 uid.
+    if len(uids) == 1:
+        return df
+    else:
+        # TODO: handle sanity checking date ranges in the pulling function when
+        # it's written.
+        date_range = pd.to_datetime(df.value_date.unique())
+        for date in date_range:
+            pass
+
+        return df
+
+
+def insert_settlements(df, sdf):
+    """Helper method that inserts the settlement values pertaining to commodities present in df at the end of the day's data. 
+
+    Args:
+        df (TYPE): Dataframe of intraday values. 
+        sdf (TYPE): Dataframe of settlement values
+    """
+
+    sdf = sdf[sdf.call_put_id == 'C']
+
+    dates = pd.to_datetime(sdf.value_date.unique())
+    cols = list(df.columns)
+    print('cols: ', cols)
+    final_df = pd.DataFrame(columns=cols)
+    for date in dates:
+        tdf = df[df.value_date == date]
+        uids = tdf.uid.unique()
+        for uid in uids:
+            tdf2 = tdf[tdf.uid == uid]
+            pdt, ftmth = uid.split()
+            try:
+                settle_val = sdf[(sdf.underlying_id == uid) &
+                                 (sdf.value_date == date)].settle_value.values[0]
+            except IndexError as e:
+                raise IndexError("Inputs: ", uid, date) from e
+            row1 = [pdt, ftmth, uid, date, datetime.time.max,
+                    settle_val, 0, 'settlement']
+            row = dict(zip(cols, row1))
+            print('row: ', row)
+            print('tdf len: ', len(tdf2))
+            tdf2 = tdf2.append(row, ignore_index=True)
+            print('tdf len: ', len(tdf2))
+            final_df = pd.concat([final_df, tdf2])
+
+    return final_df
+
+
 ##########################################################################
 ##########################################################################
 ##########################################################################
-####
-####
