@@ -539,14 +539,17 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
         df['ftmth'] = df['underlying_id'].str.split().str[1]
         df['op_id'] = df['op_id'] = df.vol_id.str.split().str[
             1].str.split('.').str[0]
-
+        df = assign_ci(df)
+        # NOTE: this defaults to datetime.time.max since only settlement values
+        # are available currently.
+        df['time'] = datetime.time.max
         # setting data types
-        # df.order = pd.to_numeric(df.order)
+        df.order = pd.to_numeric(df.order)
         df.tau = pd.to_numeric(df.tau)
         df.strike = pd.to_numeric(df.strike)
         df.vol = pd.to_numeric(df.vol)
         df.value_date = pd.to_datetime(df.value_date)
-
+        df.time = df.time.astype(pd.Timestamp)
     # cleaning price data
     elif flag == 'price':
         # dealing with datatypes and generating new fields from existing ones.
