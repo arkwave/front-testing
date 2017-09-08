@@ -1,6 +1,10 @@
 import numpy as np
 import pandas as pd
-from scripts.prep_data import process_intraday_data
+import scripts.prep_data as pr
+from scripts.util import create_skew
+from scripts.fetch_data import grab_data
+
+
 multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
     'LSU': [1, 50, 0.1, 10, 50],
@@ -58,13 +62,38 @@ contract_mths = {
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
+intraday_data = pd.read_csv('datasets/s_intraday.csv')
+intraday_data.Date = pd.to_datetime(intraday_data.Date)
 
-# filepath = 'datasets/s_intraday.csv'
-fp2 = 'datasets/s_intraday.xlsx'
+test_data = intraday_data[
+    intraday_data.Commodity.isin(['S U7 Comdty', 'S F8 Comdty'])]
 
-df2 = pd.read_excel(fp2)
-df2.to_csv('datasets/s_intraday.csv', index=False)
-# df2.Date = pd.to_datetime(df2.Date)
-# df2['time'] = (df2.Date.dt.time).astype(pd.Timestamp)
-# df2['date'] = pd.to_datetime(df2.Date.dt.date)
-df = process_intraday_data(df2)
+test_data = pr.handle_intraday_conventions(test_data)
+
+sd, ed = test_data.value_date.min().strftime('%Y-%m-%d'), \
+    test_data.value_date.max().strftime('%Y-%m-%d')
+
+vdf, pdf, edf = grab_data(['S'], sd, ed, test=True)
+
+vdf.value_date = pd.to_datetime(vdf.value_date)
+pdf.value_date = pd.to_datetime(pdf.value_date)
+
+date = vdf.value_date.min()
+
+op1, op2 = create_skew('S  U7.U7', vdf, pdf, date,
+                       False, 25, greek='vega', greekval=100000)
+
+print('op1: ', op1)
+print('op2: ', op2)
+
+# test_data = pr.insert_settlements(test_data, settlements)
+# filter to the first day.
+# test_data = test_data[test_data.value_date == test_data.value_date.min()]
+# udata = test_data[test_data.uid == 'S  U7']
+# fdata = test_data[test_data.uid == 'S  F8']
+
+# timestep reconciliation step.
+# fin = pr.timestep_recon(test_data)
+
+# fin = pr.clean_data(fin, 'price', edf=edf,
+#                     date=pd.to_datetime(fin.value_date.unique()[0]))

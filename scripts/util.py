@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-08 18:51:29
+# @Last Modified time: 2017-09-08 21:58:13
 
 
 from .portfolio import Portfolio
@@ -11,7 +11,7 @@ from .prep_data import find_cdist, handle_dailies
 import pandas as pd
 import numpy as np
 import os
-from .calc import compute_strike_from_delta
+from .calc import compute_strike_from_delta, get_vol_from_delta
 import sys
 
 multipliers = {
@@ -187,7 +187,13 @@ def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=N
     if ftprice is None:
         try:
             ftprice = pdf[(pdf.underlying_id == uid) &
-                          (pdf.value_date == date)].price.values[0]
+                          (pdf.value_date == date)]
+            # NOTE: defaults to using settlement data if intraday data is
+            # passed in.
+            if 'datatype' in ftprice.columns:
+                ftprice = ftprice[ftprice.datatype == 'settlement']
+
+            ftprice = ftprice.price.values[0]
         except IndexError:
             print('util.create_underlying: cannot find price. printing outputs: ')
             print('uid: ', uid)
@@ -290,7 +296,7 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     if vol is None and strike is not None:
         # get vol
         try:
-            # print("Inputs: ", date.strftime('%Y-%m-%d'), volid, cpi, strike)
+            # NOTE: this currently is settlement vol.
             vol = vdf[(vdf.value_date == date) &
                       (vdf.vol_id == volid) &
                       (vdf.call_put_id == cpi) &
@@ -302,24 +308,23 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     # Case 2: Option construction is basis delta. vol and strike are None.
     elif vol is None and strike is None:
         try:
-            col = str(int(delta)) + 'd'
-            vol = pdf[(pdf.vol_id == volid) &
-                      (pdf.value_date == date) &
-                      (pdf.call_put_id == cpi)][col].values[0]
+            # interpolate/calculate the vol for this particular delta.
+            delta = delta/100
+            # NOTE: THIS USES SETTLEMENTS
+            vol = get_vol_from_delta(delta, vdf, pdf, volid,
+                                     char, shorted, date)
+            # if delta specified, compute strike appropriate to that delta
+            strike = compute_strike_from_delta(None, delta1=delta, vol=vol, s=ft.get_price(),
+                                               char=char, pdt=ft.get_product(), tau=tau)
         except IndexError as e:
             raise IndexError(
                 'util.create_vanilla_option - cannot find vol by delta. Inputs are: ', volid, date, delta, cpi) from e
-            # print()
-            # print('vol_id: ', volid)
-            # print('date: ', date)
-            # print('cpi: ', cpi)
+        except ValueError as e1:
+            raise ValueError("Something broke during the interpolation step")
 
-    # if delta specified, compute strike appropriate to that delta
-    if delta is not None:
-        delta = delta/100
-        strike = compute_strike_from_delta(
-            None, delta1=delta, vol=vol, s=ft.get_price(), char=char, pdt=ft.get_product(), tau=tau)
-        print('util.create_vanilla_option - strike: ', strike)
+    print('util.create_vanilla_option - strike: ', strike)
+    print('util.create_vanilla_option - vol: ', vol)
+    print('util.create_vanilla_option - delta: ', delta)
 
     # specifying option with information gathered thus far.
     newop = Option(strike, tau, char, vol, ft, payoff, shorted,
@@ -513,24 +518,20 @@ def create_butterfly(char, volid, vdf, pdf, date, shorted, **kwargs):
         # mid_delta = mid_delta/100
         dist = kwargs['dist']
 
-    print('mid delta: ', mid_delta)
-    print('lots: ', lot1, lot2, lot3, lot4)
-    mid_op1 = create_vanilla_option(
-        vdf, pdf, volid, char, not shorted, date, delta=mid_delta, strike=mid_strike, lots=lot2)
+    mid_op1 = create_vanilla_option(vdf, pdf, volid, char, not shorted, date,
+                                    delta=mid_delta, strike=mid_strike, lots=lot2)
 
-    mid_op2 = create_vanilla_option(
-        vdf, pdf, volid, char, not shorted, date, delta=mid_delta, strike=mid_strike, lots=lot3)
-    print('mid strikes: ', mid_op1.K, mid_op2.K)
-
+    mid_op2 = create_vanilla_option(vdf, pdf, volid, char, not shorted, date,
+                                    delta=mid_delta, strike=mid_strike, lots=lot3)
     if dist is not None:
         lower_strike = mid_op2.K - dist
         upper_strike = mid_op2.K + dist
 
-    lower_op = create_vanilla_option(
-        vdf, pdf, volid, char, shorted, date, strike=lower_strike, lots=lot1)
+    lower_op = create_vanilla_option(vdf, pdf, volid, char, shorted, date,
+                                     strike=lower_strike, lots=lot1)
 
-    upper_op = create_vanilla_option(
-        vdf, pdf, volid, char, shorted, date, strike=upper_strike, lots=lot4)
+    upper_op = create_vanilla_option(vdf, pdf, volid, char, shorted, date,
+                                     strike=upper_strike, lots=lot4)
 
     ops = [lower_op, mid_op1, mid_op2, upper_op]
 
@@ -577,10 +578,10 @@ def create_spread(char, volid, vdf, pdf, date, shorted, **kwargs):
     # short put spread:  buy itm put,  sell otm put,
     # make sure inputs are organized in the appropriate order.
 
-    op1 = create_vanilla_option(
-        vdf, pdf, volid, char, shorted, date, delta=delta1, strike=strike1)
-    op2 = create_vanilla_option(
-        vdf, pdf, volid, char, not shorted, date, delta=delta2, strike=strike2)
+    op1 = create_vanilla_option(vdf, pdf, volid, char, shorted, date,
+                                delta=delta1, strike=strike1)
+    op2 = create_vanilla_option(vdf, pdf, volid, char, not shorted, date,
+                                delta=delta2, strike=strike2)
 
     ops = [op1, op2]
 
@@ -653,10 +654,10 @@ def create_strangle(volid, vdf, pdf, date, shorted, pf=None, **kwargs):
     else:
         f_delta1, f_delta2 = delta1, delta2
 
-    op1 = create_vanilla_option(
-        vdf, pdf, volid, char1, shorted, date, strike=strike1, lots=lot1, delta=f_delta1)
-    op2 = create_vanilla_option(
-        vdf, pdf, volid, char2, shorted, date, strike=strike2, lots=lot2, delta=f_delta2)
+    op1 = create_vanilla_option(vdf, pdf, volid, char1, shorted, date,
+                                strike=strike1, lots=lot1, delta=f_delta1)
+    op2 = create_vanilla_option(vdf, pdf, volid, char2, shorted, date,
+                                strike=strike2, lots=lot2, delta=f_delta2)
 
     # setting lots based on greek value passed in
     if 'greek' in kwargs:
@@ -817,11 +818,11 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
     if 'tau' in kwargs:
         tau = kwargs['tau']
 
-    op1 = create_vanilla_option(
-        vdf, pdf, volid, char1, shorted, date=date, strike=strike, lots=lots, vol=vol, tau=tau)
+    op1 = create_vanilla_option(vdf, pdf, volid, char1, shorted, date=date,
+                                strike=strike, lots=lots, vol=vol, tau=tau)
 
-    op2 = create_vanilla_option(
-        vdf, pdf, volid, char2, shorted, date=date, strike=strike, lots=lots, vol=vol, tau=tau)
+    op2 = create_vanilla_option(vdf, pdf, volid, char2, shorted, date=date,
+                                strike=strike, lots=lots, vol=vol, tau=tau)
 
     lots_req = op1.lots
 

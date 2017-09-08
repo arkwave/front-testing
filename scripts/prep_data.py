@@ -15,7 +15,7 @@ Description    : Script contains methods to read-in and format data. These metho
 # User-Defined
 from .portfolio import Portfolio
 from .classes import Option, Future
-from .calc import get_barrier_vol
+from .calc import get_barrier_vol, compute_delta
 # Standard Imports
 import pandas as pd
 import numpy as np
@@ -122,17 +122,7 @@ def match_to_signals(vdf, pdf, signals):
     # pdf['monday'] = pdf.value_date.dt.weekday == 0
 
     vdf.loc[vdf.monday == True, 'value_date'] -= pd.Timedelta('3 day')
-    # pdf.loc[pdf.monday == True, 'value_date'] -= pd.Timedelta('3 day')
     vdf.loc[vdf.monday == False, 'value_date'] -= pd.Timedelta('1 day')
-    # pdf.loc[pdf.monday == False, 'value_date'] -= pd.Timedelta('1 day')
-
-    # vdf.value_date -= pd.Timedelta('1 day')
-
-    # filtering relevant dates
-    # vdf = vdf[(vdf.value_date > pd.Timestamp('2017-01-02')) &
-    #           (vdf.value_date < pd.Timestamp('2017-04-02'))]
-    # pdf = pdf[(pdf.value_date > pd.Timestamp('2017-01-02')) &
-    #           (pdf.value_date < pd.Timestamp('2017-04-02'))]
 
     d1 = [x for x in vdf.value_date.unique()
           if x not in signals.value_date.unique()]
@@ -577,7 +567,7 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
         df.order = pd.to_numeric(df.order)
         df.value_date = pd.to_datetime(df.value_date)
         df.price = pd.to_numeric(df.price)
-        df.returns = pd.to_numeric(df.returns)
+        # df.returns = pd.to_numeric(df.returns)
         df.expdate = pd.to_datetime(df.expdate)
 
     df.reset_index(drop=True, inplace=True)
@@ -587,6 +577,7 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
     return df
 
 
+# currently only works for settlement prices.
 def vol_by_delta(voldata, pricedata):
     """takes in a dataframe of vols and prices (same format as those returned by read_data),
      and generates delta-wise vol organized hierarchically by date, underlying and vol_id
@@ -598,19 +589,19 @@ def vol_by_delta(voldata, pricedata):
     Returns:
         pandas dataframe: delta-wise vol of each option.
     """
-    # print('voldata: ', voldata)
-    # print('pricedata: ', pricedata)
-    relevant_price = pricedata[
+    relevant_price = pricedata[pricedata.datatype == 'settlement'][
         ['pdt', 'underlying_id', 'value_date', 'price']]
     relevant_vol = voldata[['pdt', 'value_date', 'vol_id', 'strike',
                             'call_put_id', 'tau', 'vol', 'underlying_id']]
 
     # handle discrepancies in underlying_id format
-    relevant_price.underlying_id = relevant_price.underlying_id.str.split().str[0]\
-        + '  ' + relevant_price.underlying_id.str.split().str[1]
+    relevant_price.underlying_id = \
+        relevant_price.underlying_id.str.split().str[0] + '  ' +\
+        relevant_price.underlying_id.str.split().str[1]
 
-    relevant_vol.underlying_id = relevant_vol.underlying_id.str.split().str[0] + '  '\
-        + relevant_vol.underlying_id.str.split().str[1]
+    relevant_vol.underlying_id = \
+        relevant_vol.underlying_id.str.split().str[0] + '  ' + \
+        relevant_vol.underlying_id.str.split().str[1]
 
     print('merging')
     merged = pd.merge(relevant_vol, relevant_price,
@@ -633,8 +624,8 @@ def vol_by_delta(voldata, pricedata):
 
     print('preallocating')
     # preallocating dataframes
-    vdf = merged[['value_date', 'underlying_id', 'tau', 'vol_id',
-                  'pdt', 'call_put_id']].drop_duplicates()
+    vdf = merged[['value_date', 'underlying_id', 'tau',
+                  'vol_id', 'pdt', 'call_put_id']].drop_duplicates()
 
     products = merged.pdt.unique()
 
@@ -646,7 +637,6 @@ def vol_by_delta(voldata, pricedata):
     dlist = []
     for pdt in products:
         tmp = merged[merged.pdt == pdt]
-        # tmp.to_csv('test.csv')
         dates = tmp.value_date.unique()
         vids = tmp.vol_id.unique()
         cpi = list(tmp.call_put_id.unique())
@@ -666,31 +656,17 @@ def vol_by_delta(voldata, pricedata):
                     drange = np.arange(0.05, 0.96, 0.01)
                     deltas = df.delta.values
                     vols = df.vol.values
-                    # interpolating delta using Piecewise Cubic Hermite
-                    # Interpolation (Pchip)
-
                     try:
-                        # print('deltas: ', deltas)
-                        # print('vols: ', vols)
-                        # f1 = PchipInterpolator(
-                        #     deltas, vols, extrapolate=True)
                         f1 = interp1d(deltas, vols, kind='linear',
                                       fill_value='extrapolate')
                     except ValueError:
-                        # print('INTERPOLATION BROKE')
-                        # print('vid: ', vid)
-                        # print('cpi: ', ind)
-                        # print('date: ', date)
-                        # print('deltas: ', deltas)
-                        # print('vols: ', vols)
                         continue
 
                     # grabbing delta-wise vols based on interpolation.
                     vols = f1(drange)
-
                     dic = dict(zip(delta_labels, vols))
-                    # adding the relevant values from the indexing dataframe
 
+                    # adding the relevant values from the indexing dataframe
                     dic['pdt'] = pdt
                     dic['vol_id'] = vid
                     dic['value_date'] = date
@@ -699,8 +675,9 @@ def vol_by_delta(voldata, pricedata):
                     dic['maxval'] = df.delta.values.max()
                     dlist.append(dic)
 
-    vbd = pd.DataFrame(dlist, columns=delta_labels.extend([
-                       'pdt', 'vol_id', 'value_date', 'call_put_id', 'minval', 'maxval']))
+    vbd = pd.DataFrame(dlist,
+                       columns=delta_labels.extend(['pdt', 'vol_id', 'value_date',
+                                                    'call_put_id', 'minval', 'maxval']))
 
     vbd = pd.merge(vdf, vbd, on=['pdt', 'vol_id', 'value_date', 'call_put_id'])
 
@@ -762,13 +739,9 @@ def assign_ci(df):
     Returns:
         Pandas dataframe     : Dataframe with the CIs populated.
     """
-
     products = df['pdt'].unique()
     df['order'] = ''
     df.value_date = pd.to_datetime(df.value_date)
-    # dates = df.value_date.unique()
-    # for dat in dates:
-    #     df2 = df[df.value_date == dat]
     for pdt in products:
         lst = contract_mths[pdt]
         df2 = df[df.pdt == pdt]
@@ -777,10 +750,8 @@ def assign_ci(df):
         for ftmth in ftmths:
             df3 = df2[df2.ftmth == ftmth]
             df3.sort_values(by='value_date', inplace=True)
-            # print('df3: ', df3)
             prev_date = None
             expdates = list(pd.to_datetime(df2.expdate.unique()))
-            # rollover_date = pd.to_datetime(df3.expdate.unique()[0])
             roll_mth = None
             for date in df3.value_date.unique():
                 rollover_date = min(expdates)
@@ -794,7 +765,6 @@ def assign_ci(df):
                         (prev_date < rollover_date and
                          today > rollover_date)) or (today == rollover_date):
                     print('HIT ROLLOVER: ', ftmth, date)
-                    # rollover = True
                     roll_mth = m1
                     expdates.remove(rollover_date)
                 mod = -1 if (m1 == roll_mth) else 0
@@ -802,9 +772,7 @@ def assign_ci(df):
                       (df.ftmth == ftmth) &
                       (df.value_date == today), 'order'] = dist + mod
                 prev_date = today
-                # rollover=False
             roll_mth = None
-            # mod = 0
     return df
 
 
@@ -972,37 +940,6 @@ def get_rollover_dates(pricedata):
                 expdate = df2['expdate'].unique()[0]
                 rollover_dates[product][i] = pd.Timestamp(expdate)
     return rollover_dates
-
-
-def compute_delta(x):
-    """Helper function to aid with vol_by_delta, rendered in this format to make use of pd.apply
-
-    Args:
-        x (pandas dataframe): dataframe of vols.
-
-    Returns:
-        double: value of delta
-    """
-    s = x.price
-    K = x.strike
-    tau = x.tau
-    char = x.call_put_id
-    vol = x.vol
-    r = 0
-    try:
-        d1 = (log(s/K) + (r + 0.5 * vol ** 2)*tau) / \
-            (vol * sqrt(tau))
-    except (ZeroDivisionError):
-        d1 = -np.inf
-
-    if char == 'C':
-        # call option calc for delta and theta
-        delta1 = norm.cdf(d1)
-    if char == 'P':
-        # put option calc for delta and theta
-        delta1 = norm.cdf(d1) - 1
-
-    return delta1
 
 
 def get_min_start_date(vdf, pdf, lst, signals=None):

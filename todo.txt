@@ -1171,33 +1171,42 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 -------------------
 
 > Data Processing steps. 
-	- vol/price reconciliation on the basis of timestep. > on hold until intraday vols are available. 
-	- timestep reconciliation between uids [in progress]
-	
-	- marking EOD. > can be done easily. 
-		> issue: settlement vs last data entry of intraday data
-			- solution: hedge all remaning deltas using first price at beginning of settlement period. wait till settlement, 
-			            and if settlement price results in residual delta, buy/sell to close it off. 
-			- [Done] adding settlement data to intraday 
-			
+	- [Done] basic cleaning steps. 
+	- [Done] adding settlement data to intraday 
+	- [Done] timestep reconciliation between uids
+	- [Done] switching variables: i.e. settle_value -> price, settle_vol -> vol 
+	- [Done] reconcile intraday prices with clean_data with price flag. 
+	- [Done] Refactor to remove dependence on vol by delta. 
+	- Re-write construction methods to default to earliest timestep in intraday data. 
 
-	- rethinking the format of pdf and vdf in the absence of intraday vol data. 
+	- marking beginning of settlement period. 
+		> issue: settlement vs last data entry of intraday data
+			- solution: hedge all remaning deltas using first price at beginning of settlement 
+			period. wait till settlement, and if settlement price results in residual delta, 
+			buy/sell to close it off. 
+	
+    - vol/price reconciliation on the basis of timestep. > on hold until intraday vols are 
+       available. 
+    
+    - rethinking the format of pdf and vdf in the absence of intraday vol data. 
 		
 _______________________________________________________
 
 > Expand HSM to allow for Intraday data. 
-	
-	-- First major paradigm shift: dataset must contain ONLY relevant vol_ids and underlying_ids. --> need to prune with gui, implying that GUI needs to have a vol_id check. --
-
-		- flag as to whether or not data is intraday or settlement to settlement. ==> infer from dataset? pass in as input?
+	-- First major paradigm shift: dataset must contain ONLY relevant vol_ids and 
+	underlying_ids. --> need to prune with gui, implying that GUI needs to have a vol_id check. 
+		- flag as to whether or not data is intraday or settlement to settlement. ==> infer from 
+		dataset? pass in as input?
 			- can be inferred quite easily for prices. 
 
 		- conditional intraday delta Hedging
 			= value-based
 			= breakeven-based 
 		 	--> need to write new functions/reconceptualize delta hedging;
-		 		- rethink hedge object => initialize at the start of the day, use throughout for hedging delta. 
-		 							   => can use existing framework to specify parameters (i.e. breakeven, value, etc.)
+		 		- rethink hedge object => initialize at the start of the day, use throughout for 
+		 		hedging delta. 		 		
+				   => can use existing framework to specify parameters (i.e. breakeven, value, 
+				   etc.)
 
 		## Data processing steps: 
 		- how will this change data grabbing functions?
