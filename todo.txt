@@ -1177,7 +1177,9 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 	- [Done] switching variables: i.e. settle_value -> price, settle_vol -> vol 
 	- [Done] reconcile intraday prices with clean_data with price flag. 
 	- [Done] Refactor to remove dependence on vol by delta. 
-	- Re-write construction methods to default to earliest timestep in intraday data. 
+	- [Done] Re-write construction methods to default to settlement data
+	- [Done] add time column to vol data 
+	- [Done] conceptualize intraday loop -> settlement flag trigger for vol update.
 
 	- marking beginning of settlement period. 
 		> issue: settlement vs last data entry of intraday data
@@ -1187,8 +1189,6 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 	
     - vol/price reconciliation on the basis of timestep. > on hold until intraday vols are 
        available. 
-    
-    - rethinking the format of pdf and vdf in the absence of intraday vol data. 
 		
 _______________________________________________________
 
