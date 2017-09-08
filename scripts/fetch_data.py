@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-01 15:10:19
+# @Last Modified time: 2017-09-08 14:11:45
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -407,25 +407,22 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
             pdf = pdf[(pdf.value_date >= start_date) &
                       (pdf.value_date <= end_date)]
 
-            print('pdf columns: ', pdf.columns)
-            print('vdf columns: ', vdf.columns)
+            # print('pdf columns: ', pdf.columns)
+            # print('vdf columns: ', vdf.columns)
 
             if volids is not None:
                 relevant_volids = [x for x in volids if x[:2].strip() == pdt]
                 uids = [x.split()[0] + '  ' + x.split('.')[1]
                         for x in relevant_volids]
-                print('relevant volids: ', relevant_volids)
-                print('relevant uids: ', uids)
+                # print('relevant volids: ', relevant_volids)
+                # print('relevant uids: ', uids)
                 pdf = pdf[pdf.underlying_id.isin(uids)]
                 vdf = vdf[vdf.vol_id.isin(relevant_volids)]
 
             # try filtering just by uid and vol_id
             if ftmth is not None and opmth is not None:
                 u_id = pdt + '  ' + ftmth
-                print('uid: ', u_id)
                 vol_id = pdt + '  ' + opmth + '.' + ftmth
-                print('vid: ', vol_id)
-
                 vdf = vdf[(vdf.vol_id == vol_id)]
                 pdf = pdf[(pdf.underlying_id == u_id)]
 

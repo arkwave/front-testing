@@ -464,7 +464,7 @@ def handle_dailies(dic, sim_start):
                 ttm_range = round(op.tau * 365)
                 expdate = sim_start + pd.Timedelta(str(ttm_range) + ' days')
                 daterange = pd.bdate_range(sim_start, expdate)
-                print('daterange: ', daterange)
+                # print('daterange: ', daterange)
                 taus = [((expdate - b_day).days) /
                         365 for b_day in daterange if b_day != expdate]
                 strike, char, vol, underlying, payoff, shorted, month, ordering, lots, settlement \
@@ -561,12 +561,14 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
     elif flag == 'price':
         # dealing with datatypes and generating new fields from existing ones.
         df['value_date'] = pd.to_datetime(df['value_date'])
-        df['pdt'] = df['underlying_id'].str.split().str[0]
-        df['ftmth'] = df['underlying_id'].str.split().str[1]
+        if 'pdt' not in df.columns:
+            df['pdt'] = df['underlying_id'].str.split().str[0]
+        if 'ftmth' not in df.columns:
+            df['ftmth'] = df['underlying_id'].str.split().str[1]
         # transformative functions.
         df = get_expiry(df, edf)
         df = assign_ci(df, date)
-        df = scale_prices(df)
+        # df = scale_prices(df)
         df = df.fillna(0)
         df.expdate = pd.to_datetime(df.expdate)
         df = df[df.value_date <= df.expdate]
@@ -583,79 +585,6 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
     assert not df.empty
 
     return df
-
-
-def ciprice(pricedata, rollover='opex'):
-    """Constructs the CI price series.
-
-    Args:
-        pricedata (TYPE): price data frame of same format as read_data
-        rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
-
-    Returns:
-        pandas dataframe : Dataframe with the following columns:
-            Product | date | underlying | order | settle_value | returns | expiry date
-    """
-    t = time.time()
-    if rollover == 'opex':
-        ro_dates = get_rollover_dates(pricedata)
-        products = pricedata['pdt'].unique()
-        # iterate over produts
-        by_product = None
-        for product in products:
-            df = pricedata[pricedata.pdt == product]
-            # lst = contract_mths[product]
-            assert not df.empty
-            most_recent = []
-            by_date = None
-            try:
-                relevant_dates = ro_dates[product]
-            except KeyError:
-                df2 = df[
-                        ['pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']]
-                df2.columns = [
-                    'pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']
-                by_product = df2
-                continue
-            # iterate over rollover dates for this product.
-            for date in relevant_dates:
-                df = df[df.order > 0]
-                order_nums = sorted(df.order.unique())
-                breakpoint = max(most_recent) if most_recent else min(
-                    df['value_date'])
-                # print('breakpoint, date: ', breakpoint, date)
-                by_order_num = None
-                # iterate over all order_nums for this product. for each cont, grab
-                # entries until first breakpoint, and stack wide.
-                for ordering in order_nums:
-                    # print('breakpoint, end, cont: ', breakpoint, date, cont)
-                    df2 = df[df.order == ordering]
-                    tdf = df2[(df2['value_date'] < date) & (df2['value_date'] >= breakpoint)][
-                        ['pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']]
-                    # print(tdf.empty)
-                    tdf.columns = [
-                        'pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']
-                    tdf.reset_index(drop=True, inplace=True)
-                    by_order_num = tdf if by_order_num is None else pd.concat(
-                        [by_order_num, tdf])
-
-                # by_date contains entries from all order_nums until current
-                # rollover date. take and stack this long.
-                by_date = by_order_num if by_date is None else pd.concat(
-                    [by_date, by_order_num])
-                most_recent.append(date)
-                df.order -= 1
-
-            by_product = by_date if by_product is None else pd.concat(
-                [by_product, by_order_num])
-        final = by_product
-
-    else:
-        final = -1
-    elapsed = time.time() - t
-    # print('[CI-PRICE] elapsed: ', elapsed)
-    # final.to_csv('ci_price_final.csv', index=False)
-    return final
 
 
 def vol_by_delta(voldata, pricedata):
@@ -779,80 +708,6 @@ def vol_by_delta(voldata, pricedata):
     return vbd
 
 
-def civols(vdf, pdf, rollover='opex'):
-    """Constructs the CI vol series.
-    Args:
-        vdf (TYPE): price data frame of same format as read_data
-        rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
-
-    Returns:
-        pandas dataframe : dataframe with the following columns:
-        pdt|order|value_date|underlying_id|vol_id|op_id|call_put_id|tau|strike|settle_vol
-
-    """
-    t = time.time()
-    if rollover == 'opex':
-        ro_dates = get_rollover_dates(pdf)
-        products = vdf['pdt'].unique()
-        # iterate over produts
-        by_product = None
-        for product in products:
-            df = vdf[vdf.pdt == product]
-            most_recent = []
-            by_date = None
-            try:
-                relevant_dates = ro_dates[product]
-            except KeyError:
-                # no rollover dates for this product
-                df2 = df[['pdt', 'order', 'value_date', 'underlying_id', 'vol_id',
-                          'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']]
-                df2.columns = ['pdt', 'order', 'value_date', 'underlying_id',
-                               'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
-                by_product = df2
-                continue
-
-            # iterate over rollover dates for this product.
-            for date in relevant_dates:
-                # filter order > 0 to get rid of C_i that have been dealt with.
-                df = df[df.order > 0]
-                # sort orderings.
-                order_nums = sorted(df.order.unique())
-                breakpoint = max(most_recent) if most_recent else min(
-                    df['value_date'])
-                by_order_num = None
-                # iterate over all order_nums for this product. for each cont, grab
-                # entries until first breakpoint, and stack wide.
-                for ordering in order_nums:
-                    cols = ['pdt', 'order', 'value_date', 'underlying_id', 'vol_id',
-                            'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
-                    df2 = df[df.order == ordering]
-                    tdf = df2[(df2['value_date'] < date) &
-                              (df2['value_date'] >= breakpoint)][cols]
-                    # renaming columns
-                    tdf.columns = ['pdt', 'order', 'value_date', 'underlying_id',
-                                   'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
-                    # tdf.reset_index(drop=True, inplace=True)
-                    by_order_num = tdf if by_order_num is None else pd.concat(
-                        [by_order_num, tdf])
-
-                # by_date contains entries from all order_nums until current
-                # rollover date. take and stack this long.
-                by_date = by_order_num if by_date is None else pd.concat(
-                    [by_date, by_order_num])
-                most_recent.append(date)
-                df.order -= 1
-
-            by_product = by_date if by_product is None else pd.concat(
-                [by_product, by_date])
-
-        final = by_product
-    else:
-        final = -1
-    elapsed = time.time() - t
-    # print('[CI-VOLS] elapsed: ', elapsed)
-    return final
-
-
 #####################################################
 ################ Helper Functions ###################
 #####################################################
@@ -898,7 +753,7 @@ def get_expiry_date(volid, edf):
     return expdate
 
 
-def assign_ci(df, date):
+def assign_ci(df):
     """Identifies the continuation numbers of each underlying.
 
     Args:
@@ -907,22 +762,49 @@ def assign_ci(df, date):
     Returns:
         Pandas dataframe     : Dataframe with the CIs populated.
     """
-    today = pd.to_datetime(date)
-    # today = pd.Timestamp('2017-01-01')
-    curr_mth = month_to_sym[today.month]
-    curr_yr = today.year
+
     products = df['pdt'].unique()
     df['order'] = ''
+    df.value_date = pd.to_datetime(df.value_date)
+    # dates = df.value_date.unique()
+    # for dat in dates:
+    #     df2 = df[df.value_date == dat]
     for pdt in products:
         lst = contract_mths[pdt]
         df2 = df[df.pdt == pdt]
         ftmths = df2.ftmth.unique()
+        mod = 0
         for ftmth in ftmths:
-            m1 = curr_mth + str(curr_yr % (2000 + decade))
-            # print('ftmth: ', ftmth)
-            # print('m1: ', m1)
-            dist = find_cdist(m1, ftmth, lst)
-            df.ix[(df.pdt == pdt) & (df.ftmth == ftmth), 'order'] = dist
+            df3 = df2[df2.ftmth == ftmth]
+            df3.sort_values(by='value_date', inplace=True)
+            # print('df3: ', df3)
+            prev_date = None
+            expdates = list(pd.to_datetime(df2.expdate.unique()))
+            # rollover_date = pd.to_datetime(df3.expdate.unique()[0])
+            roll_mth = None
+            for date in df3.value_date.unique():
+                rollover_date = min(expdates)
+                today = pd.to_datetime(date)
+                curr_mth = month_to_sym[today.month]
+                curr_yr = today.year
+                m1 = curr_mth + str(curr_yr % (2000 + decade))
+                dist = find_cdist(m1, ftmth, lst)
+                # sanity check for date being an expiry case.
+                if (prev_date is not None and
+                        (prev_date < rollover_date and
+                         today > rollover_date)) or (today == rollover_date):
+                    print('HIT ROLLOVER: ', ftmth, date)
+                    # rollover = True
+                    roll_mth = m1
+                    expdates.remove(rollover_date)
+                mod = -1 if (m1 == roll_mth) else 0
+                df.ix[(df.pdt == pdt) &
+                      (df.ftmth == ftmth) &
+                      (df.value_date == today), 'order'] = dist + mod
+                prev_date = today
+                # rollover=False
+            roll_mth = None
+            # mod = 0
     return df
 
 
@@ -958,9 +840,10 @@ def find_cdist(x1, x2, lst):
             # print('case 2')
             yrdiff = x2yr - x1yr
             dist = reg + (len(lst) * yrdiff)
-        # examples: (Z7, H8), (N7, Z7), (Z7, U7)
+        # examples: (Z7, H7)
         elif (x2yr == x1yr) and (x1mth > x2mth):
             return -1
+        # examples: (Z7, H8), (N7, Z7), (Z7, U7)
         else:
             # print('case 3')
             # print('reg: ', reg)
@@ -1238,22 +1121,38 @@ def clean_intraday_data(df, sdf):
     Args:
         df (TYPE): Dataframe of intraday prices. 
     """
+    ## Step 1 ##
+    df = handle_intraday_conventions(df)
+    ## Step 2 ##
+    df = timestep_recon(df)
+    ## Step 3 ##
+    df = insert_settlements(df, sdf)
+
+    return df
+
+
+def handle_intraday_conventions(df):
+    """Helper method that deals with product/ftmth/uid construction from BBG ticker symbols, checks/amends data types and filters out weekends/bank holidays from the data. 
+
+    Args:
+        df (TYPE): Description
+    """
     from pandas.tseries.holiday import USFederalHolidayCalendar as calendar
     ## Step 1 ##
     # first: Convert S H8 Comdty -> S  H8
     df['pdt'] = df.Commodity.str.split().str[0].str.strip()
     df['ftmth'] = df.Commodity.str.split().str[1].str.strip()
-    df['uid'] = df.pdt + '  ' + df.ftmth
+    df['underlying_id'] = df.pdt + '  ' + df.ftmth
 
     # datetime -> date and time columns.
     df.Date = pd.to_datetime(df.Date)
     df['time'] = df.Date.dt.time.astype(pd.Timestamp)
     df['date'] = pd.to_datetime(df.Date.dt.date)
 
+    # filter out weekends/bank holidays.
     cal = calendar()
     holidays = pd.to_datetime(cal.holidays(
         start=df.date.min(), end=df.date.max())).tolist()
-    print('holidays: ', holidays)
 
     df = df[~df.date.isin(holidays)]
     df = df[df.date.dt.dayofweek < 5]
@@ -1263,20 +1162,14 @@ def clean_intraday_data(df, sdf):
     df['datatype'] = 'intraday'
 
     # filter out relevant columns, rename.
-    df = df[['pdt', 'ftmth', 'uid', 'date',
+    df = df[['pdt', 'ftmth', 'underlying_id', 'date',
              'time', 'Price', 'Volume', 'datatype']]
-    df.columns = ['pdt', 'ftmth', 'uid', 'value_date',
+    df.columns = ['pdt', 'ftmth', 'underlying_id', 'value_date',
                   'time', 'price', 'volume', 'datatype']
 
-    ## Step 2 ##
-    # df = timestep_recon(df)
-
-    ## Step 3 ##
-    df = insert_settlements(df, sdf)
-
-    ## Step 4 ##
-
     return df
+
+# TODO: fix technical debt.
 
 
 def timestep_recon(df):
@@ -1295,7 +1188,7 @@ def timestep_recon(df):
     """
     cols = df.columns
     final_df = pd.DataFrame(columns=cols)
-    uids = df.uid.unique()
+    uids = df.underlying_id.unique()
     # base case: 1 uid.
     if len(uids) == 1:
         return df
@@ -1305,55 +1198,42 @@ def timestep_recon(df):
         date_range = pd.to_datetime(df.value_date.unique())
         for date in date_range:
             tdf = df[df.value_date == date]
-            grps = df.groupby('uid')
+            grps = tdf.groupby('underlying_id')
             # isolate the group with the least data
-            ords = sorted([(x[0], len(x[1])) for x in grps], lambda x: x[1])
-            target_uid, target_data = ords.pop(0)
-
-            # TODO: fix this to transform into rows.
-            for ts in target_data.time:
+            ords = sorted([(x[0], len(x[1]), x[1])
+                           for x in grps], key=lambda t: t[1])
+            target_uid, target_len, target_data = ords.pop(0)
+            dfs = list(zip(*ords))[2]
+            target_data.reset_index(drop=True, inplace=True)
+            for index in target_data.index:
+                data = target_data.iloc[index]
+                ts = data.time
+                # print('datalst: ', data.values)
+                # data = [data.values]
+                data = [dict(zip(cols, data.values))]
                 # helper to get all the other individuals.
-                tar_price = target_data[target_data.time == ts].price.values[0]
+                other_data = get_closest_ts_data(ts, dfs)
+                # case: others have no data earlier than ts.
+                if not other_data:
+                    continue
+                data.extend(other_data)
+                # print('data: ', data)
+                for x in data:
+                    # print('x: ', x)
+                    final_df = final_df.append(x, ignore_index=True)
 
-                other_prices = get_closest_price(ts, ords)
-                # bundle up into this timestamp.
+    # removing all duplicates per product according to timestep.
+    fdf = pd.DataFrame(columns=cols)
+    for uid in final_df.underlying_id.unique():
+        tmp = final_df[final_df.underlying_id == uid].drop_duplicates('time')
+        fdf = pd.concat([fdf, tmp])
 
-    return final_df
-
-
-def insert_settlements(df, sdf):
-    """Helper method that inserts the settlement values pertaining to commodities present in df at the end of the day's data. 
-
-    Args:
-        df (TYPE): Dataframe of intraday values. 
-        sdf (TYPE): Dataframe of settlement values
-    """
-
-    sdf = sdf[sdf.call_put_id == 'C']
-    dates = pd.to_datetime(sdf.value_date.unique())
-    cols = list(df.columns)
-    final_df = pd.DataFrame(columns=cols)
-    for date in dates:
-        tdf = df[df.value_date == date]
-        uids = tdf.uid.unique()
-        for uid in uids:
-            tdf2 = tdf[tdf.uid == uid]
-            pdt, ftmth = uid.split()
-            try:
-                settle_val = sdf[(sdf.underlying_id == uid) &
-                                 (sdf.value_date == date)].settle_value.values[0]
-            except IndexError as e:
-                raise IndexError("Inputs: ", uid, date) from e
-            row1 = [pdt, ftmth, uid, date, datetime.time.max,
-                    settle_val, 0, 'settlement']
-            row = dict(zip(cols, row1))
-            tdf2 = tdf2.append(row, ignore_index=True)
-            final_df = pd.concat([final_df, tdf2])
-    final_df.reset_index(drop=True, inplace=True)
-    return final_df
+    fdf.sort_values(by='time', inplace=True)
+    fdf.reset_index(drop=True, inplace=True)
+    return fdf
 
 
-def get_closest_price(ts, others):
+def get_closest_ts_data(ts, others):
     """Helper function that takes in a timestamp, and a list of dataframes. 
     returns price associated with timestamp from each df in others that is closest to yet lesser than ts. 
 
@@ -1363,12 +1243,53 @@ def get_closest_price(ts, others):
     """
     ret = []
     for df in others:
-        valid_ts = max([x for x in df.time if x <= ts])
-        price = df[df.time == valid_ts].price.values[0]
-        uid = df.uid.unique()[0]
-        datatype = df[df.time == valid_ts].datatype.values[0]
-        ret.append((price, uid, datatype))
+        cols = df.columns
+        ts_list = [x for x in df.time if x <= ts]
+        # TODO: think about this and make sure it's right.
+        if not ts_list:
+            return []
+        valid_ts = max(ts_list)
+        # filter data corresponding to closest timestep.
+        data = df[df.time == valid_ts]
+        # reassign timestep.
+        data.time = ts
+        print('ts - data.values: ', data.values)
+        data = dict(zip(cols, data.values[0]))
+        ret.append(data)
     return ret
+
+
+def insert_settlements(df, sdf):
+    """Helper method that inserts the settlement values pertaining to commodities present in df at the end of the day's data. 
+
+    Args:
+        df (TYPE): Dataframe of intraday values. 
+        sdf (TYPE): Dataframe of settlement values
+    """
+    # print('sdf.columns: ', sdf.columns)
+    sdf = sdf[sdf.call_put_id == 'C'] if 'call_put_id' in sdf.columns else sdf
+    dates = pd.to_datetime(sdf.value_date.unique())
+    cols = list(df.columns)
+    final_df = pd.DataFrame(columns=cols)
+    for date in dates:
+        tdf = df[df.value_date == date]
+        uids = tdf.underlying_id.unique()
+        for uid in uids:
+            tdf2 = tdf[tdf.underlying_id == uid]
+            pdt, ftmth = uid.split()
+            try:
+                settle_val = sdf[(sdf.underlying_id == uid) &
+                                 (sdf.value_date == date)].settle_value.values[0]
+            except IndexError as e:
+                settle_val = np.nan
+            row1 = [pdt, ftmth, uid, date, datetime.time.max,
+                    settle_val, 0, 'settlement']
+            row = dict(zip(cols, row1))
+            tdf2 = tdf2.append(row, ignore_index=True)
+            final_df = pd.concat([final_df, tdf2])
+    final_df.reset_index(drop=True, inplace=True)
+    return final_df
+
 
 ##########################################################################
 ##########################################################################

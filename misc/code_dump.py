@@ -688,8 +688,6 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, brokerage=None, slippage=Non
     return pf, ft, fees, False
 
 
-
-
 # def read_data(epath, specpath, signals=None, start_date=None, end_date=None, test=False, writeflag=None, write=False, pdt=None, opmth=None, ftmth=None):
 #     """Wrapper method that handles all read-in and preprocessing. This function does the following:
 #     1) reads in path to volatility, price and expiry tables from portfolio_specs.txt
@@ -862,3 +860,153 @@ def hedge_delta(cond, vdf, pdf, pf, month, product, brokerage=None, slippage=Non
 #         edf.to_csv('datasets/' + writestr + '/final_expdata.csv', index=False)
 
 #     return final_vol, final_price, edf, priceDF
+
+
+############# Old ciprice/civols implementation ################
+
+
+def ciprice(pricedata, rollover='opex'):
+    """Constructs the CI price series.
+
+    Args:
+        pricedata (TYPE): price data frame of same format as read_data
+        rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
+
+    Returns:
+        pandas dataframe : Dataframe with the following columns:
+            Product | date | underlying | order | settle_value | returns | expiry date
+    """
+    t = time.time()
+    if rollover == 'opex':
+        ro_dates = get_rollover_dates(pricedata)
+        products = pricedata['pdt'].unique()
+        # iterate over produts
+        by_product = None
+        for product in products:
+            df = pricedata[pricedata.pdt == product]
+            # lst = contract_mths[product]
+            assert not df.empty
+            most_recent = []
+            by_date = None
+            try:
+                relevant_dates = ro_dates[product]
+            except KeyError:
+                df2 = df[
+                        ['pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']]
+                df2.columns = [
+                    'pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']
+                by_product = df2
+                continue
+            # iterate over rollover dates for this product.
+            for date in relevant_dates:
+                df = df[df.order > 0]
+                order_nums = sorted(df.order.unique())
+                breakpoint = max(most_recent) if most_recent else min(
+                    df['value_date'])
+                # print('breakpoint, date: ', breakpoint, date)
+                by_order_num = None
+                # iterate over all order_nums for this product. for each cont, grab
+                # entries until first breakpoint, and stack wide.
+                for ordering in order_nums:
+                    # print('breakpoint, end, cont: ', breakpoint, date, cont)
+                    df2 = df[df.order == ordering]
+                    tdf = df2[(df2['value_date'] < date) & (df2['value_date'] >= breakpoint)][
+                        ['pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']]
+                    # print(tdf.empty)
+                    tdf.columns = [
+                        'pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']
+                    tdf.reset_index(drop=True, inplace=True)
+                    by_order_num = tdf if by_order_num is None else pd.concat(
+                        [by_order_num, tdf])
+
+                # by_date contains entries from all order_nums until current
+                # rollover date. take and stack this long.
+                by_date = by_order_num if by_date is None else pd.concat(
+                    [by_date, by_order_num])
+                most_recent.append(date)
+                df.order -= 1
+
+            by_product = by_date if by_product is None else pd.concat(
+                [by_product, by_order_num])
+        final = by_product
+
+    else:
+        final = -1
+    elapsed = time.time() - t
+    # print('[CI-PRICE] elapsed: ', elapsed)
+    # final.to_csv('ci_price_final.csv', index=False)
+    return final
+
+
+def civols(vdf, pdf, rollover='opex'):
+    """Constructs the CI vol series.
+    Args:
+        vdf (TYPE): price data frame of same format as read_data
+        rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
+
+    Returns:
+        pandas dataframe : dataframe with the following columns:
+        pdt|order|value_date|underlying_id|vol_id|op_id|call_put_id|tau|strike|settle_vol
+
+    """
+    t = time.time()
+    if rollover == 'opex':
+        ro_dates = get_rollover_dates(pdf)
+        products = vdf['pdt'].unique()
+        # iterate over produts
+        by_product = None
+        for product in products:
+            df = vdf[vdf.pdt == product]
+            most_recent = []
+            by_date = None
+            try:
+                relevant_dates = ro_dates[product]
+            except KeyError:
+                # no rollover dates for this product
+                df2 = df[['pdt', 'order', 'value_date', 'underlying_id', 'vol_id',
+                          'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']]
+                df2.columns = ['pdt', 'order', 'value_date', 'underlying_id',
+                               'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
+                by_product = df2
+                continue
+
+            # iterate over rollover dates for this product.
+            for date in relevant_dates:
+                # filter order > 0 to get rid of C_i that have been dealt with.
+                df = df[df.order > 0]
+                # sort orderings.
+                order_nums = sorted(df.order.unique())
+                breakpoint = max(most_recent) if most_recent else min(
+                    df['value_date'])
+                by_order_num = None
+                # iterate over all order_nums for this product. for each cont, grab
+                # entries until first breakpoint, and stack wide.
+                for ordering in order_nums:
+                    cols = ['pdt', 'order', 'value_date', 'underlying_id', 'vol_id',
+                            'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
+                    df2 = df[df.order == ordering]
+                    tdf = df2[(df2['value_date'] < date) &
+                              (df2['value_date'] >= breakpoint)][cols]
+                    # renaming columns
+                    tdf.columns = ['pdt', 'order', 'value_date', 'underlying_id',
+                                   'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
+                    # tdf.reset_index(drop=True, inplace=True)
+                    by_order_num = tdf if by_order_num is None else pd.concat(
+                        [by_order_num, tdf])
+
+                # by_date contains entries from all order_nums until current
+                # rollover date. take and stack this long.
+                by_date = by_order_num if by_date is None else pd.concat(
+                    [by_date, by_order_num])
+                most_recent.append(date)
+                df.order -= 1
+
+            by_product = by_date if by_product is None else pd.concat(
+                [by_product, by_date])
+
+        final = by_product
+    else:
+        final = -1
+    elapsed = time.time() - t
+    # print('[CI-VOLS] elapsed: ', elapsed)
+    return final

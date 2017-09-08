@@ -25,6 +25,11 @@ pdts = ['MW']
 # grabbing data
 vdf, pdf, edf = grab_data(pdts, start_date, end_date,
                           write_dump=False, test=True)
+
+
+# grab raw intraday data
+intraday_data = pd.read_csv('datasets/s_intraday.csv')
+intraday_data.Date = pd.to_datetime(intraday_data.Date)
 ####################################
 
 
@@ -143,7 +148,7 @@ def test_daily_to_bullets():
     dic2 = {'hedge': [], 'OTC': [op2]}
     # applying function
     sim_start = pd.to_datetime(vdf.value_date.min())
-    print('simstart: ', sim_start)
+    # print('simstart: ', sim_start)
     ret1 = pr.handle_dailies(dic1, sim_start)
     ret2 = pr.handle_dailies(dic2, sim_start)
 
@@ -154,3 +159,92 @@ def test_daily_to_bullets():
     # except AssertionError:
     #     print('actual len: ', len(ret2['OTC']))
     #     print('desired: ', 13)
+
+
+def test_handle_intraday():
+    test_data = intraday_data[intraday_data.Commodity == 'S U7 Comdty']
+    df = pr.handle_intraday_conventions(test_data)
+
+    assert not df.empty
+    assert len(df.columns) == 8
+    assert list(df.columns) == ['pdt', 'ftmth', 'uid', 'value_date',
+                                'time', 'price', 'volume', 'datatype']
+
+    # check that length of processed <= length of init
+    assert len(df) <= len(test_data)
+    # check all weekends filtered out.
+    assert df[df.value_date.dt.dayofweek >= 5].empty
+
+    # check all holidays are filtered out.
+    from pandas.tseries.holiday import USFederalHolidayCalendar as calendar
+    cal = calendar()
+    holidays = pd.to_datetime(cal.holidays(start=df.value_date.min(),
+                                           end=df.value_date.max())).tolist()
+    assert df[df.value_date.isin(holidays)].empty
+
+    # check columns and naming conventions.
+
+
+def test_insert_settlements():
+    test_data = intraday_data[intraday_data.Commodity == 'S U7 Comdty']
+    df = pr.handle_intraday_conventions(test_data)
+    sd, ed = df.value_date.min().strftime('%Y-%m-%d'), \
+        df.value_date.max().strftime('%Y-%m-%d')
+    _, settlements, _ = grab_data(['S'], sd, ed, test=True)
+    test = pr.insert_settlements(df, settlements)
+    # test that for each day, settlement data is appended to the end.
+    for date in pd.to_datetime(test.value_date.unique()):
+        tdf = test[test.value_date == date]
+        tdf.reset_index(drop=True, inplace=True)
+        assert 'settlement' in tdf.datatype.unique()
+        assert 'intraday' in tdf.datatype.unique()
+
+
+def test_get_closest_price():
+    test_data = intraday_data[
+        intraday_data.Commodity.isin(['S U7 Comdty', 'S F8 Comdty'])]
+    test_data = pr.handle_intraday_conventions(test_data)
+    test_data = test_data[test_data.value_date == test_data.value_date.min()]
+    # isolate the dataframes on the basis of UID
+    udata = test_data[test_data.uid == 'S  U7']
+    fdata = test_data[test_data.uid == 'S  F8']
+
+    ts = udata.time.min()
+    test = pr.get_closest_ts_data(ts, [fdata])
+
+    assert len(test) == 1
+    print('test: ', test)
+    assert len(test[0][0]) == 8
+    assert test[0][0][-3] == 1017.5
+
+
+def test_timestep_recon():
+    test_data = intraday_data[
+        intraday_data.Commodity.isin(['S U7 Comdty', 'S F8 Comdty'])]
+    test_data = pr.handle_intraday_conventions(test_data)
+    sd, ed = test_data.value_date.min().strftime('%Y-%m-%d'), \
+        test_data.value_date.max().strftime('%Y-%m-%d')
+    _, settlements, _ = grab_data(['S'], sd, ed, test=True)
+
+    test_data = pr.insert_settlements(test_data, settlements)
+
+    # filter to the first day.
+    test_data = test_data[test_data.value_date == test_data.value_date.min()]
+    udata = test_data[test_data.uid == 'S  U7']
+    fdata = test_data[test_data.uid == 'S  F8']
+
+    # timestep reconciliation step.
+    fin = pr.timestep_recon(test_data)
+    assert len(fin) <= len(fdata) + len(udata)
+
+    assert len(fin[fin.uid == 'S  U7']) <= len(udata)
+    assert len(fin[fin.uid == 'S  F8']) <= len(fdata)
+
+    # the timesteps present should be a subset of fdata timesteps.
+    assert set(fin.time).issubset(set(fdata.time))
+
+    # check that settlement values are present.
+    fin_u = fin[fin.uid == 'S  U7']
+    fin_f = fin[fin.uid == 'S  F8']
+    assert 'settlement' in fin_u.datatype.unique()
+    assert 'settlement' in fin_f.datatype.unique()
