@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-05 17:57:55
+# @Last Modified time: 2017-09-08 18:51:29
 
 
 from .portfolio import Portfolio
@@ -187,7 +187,7 @@ def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=N
     if ftprice is None:
         try:
             ftprice = pdf[(pdf.underlying_id == uid) &
-                          (pdf.value_date == date)].settle_value.values[0]
+                          (pdf.value_date == date)].price.values[0]
         except IndexError:
             print('util.create_underlying: cannot find price. printing outputs: ')
             print('uid: ', uid)
@@ -294,7 +294,7 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
             vol = vdf[(vdf.value_date == date) &
                       (vdf.vol_id == volid) &
                       (vdf.call_put_id == cpi) &
-                      (vdf.strike == strike)].settle_vol.values[0]
+                      (vdf.strike == strike)].vol.values[0]
         except IndexError as e:
             raise IndexError(
                 'util.create_vanilla_option - vol not found in the dataset. inputs are: ', date, volid, cpi, strike) from e
@@ -438,7 +438,7 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
             vol = vdf[(vdf.value_date == date) &
                       (vdf.vol_id == volid) &
                       (vdf.call_put_id == cpi) &
-                      (vdf.strike == strike)].settle_vol.values[0]
+                      (vdf.strike == strike)].vol.values[0]
         except IndexError as e:
             raise IndexError(
                 'util.create_barrier_option - strike not found, input: ', date, volid, cpi, strike)
@@ -450,7 +450,7 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
             bvol = vdf[(vdf.value_date == date) &
                        (vdf.vol_id == volid) &
                        (vdf.call_put_id == cpi) &
-                       (vdf.strike == barlevel)].settle_vol.values[0]
+                       (vdf.strike == barlevel)].vol.values[0]
         except IndexError as e:
             raise IndexError(
                 'util.create_barrier_option - bvol not found. inputs are: ', date, volid, cpi, barlevel) from e

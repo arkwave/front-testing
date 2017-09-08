@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-08 14:11:45
+# @Last Modified time: 2017-09-08 18:52:47
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -127,8 +127,8 @@ def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False,
     pdf = df[['settlement_date', 'underlying_id', 'future_settlement_value']]
 
     vdf.columns = ['value_date', 'vol_id',
-                   'call_put_id', 'strike', 'settle_vol']
-    pdf.columns = ['value_date', 'underlying_id', 'settle_value']
+                   'call_put_id', 'strike', 'vol']
+    pdf.columns = ['value_date', 'underlying_id', 'price']
 
     # removing duplicates, resetting indices
     pdf = pdf.drop_duplicates()

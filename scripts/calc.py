@@ -177,7 +177,7 @@ def get_barrier_vol(df, product, tau, call_put_id, barlevel, order):
 
     Args:
         df (pandas dataframe) : dataframe of the form value_date|vol_id|strike|call_put_id|
-                                                        settle_vol|tau
+                                                        vol|tau
         product (str)         : underlying product of this option.
         tau (double)          : time to expiry in years.
         call_put_id (str)     : 'C' if call option else 'P'
@@ -209,7 +209,7 @@ def get_barrier_vol(df, product, tau, call_put_id, barlevel, order):
         tau_vals = sorted(list(bvol_df.tau))
         relevant_tau = min([x for x in tau_vals if x >= tau])
 
-        bvol = bvol_df[(bvol_df.tau == relevant_tau)].settle_vol.values[0]
+        bvol = bvol_df[(bvol_df.tau == relevant_tau)].vol.values[0]
 
     except (TypeError, IndexError):
         print('BARRIER VOL NOT FOUND')

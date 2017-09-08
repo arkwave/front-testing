@@ -311,10 +311,10 @@ def prep_portfolio(voldata, pricedata, filepath=None, spec=None):
             lst = contract_mths[product]
             ordering = find_cdist(curr_sym, mth, lst)
             # price = pricedata[(pricedata.order == ordering) &
-            #                   (pricedata.value_date == sim_start)]['settle_value'].values[0]
+            #                   (pricedata.value_date == sim_start)]['price'].values[0]
             print('volid: ', data.vol_id)
             price = pricedata[(pricedata['underlying_id'] == data.vol_id) &
-                              (pricedata['value_date'] == sim_start)]['settle_value'].values[0]
+                              (pricedata['value_date'] == sim_start)]['price'].values[0]
             flag = data.hedgeorOTC
             lots = 1000 if data.lots == 'None' else int(data.lots)
             shorted = True if data.shorted else False
@@ -339,7 +339,7 @@ def prep_portfolio(voldata, pricedata, filepath=None, spec=None):
 
             try:
                 f_price = pricedata[(pricedata['value_date'] == sim_start) &
-                                    (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
+                                    (pricedata['underlying_id'] == u_name)]['price'].values[0]
             except IndexError:
                 print('vol_id: ', volid)
                 print('f_name: ', f_name)
@@ -372,7 +372,7 @@ def prep_portfolio(voldata, pricedata, filepath=None, spec=None):
                 vol = voldata[(voldata['vol_id'] == volid) &
                               (voldata['call_put_id'] == volflag) &
                               (voldata['value_date'] == sim_start) &
-                              (voldata['strike'] == strike)]['settle_vol'].values[0]
+                              (voldata['strike'] == strike)]['vol'].values[0]
             except IndexError:
                 print('vol_id: ', volid)
                 print('call_put_id: ', volflag)
@@ -383,7 +383,7 @@ def prep_portfolio(voldata, pricedata, filepath=None, spec=None):
                              (voldata['call_put_id'] == volflag) &
                              (voldata['value_date'] == sim_start)]
                 df.sort_values(by='strike', inplace=True)
-                f1 = interp1d(df.strike, df.settle_vol,
+                f1 = interp1d(df.strike, df.vol,
                               fill_value='extrapolate')
                 vol = f1(strike)
                 # raise ValueError('vol cannot be located!',
@@ -554,7 +554,7 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
         # df.order = pd.to_numeric(df.order)
         df.tau = pd.to_numeric(df.tau)
         df.strike = pd.to_numeric(df.strike)
-        df.settle_vol = pd.to_numeric(df.settle_vol)
+        df.vol = pd.to_numeric(df.vol)
         df.value_date = pd.to_datetime(df.value_date)
 
     # cleaning price data
@@ -567,7 +567,7 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
             df['ftmth'] = df['underlying_id'].str.split().str[1]
         # transformative functions.
         df = get_expiry(df, edf)
-        df = assign_ci(df, date)
+        df = assign_ci(df)
         # df = scale_prices(df)
         df = df.fillna(0)
         df.expdate = pd.to_datetime(df.expdate)
@@ -576,7 +576,7 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
         # setting data types
         df.order = pd.to_numeric(df.order)
         df.value_date = pd.to_datetime(df.value_date)
-        df.settle_value = pd.to_numeric(df.settle_value)
+        df.price = pd.to_numeric(df.price)
         df.returns = pd.to_numeric(df.returns)
         df.expdate = pd.to_datetime(df.expdate)
 
@@ -601,9 +601,9 @@ def vol_by_delta(voldata, pricedata):
     # print('voldata: ', voldata)
     # print('pricedata: ', pricedata)
     relevant_price = pricedata[
-        ['pdt', 'underlying_id', 'value_date', 'settle_value']]
+        ['pdt', 'underlying_id', 'value_date', 'price']]
     relevant_vol = voldata[['pdt', 'value_date', 'vol_id', 'strike',
-                            'call_put_id', 'tau', 'settle_vol', 'underlying_id']]
+                            'call_put_id', 'tau', 'vol', 'underlying_id']]
 
     # handle discrepancies in underlying_id format
     relevant_price.underlying_id = relevant_price.underlying_id.str.split().str[0]\
@@ -616,7 +616,7 @@ def vol_by_delta(voldata, pricedata):
     merged = pd.merge(relevant_vol, relevant_price,
                       on=['pdt', 'value_date', 'underlying_id'])
     # filtering out negative tau values.
-    merged = merged[(merged['tau'] > 0) & (merged['settle_vol'] > 0)]
+    merged = merged[(merged['tau'] > 0) & (merged['vol'] > 0)]
 
     print('computing deltas')
 
@@ -665,7 +665,7 @@ def vol_by_delta(voldata, pricedata):
                     # reshaping data for interpolation.
                     drange = np.arange(0.05, 0.96, 0.01)
                     deltas = df.delta.values
-                    vols = df.settle_vol.values
+                    vols = df.vol.values
                     # interpolating delta using Piecewise Cubic Hermite
                     # Interpolation (Pchip)
 
@@ -889,7 +889,7 @@ def scale_prices(pricedata):
     for x in ids:
         # scale each price independently
         df = pricedata[(pricedata['underlying_id'] == x)]
-        s = df['settle_value']
+        s = df['price']
         s1 = s.shift(-1)
         if len(s1) == 1 and np.isnan(s1.values[0]):
             ret = 0
@@ -983,11 +983,11 @@ def compute_delta(x):
     Returns:
         double: value of delta
     """
-    s = x.settle_value
+    s = x.price
     K = x.strike
     tau = x.tau
     char = x.call_put_id
-    vol = x.settle_vol
+    vol = x.vol
     r = 0
     try:
         d1 = (log(s/K) + (r + 0.5 * vol ** 2)*tau) / \
@@ -1279,7 +1279,7 @@ def insert_settlements(df, sdf):
             pdt, ftmth = uid.split()
             try:
                 settle_val = sdf[(sdf.underlying_id == uid) &
-                                 (sdf.value_date == date)].settle_value.values[0]
+                                 (sdf.value_date == date)].price.values[0]
             except IndexError as e:
                 settle_val = np.nan
             row1 = [pdt, ftmth, uid, date, datetime.time.max,
