@@ -1159,64 +1159,59 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 | As of 09/06/2017 |
 --------------------
 
-> Handling errors in other Volgraphix components. 
-	- [Done] skewhistory
-	- [Done] skewttm
-	- [Done] skewseason
-	- [Done] heatmap 
-	- [Done] comps 
+#### Handling errors in other Volgraphix components. 
+- [Done] skewhistory
+- [Done] skewttm
+- [Done] skewseason
+- [Done] heatmap 
+- [Done] comps 
 
--------------------
-| As of 09/07/2017|
--------------------
 
-> Data Processing steps. 
-	- [Done] basic cleaning steps. 
-	- [Done] adding settlement data to intraday 
-	- [Done] timestep reconciliation between uids
-	- [Done] switching variables: i.e. settle_value -> price, settle_vol -> vol 
-	- [Done] reconcile intraday prices with clean_data with price flag. 
-	- [Done] Refactor to remove dependence on vol by delta. 
-	- [Done] Re-write construction methods to default to settlement data
-	- [Done] add time column to vol data 
-	- [Done] conceptualize intraday loop -> settlement flag trigger for vol update.
+#### As of 09/07/2017
+##### Data Processing steps. 
+- [Done] basic cleaning steps. 
+- [Done] adding settlement data to intraday 
+- [Done] timestep reconciliation between uids
+- [Done] switching variables: i.e. settle_value -> price, settle_vol -> vol 
+- [Done] reconcile intraday prices with clean_data with price flag. 
+- [Done] Refactor to remove dependence on vol by delta. 
+- [Done] Re-write construction methods to default to settlement data
+- [Done] add time column to vol data 
+- [Done] conceptualize intraday loop -> settlement flag trigger for vol update.
 
-	- marking beginning of settlement period. 
-		> issue: settlement vs last data entry of intraday data
-			- solution: hedge all remaning deltas using first price at beginning of settlement 
-			period. wait till settlement, and if settlement price results in residual delta, 
-			buy/sell to close it off. 
-	
-    - vol/price reconciliation on the basis of timestep. > on hold until intraday vols are 
-       available. 
+
+#### As of 09/11/2017
+- [DEV] Roll product/TTM TOL should be part of individual families. 
+- [Done] added time column to price data; settlement to settlement should work with absolutely no issues now. 
+- 
+- marking beginning of settlement period. 
+	> issue: settlement vs last data entry of intraday data
+		- solution: hedge all remaning deltas using first price at beginning of settlement 
+		period. wait till settlement, and if settlement price results in residual delta, 
+		buy/sell to close it off. 
+
+- vol/price reconciliation on the basis of timestep. > on hold until intraday vols are available. 
 		
-_______________________________________________________
+===============================================================================
 
-> Expand HSM to allow for Intraday data. 
-	-- First major paradigm shift: dataset must contain ONLY relevant vol_ids and 
-	underlying_ids. --> need to prune with gui, implying that GUI needs to have a vol_id check. 
-		- flag as to whether or not data is intraday or settlement to settlement. ==> infer from 
-		dataset? pass in as input?
-			- can be inferred quite easily for prices. 
+#### Expand HSM to allow for Intraday data. 
 
-		- conditional intraday delta Hedging
-			= value-based
-			= breakeven-based 
-		 	--> need to write new functions/reconceptualize delta hedging;
-		 		- rethink hedge object => initialize at the start of the day, use throughout for 
-		 		hedging delta. 		 		
-				   => can use existing framework to specify parameters (i.e. breakeven, value, 
-				   etc.)
+- First major paradigm shift: dataset must contain ONLY relevant vol_ids and 
+underlying_ids. --> need to prune with gui, implying that GUI needs to have a vol_id check. 
+	- flag as to whether or not data is intraday or settlement to settlement. ==> infer from dataset? pass in as input?
+		- can be inferred quite easily for prices. 
 
-		## Data processing steps: 
+- conditional intraday delta Hedging
+	= value-based
+	= breakeven-based 
+ 	--> need to write new functions/reconceptualize delta hedging;
+ 		- rethink hedge object => initialize at the start of the day, use throughout for hedging delta. 		 		
+		   => can use existing framework to specify parameters (i.e. breakeven, value, 
+		   etc.)
+
+	= Data processing steps: 
 		- how will this change data grabbing functions?
 		- new functions to prepare intraday data for simulation -> need samples. 
-		- timestep reconciliation; assume N intraday price moves and K intraday vol moves where N > K. Need
-		  to do the following:
-			- idea: additional flag where timestep step is determined by a flag in the data. 
-		  	1) bundle together vol and price data on the basis of timestep. 
-		  	2) apply these together. 
-		  	3) can even specify breakeven requirements in the dataset if needed?
 		  	> for each date in dates:
 		  		for timestamp in pdf[pdf.date == date]:
 		  			do the things. 
@@ -1228,93 +1223,82 @@ _______________________________________________________
 
 _________________ Intraday implementation: Notes _____________________
 
-> Hedging steps. 
-	- delta:
-		> hedging every breakeven.
-			- formula/convention for calculating breakeven. 
-			- what breakeven to use? when should it be initialized?
-			- will this change or remain fixed?
-		> static move-based hedging
-		> where do these params get passed in? --> need to update the GUI with an intraday feature too. 	
-		> edge case 1: multiple products, one hits breakeven and one doesn't. Do we hedge one or both or none? partners in terms of products/hedging?
-		> edge case 2: limit up/limit down implementations required?
+#### Hedging steps. 
+- delta:
+	> hedging every breakeven.
+		- formula/convention for calculating breakeven. 
+		- what breakeven to use? when should it be initialized?
+		- will this change or remain fixed?
+	> static move-based hedging
+	> where do these params get passed in? --> need to update the GUI with an intraday feature too. 	
+	> edge case 1: multiple products, one hits breakeven and one doesn't. Do we hedge one or both or none? partners in terms of products/hedging?
+	> edge case 2: limit up/limit down implementations required?
 
-> Feed steps
+#### Feed steps
 
-> PnL Calculation
+#### PnL Calculation
 
 
 -------------------------- OPEN ISSUES: ------------------------
 
-> Backend Implementation
-	- proper conceptualizing of slippage, aside from flat-value. bring all in line to this. 
-	- Signals and Families
-		1. adjusting signals to include family paradigm 
-		2. related: implement a future signals thing.
+#### Backend Implementation
+- proper conceptualizing of slippage, aside from flat-value. bring all in line to this. 
+- Signals and Families
+	1. adjusting signals to include family paradigm 
+	2. related: implement a future signals thing.
 	
-> Plotly visualization:
-	- same contract vol surface on two different days. 
-	- more descriptive statistics:
-		- [Done] drawdown
-		- labeling when the rolls happened (i.e. different color when log.delta_rolled) 
+#### Plotly visualization:
+- same contract vol surface on two different days. 
+- more descriptive statistics:
+	- [Done] drawdown
+	- labeling when the rolls happened (i.e. different color when log.delta_rolled) 
 
 
-> GUI Dev:
-	- [Done] need to fix/debug assign_ci / ciprice / civols. pretty badly. 
-	- Add a 'Pull Data' button? 
-	- integrate with Portfolio VAR Module. 
-	- Figure out new windows for each family. 
+#### GUI Dev:
+- [Done] need to fix/debug assign_ci / ciprice / civols. pretty badly. 
+- Add a 'Pull Data' button? 
+- integrate with Portfolio VAR Module. 
+- Figure out new windows for each family. 
 
-------------------------------------------------------------
+===============================================================================
 
+#### Notes on certain issues: 
 
+##### Open issue: move from centralized hedging specifications to more general forumlation via families, possibly. 
+- TENTATIVE SOLUTION:
+	> each family is a portfolio object.
+	> hedges now come in two types: family-specific and portfolio-wide. 
+	> family-specific hedges (and by extension hedge object) will be associated with the relevant family. 
 
-
-
-********** Notes on certain issues: ***********
-
-> Open issue: move from centralized hedging specifications to more general forumlation via families, possibly. 
-	- TENTATIVE SOLUTION:
-		> each family is a portfolio object.
-		> hedges now come in two types: family-specific and portfolio-wide. 
-		> family-specific hedges (and by extension hedge object) will be associated with the relevant family. 
-
-	- things that need to change:
-		1) hedging for gamma/theta/vega/delta-rolls would be family-specific. 
-		2) static delta hedging would be portfolio-wide. 
-		3) rolling over contract to next month can either be family specific (if ttm_tol only specified) or portfolio-wide (if roll_product is also specified.)
-		4) hedges [dict] would need to be altogether removed from simulation. 
-		5) hedge [object] would now be associated with a portfolio. 
-		6) creating a portfolio would now take in options/futures as well as a hedge. 
+- things that need to change:
+	1) hedging for gamma/theta/vega/delta-rolls would be family-specific. 
+	2) static delta hedging would be portfolio-wide. 
+	3) rolling over contract to next month can either be family specific (if ttm_tol only specified) or portfolio-wide (if roll_product is also specified.)
+	4) hedges [dict] would need to be altogether removed from simulation. 
+	5) hedge [object] would now be associated with a portfolio. 
+	6) creating a portfolio would now take in options/futures as well as a hedge. 
 
 
+===============================================================================
 {'all': OrderedDict([('delta', [['static', 'zero', 1]])]), 
    '1': OrderedDict([('delta', [['roll', 25.0, 1, (-5, 5)]])]), 
    '2': OrderedDict([('delta', [['roll', 50.0, 1, (-20, 20)]])]), 
    '3': OrderedDict([('delta', [['roll', 25.0, 1, (-7, 7)]])])}
 
-
 { '2': OrderedDict([('delta', [['static', 'zero', 1], ['roll', 50.0, 1, (-10, 10)]]), 
 				   ('theta', [['bound', (9000, 11000), 1, 'straddle', 'strike', 'atm', 'uid']])]), 
 'all': OrderedDict()}
 
+===============================================================================
 
-___________________________________________
 hedging parameters:
 delta,zero,,1,,,,,,,
 delta,roll,50,1,"(30,70)",,,,,,
 gamma,bound,"(45, 55)",1,,0.5,years,straddle,strike,atm,uid
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+===============================================================================
 
-
-
-
-
-
-=====================
-Notes from meeting: #
-=====================
+##### Notes from meeting: 
 
 -- to do: --
 2. vanna/volga methods for vols. 

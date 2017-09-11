@@ -554,10 +554,15 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
     elif flag == 'price':
         # dealing with datatypes and generating new fields from existing ones.
         df['value_date'] = pd.to_datetime(df['value_date'])
-        if 'pdt' not in df.columns:
-            df['pdt'] = df['underlying_id'].str.split().str[0]
-        if 'ftmth' not in df.columns:
-            df['ftmth'] = df['underlying_id'].str.split().str[1]
+        if 'time' in df.columns:
+            df = clean_intraday_data(df)
+        else:
+            if 'pdt' not in df.columns:
+                df['pdt'] = df['underlying_id'].str.split().str[0]
+            if 'ftmth' not in df.columns:
+                df['ftmth'] = df['underlying_id'].str.split().str[1]
+            df['time'] = datetime.time.max
+
         # transformative functions.
         df = get_expiry(df, edf)
         df = assign_ci(df)

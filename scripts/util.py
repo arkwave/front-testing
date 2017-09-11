@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-08 21:58:13
+# @Last Modified time: 2017-09-11 15:10:38
 
 
 from .portfolio import Portfolio
@@ -368,10 +368,6 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
         newop.underlying.update_lots(lots_req)
     return newop
 
-
-# def __init__(self, strike, tau, char, vol, underlying, payoff, shorted,
-# month, direc=None, barrier=None, lots=1000, bullet=True, ki=None,
-# ko=None, rebate=0, ordering=1e5, settlement='futures')
 
 def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriertype,
                           direction, ki, ko, bullet, rebate=0, payoff='amer', lots=None,
