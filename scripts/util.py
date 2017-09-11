@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-05 17:57:55
+# @Last Modified time: 2017-09-11 20:35:55
 
 
 from .portfolio import Portfolio
@@ -867,6 +867,8 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
 
     if ('composites' in kwargs and kwargs['composites']) or ('composites' not in kwargs):
         ops = create_composites(ops)
+
+    assert len(ops) == 2
 
     return ops
 
