@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from scripts.util import pnp_format
+from scripts.util import pnp_format, create_straddle
 from scripts.fetch_data import grab_data
 
 multipliers = {
@@ -61,19 +61,24 @@ contract_mths = {
 }
 
 filepath = 'C:/Users/Ananth/Desktop/pnp_sample.xlsx'
-start_date = '2017-08-01'
-end_date = '2017-09-05'
-pdts = ['S']
+start_date = '2012-09-11'
+end_date = '2013-03-01'
+pdts = ['W']
+ttm_tol = 24
 
-vdf, pdf, edf = grab_data(pdts, start_date, end_date)
+vdf = pd.read_csv(
+    'C:/Users/Ananth/Desktop/sim_test/w_final_vols_20120911_20130301.csv')
 
-spec = pnp_format(filepath, pdts)
+pdf = pd.read_csv(
+    'C:/Users/Ananth/Desktop/sim_test/w_final_price_20120911_20130301.csv')
 
-# relevant = all_ports[all_ports.vol_id.str[:2].str.strip().isin(pdts)]
+vdf.value_date = pd.to_datetime(vdf.value_date)
+pdf.value_date = pd.to_datetime(pdf.value_date)
+pdf.expdate = pd.to_datetime(pdf.expdate)
 
 
-from scripts.prep_data import prep_portfolio
+u1, u2 = create_straddle('W  U3.U3', vdf, pdf, pd.to_datetime(
+    start_date), False, 'atm', greek='theta', greekval=20000)
 
-pf = prep_portfolio(vdf, pdf, '', spec=spec)
-
-print('pf: ', pf)
+z1, z2 = create_straddle('W  Z2.Z2', vdf, pdf, pd.to_datetime(
+    start_date), False, 'atm', greek='theta', greekval=20000)
