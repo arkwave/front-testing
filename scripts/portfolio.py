@@ -98,12 +98,15 @@ class Portfolio:
 
     """
 
-    def __init__(self, hedge_params, name=None):
+    def __init__(self, hedge_params, name=None, roll=None, roll_product=None, ttm_tol=None):
 
         self.OTC_options = deque()
         self.hedge_options = deque()
         self.OTC_futures = []
         self.hedge_futures = []
+        self.roll = roll
+        self.roll_product = roll_product
+        self.ttm_tol = ttm_tol
 
         # utility litst
         self.newly_added = []

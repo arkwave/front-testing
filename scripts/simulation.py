@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-25 20:14:46
+# @Last Modified time: 2017-09-12 18:55:02
 
 ################################ imports ###################################
 
@@ -101,7 +101,6 @@ np.random.seed(seed)
 
 def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=False,
                    end_date=None, brokerage=None, slippage=None, signals=None,
-                   roll_portfolio=None, pf_ttm_tol=None, pf_roll_product=None,
                    plot_results=True, drawdown_limit=None):
     """
     Each run of the simulation consists of 5 steps:
@@ -300,11 +299,26 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
             dailycost += cost
 
     # Step 6: rolling over portfolio and hedges if required.
-        cost = 0
-        if roll_portfolio:
-            pf, cost = roll_over(pf, vdf, pdf, date, brokerage=brokerage,
-                                 slippage=slippage,
-                                 target_product=pf_roll_product, ttm_tol=pf_ttm_tol)
+        # simple case
+        if not pf.get_families():
+            if pf.roll:
+                pf, cost, _ = roll_over(pf, vdf, pdf, date, brokerage=brokerage,
+                                        slippage=slippage, target_product=pf.roll_product,
+                                        ttm_tol=pf.ttm_tol, deltaclose=True)
+        else:
+            all_deltas = set()
+            # roll options with calls to roll_over
+            for pfx in pf.get_families():
+                if pfx.roll:
+                    pfx, cost, pf_deltas = \
+                        roll_over(pf, vdf, pdf, date, brokerage=brokerage,
+                                  slippage=slippage, target_product=pfx.roll_product,
+                                  ttm_tol=pfx.ttm_tol, deltaclose=False)
+                    all_deltas.update(pf_deltas)
+
+            # handle rolling over the futures.
+            pf, cost = close_out_deltas(pf, all_deltas)
+            pf.refresh()
 
     # Step 7: Hedge - bring greek levels across portfolios (and families) into
     # line with target levels.
@@ -1100,7 +1114,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
 ###############################################################################
 
 
-def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60, target_product=None):
+def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60, target_product=None, deltaclose=True):
     """Utility method that checks expiries of options currently being used for hedging. 
         If ttm < ttm_tol, closes out that position (and all accumulated deltas), 
         saves lot size/strikes, and rolls it over into the
@@ -1183,6 +1197,7 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60, tar
                     fa2, cost2, new_opx, old_opx, iden_2 = contract_roll(
                         tar, opx, vdf, pdf, date, flag)
                     composites.append(new_opx)
+                    deltas_to_close.add(iden_2)
                     if fa2 not in processed:
                         processed[fa2] = []
                     processed[fa2].append(old_opx)
@@ -1193,8 +1208,9 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60, tar
     pf.refresh()
     # print('roll_over: post refresh pf.hedges - ', pf.hedges)
     print('deltas to close: ', deltas_to_close)
-    pf, cost = close_out_deltas(pf, deltas_to_close)
-    total_cost += cost
+    if deltaclose:
+        pf, cost = close_out_deltas(pf, deltas_to_close)
+        total_cost += cost
     # print('pf after rollover: ', pf)
     print('cost of contract rolling: ', total_cost)
 
@@ -1205,7 +1221,7 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, ttm_tol=60, tar
 
     pf.refresh()
     print(' --- done contract rolling --- ')
-    return pf, total_cost
+    return pf, total_cost, deltas_to_close
 
 
 def contract_roll(pf, op, vdf, pdf, date, flag):
