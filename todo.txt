@@ -1181,9 +1181,15 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 
 #### As of 09/11/2017
-- [DEV] Roll product/TTM TOL should be part of individual families. 
+- [Done] Roll product/TTM TOL should be part of individual families. 
+- [Done] error log in volgraphix.
+- [Done] debug straddle/strangle issue in the UI. 
 - [Done] added time column to price data; settlement to settlement should work with absolutely no issues now. 
-- 
+- [Done] catching errors with option construction. 
+
+#### As of 09/12/2017
+- [Dev] Rollovers per family.
+- speeding up data processing; cleaning intraday prices takes a long, long time.
 - marking beginning of settlement period. 
 	> issue: settlement vs last data entry of intraday data
 		- solution: hedge all remaning deltas using first price at beginning of settlement 
@@ -1256,7 +1262,6 @@ _________________ Intraday implementation: Notes _____________________
 
 #### GUI Dev:
 - [Done] need to fix/debug assign_ci / ciprice / civols. pretty badly. 
-- Add a 'Pull Data' button? 
 - integrate with Portfolio VAR Module. 
 - Figure out new windows for each family. 
 

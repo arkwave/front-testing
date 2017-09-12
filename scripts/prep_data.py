@@ -485,7 +485,7 @@ def handle_dailies(dic, sim_start):
 ###############################################################
 
 
-def clean_data(df, flag, date=None, edf=None, writeflag=None):
+def clean_data(df, flag, date=None, edf=None, writeflag=None, sdf=None):
     """Function that cleans the dataframes passed into it according to the flag passed in.
     1) flag == 'exp':
         > datatype conversion to pd.Timestamp
@@ -554,14 +554,12 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
     elif flag == 'price':
         # dealing with datatypes and generating new fields from existing ones.
         df['value_date'] = pd.to_datetime(df['value_date'])
-        if 'time' in df.columns:
-            df = clean_intraday_data(df)
-        else:
-            if 'pdt' not in df.columns:
-                df['pdt'] = df['underlying_id'].str.split().str[0]
-            if 'ftmth' not in df.columns:
-                df['ftmth'] = df['underlying_id'].str.split().str[1]
-            df['time'] = datetime.time.max
+
+        if 'pdt' not in df.columns:
+            df['pdt'] = df['underlying_id'].str.split().str[0]
+        if 'ftmth' not in df.columns:
+            df['ftmth'] = df['underlying_id'].str.split().str[1]
+        df['time'] = datetime.time.max
 
         # transformative functions.
         df = get_expiry(df, edf)
@@ -1085,8 +1083,11 @@ def handle_intraday_conventions(df):
     from pandas.tseries.holiday import USFederalHolidayCalendar as calendar
     ## Step 1 ##
     # first: Convert S H8 Comdty -> S  H8
-    df['pdt'] = df.Commodity.str.split().str[0].str.strip()
-    df['ftmth'] = df.Commodity.str.split().str[1].str.strip()
+    interm = df.Commodity.str.split()
+    df['pdt'] = interm.str[0].str.strip()
+    # df['pdt'] = df.Commodity.str.split().str[0].str.strip()
+    df['ftmth'] = interm.str[1].str.strip()
+    # df['ftmth'] = df.Commodity.str.split().str[1].str.strip()
     df['underlying_id'] = df.pdt + '  ' + df.ftmth
 
     # datetime -> date and time columns.
@@ -1134,6 +1135,7 @@ def timestep_recon(df):
     cols = df.columns
     final_df = pd.DataFrame(columns=cols)
     uids = df.underlying_id.unique()
+    dic_lst = []
     # base case: 1 uid.
     if len(uids) == 1:
         return df
@@ -1142,6 +1144,7 @@ def timestep_recon(df):
         # it's written.
         date_range = pd.to_datetime(df.value_date.unique())
         for date in date_range:
+            t = time.clock()
             tdf = df[df.value_date == date]
             grps = tdf.groupby('underlying_id')
             # isolate the group with the least data
@@ -1150,31 +1153,38 @@ def timestep_recon(df):
             target_uid, target_len, target_data = ords.pop(0)
             dfs = list(zip(*ords))[2]
             target_data.reset_index(drop=True, inplace=True)
+            print('----- date: %s ------' % (date.strftime('%Y-%m-%d')))
+            print('target_length: ', target_len)
             for index in target_data.index:
                 data = target_data.iloc[index]
                 ts = data.time
                 # print('datalst: ', data.values)
                 # data = [data.values]
-                data = [dict(zip(cols, data.values))]
+                dic_lst.append(dict(zip(cols, data.values)))
                 # helper to get all the other individuals.
                 other_data = get_closest_ts_data(ts, dfs)
                 # case: others have no data earlier than ts.
                 if not other_data:
                     continue
-                data.extend(other_data)
-                # print('data: ', data)
-                for x in data:
-                    # print('x: ', x)
-                    final_df = final_df.append(x, ignore_index=True)
+                dic_lst.extend(other_data)
+            print('datalen: ', list(zip(*ords))[1])
+            print('%s completed' % (date.strftime('%Y-%m-%d')))
+            print('elapsed: ', time.clock() - t)
+            print('--------------------------------------')
+            # print('data: ', data)s
+            # for x in data:
+            #     # print('x: ', x)
+            #     final_df = final_df.append(x, ignore_index=True)
 
-    # removing all duplicates per product according to timestep.
-    fdf = pd.DataFrame(columns=cols)
-    for uid in final_df.underlying_id.unique():
-        tmp = final_df[final_df.underlying_id == uid].drop_duplicates('time')
-        fdf = pd.concat([fdf, tmp])
+    fdf = pd.DataFrame.from_records(dic_lst)
+    # removing all (time, price) duplicate entries.
+    fdf['tup'] = fdf.price.astype(str) + ' ' + fdf.time.astype(str)
+    fdf = fdf.drop_duplicates('tup')
+    fdf = fdf[fdf.columns[:-1]]
 
-    fdf.sort_values(by='time', inplace=True)
-    fdf.reset_index(drop=True, inplace=True)
+    fdf = fdf[['pdt', 'ftmth', 'underlying_id', 'value_date',
+               'time', 'price', 'volume', 'datatype']]
+
     return fdf
 
 
@@ -1198,7 +1208,7 @@ def get_closest_ts_data(ts, others):
         data = df[df.time == valid_ts]
         # reassign timestep.
         data.time = ts
-        print('ts - data.values: ', data.values)
+        # print('ts - data.values: ', data.values)
         data = dict(zip(cols, data.values[0]))
         ret.append(data)
     return ret

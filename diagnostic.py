@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import time
 import scripts.prep_data as pr
 from scripts.util import create_skew
 from scripts.fetch_data import grab_data
@@ -68,10 +69,10 @@ intraday_data.Date = pd.to_datetime(intraday_data.Date)
 test_data = intraday_data[
     intraday_data.Commodity.isin(['S U7 Comdty', 'S F8 Comdty'])]
 
-test_data = pr.handle_intraday_conventions(test_data)
+# test_data = pr.handle_intraday_conventions(test_data)
 
-sd, ed = test_data.value_date.min().strftime('%Y-%m-%d'), \
-    test_data.value_date.max().strftime('%Y-%m-%d')
+sd, ed = test_data.Date.min().strftime('%Y-%m-%d'), \
+    test_data.Date.max().strftime('%Y-%m-%d')
 
 vdf, pdf, edf = grab_data(['S'], sd, ed, test=True)
 
@@ -86,14 +87,16 @@ op1, op2 = create_skew('S  U7.U7', vdf, pdf, date,
 print('op1: ', op1)
 print('op2: ', op2)
 
-# test_data = pr.insert_settlements(test_data, settlements)
-# filter to the first day.
-# test_data = test_data[test_data.value_date == test_data.value_date.min()]
-# udata = test_data[test_data.uid == 'S  U7']
-# fdata = test_data[test_data.uid == 'S  F8']
 
-# timestep reconciliation step.
-# fin = pr.timestep_recon(test_data)
+print('handling intraday conventions...')
+t1 = time.clock()
+test_data = pr.handle_intraday_conventions(test_data)
+print('intraday conventions handled. elapsed: ', time.clock() - t1)
 
-# fin = pr.clean_data(fin, 'price', edf=edf,
-#                     date=pd.to_datetime(fin.value_date.unique()[0]))
+
+# small_df = test_data[test_data.value_date == test_data.value_date.min()]
+
+print('running timestep recon..')
+t = time.clock()
+tst = pr.timestep_recon(test_data)
+print('finished timestep recon. elapsed: ', time.clock() - t)
