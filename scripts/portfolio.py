@@ -196,7 +196,7 @@ class Portfolio:
             return None
         else:
             for f in self.families:
-                if sec in f.OTC_options:
+                if sec in f.get_all_options():
                     return f
             return None
 
