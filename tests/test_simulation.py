@@ -404,7 +404,7 @@ def test_roll_over_no_product_simple():
     # simple portfolio: checking composites in the same family.
     pf = copy.deepcopy(pf_simple)
     # Z7 -> H8
-    pf, cost = roll_over(pf, r_vdf, r_pdf, date, ttm_tol=ttm_tol+2)
+    pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date, ttm_tol=ttm_tol+2)
     assert 'H8' in pf.OTC['CC']
     assert 'H8' in pf.get_net_greeks()['CC']
     assert 'Z7' not in pf.OTC['CC']
@@ -432,7 +432,7 @@ def test_rollover_no_product_simple_split():
     print('pf1: ', pf1)
     pf2.add_security([ccops[1]], 'OTC')
     pf = combine_portfolios([pf1, pf2], name='pf', refresh=True)
-    pf, cost = roll_over(pf, r_vdf, r_pdf, date, ttm_tol=ttm_tol+1)
+    pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date, ttm_tol=ttm_tol+1)
     # try:
     assert 'H8' in pf.OTC['CC']
     assert 'H8' in pf.get_net_greeks()['CC']
@@ -471,7 +471,7 @@ def test_rollover_no_product_comp():
     ttm_tol = ccops[0].tau * 365
 
     pf = copy.deepcopy(pf_comp)
-    pf, cost = roll_over(pf, r_vdf, r_pdf, date, ttm_tol=ttm_tol+2)
+    pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date, ttm_tol=ttm_tol+2)
 
     assert 'H8' in pf.OTC['CC']
     assert 'H8' in pf.get_net_greeks()['CC']
@@ -518,7 +518,7 @@ def test_rollover_no_product_split():
     pf2.add_security([ccops[1], qcops[1]], 'OTC')
 
     pf = combine_portfolios([pf1, pf2], name='pf', refresh=True)
-    pf, cost = roll_over(pf, r_vdf, r_pdf, date, ttm_tol=ttm_tol+1)
+    pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date, ttm_tol=ttm_tol+1)
 
     # check that greeks are appropriately updated in overall pf
     assert 'H8' in pf.OTC['CC']
@@ -559,8 +559,8 @@ def test_roll_over_product():
     r_pdf = pdf[pdf.value_date == date]
     ttm_tol = ccops[0].tau * 365
 
-    pf_simple, cost = roll_over(pf_simple, r_vdf, r_pdf,
-                                date, ttm_tol=ttm_tol+1, target_product='CC')
+    pf_simple, cost, _ = roll_over(pf_simple, r_vdf, r_pdf,
+                                   date, ttm_tol=ttm_tol+1, target_product='CC')
 
     assert 'Z7' not in pf_simple.OTC['CC']
     assert 'Z7' not in pf_simple.get_net_greeks()['CC']
@@ -575,8 +575,8 @@ def test_roll_over_product():
     # assert op4 in op3.partners
 
     # comp case
-    pf_comp, cost = roll_over(pf_comp, r_vdf, r_pdf,
-                              date, ttm_tol=ttm_tol+1, target_product='CC')
+    pf_comp, cost, _ = roll_over(pf_comp, r_vdf, r_pdf,
+                                 date, ttm_tol=ttm_tol+1, target_product='CC')
 
     assert 'Z7' not in pf_comp.OTC['CC']
     assert 'Z7' not in pf_comp.OTC['QC']
