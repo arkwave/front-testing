@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-31 14:12:46
+# @Last Modified time: 2017-09-13 19:47:53
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -172,8 +172,8 @@ class Hedge:
                 if buckets is None else self.pf.greeks_by_exp(buckets)
 
             for product in calibration_dic:
-                df = self.pdf[(self.pdf.pdt == product) &
-                              (self.pdf.call_put_id == 'C')]
+                df = self.vdf[(self.vdf.pdt == product) &
+                              (self.vdf.call_put_id == 'C')]
                 for exp in calibration_dic[product]:
                     loc = (product, exp)
                     if df.empty:
@@ -247,7 +247,7 @@ class Hedge:
             # print('scripts.hedges.calibrate - greek repr ', self.greek_repr)
             net = self.pf.get_net_greeks()
             for product in net:
-                df = self.pdf[self.pdf.pdt == product]
+                df = self.vdf[self.vdf.pdt == product]
                 for month in net[product]:
                     uid = product + '  ' + month
                     df = df[(df.underlying_id == uid)]
@@ -712,8 +712,9 @@ class Hedge:
                     dval = data['spec']
 
                 if data['spectype'] == 'strike':
-                    strike = data['spectype']
-
+                    strike = data['spec']
+                print('inputs: ', hedge_id, shorted,
+                      dval, strike, flag, greekval)
                 op = create_vanilla_option(self.vdf, self.pdf, hedge_id, 'call',
                                            shorted, delta=dval, strike=strike,
                                            greek=flag, greekval=greekval)
