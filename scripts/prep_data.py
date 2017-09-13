@@ -534,6 +534,7 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
 
     # cleaning volatility data
     elif flag == 'vol':
+        print('cleaning voldata')
         # handling data types
         df['value_date'] = pd.to_datetime(df['value_date'])
         df = df.dropna()
@@ -559,24 +560,26 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
 
     # cleaning price data
     elif flag == 'price':
+        print('cleaning pricedata')
         # dealing with datatypes and generating new fields from existing ones.
         df['value_date'] = pd.to_datetime(df['value_date'])
         df['pdt'] = df['underlying_id'].str.split().str[0]
         df['ftmth'] = df['underlying_id'].str.split().str[1]
         # transformative functions.
-        df = get_expiry(df, edf)
-        df = assign_ci(df, date)
+        # df = get_expiry(df, edf)
+        # df = assign_ci(df, date)
+        df['order'] = ''
         df = scale_prices(df)
         df = df.fillna(0)
-        df.expdate = pd.to_datetime(df.expdate)
-        df = df[df.value_date <= df.expdate]
-
-        # setting data types
-        df.order = pd.to_numeric(df.order)
         df.value_date = pd.to_datetime(df.value_date)
         df.settle_value = pd.to_numeric(df.settle_value)
         df.returns = pd.to_numeric(df.returns)
-        df.expdate = pd.to_datetime(df.expdate)
+
+        # df.expdate = pd.to_datetime(df.expdate)
+        # df = df[df.value_date <= df.expdate]
+        # setting data types
+        # df.order = pd.to_numeric(df.order)
+        # df.expdate = pd.to_datetime(df.expdate)
 
     df.reset_index(drop=True, inplace=True)
     df = df.dropna()
@@ -874,6 +877,7 @@ def ttm(df, s, edf):
             expdate = pd.to_datetime(expdate.values[0])
         except IndexError:
             print('expdate not found for Vol ID: ', iden)
+            expdate = pd.Timestamp('1990-01-01')
         currdate = pd.to_datetime(df[(df['vol_id'] == iden)]['value_date'])
         timedelta = (expdate - currdate).dt.days / 365
         df.ix[df['vol_id'] == iden, 'tau'] = timedelta
@@ -921,7 +925,10 @@ def assign_ci(df, date):
             m1 = curr_mth + str(curr_yr % (2000 + decade))
             # print('ftmth: ', ftmth)
             # print('m1: ', m1)
-            dist = find_cdist(m1, ftmth, lst)
+            try:
+                dist = find_cdist(m1, ftmth, lst)
+            except ValueError:
+                dist = -99
             df.ix[(df.pdt == pdt) & (df.ftmth == ftmth), 'order'] = dist
     return df
 

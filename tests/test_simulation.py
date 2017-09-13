@@ -14,7 +14,7 @@ from scripts.classes import Option, Future
 from scripts.portfolio import Portfolio
 from scripts.simulation import hedge_delta_roll, check_roll_status, \
     handle_exercise, contract_roll, roll_over, delta_roll, hedge_delta_roll
-from scripts.util import create_straddle, combine_portfolios, create_vanilla_option, create_composites
+from scripts.util import create_straddle, combine_portfolios, create_vanilla_option, create_composites, create_underlying
 from collections import OrderedDict
 import numpy as np
 import pandas as pd
@@ -419,8 +419,12 @@ def test_roll_over_no_product_simple():
     # simple portfolio: checking composites in the same family.
     pf = copy.deepcopy(pf_simple)
     pf.ttm_tol = ttm_tol + 2
+    pf.roll = True
     # Z7 -> H8
     pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
+
+    print('pf: ', pf)
+
     assert 'H8' in pf.OTC['CC']
     assert 'H8' in pf.get_net_greeks()['CC']
     assert 'Z7' not in pf.OTC['CC']
@@ -448,10 +452,14 @@ def test_rollover_no_product_simple_split():
     pf2 = Portfolio(None, name='pf2')
     pf1.add_security([ccops[0]], 'OTC')
     pf1.ttm_tol = ttm_tol + 1
+    pf1.roll = True
     print('pf1: ', pf1)
     pf2.add_security([ccops[1]], 'OTC')
     pf = combine_portfolios([pf1, pf2], name='pf', refresh=True)
     pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
+
+    print('pf: ', pf)
+
     # try:
     assert 'H8' in pf.OTC['CC']
     assert 'H8' in pf.get_net_greeks()['CC']
@@ -485,7 +493,10 @@ def test_rollover_no_product_comp():
     ttm_tol = ccops[0].tau * 365
 
     pf = copy.deepcopy(pf_comp)
-    pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date, ttm_tol=ttm_tol+2)
+    pf1 = [x for x in pf.families if x.name == 'cc_comp'][0]
+    pf1.ttm_tol = ttm_tol + 2
+    pf1.roll = True
+    pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
 
     assert 'H8' in pf.OTC['CC']
     assert 'H8' in pf.get_net_greeks()['CC']
@@ -529,6 +540,12 @@ def test_rollover_no_product_split():
     ttm_tol = ccops[0].tau * 365
     pf1 = Portfolio(None, name='pf1')
     pf2 = Portfolio(None, name='pf2')
+
+    # setting roll = true and rolling params
+    pf1.roll = True
+    pf1.ttm_tol = ttm_tol + 2
+    pf2.roll = True
+    pf2.ttm_tol = ttm_tol + 2
 
     pf1.add_security([ccops[0], qcops[0]], 'OTC')
     pf2.add_security([ccops[1], qcops[1]], 'OTC')
@@ -577,11 +594,15 @@ def test_roll_over_product():
     r_pdf = pdf[pdf.value_date == date]
     ttm_tol = ccops[0].tau * 365
 
-    pf_simple, cost, _ = roll_over(pf_simple, r_vdf, r_pdf,
+    pf = copy.deepcopy(pf_simple)
+    pf.ttm_tol = ttm_tol + 1
+    pf.roll = True
+
+    pf_simple, cost, _ = roll_over(pf, r_vdf, r_pdf,
                                    date)
 
-    assert 'Z7' not in pf_simple.OTC['CC']
-    assert 'Z7' not in pf_simple.get_net_greeks()['CC']
+    assert 'Z7' not in pf.OTC['CC']
+    assert 'Z7' not in pf.get_net_greeks()['CC']
 
     # check composites
     op1, op2 = [x for x in pf_simple.OTC_options if x.get_product() == 'CC']
@@ -589,26 +610,36 @@ def test_roll_over_product():
 
     assert op1 in op2.partners
     assert op2 in op1.partners
-    # assert op3 in op4.partners
-    # assert op4 in op3.partners
 
     # comp case
-    pf_comp, cost, _ = roll_over(pf_comp, r_vdf, r_pdf,
-                                 date)
+    pf2 = copy.deepcopy(pf_comp)
+    ops = pf2.get_all_options()
+    ops = create_composites(ops)
 
-    assert 'Z7' not in pf_comp.OTC['CC']
-    assert 'Z7' not in pf_comp.OTC['QC']
-    assert 'Z7' not in pf_comp.get_net_greeks()['CC']
-    assert 'Z7' not in pf_comp.get_net_greeks()['QC']
+    cc_pf = [fam for fam in pf2.get_families()
+             if fam.get_unique_products() == set(['CC'])][0]
+    qc_pf = [fam for fam in pf2.get_families()
+             if fam.get_unique_products() == set(['QC'])][0]
 
-    assert 'Z7' not in pfcc.OTC['CC']
-    assert 'Z7' not in pfcc.get_net_greeks()['CC']
+    cc_pf.roll = True
+    cc_pf.ttm_tol = ttm_tol + 1
 
-    assert 'Z7' not in pfqc.OTC['QC']
-    assert 'Z7' not in pfqc.get_net_greeks()['QC']
+    pf2, cost, _ = roll_over(pf2, r_vdf, r_pdf,
+                             date)
 
-    op1, op2 = [x for x in pf_comp.OTC_options if x.get_product() == 'CC']
-    op3, op4 = [x for x in pf_comp.OTC_options if x.get_product() == 'QC']
+    assert 'Z7' not in pf2.OTC['CC']
+    assert 'Z7' not in pf2.OTC['QC']
+    assert 'Z7' not in pf2.get_net_greeks()['CC']
+    assert 'Z7' not in pf2.get_net_greeks()['QC']
+
+    assert 'Z7' not in cc_pf.OTC['CC']
+    assert 'Z7' not in cc_pf.get_net_greeks()['CC']
+
+    assert 'Z7' not in qc_pf.OTC['QC']
+    assert 'Z7' not in qc_pf.get_net_greeks()['QC']
+
+    op1, op2 = [x for x in pf2.OTC_options if x.get_product() == 'CC']
+    op3, op4 = [x for x in pf2.OTC_options if x.get_product() == 'QC']
     assert op1 in op2.partners
     assert op2 in op1.partners
     assert op3 in op4.partners
@@ -720,12 +751,16 @@ def test_hedge_delta_roll_comp():
 def test_roll_over_hedge_options():
     print('========== TEST: ROLL OVER HEDGES ===========')
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+
+    pf = copy.deepcopy(pf_comp)
+    create_composites(pf.get_all_options())
+    cc_pf = [fam for fam in pf.get_families() if
+             fam.get_unique_products() == set(['CC'])][0]
     ccops2 = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
                              True, 'atm', greek='theta', greekval=5000)
-    pfcc.add_security(ccops2, 'hedge')
+    cc_pf.add_security(ccops2, 'hedge')
 
-    pf_comp.refresh()
-    pf = copy.deepcopy(pf_comp)
+    pf.refresh()
 
     assert len(pf.get_all_options()) == 6
     # roll over, and check that hedge options are rolled as well.
@@ -733,6 +768,15 @@ def test_roll_over_hedge_options():
     r_vdf = vdf[vdf.value_date == date]
     r_pdf = pdf[pdf.value_date == date]
     ttm_tol = ccops[0].tau * 365
+
+    # create composites to roll together.
+
+    print('cc_pf: ', cc_pf)
+
+    cc_pf.roll = True
+    cc_pf.ttm_tol = ttm_tol + 1
+
+    print('pf: ', pf)
 
     pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
 
@@ -799,3 +843,163 @@ def test_roll_composite_partners():
     assert 'H8' in pf_c.OTC['CC']
     assert 'H8' in pf_q.OTC['QC']
     print('================== test end ==========================')
+
+
+def test_roll_product_hedges():
+    # Case: QC Z7.Z7 hedged with QC Z7.Z7, and CC Z7.Z7 hedged with CC. CC and QC
+    # OTC options are partners. Rolling CC OTC should trigger QC OTC and QC/CC
+    # Hedge to roll.
+    print('================ TEST: ROLL OVER WITH PRODUCT & HEDGES ================')
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+
+    pf = copy.deepcopy(pf_comp)
+    _ = create_composites(pf.get_all_options())
+    pfcc1 = [fam for fam in pf.get_families() if fam.name == 'cc_comp'][0]
+    pfqc1 = [fam for fam in pf.get_families() if fam.name == 'qc_comp'][0]
+
+    for op in pfcc1.get_all_options():
+        assert len(op.partners) == 3
+
+    for op in pfqc1.get_all_options():
+        assert len(op.partners) == 3
+
+    # creating and adding hedges.
+    ccops2 = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+                             True, 'atm', greek='theta', greekval=5000)
+    qcops2 = create_straddle('QC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+                             True, 'atm', greek='theta', greekval=5000)
+
+    pfcc1.add_security(ccops2, 'hedge')
+    pfqc1.add_security(qcops2, 'hedge')
+
+    # setting roll params for cc portfolio.
+    pfcc1.roll = True
+    pfcc1.ttm_tol = (ccops[0].tau * 365) + 1
+    pf.refresh()
+
+    # roll inputs
+    date = pdf.value_date.min()
+    r_vdf = vdf[vdf.value_date == date]
+    r_pdf = pdf[pdf.value_date == date]
+
+    pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
+
+    print('pf: ', pf)
+    print('pfcc1: ', pfcc1)
+    print('pfqc1: ', pfqc1)
+
+    assert 'Z7' not in pfcc1.net_greeks['CC']
+    assert 'Z7' not in pfcc1.OTC['CC']
+    assert 'Z7' not in pfcc1.hedges['CC']
+
+    assert 'Z7' not in pfqc1.net_greeks['QC']
+    assert 'Z7' not in pfqc1.OTC['QC']
+    assert 'Z7' not in pfqc1.hedges['QC']
+
+    assert 'H8' in pfcc1.net_greeks['CC']
+    assert 'H8' in pfqc1.net_greeks['QC']
+    assert 'H8' in pfcc1.OTC['CC']
+    assert 'H8' in pfqc1.OTC['QC']
+    assert 'H8' in pfcc1.hedges['CC']
+    assert 'H8' in pfqc1.hedges['QC']
+
+
+def test_roll_product_hedges2():
+    # Case: QC Z7.Z7 hedged with QC Z7.Z7, and CC Z7.Z7 unhedged. CC and QC
+    # OTC options are partners. Rolling CC should trigger both QC OTC and QC
+    # Hedge to roll.
+    print('================ TEST: ROLL OVER WITH PRODUCT & HEDGES - 2 ================')
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+
+    pf = copy.deepcopy(pf_comp)
+    create_composites(pf.get_all_options())
+    pfcc1 = [fam for fam in pf.get_families() if fam.name == 'cc_comp'][0]
+    pfqc1 = [fam for fam in pf.get_families() if fam.name == 'qc_comp'][0]
+
+    for op in pfcc1.get_all_options():
+        assert len(op.partners) == 3
+
+    for op in pfqc1.get_all_options():
+        assert len(op.partners) == 3
+
+    # add QC hedges.
+    qcops2 = create_straddle('QC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+                             True, 'atm', greek='theta', greekval=5000)
+
+    pfqc1.add_security(qcops2, 'hedge')
+
+    # setting roll params for cc portfolio.
+    pfcc1.roll = True
+    pfcc1.ttm_tol = (ccops[0].tau * 365) + 1
+    pf.refresh()
+
+    date = pdf.value_date.min()
+    r_vdf = vdf[vdf.value_date == date]
+    r_pdf = pdf[pdf.value_date == date]
+
+    pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
+
+    assert 'Z7' not in pfcc1.net_greeks['CC']
+    assert 'Z7' not in pfcc1.OTC['CC']
+
+    assert 'Z7' not in pfqc1.net_greeks['QC']
+    assert 'Z7' not in pfqc1.OTC['QC']
+    assert 'Z7' not in pfqc1.hedges['QC']
+
+    assert 'H8' in pfcc1.net_greeks['CC']
+    assert 'H8' in pfqc1.net_greeks['QC']
+    assert 'H8' in pfcc1.OTC['CC']
+    assert 'H8' in pfqc1.OTC['QC']
+    assert 'H8' in pfqc1.hedges['QC']
+
+
+def roll_over_full_test():
+    print('================= TEST: CLOSING OUT DELTAS =================')
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+
+    # creation info
+    date = pdf.value_date.min()
+    r_vdf = vdf[vdf.value_date == date]
+    r_pdf = pdf[pdf.value_date == date]
+
+    # modifying portfolio
+    pf = copy.deepcopy(pf_comp)
+    create_composites(pf.get_all_options())
+    cc_pf = [fam for fam in pf.get_families() if
+             fam.get_unique_products() == set(['CC'])][0]
+
+    ccops2 = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+                             True, 'atm', greek='theta', greekval=5000)
+    cc_pf.add_security(ccops2, 'hedge')
+    cc_pf.roll = True
+    cc_pf.ttm_tol = (ccops[0].tau * 365) + 1
+    pf.refresh()
+
+    # initializing the futures to zero out deltas.
+    cc_delta = int(pf.net_greeks['CC']['Z7'][0])
+    cc_shorted = False if cc_delta < 0 else True
+    qc_delta = int(pf.net_greeks['QC']['Z7'][0])
+    qc_shorted = False if qc_delta < 0 else True
+
+    ccft, _ = create_underlying(
+        'CC', 'Z7', r_pdf, date, lots=cc_delta, shorted=cc_shorted)
+    qcft, _ = create_underlying(
+        'QC', 'Z7', r_pdf, date, lots=qc_delta, shorted=qc_shorted)
+
+    pf.add_security([ccft, qcft], 'hedge')
+
+    pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
+
+    pf.refresh()
+    print('pf: ', pf)
+
+    # QC gets closed out altogether.
+    assert 'QC' not in pf.hedges
+
+    cc_hedges = pf.hedges['CC']
+    assert 'Z7' not in cc_hedges
+
+    # assert len(cc_hedges['H8'][1]) == 1
+    # assert len(qc_hedges['H8'][1]) == 1
+
+    print('===============================================================')

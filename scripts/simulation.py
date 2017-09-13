@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-12 22:10:13
+# @Last Modified time: 2017-09-13 18:19:05
 
 ################################ imports ###################################
 
@@ -13,6 +13,7 @@ import copy
 import time
 import matplotlib.pyplot as plt
 from collections import OrderedDict
+import pprint
 
 
 # user defined imports
@@ -252,28 +253,11 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         vdf = voldata[voldata.value_date == date]
         pdf = pricedata[pricedata.value_date == date]
 
-        # print('Active Options: ', [
-        #       str(op) for op in pf.get_all_options() if op.check_active()])
-
         print('Portfolio before any ops: ', pf)
-
-        # # getting SOD vega pos for all products and months
-        # if len(pf.OTC) == 0:
-        #     print('Month, SOD Vega Pos: ', (0, 0))
-        # # print('pf.OTC: ', pf.OTC)
-        # if len(pf.OTC) > 0:
-        #     for pdt in pf.OTC:
-        #         for mth in pf.OTC[pdt]:
-        #             # ops = pf.OTC[pdt][0]
-        #             print('Month, SOD Vega Pos: ',
-        #                   (mth, pf.net_vega_pos(mth, pdt)))
 
     # Step 3: Feed data into the portfolio.
         pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
             = feed_data(vdf, pdf, pf, init_val, flat_vols=flat_vols, flat_price=flat_price)
-
-        # dailycost -= profit
-        # print('cost after feed data: ', dailycost)
 
     # Step 4: Compute pnl for the day
         updated_val = pf.compute_value()
@@ -300,13 +284,8 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
 
     # Step 6: rolling over portfolio and hedges if required.
         # simple case
-        # TODO: make sure that deltas to close work here.
-        deltaclose = True if not pf.get_families() else False
         pf, cost, all_deltas = roll_over(pf, vdf, pdf, date, brokerage=brokerage,
-                                         slippage=slippage, deltaclose=deltaclose)
-        if not deltaclose:
-            pf, cost = close_out_deltas(pf, all_deltas)
-
+                                         slippage=slippage)
         pf.refresh()
 
     # Step 7: Hedge - bring greek levels across portfolios (and families) into
@@ -1103,8 +1082,8 @@ def handle_exercise(pf, brokerage=None, slippage=None):
 ###############################################################################
 
 
-def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, deltaclose=True):
-    """Utility method that checks expiries of options currently being used for hedging. 
+def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None):
+    """
         If ttm < ttm_tol, closes out that position (and all accumulated deltas), 
         saves lot size/strikes, and rolls it over into the
         next month.
@@ -1127,44 +1106,38 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, deltaclose=True
     toberemoved = []
     roll_all = False
 
-    # print('simulation.roll_over - ttm_tol: ', ttm_tol)
-
-    # check target_volid roll check
-
-    # if target_product:
-    #     prod = target_product
-    #     ops = [op for op in pf.get_all_options() if op.get_product() == prod]
-    #     if ops[0].tau * 365 <= ttm_tol:
-    #         roll_all = True
-
     print('roll_all: ', roll_all)
     fa_lst = pf.get_families() if pf.get_families() else [pf]
     processed = {}
     roll_all = False
+    rolled_vids = set()
 
     # iterate over each family.
     for fa in fa_lst:
+        # case: no rolling specified for this family.
         if not fa.roll:
             continue
         target_product = fa.roll_product
+
+        # case: entire family is to be rolled basis a product.
         if target_product is not None:
             prod = target_product
             ops = [op for op in fa.get_all_options()
                    if op.get_product() == prod]
-
             if ops[0].tau * 365 <= fa.ttm_tol:
                 roll_all = True
 
         # case: first time processing this family.
         if fa not in processed:
-            processed[fa] = []
+            processed[fa] = set()
         else:
             # case where all options have been processed.
-            if len(processed[fa]) == len(fa.OTC_options):
+            if len(processed[fa]) == len(fa.get_all_options()):
                 continue
 
         # assign all options.
         dic = fa.get_all_options()
+        print('OPTIONS TO ROLL: ', pprint.pformat([str(x) for x in dic]))
 
         # get list of already processed ops for this family.
         processed_ops = processed[fa]
@@ -1172,56 +1145,116 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, deltaclose=True
         # iterate over each option in this family
         for op in dic.copy():
             flag = 'OTC' if op in fa.OTC_options else 'hedge'
-            # print('############### FLAG: ', flag + ' ########################')
             # case: op has already been processed since its parter was
             # processed.
             if op in processed_ops:
                 continue
             composites = []
+
+            # case: roll if ttm threshold is breached or roll_all is triggered.
             needtoroll = (((op.tau * 365) < fa.ttm_tol) or roll_all)
             if needtoroll:
                 print('rolling option ' + str(op) + ' from ' + flag)
                 toberemoved.append(op)
+                rolled_vids.add(op.get_vol_id())
                 # creating the underlying future object
+                print('rolling op')
                 fa, cost, newop, old_op, iden = contract_roll(
                     fa, op, vdf, pdf, date, flag)
                 composites.append(newop)
-                processed_ops.append(old_op)
+                processed_ops.add(old_op)
                 deltas_to_close.add(iden)
                 total_cost += cost
                 # if rolling, roll partners as well so that composite structure
                 # can be maintained.
-                for opx in op.partners:
-                    # case: simple portfolio with no families.
-                    if not pf.get_families():
-                        tar = fa
-                    # composite portfolio. call super-portfolio's finder
-                    # method.
-                    else:
-                        tar = pf.get_family_containing(opx)
-                    fa2, cost2, new_opx, old_opx, iden_2 = contract_roll(
-                        tar, opx, vdf, pdf, date, flag)
-                    composites.append(new_opx)
-                    deltas_to_close.add(iden_2)
-                    if fa2 not in processed:
-                        processed[fa2] = []
-                    processed[fa2].append(old_opx)
-                    total_cost += cost2
+                print('handling partners...')
+                deltas_to_close, composites, total_cost, processed, rolled_vids = \
+                    roll_handle_partners(date, pf, fa, op, deltas_to_close,
+                                         composites, total_cost, processed, vdf, pdf, rolled_vids)
+
                 composites = create_composites(composites)
-
-    # print('roll_over: pre refresh pf.hedges - ', pf.hedges)
     pf.refresh()
-    # print('roll_over: post refresh pf.hedges - ', pf.hedges)
-    # print('deltas to close: ', deltas_to_close)
-    if deltaclose:
-        pf, cost = close_out_deltas(pf, deltas_to_close)
-        total_cost += cost
-    # print('pf after rollover: ', pf)
-    # print('cost of contract rolling: ', total_cost)
-
+    # edge case: in the case where a roll_product is specified and hedge
+    # options are added, these hedge options may not be found in the above
+    # loop since hedge options have no default behavior of being initialized
+    # as partners with OTC options.
+    edge_case_ops = set()
+    print('rolled vids: ', rolled_vids)
+    for vid in rolled_vids:
+        ops = [op for op in pf.hedge_options if op.get_vol_id() == vid]
+        if ops:
+            print('ops: ', [str(x) for x in ops])
+            for op in ops:
+                if op in edge_case_ops:
+                    continue
+                partners = op.partners.copy()
+                edge_case_ops.add(op)
+                composites = [op]
+                fam = fa if not pf.get_families() else pf.get_family_containing(op)
+                flag = 'hedge'
+                # roll the option
+                fam, cost, newop, old_op, iden = contract_roll(
+                    fam, op, vdf, pdf, date, flag)
+                # roll the partners
+                deltas_to_close, composites, total_cost, processed, rolled_vids\
+                    = roll_handle_partners(date, pf, fa, op, deltas_to_close,
+                                           composites, total_cost, processed, vdf, pdf, rolled_vids)
+                edge_case_ops.update(partners)
+                create_composites(composites)
     pf.refresh()
+
+    pf, cost = close_out_deltas(pf, deltas_to_close)
+    pf.refresh()
+
+    total_cost += cost
+
     print(' --- done contract rolling --- ')
     return pf, total_cost, deltas_to_close
+
+
+def roll_handle_partners(date, pf, fa, op, deltas_to_close, composites, total_cost, processed, vdf, pdf, rolled_vids):
+    """Helper method that handles partners when rolling options. 
+
+    Args:
+        date (TYPE): Description
+        pf (TYPE): Description
+        fa (TYPE): Description
+        op (TYPE): Description
+        deltas_to_close (TYPE): Description
+        composites (TYPE): Description
+        total_cost (TYPE): Description
+        processed (TYPE): Description
+        vdf (TYPE): Description
+        pdf (TYPE): Description
+        rolled_vids (TYPE): Description
+
+    Returns:
+        TYPE: Description
+
+    Deleted Parameters:
+        cost (TYPE): Description
+    """
+    for opx in op.partners:
+        print('opx: ', opx)
+
+        # simple case means partner is in same famiily. composite
+        # case calls finder.
+        tar = fa if not pf.get_families() else pf.get_family_containing(opx)
+
+        if tar not in processed:
+            processed[tar] = set()
+
+        if opx not in processed[tar]:
+            rolled_vids.add(opx.get_vol_id())
+            flag2 = 'OTC' if opx in tar.OTC_options else 'hedge'
+            tar, cost2, new_opx, old_opx, iden_2 = contract_roll(
+                tar, opx, vdf, pdf, date, flag2)
+            composites.append(new_opx)
+            deltas_to_close.add(iden_2)
+            processed[tar].add(old_opx)
+            total_cost += cost2
+
+    return deltas_to_close, composites, total_cost, processed, rolled_vids
 
 
 def contract_roll(pf, op, vdf, pdf, date, flag):
