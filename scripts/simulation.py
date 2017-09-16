@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-16 16:09:28
+# @Last Modified time: 2017-09-16 18:30:06
 
 ################################ imports ###################################
 
@@ -1441,14 +1441,14 @@ def rebalance(vdf, pdf, pf, buckets=None, brokerage=None, slippage=None, next_da
         # initialize hedge engines for each family in the portfolio
         for dep in pf.get_families():
             print('---------- rebalance loop -------------')
-            ################# debug statements ######################
-            print('dep: ', dep.name)
-            print('dep.hedge_params: ', dep.hedge_params)
-            print('dep.otc: ', pprint.pformat(dep.OTC['W'].keys()))
-            if 'W' in dep.hedges:
-                print('dep.hedges: ', pprint.pformat(dep.hedges['W'].keys()))
-            print('vdf uids: ', vdf.underlying_id.unique())
-            ################# end debug statements ###################
+            # ################# debug statements ######################
+            # print('dep: ', dep.name)
+            # print('dep.hedge_params: ', dep.hedge_params)
+            # print('dep.otc: ', pprint.pformat(dep.OTC['W'].keys()))
+            # if 'W' in dep.hedges:
+            #     print('dep.hedges: ', pprint.pformat(dep.hedges['W'].keys()))
+            # print('vdf uids: ', vdf.underlying_id.unique())
+            # ################# end debug statements ###################
             hedge_engine = Hedge(dep, dep.hedge_params, vdf, pdf,
                                  buckets=buckets,
                                  slippage=slippage, brokerage=brokerage)
