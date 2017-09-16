@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from scripts.util import pnp_format, create_straddle
+from scripts.util import pnp_format, create_straddle, merge_dicts, merge_lists
 from scripts.fetch_data import grab_data
 
 multipliers = {
@@ -60,25 +60,25 @@ contract_mths = {
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
-filepath = 'C:/Users/Ananth/Desktop/pnp_sample.xlsx'
-start_date = '2012-09-11'
-end_date = '2013-03-01'
-pdts = ['W']
-ttm_tol = 24
+# filepath = 'C:/Users/Ananth/Desktop/pnp_sample.xlsx'
+# start_date = '2012-09-11'
+# end_date = '2013-03-01'
+# pdts = ['W']
+# ttm_tol = 24
 
-vdf = pd.read_csv(
-    'C:/Users/Ananth/Desktop/sim_test/w_final_vols_20120911_20130301.csv')
+# vdf = pd.read_csv(
+#     'C:/Users/Ananth/Desktop/sim_test/w_final_vols_20120911_20130301.csv')
 
-pdf = pd.read_csv(
-    'C:/Users/Ananth/Desktop/sim_test/w_final_price_20120911_20130301.csv')
+# pdf = pd.read_csv(
+#     'C:/Users/Ananth/Desktop/sim_test/w_final_price_20120911_20130301.csv')
 
-vdf.value_date = pd.to_datetime(vdf.value_date)
-pdf.value_date = pd.to_datetime(pdf.value_date)
-pdf.expdate = pd.to_datetime(pdf.expdate)
+# vdf.value_date = pd.to_datetime(vdf.value_date)
+# pdf.value_date = pd.to_datetime(pdf.value_date)
+# pdf.expdate = pd.to_datetime(pdf.expdate)
 
 
-u1, u2 = create_straddle('W  U3.U3', vdf, pdf, pd.to_datetime(
-    start_date), False, 'atm', greek='theta', greekval=20000)
+# u1, u2 = create_straddle('W  U3.U3', vdf, pdf, pd.to_datetime(
+#     start_date), False, 'atm', greek='theta', greekval=20000)
 
-z1, z2 = create_straddle('W  Z2.Z2', vdf, pdf, pd.to_datetime(
-    start_date), False, 'atm', greek='theta', greekval=20000)
+# z1, z2 = create_straddle('W  Z2.Z2', vdf, pdf, pd.to_datetime(
+#     start_date), False, 'atm', greek='theta', greekval=20000)
