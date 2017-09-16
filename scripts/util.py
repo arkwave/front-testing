@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-11 20:35:55
+# @Last Modified time: 2017-09-16 16:04:56
 
 
 from .portfolio import Portfolio
@@ -10,6 +10,7 @@ from .classes import Future, Option
 from .prep_data import find_cdist, handle_dailies
 import pandas as pd
 import numpy as np
+import copy
 import os
 from .calc import compute_strike_from_delta
 import sys
@@ -959,51 +960,36 @@ def combine_portfolios(lst, hedges=None, name=None, refresh=False):
     return pf
 
 
-def merge_dicts(d1, d2):
-    ret = {}
-    if len(d1) == 0:
-        return d2
-    elif len(d2) == 0:
-        return d1
-    else:
-        for key in d1:
-            if key not in ret:
-                ret[key] = {}
-            # base case: key is in d1 but not d2.
-            if key not in d2:
-                ret[key] = d1[key]
-            elif key in d2:
-                dat1, dat2 = d1[key], d2[key]
-                # case 1: nested dictionary.
-                if isinstance(dat1, dict):
-                    nd = merge_dicts(dat1, dat2)
-                    ret[key] = nd
-                # case 2: list.
-                elif isinstance(dat1, list):
-                    nl = merge_lists(dat1, dat2)
-                    ret[key] = nl
+def transfer_dict(d1):
+    """ Helper method that recreates a dictionary while
+    maintaining the memory location of all objects in the dictionary. 
 
-        for key in d2:
-            if key not in ret:
-                ret[key] = {}
-            # base case: key is in d1 but not d2.
-            if key not in d1:
-                ret[key] = d2[key]
-            elif key in d1:
-                dat1, dat2 = d1[key], d2[key]
-                # case 1: nested dictionary.
-                if isinstance(dat2, dict):
-                    nd = merge_dicts(dat1, dat2)
-                    ret[key] = nd
-                # case 2: list.
-                elif isinstance(dat2, list):
-                    nl = merge_lists(dat1, dat2)
-                    ret[key] = nl
+    Args:
+        d1 (TYPE): Description
+    """
+    values = []
+    keys = d1.keys()
+    for key in keys:
+        data = d1[key]
+        if isinstance(data, list):
+            newlst = []
+            for entry in data:
+                newlst.append(entry.copy())
+            values = newlst
+        elif isinstance(data, dict):
+            newdic = transfer_dict(data)
+            values = newdic
+
+    ret = dict.fromkeys(keys, values)
+    # print('transfer_dict.ret: ', ret)
     return ret
 
 
-def merge_lists(l1, l2):
-    """Helper method that merges two lists. 
+def merge_lists(r1, r2):
+    """Helper method that merges two lists, of the form contained in 
+    the OTC[pdt][month] for the OTC/hedge dictionaries in a portfolio object.
+    Merges and returns the two lists such that modifying the result does NOT
+    modify the constituent lists
 
     Args:
         l1 (TYPE): Description
@@ -1012,21 +998,79 @@ def merge_lists(l1, l2):
     Returns:
         TYPE: Description
     """
+    # print('merge lists triggered')
+    l1 = copy.copy(r1)
+    l2 = copy.copy(r2)
     if len(l1) == 0:
-        return l2
+        return l2.copy()
     elif len(l2) == 0:
-        return l1
+        return l1.copy()
 
     ret = []
     assert len(l1) == len(l2)
     for i in range(len(l1)):
         dat1, dat2 = l1[i], l2[i]
         if isinstance(dat1, set):
-            c = dat1.copy()
-            c.update(dat2)
+            # print('merge_lists: set case')
+            c = set()
+            for i in dat1:
+                c.add(i)
+            for j in dat2:
+                c.add(j)
         elif isinstance(dat1, (int, float)):
             c = dat1 + dat2
         ret.append(c)
+    return ret
+
+
+def merge_dicts(d1, d2):
+    """Helper method that merges the OTC or hedges dictionaries of
+    portfolio objects such that modifying the result does NOT modify 
+    any of the constituent dictionaries. 
+
+    Args:
+        r1 (TYPE): First dictionary to be merged
+        r2 (TYPE): Second dictionary to be merged.
+
+    Returns:
+        TYPE: Dictionary.
+    # """
+    ret = {}
+    # base cases: either d1 or d2 are empty.
+    if len(d1) == 0:
+        ret = transfer_dict(d2.copy())
+    elif len(d2) == 0:
+        ret = transfer_dict(d1.copy())
+    else:
+        # handles d1-unique and d1-d2 overlap keys.
+        for key in d1:
+            # base case: key is not in d2 -> d1[key] becomes default value for
+            # this key in ret.
+            if key not in d2:
+                # print(key + ' unique to d1')
+                ret[key] = d1[key].copy()
+            # case: this key exists in d2. need to merge the outputs of d1[key]
+            # and d2[key]
+            else:
+                # case 0: d1[key] and d2[key] are lists.
+                if isinstance(d1[key], list) and isinstance(d2[key], list):
+                    ret[key] = merge_lists(d1[key], d2[key])
+                # case 1: d1[key] and d2[key] are dictionaries themselves
+                elif isinstance(d1[key], dict) and isinstance(d2[key], dict):
+                    ret[key] = merge_dicts(d1[key], d2[key])
+
+        for key in d2:
+
+            if key not in d1:
+                ret[key] = d2[key].copy()
+            # other case would already have been handled in d1 iteration
+            else:
+                try:
+                    assert key in ret
+                except AssertionError as e:
+                    raise AssertionError(
+                        'key, current keys: ', key, ret.keys())
+
     return ret
 
 

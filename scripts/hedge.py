@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-13 19:47:53
+# @Last Modified time: 2017-09-16 18:55:47
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -40,6 +40,8 @@ class Hedge:
         self.s = slippage
         self.mappings = {}
         self.greek_repr = {}
+        vdf.value_date = pd.to_datetime(vdf.value_date)
+        pdf.value_date = pd.to_datetime(pdf.value_date)
         self.vdf = vdf
         self.pdf = pdf
         self.pf = portfolio
@@ -52,7 +54,8 @@ class Hedge:
         self.calibrate_all()
 
     def process_hedges(self):
-        """Helper function that sorts through the mess that is the hedge dictionary. Returns the following:
+        """Helper function that sorts through the mess that is the hedge 
+        dictionary. Returns the following:
         1)  representation used to hedge gamma/theta/vega
         2) additional parameters used to hedge the same
             (such as the type of structure and the specifications of that structure.)
@@ -241,20 +244,26 @@ class Hedge:
 
         # second case: greeks by underlying (regular thing we're used to)
         elif self.desc == 'uid':
-            # self.pf.update_sec_by_month(None, 'OTC', update=True)
-            # self.pf.update_sec_by_month(None, 'hedge', update=True)
             self.greek_repr = self.pf.get_net_greeks()
-            # print('scripts.hedges.calibrate - greek repr ', self.greek_repr)
             net = self.pf.get_net_greeks()
+            assert not self.vdf.empty
             for product in net:
+                product = product.strip()
                 df = self.vdf[self.vdf.pdt == product]
+                # case: holiday for this product.
+                if df.empty:
+                    print('data does not exist for this \
+                            date and product. ', self.date, product)
                 for month in net[product]:
+                    month = month.strip()
                     uid = product + '  ' + month
-                    df = df[(df.underlying_id == uid)]
+                    df = df[df.underlying_id == uid]
                     data = net[product][month]
                     loc = (product, month)
                     if df.empty:
-                        print('df is empty, data missing. skipping..')
+                        # df2.to_csv('hedge_vdf_debug.csv', index=False)
+                        # raise ValueError(
+                        #     'df is empty, data missing. product: ', product, uid, self.date)
                         if flag not in self.mappings:
                             self.mappings[flag] = {}
                         self.mappings[flag][loc] = False
@@ -265,9 +274,9 @@ class Hedge:
                     # grab max possible ttm (i.e. ttm of the same month option)
                     try:
                         volid = product + '  ' + month + '.' + month
-                        # print('max_ttm volid: ', volid)
-                        ttm = df[(df.vol_id == volid) & (
-                            df.call_put_id == 'C')].tau.values[0]
+                        ttm = df[(df.vol_id == volid) &
+                                 (df.call_put_id == 'C')].tau.values[0]
+
                     except IndexError:
                         print('hedge.uid_volid: cannot find max ttm')
                         print('debug 1: ', df[(df.vol_id == volid)])
@@ -277,24 +286,17 @@ class Hedge:
 
                     # case: ttm specification exists.
                     if 'tau_val' in data:
-                        # print('ttm specification exists for hedging ' + flag)
                         ttm_modifier = data['tau_val']
                         # case: ttm modifier is a ratio.
                         if data['tau_desc'] == 'ratio':
                             ttm = ttm * ttm_modifier
-                        # ttm modifier is an actual value. s
+                        # ttm modifier is an actual value.
                         else:
                             ttm = ttm_modifier
 
                     closest_tau_val = min(df.tau, key=lambda x: abs(x - ttm))
-
-                    # print('closest_tau_val: ', closest_tau_val)
-
                     vol_ids = df[(df.underlying_id == uid) &
                                  (df.tau == closest_tau_val)].vol_id.values
-
-                    # print('product, month: ', product, month)
-                    # print('vol_ids: ', vol_ids)
 
                     # select the closest opmth/ftmth combination
                     split = [x.split()[1] for x in vol_ids]
@@ -307,10 +309,7 @@ class Hedge:
                     # assign to parameter dictionary.
                     if flag not in self.mappings:
                         self.mappings[flag] = {}
-
                     self.mappings[flag][loc] = volid
-
-        # print('-+-+-+- done calibrating ' + flag + ' -+-+-+-')
 
     def get_bucket(self, val, buckets=None):
         """Helper method that gets the bucket associated with a given value according to self.buckets.
@@ -460,6 +459,7 @@ class Hedge:
         """Helper method that re-inializes all values. To be used when updating portfolio
         to ascertain hedges have been satisfied.
         """
+        self.pf.refresh()
         # print('scripts.hedge - pre-refresh greek repr: ', self.greek_repr)
         for flag in self.hedges:
             if flag != 'delta':

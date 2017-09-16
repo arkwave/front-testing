@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-01 15:10:19
+# @Last Modified time: 2017-09-13 16:28:33
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -203,9 +203,9 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
     # get effective start date, pick whichever is max
 
     # case 2: drawing based on pdt, ft and opmth
-    dataset_start_date = get_min_start_date(
-        vdf, pdf, vid_list, signals=signals)
-    print('datasets start date: ', dataset_start_date)
+    # dataset_start_date = get_min_start_date(
+    #     vdf, pdf, vid_list, signals=signals)
+    # print('datasets start date: ', dataset_start_date)
 
     print('prep_data start_date: ', start_date)
 
@@ -217,12 +217,13 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
     # print('pdf: ', pdf)
     # print('vdf: ', vdf)
     # clean dataframes
+    print('==== cleaning dataframes ====')
     edf = clean_data(edf, 'exp')
     vdf = clean_data(vdf, 'vol', date=start_date,
                      edf=edf)
     pdf = clean_data(pdf, 'price', date=start_date,
                      edf=edf)
-
+    print('==== done cleaning dataframes ====')
     # reassigning variables
     final_vol = vdf
     final_price = pdf
@@ -235,7 +236,7 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
     # print('final price: ', final_price)
     # final_vol = civols(vdf, final_price)
 
-    print('sanity checking date ranges')
+    print('sanitizing date ranges')
     if not np.array_equal(pd.to_datetime(final_vol.value_date.unique()),
                           pd.to_datetime(final_price.value_date.unique())):
         vmask = final_vol.value_date.isin([x for x in final_vol.value_date.unique()
@@ -245,28 +246,29 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
         final_vol = final_vol[~vmask]
         final_price = final_price[~pmask]
 
-    if not test:
-        vbd = vol_by_delta(final_vol, final_price)
+    # if not test:
+    #     vbd = vol_by_delta(final_vol, final_price)
 
-        # merging vol_by_delta and price dataframes on product, underlying_id,
-        # value_date and order
-        vbd.underlying_id = vbd.underlying_id.str.split().str[0]\
-            + '  ' + vbd.underlying_id.str.split().str[1]
-        final_price.underlying_id = final_price.underlying_id.str.split().str[0]\
-            + '  ' + final_price.underlying_id.str.split().str[1]
-        merged = pd.merge(vbd, final_price, on=[
-                          'pdt', 'value_date', 'underlying_id'])
-        final_price = merged
+    #     # merging vol_by_delta and price dataframes on product, underlying_id,
+    #     # value_date and order
+    #     vbd.underlying_id = vbd.underlying_id.str.split().str[0]\
+    #         + '  ' + vbd.underlying_id.str.split().str[1]
+    #     final_price.underlying_id = final_price.underlying_id.str.split().str[0]\
+    #         + '  ' + final_price.underlying_id.str.split().str[1]
+    #     merged = pd.merge(vbd, final_price, on=[
+    #                       'pdt', 'value_date', 'underlying_id'])
+    #     final_price = merged
 
-        # handle conventions for vol_id in price/vol data.
-        final_vol.vol_id = final_vol.vol_id.str.split().str[0]\
-            + '  ' + final_vol.vol_id.str.split().str[1]
-        final_price.vol_id = final_price.vol_id.str.split().str[0]\
-            + '  ' + final_price.vol_id.str.split().str[1]
+    #     # handle conventions for vol_id in price/vol data.
+    #     final_vol.vol_id = final_vol.vol_id.str.split().str[0]\
+    #         + '  ' + final_vol.vol_id.str.split().str[1]
+    #     final_price.vol_id = final_price.vol_id.str.split().str[0]\
+    #         + '  ' + final_price.vol_id.str.split().str[1]
     assert not vdf.empty
     assert not pdf.empty
 
     if write:
+        print('writing cleaned/prepped data')
         desired_path = writepath if writepath is not None else direc + 'datasets/debug/'
         if not os.path.isdir(desired_path):
             os.mkdir(desired_path)
@@ -428,12 +430,13 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
 
                 vdf = vdf[(vdf.vol_id == vol_id)]
                 pdf = pdf[(pdf.underlying_id == u_id)]
-
+            print('==== moving to data prep step ====')
             vdf, pdf, edf, roll_df, start_date = prep_datasets(vdf, pdf, edf, start_date,
                                                                end_date, pdt, signals=signals,
                                                                test=test, write=write,
                                                                writepath=writepath,
                                                                direc=direc)
+            print('==== data prep completed ====')
             final_pdf = pd.concat([final_pdf, pdf])
             final_vols = pd.concat([final_vols, vdf])
 
