@@ -1,7 +1,10 @@
 import numpy as np
 import pandas as pd
-from scripts.util import pnp_format, create_straddle, merge_dicts, merge_lists
+from scripts.portfolio import Portfolio
+from scripts.util import pnp_format, create_straddle, merge_dicts, merge_lists, combine_portfolios
 from scripts.fetch_data import grab_data
+from scripts.simulation import run_simulation
+from collections import OrderedDict
 
 multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
@@ -60,25 +63,52 @@ contract_mths = {
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
-# filepath = 'C:/Users/Ananth/Desktop/pnp_sample.xlsx'
-# start_date = '2012-09-11'
-# end_date = '2013-03-01'
-# pdts = ['W']
-# ttm_tol = 24
 
-# vdf = pd.read_csv(
-#     'C:/Users/Ananth/Desktop/sim_test/w_final_vols_20120911_20130301.csv')
+filepath = 'C:/Users/Ananth/Desktop/sim_test/'
+start_date = '2016-09-01'
+end_date = '2017-06-15'
+pdts = ['W']
 
-# pdf = pd.read_csv(
-#     'C:/Users/Ananth/Desktop/sim_test/w_final_price_20120911_20130301.csv')
-
-# vdf.value_date = pd.to_datetime(vdf.value_date)
-# pdf.value_date = pd.to_datetime(pdf.value_date)
-# pdf.expdate = pd.to_datetime(pdf.expdate)
+# get the data.
+vdf, pdf, edf = grab_data(pdts, start_date, end_date, writepath=filepath)
 
 
-# u1, u2 = create_straddle('W  U3.U3', vdf, pdf, pd.to_datetime(
-#     start_date), False, 'atm', greek='theta', greekval=20000)
+# handle types.
+vdf.value_date = pd.to_datetime(vdf.value_date)
+pdf.value_date = pd.to_datetime(pdf.value_date)
+date = vdf.value_date.min()
 
-# z1, z2 = create_straddle('W  Z2.Z2', vdf, pdf, pd.to_datetime(
-#     start_date), False, 'atm', greek='theta', greekval=20000)
+# create hedges
+f_1_hedges = OrderedDict(
+    [('theta', [['bound', (3000, 5000), 1, 'straddle', 'strike', 'atm', 'uid']])])
+f_2_hedges = OrderedDict(
+    [('theta', [['bound', (7000, 9000), 1, 'straddle', 'strike', 'atm', 'uid']])])
+gen_hedges = OrderedDict([('delta', [['static', 'zero', 1]])])
+
+
+# create options
+z_strad = create_straddle('W  Z6.Z6', vdf, pdf, date, True,
+                          'atm', greek='theta', greekval=4000)
+
+u_strad = create_straddle('W  U7.U7', vdf, pdf, date, False,
+                          'atm', greek='theta', greekval=8000)
+
+
+# create the portfolios
+pf1 = Portfolio(f_1_hedges, name='roll_pf', roll=True,
+                roll_product=None, ttm_tol=10)
+pf1.add_security(z_strad, 'OTC')
+
+pf2 = Portfolio(f_2_hedges, name='backmonth', roll=False)
+pf2.add_security(u_strad, 'OTC')
+
+
+# create full portfolio
+pf = combine_portfolios([pf1, pf2], hedges=gen_hedges,
+                        name='all', refresh=True)
+
+
+# run the simulation.
+log = run_simulation(vdf, pdf, edf, pf,
+                     flat_price=False, flat_vols=False,
+                     plot_results=False, drawdown_limit=2000000)
