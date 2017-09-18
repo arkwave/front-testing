@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-18 19:55:43
+# @Last Modified time: 2017-09-18 21:05:03
 
 ################################ imports ###################################
 
@@ -1009,7 +1009,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
 
     tobeadded = []
     for op in otc_ops:
-        if np.isclose(op.tau, tol):
+        if np.isclose(op.tau, tol) or op.tau <= tol:
             exer = op.exercise()
             op.tau = 0
             if exer:
@@ -1039,7 +1039,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
                 print('letting OTC op ' + str(op) + ' expire.')
 
     for op in hedge_ops:
-        if np.isclose(op.tau, tol):
+        if np.isclose(op.tau, tol) or op.tau <= tol:
             exer = op.exercise()
             op.tau = 0
             if exer:

@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-18 15:43:18
+# @Last Modified time: 2017-09-18 21:10:34
 
 
 from .portfolio import Portfolio
@@ -12,7 +12,7 @@ import pandas as pd
 import numpy as np
 import copy
 import os
-from .calc import compute_strike_from_delta
+from .calc import compute_strike_from_delta, get_vol_from_delta
 import sys
 
 multipliers = {
@@ -303,21 +303,20 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     # Case 2: Option construction is basis delta. vol and strike are None.
     elif vol is None and strike is None:
         try:
-            col = str(int(delta)) + 'd'
-            vol = pdf[(pdf.vol_id == volid) &
-                      (pdf.value_date == date) &
-                      (pdf.call_put_id == cpi)][col].values[0]
+            delta = delta/100
+            vol = get_vol_from_delta(
+                delta, vdf, pdf, volid, char, shorted, date)
+            strike = compute_strike_from_delta(None, delta1=delta, vol=vol, s=ft.get_price(),
+                                               char=char, pdt=ft.get_product(), tau=tau)
         except IndexError as e:
             raise IndexError(
                 'util.create_vanilla_option - cannot find vol by delta. Inputs are: ', volid, date, delta, cpi) from e
-            # print()
-            # print('vol_id: ', volid)
-            # print('date: ', date)
-            # print('cpi: ', cpi)
+        except ValueError as e1:
+            raise ValueError(getattr(e1, 'message', repr(e1)))
 
     # if delta specified, compute strike appropriate to that delta
     if delta is not None:
-        delta = delta/100
+        # delta = delta/100
         strike = compute_strike_from_delta(
             None, delta1=delta, vol=vol, s=ft.get_price(), char=char, pdt=ft.get_product(), tau=tau)
         print('util.create_vanilla_option - strike: ', strike)

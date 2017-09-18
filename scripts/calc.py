@@ -45,6 +45,8 @@ Notes:
 from math import log, sqrt, exp, pi
 from scipy.stats import norm
 import numpy as np
+import copy
+from scipy.interpolate import interp1d
 # from pandas import to_datetime
 import pandas as pd
 
@@ -872,6 +874,36 @@ def _compute_iv(optiontype, s, k, c, tau, r, flag):
         # return american_iv(s, k, c, tau, r, optiontype)
 
 
+def compute_delta(x):
+    """Helper function to aid with vol_by_delta, rendered in this format to make use of 
+    pd.apply
+    Args:
+
+        x (pandas dataframe): dataframe of vols.
+    Returns:
+        double: value of delta
+
+    """
+    s = x.settle_value
+    K = x.strike
+    tau = x.tau
+    char = x.call_put_id
+    vol = x.settle_vol
+    r = 0
+    try:
+        d1 = (log(s/K) + (r + 0.5 * vol ** 2)*tau) / \
+            (vol * sqrt(tau))
+    except (ZeroDivisionError):
+        d1 = -np.inf
+    if char == 'C':
+        # call option calc for delta and theta
+        delta1 = norm.cdf(d1)
+    if char == 'P':
+        # put option calc for delta and theta
+        delta1 = norm.cdf(d1) - 1
+    return delta1
+
+
 def compute_strike_from_delta(option, delta1=None, vol=None, s=None, tau=None, char=None, pdt=None):
     """Helper function that calculates the historic equivalent strike from 
     the delta of the option. Strike is reverse-engineered from Black Scholes.
@@ -912,6 +944,52 @@ def compute_strike_from_delta(option, delta1=None, vol=None, s=None, tau=None, c
     # print('compute_strike_from_delta ticksize: ', pdt, ticksize)
     strike = round(round(strike / ticksize) * ticksize, 2)
     return strike
+
+
+def get_vol_from_delta(delta, vdf, pdf, volid, char, shorted, date):
+    """Helper method that finds the vol of a given delta. Does so by:
+    1) Calculating the delta for all reported strikes in the strike-wise 
+    vol surface for that particular option type (i.e. call or put.)
+    2) Interpolates delta vs vol using interp1d
+    3) returns the value desired. 
+
+    Args:
+        vdf (TYPE): Description
+        pdf (TYPE): Description
+        volid (TYPE): Description
+        char (TYPE): Description
+        shorted (TYPE): Description
+        date (TYPE): Description
+    """
+    v_cols = ['pdt', 'value_date', 'vol_id', 'strike',
+              'call_put_id', 'tau', 'settle_vol', 'underlying_id']
+    cpi = 'C' if char == 'call' else 'P'
+    uid = volid.split()[0] + '  ' + volid.split('.')[1]
+
+    price = pdf[(pdf.value_date == date) &
+                (pdf.underlying_id == uid)].settle_value.values[0]
+
+    vdata = copy.deepcopy(vdf[(vdf.value_date == date) &
+                              (vdf.vol_id == volid) &
+                              (vdf.call_put_id == cpi)][v_cols])
+
+    # print('vdata: ', vdata)
+
+    vdata.sort_values(by='strike', inplace=True)
+    vdata['settle_value'] = price
+    vdata['delta'] = ''
+
+    vdata['delta'] = vdata.apply(compute_delta, axis=1)
+    vdata.delta = vdata.delta.abs()
+
+    try:
+        f1 = interp1d(vdata.delta.values, vdata.settle_vol.values,
+                      kind='linear', fill_value='extrapolate')
+    except ValueError as e:
+        raise ValueError("Invalid inputs in interpolation: ",
+                         vdata.delta.values, vdata.vol.values) from e
+    val = f1(delta)
+    return val
 
 
 ####################################################################
