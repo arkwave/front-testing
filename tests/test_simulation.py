@@ -833,6 +833,10 @@ def test_roll_composite_partners():
 
     pf = combine_portfolios([pf_q, pf_c], hedges=gen_hedges)
 
+    pf.name = 'all'
+    pf_c.name = 'cc_pf'
+    pf_q.name = 'qc_pf'
+
     pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
 
     print('pf after roll: ', pf)

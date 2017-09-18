@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-16 18:56:06
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-09-18 17:18:46
 
 ################################ imports ###################################
 
@@ -361,7 +361,7 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
                 highest_value - net_cumul_values[-1])/(drawdown_limit)
 
         # option specific information
-        for op in pf.OTC_options:
+        for op in pf.get_all_options():
             ftprice = op.underlying.get_price()
             op_value = op.get_price()
             # pos = 'long' if not op.shorted else 'short'
@@ -372,14 +372,15 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
             pdt, ftmth, opmth = op.get_product(), op.get_month(), op.get_op_month()
             vol_id = pdt + '  ' + opmth + '.' + ftmth
             tau = round(op.tau * 365)
+            where = 'OTC' if op in pf.OTC_options else 'hedge'
 
             d, g, t, v = dic[pdt][ftmth]
 
-            lst = [date, vol_id, char, tau, op_value, oplots,
+            lst = [date, vol_id, char, where, tau, op_value, oplots,
                    ftprice, strike, opvol, dailypnl, dailypnl - dailycost, grosspnl, netpnl,
                    gamma_pnl, gammapnl, vega_pnl, vegapnl, roll_hedged, d, g, t, v]
 
-            cols = ['value_date', 'vol_id', 'call/put', 'ttm', 'option_value', 'option_lottage',
+            cols = ['value_date', 'vol_id', 'call/put', 'otc/hedge', 'ttm', 'option_value', 'option_lottage',
                     'future price', 'strike', 'vol',
                     'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross', 'cu_pnl_net',
                     'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl', 'cu_vega_pnl',
@@ -1116,6 +1117,9 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None):
 
     # iterate over each family.
     for fa in fa_lst:
+        print('-------------- rolling options from ' +
+              fa.name + ' -----------------')
+        print('simulation.roll_over - fa: ', fa)
         # case: no rolling specified for this family.
         if not fa.roll:
             continue
@@ -1140,6 +1144,9 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None):
         # assign all options.
         dic = fa.get_all_options()
 
+        # print('dic: ', [str(x) for x in dic])
+        print('num_ops: ', len(dic))
+
         # get list of already processed ops for this family.
         processed_ops = processed[fa]
 
@@ -1149,11 +1156,16 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None):
             # case: op has already been processed since its parter was
             # processed.
             if op in processed_ops:
+                print(str(op) + ' has been processed')
                 continue
             composites = []
 
             # case: roll if ttm threshold is breached or roll_all is triggered.
-            needtoroll = (((op.tau * 365) < fa.ttm_tol) or roll_all)
+            print('op.tau: ', op.tau * 365)
+            needtoroll = (((round(op.tau * 365) <= fa.ttm_tol) or
+                           np.isclose(op.tau, fa.ttm_tol/365)) or
+                          roll_all)
+            print('needtoroll: ', needtoroll)
             if needtoroll:
                 print('rolling option ' + str(op) + ' from ' + flag)
                 toberemoved.append(op)
@@ -1176,6 +1188,7 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None):
                 composites = create_composites(composites)
         # refresh family after iterating through its options.
         fa.refresh()
+        print('-------------- ' + fa.name + ' handled -----------------')
     # refresh portfolio after first pass through options.
     pf.refresh()
     # edge case: in the case where a roll_product is specified and hedge
@@ -1186,6 +1199,7 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None):
     print('rolled vids: ', rolled_vids)
     for vid in rolled_vids:
         ops = [op for op in pf.hedge_options if op.get_vol_id() == vid]
+        # print('EDGE CASE OPS: ', ops)
         if ops:
             print('ops: ', [str(x) for x in ops])
             for op in ops:

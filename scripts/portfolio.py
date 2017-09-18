@@ -143,13 +143,26 @@ class Portfolio:
         hedgeops = [op.__str__() for op in self.hedge_options]
         hedgeft = [op.__str__() for op in self.hedge_futures]
         nets = self.net_greeks
+
+        ft_dic = {}
+        for product in self.net_greeks:
+            if product not in ft_dic:
+                ft_dic[product] = {}
+            for mth in self.net_greeks[product]:
+                if mth not in ft_dic[product]:
+                    ft_dic[product][mth] = []
+                otc_ftpos = sum([x.lots for x in self.OTC_futures if x.get_product(
+                ) == product and x.get_month() == mth])
+                hedge_ftpos = sum([x.lots for x in self.hedge_futures if x.get_product(
+                ) == product and x.get_month() == mth])
+                ft_dic[product][mth].extend([otc_ftpos, hedge_ftpos])
         # otcs = self.OTC
         # hedges = self.hedges
 
         r_dict = {'OTC Options': otcops,
                   'OTC Futures': otcft,
                   'Hedge Options': hedgeops,
-                  'Hedge Futures': hedgeft,
+                  'Hedge Futures': ft_dic,
                   'Net Greeks': nets}
 
         return str(pprint.pformat(r_dict))

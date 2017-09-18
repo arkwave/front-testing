@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-16 16:04:56
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-09-18 15:43:18
 
 
 from .portfolio import Portfolio
@@ -974,7 +974,11 @@ def transfer_dict(d1):
         if isinstance(data, list):
             newlst = []
             for entry in data:
-                newlst.append(entry.copy())
+                if isinstance(entry, (int, float)):
+                    val = entry
+                else:
+                    val = entry.copy()
+                newlst.append(val)
             values = newlst
         elif isinstance(data, dict):
             newdic = transfer_dict(data)
