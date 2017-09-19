@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-08-09 17:01:19
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-16 17:29:19
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-09-19 19:59:42
 
-from scripts.util import combine_portfolios, create_straddle, create_vanilla_option, create_underlying, merge_dicts, merge_lists
+from scripts.util import combine_portfolios, create_straddle, create_vanilla_option, create_underlying, merge_dicts, merge_lists, transfer_dict
 from scripts.fetch_data import grab_data
 from scripts.portfolio import Portfolio
 from collections import OrderedDict
@@ -28,10 +28,27 @@ end_date = max(pdf.value_date)
 
 def test_create_vanilla_option():
     tc = un.TestCase
+    # check that not passing in delta and strike raises error.
     with tc.assertRaises(create_vanilla_option, ValueError) as e1:
         op = create_vanilla_option(vdf, pdf, 'CC  Z7.Z7', 'call', False)
 
     assert isinstance(e1.exception, ValueError)
+
+    # check that bad date value throws indexerror.
+    # fakedate = 'lolol'
+    # tc2 = un.TestCase
+    # with tc2.assertRaises(create_vanilla_option, IndexError) as e2:
+    #     op = create_vanilla_option(
+    #         vdf, pdf, 'CC  Z7.Z7', 'call', False, delta=25, date=fakedate)
+    # assert isinstance(e2.exception, ValueError)
+
+    # check that bad volid throws indexerror
+    fakevolid = 'CX KEK'
+    tc3 = un.TestCase
+    with tc3.assertRaises(create_vanilla_option, IndexError) as e3:
+        op = create_vanilla_option(vdf, pdf, fakevolid, 'call', False, delta=25,
+                                   date=start_date)
+    assert isinstance(e3.exception, IndexError)
 
 
 def test_create_straddle():
@@ -93,8 +110,30 @@ def comp_portfolio(refresh=False):
 
 def test_transfer_dict():
     # Test to ensure that modifying the output does not modify the input dict.
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
 
-    pass
+    # check the edge cases.
+    newstrad = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+                               False, 'atm', greek='theta', greekval=5000)
+
+    dic = pf_simple.OTC
+    ret = transfer_dict(dic)
+    ret.pop('CC')
+    assert len(ret) == 0
+    assert len(dic) == 1 and 'CC' in dic and 'Z7' in dic['CC']
+    assert len(pf_simple.OTC) == 1 and 'CC' in dic and 'Z7' in dic['CC']
+    assert pf_simple.OTC == dic
+
+    ret = transfer_dict(dic)
+    # modify the initial and see how it plays out.
+    for op in newstrad:
+        ret['CC']['Z7'][0].add(op)
+        ret['CC']['Z7'][2] += op.delta
+        ret['CC']['Z7'][3] += op.gamma
+        ret['CC']['Z7'][4] += op.theta
+        ret['CC']['Z7'][5] += op.vega
+    assert len(ret['CC']['Z7'][0]) == 4
+    assert len(dic['CC']['Z7'][0]) == 2
 
 
 def test_merge_dicts_updates():
@@ -134,21 +173,21 @@ def test_merge_dicts_updates():
     newhedge = {}
     newOTC = {}
     for x in [pf1, pf2]:
-        print('----- merging OTCs ------')
+        # print('----- merging OTCs ------')
         newOTC = merge_dicts(x.OTC, newOTC)
-        print('-------------------------')
-        print('----- merging hedges ------')
+        # print('-------------------------')
+        # print('----- merging hedges ------')
         newhedge = merge_dicts(x.hedges, newhedge)
-        print('----------------------------')
+        # print('----------------------------')
     # check to ensure it is all right.
     assert 'Z7' in newOTC['CC']
     assert 'H8' in newOTC['CC']
     assert 'Z7' in newhedge['CC']
     assert 'H8' not in newhedge['CC']
 
-    print('pf2.hedges before ft: ', pf2.hedges)
-    print('pf1.hedges before ft: ', pf1.hedges)
-    print('newhedge before ft: ', newhedge)
+    # print('pf2.hedges before ft: ', pf2.hedges)
+    # print('pf1.hedges before ft: ', pf1.hedges)
+    # print('newhedge before ft: ', newhedge)
 
     assert newhedge is not pf1.hedges
 
@@ -160,9 +199,9 @@ def test_merge_dicts_updates():
         'CC', 'H8', r_pdf, date, lots=abs(cc_delta), shorted=cc_shorted)
 
     newhedge['CC']['H8'] = [set(), set([ccft]), cc_delta, 0, 0, 0]
-    print('newhedge: ', newhedge)
-    print('pf2.hedges after ft: ', pf2.hedges)
-    print('pf1.hedges after ft: ', pf1.hedges)
+    # print('newhedge: ', newhedge)
+    # print('pf2.hedges after ft: ', pf2.hedges)
+    # print('pf1.hedges after ft: ', pf1.hedges)
 
     # check to ensure underlying dictionaries are not modified by modifying
     # the result of merge_dicts.
@@ -208,21 +247,21 @@ def test_merge_dicts_with_hedges():
     newhedge = {}
     newOTC = {}
     for x in [pf1, pf2]:
-        print('----- merging OTCs ------')
+        # print('----- merging OTCs ------')
         newOTC = merge_dicts(x.OTC, newOTC)
-        print('-------------------------')
-        print('----- merging hedges ------')
+        # print('-------------------------')
+        # print('----- merging hedges ------')
         newhedge = merge_dicts(x.hedges, newhedge)
-        print('----------------------------')
+        # print('----------------------------')
     # check to ensure it is all right.
     assert 'Z7' in newOTC['CC']
     assert 'H8' in newOTC['CC']
     assert 'Z7' in newhedge['CC']
     assert 'H8' not in newhedge['CC']
 
-    print('pf2.hedges before ft: ', pf2.hedges)
-    print('pf1.hedges before ft: ', pf1.hedges)
-    print('newhedge before ft: ', newhedge)
+    # print('pf2.hedges before ft: ', pf2.hedges)
+    # print('pf1.hedges before ft: ', pf1.hedges)
+    # print('newhedge before ft: ', newhedge)
 
     ccdelta2 = int(pf1.net_greeks['CC']['Z7'][0])
     shorted = False if ccdelta2 < 0 else True
@@ -232,9 +271,9 @@ def test_merge_dicts_with_hedges():
     newhedge['CC']['Z7'][1].add(ccft2)
     newhedge['CC']['Z7'][2] += ccft2.get_delta()
 
-    print('newhedge: ', newhedge)
+    # print('newhedge: ', newhedge)
     # print('pf2.hedges after ft: ', pf2.hedges)
-    print('pf1.hedges after ft: ', pf1.hedges)
+    # print('pf1.hedges after ft: ', pf1.hedges)
 
     assert ccft2 not in pf1.hedges['CC']['Z7'][1]
     assert 'CC' not in pf2.hedges
@@ -274,21 +313,21 @@ def test_merge_dicts_OTC():
     newhedge = {}
     newOTC = {}
     for x in [pf1, pf2]:
-        print('----- merging OTCs ------')
+        # print('----- merging OTCs ------')
         newOTC = merge_dicts(x.OTC, newOTC)
-        print('-------------------------')
-        print('----- merging hedges ------')
+        # print('-------------------------')
+        # print('----- merging hedges ------')
         newhedge = merge_dicts(x.hedges, newhedge)
-        print('----------------------------')
+        # print('----------------------------')
     # check to ensure it is all right.
     assert 'Z7' in newOTC['CC']
     assert 'H8' in newOTC['CC']
     assert 'Z7' in newhedge['CC']
     assert 'H8' not in newhedge['CC']
 
-    print('pf2.OTC before ft: ', pf2.OTC)
-    print('pf1.OTC before ft: ', pf1.OTC)
-    print('newOTC before ft: ', newOTC)
+    # print('pf2.OTC before ft: ', pf2.OTC)
+    # print('pf1.OTC before ft: ', pf1.OTC)
+    # print('newOTC before ft: ', newOTC)
 
     ccdelta2 = int(pf1.net_greeks['CC']['Z7'][0])
     shorted = False if ccdelta2 < 0 else True
@@ -298,9 +337,9 @@ def test_merge_dicts_OTC():
     newOTC['CC']['Z7'][1].add(ccft2)
     newOTC['CC']['Z7'][2] += ccft2.get_delta()
 
-    print('newhedge: ', newOTC)
+    # print('newhedge: ', newOTC)
     # print('pf2.hedges after ft: ', pf2.hedges)
-    print('pf1.OTC after ft: ', pf1.OTC)
+    # print('pf1.OTC after ft: ', pf1.OTC)
 
     assert ccft2 not in pf1.OTC['CC']['Z7'][1]
     assert 'Z7' not in pf2.OTC['CC']
@@ -345,7 +384,7 @@ def test_merge_lists():
 
     # merge the two lists.
     ret = merge_lists(l1, l2)
-    print(ret)
+    # print(ret)
     # sanity check
     assert len(ret[0]) == 2
     assert len(ret[1]) == 1
@@ -370,7 +409,7 @@ def test_merge_lists():
     assert l2[2] == ccft.get_delta()
 
 
-def test_combine_portfolios():
+def test_combine_portfolios_basic():
 
     cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
         start_date), False, 'atm', greek='vega', greekval=20000)
@@ -393,12 +432,19 @@ def test_combine_portfolios():
         for mth in otc[pdt]:
             assert pf3.OTC[pdt][mth] == otc[pdt][mth]
 
+    for pdt in pf2.OTC:
+        for mth in pf2.OTC[pdt]:
+            assert pf3.OTC[pdt][mth] == pf2.OTC[pdt][mth]
+
     # hedge check
     hed = pf1.hedges.copy()
     hed.update(pf2.hedges.copy())
     for pdt in hed:
         for mth in hed[pdt]:
             assert pf3.hedges[pdt][mth] == hed[pdt][mth]
+    for pdt in pf2.hedges:
+        for mth in pf2.hedges[pdt]:
+            assert pf3.hedges[pdt][mth] == pf2.hedges[pdt][mth]
 
     # net check
     net_tst = pf1.net_greeks.copy()
@@ -406,6 +452,10 @@ def test_combine_portfolios():
     for pdt in net_tst:
         for mth in net_tst[pdt]:
             assert net_tst[pdt][mth] == pf3.net_greeks[pdt][mth]
+
+    for pdt in pf2.net_greeks:
+        for mth in pf2.net_greeks[pdt]:
+            assert pf3.net_greeks[pdt][mth] == pf2.net_greeks[pdt][mth]
 
     # lists check
     otcops = pf1.OTC_options.copy()
@@ -418,3 +468,212 @@ def test_combine_portfolios():
 
     assert pf3.families == [pf1, pf2]
     assert isinstance(pf3, Portfolio)
+
+
+def test_combine_portfolios_containment():
+
+    cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
+        start_date), False, 'atm', greek='vega', greekval=20000)
+
+    qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(
+        start_date), True, 'atm', greek='vega', greekval=20000)
+
+    pf1 = Portfolio(None)
+    pf1.add_security([qc1, qc2], 'OTC')
+
+    pf2 = Portfolio(None)
+    pf2.add_security([cc1, cc2], 'OTC')
+
+    pf3 = combine_portfolios([pf1, pf2], refresh=True)
+
+    # create CC future
+    cc_delta = pf3.net_greeks['CC']['U7'][0]
+    cc_shorted = True if cc_delta > 0 else False
+    ccft, _ = create_underlying('CC', 'U7', pdf, pd.to_datetime(
+        start_date), shorted=cc_shorted, lots=abs(cc_delta))
+
+    # create QC future
+    qc_delta = pf3.net_greeks['QC']['U7'][0]
+    qc_shorted = True if cc_delta > 0 else False
+    qcft, _ = create_underlying('QC', 'U7', pdf, pd.to_datetime(
+        start_date), shorted=qc_shorted, lots=abs(qc_delta))
+
+    # add both futures to super-portfolio
+    pf3.add_security([qcft, ccft], 'OTC')
+    # print('pf2: ', pf2.OTC)
+    # print('pf3.net_greeks post ft pre refresh: ', pf3.net_greeks)
+    # print('------------ refresh call -------------')
+    pf3.refresh()
+    # print('------------ end refresh call -------------')
+    # print('pf3.net_greeks post ft post refresh: ', pf3.net_greeks)
+
+    # check that futures are not sent into the constituent families.
+    try:
+        assert ccft not in pf1.OTC_options
+        assert len(pf1.OTC['QC']['U7'][1]) == 0
+        assert len(pf2.OTC['CC']['U7'][1]) == 0
+        # assert ccft not in pf1.OTC_options
+    except AssertionError as e:
+        # print('pf1: ', pf1.OTC)
+        # print('pf2: ', pf2.OTC)
+        raise AssertionError("pf1, pf2: ", pf1.OTC, pf2.OTC) from e
+
+    # check that the net greeks have been updated post refresh.
+    try:
+        assert pf3.net_greeks['CC']['U7'][0] == 0
+        assert pf3.net_greeks['QC']['U7'][0] == 0
+    except AssertionError as e:
+        raise AssertionError("pf1, pf2, pf3: ", pf1.net_greeks,
+                             pf2.net_greeks, pf3.net_greeks)
+
+
+def test_combine_portfolios_lists_vs_sets():
+
+    cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
+        start_date), False, 'atm', greek='vega', greekval=20000)
+
+    qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(
+        start_date), True, 'atm', greek='vega', greekval=20000)
+
+    pf1 = Portfolio(None)
+    pf1.add_security([qc1, qc2], 'OTC')
+
+    pf2 = Portfolio(None)
+    pf2.add_security([cc1, cc2], 'OTC')
+
+    pf3 = combine_portfolios([pf1, pf2], refresh=True)
+
+    ccs = [x for x in pf3.OTC_options if x.get_product() == 'CC']
+    qcs = [x for x in pf3.OTC_options if x.get_product() == 'QC']
+
+    for x in ccs:
+        assert x in pf3.OTC['CC']['U7'][0]
+
+    for x in qcs:
+        assert x in pf3.OTC['QC']['U7'][0]
+
+
+def test_combine_portfolios_check_families():
+    cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
+        start_date), False, 'atm', greek='vega', greekval=20000)
+
+    qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(
+        start_date), True, 'atm', greek='vega', greekval=20000)
+
+    pf1 = Portfolio(None)
+    pf1.add_security([qc1, qc2], 'OTC')
+
+    pf2 = Portfolio(None)
+    pf2.add_security([cc1, cc2], 'OTC')
+
+    pf3 = combine_portfolios([pf1, pf2], refresh=True)
+    assert pf3.families == [pf1, pf2]
+
+
+def test_merge_dicts_list_case():
+    d1 = {'Z7': [set(), set(), 0, 0, 0, 0]}
+    d2 = {'H8': [set(), set(), 0, 0, 0, 0]}
+    cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
+        start_date), False, 'atm', greek='vega', greekval=20000)
+
+    d1['Z7'][0].add(cc1)
+    d1['Z7'][0].add(cc2)
+
+    for x in [cc1, cc2]:
+        d1['Z7'][2] += x.delta
+        d1['Z7'][3] += x.gamma
+        d1['Z7'][4] += x.theta
+        d1['Z7'][5] += x.vega
+
+    qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(
+        start_date), True, 'atm', greek='vega', greekval=20000)
+
+    d2['H8'][0].add(qc1)
+    d2['H8'][0].add(qc2)
+
+    for x in [qc1, qc2]:
+        d2['H8'][2] += x.delta
+        d2['H8'][3] += x.gamma
+        d2['H8'][4] += x.theta
+        d2['H8'][5] += x.vega
+
+    # print('d1: ', d1)
+    # print('d2: ', d2)
+
+    # merge_dict list case.
+    ret = merge_dicts(d1, d2)
+
+    # print('ret: ', ret)
+
+    # create a cc_future
+    ccft, _ = create_underlying('CC', 'U7', pdf, pd.to_datetime(
+        start_date), shorted=True, lots=100)
+
+    # isolate the Z7 entry.
+    ret_cc = ret['Z7']
+    ret_qc = ret['H8']
+
+    # print('ret_cc: ', ret_cc)
+    # print('ret_qc: ', ret_qc)
+    # add the future into ret. assert that the initial is unchanged
+    ret_cc[1].add(ccft)
+    assert len(ret_cc[1]) == 1
+    try:
+        assert len(d1['Z7'][1]) == 0
+    except AssertionError:
+        raise AssertionError('actual: ', [str(x) for x in d1['Z7'][1]])
+
+
+def test_merge_dicts_edge_case():
+    d1 = {'Z7': [set(), set(), 0, 0, 0, 0]}
+    d2 = {'H8': [set(), set(), 0, 0, 0, 0]}
+    cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
+        start_date), False, 'atm', greek='vega', greekval=20000)
+
+    d1['Z7'][0].add(cc1)
+    d1['Z7'][0].add(cc2)
+
+    for x in [cc1, cc2]:
+        d1['Z7'][2] += x.delta
+        d1['Z7'][3] += x.gamma
+        d1['Z7'][4] += x.theta
+        d1['Z7'][5] += x.vega
+
+    qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(
+        start_date), True, 'atm', greek='vega', greekval=20000)
+
+    d2['H8'][0].add(qc1)
+    d2['H8'][0].add(qc2)
+
+    for x in [qc1, qc2]:
+        d2['H8'][2] += x.delta
+        d2['H8'][3] += x.gamma
+        d2['H8'][4] += x.theta
+        d2['H8'][5] += x.vega
+
+    # print('d1: ', d1)
+    # print('d2: ', d2)
+
+    # merge_dict list case.
+    ret = merge_dicts(d1, d2)
+
+    # print('ret: ', ret)
+
+    # isolate the Z7 entry.
+    ret_cc = ret['Z7']
+    ret_qc = ret['H8']
+
+    # print('ret_cc: ', ret_cc)
+    # print('ret_qc: ', ret_qc)
+    # remove first option from new, assert old is unchanged.
+    first = next(iter(ret_cc[0]))
+    # print('first: ', first)
+    ret_cc[0].remove(first)
+
+    # print('')
+
+    assert len(ret_cc[0]) == 1
+    try:
+        assert len(d1['Z7'][0]) == 2
+    except AssertionError:
+        raise AssertionError('actual: ', [str(x) for x in d1['Z7'][0]])

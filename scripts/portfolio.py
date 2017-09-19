@@ -426,6 +426,7 @@ class Portfolio:
                         # call to remove_security. happens because option set is passed
                         # by reference
                         if sec not in fpf.OTC[sec.get_product()][sec.get_month()][0]:
+                            print('reg case hit')
                             fpf.OTC_options.remove(sec)
                         else:
                             # pretty sure this never gets triggered.

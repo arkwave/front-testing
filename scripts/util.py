@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-18 21:10:34
+# @Last Modified time: 2017-09-19 19:59:07
 
 
 from .portfolio import Portfolio
@@ -284,8 +284,6 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     except IndexError as e:
         raise IndexError(
             'util.create_vanilla_option - cannot find ttm in dataset. Inputs are: ', date, volid) from e
-        # print()
-        # print('inputs: ', date, volid)
 
     # Case 1 : Vol is None, but strike is specified.
     if vol is None and strike is not None:
@@ -342,7 +340,6 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
             print('theta req: ', theta_req)
             lm, dm = multipliers[pdt][1], multipliers[pdt][0]
             t1 = (newop.theta * 365)/(newop.lots * lm * dm)
-            # t2 = (op2.theta * 365) / (op2.lots * lm * dm)
             lots_req = round((abs(theta_req) * 365) / abs(t1 * lm * dm))
 
         if kwargs['greek'] == 'vega':
@@ -945,12 +942,15 @@ def combine_portfolios(lst, hedges=None, name=None, refresh=False):
 
     pf = Portfolio(None) if hedges is None else Portfolio(hedges, name)
     for p in lst:
+        # print('p: ', p)
         # update the lists first.
         pf.OTC_options.extend(p.OTC_options)
         pf.hedge_options.extend(p.hedge_options)
+        # print('--------- merging OTCs ---------')
         pf.OTC = merge_dicts(p.OTC, pf.OTC)
+        # print('--------- merging hedges ----------')
         pf.hedges = merge_dicts(p.hedges, pf.hedges)
-
+        # print('---------- next loop ----------')
     pf.set_families(lst)
 
     if refresh:
@@ -976,7 +976,9 @@ def transfer_dict(d1):
                 if isinstance(entry, (int, float)):
                     val = entry
                 else:
-                    val = entry.copy()
+                    val = set()
+                    val.update(entry)
+                    # val = entry.copy()
                 newlst.append(val)
             values = newlst
         elif isinstance(data, dict):
@@ -1005,9 +1007,11 @@ def merge_lists(r1, r2):
     l1 = copy.copy(r1)
     l2 = copy.copy(r2)
     if len(l1) == 0:
-        return l2.copy()
+        # print('basecase: l1 is empty: ', l2)
+        return transfer_lists(l2)
     elif len(l2) == 0:
-        return l1.copy()
+        # print('basecase: l2 is empty: ', l1)
+        return transfer_lists(l1)
 
     ret = []
     assert len(l1) == len(l2)
@@ -1041,8 +1045,10 @@ def merge_dicts(d1, d2):
     ret = {}
     # base cases: either d1 or d2 are empty.
     if len(d1) == 0:
+        # print('basecase: l1 is empty: ', d2)
         ret = transfer_dict(d2.copy())
     elif len(d2) == 0:
+        # print('basecase: l2 is empty: ', d1)
         ret = transfer_dict(d1.copy())
     else:
         # handles d1-unique and d1-d2 overlap keys.
@@ -1051,7 +1057,11 @@ def merge_dicts(d1, d2):
             # this key in ret.
             if key not in d2:
                 # print(key + ' unique to d1')
-                ret[key] = d1[key].copy()
+                if isinstance(d1[key], dict):
+                    ret[key] = transfer_dict(d1[key].copy())
+                else:
+                    # print('hit list case')
+                    ret[key] = transfer_lists(d1[key].copy())
             # case: this key exists in d2. need to merge the outputs of d1[key]
             # and d2[key]
             else:
@@ -1063,9 +1073,13 @@ def merge_dicts(d1, d2):
                     ret[key] = merge_dicts(d1[key], d2[key])
 
         for key in d2:
-
             if key not in d1:
-                ret[key] = d2[key].copy()
+                # print(key + ' unique to d2')
+                if isinstance(d2[key], dict):
+                    ret[key] = transfer_dict(d2[key].copy())
+                else:
+                    # print('hit list case')
+                    ret[key] = transfer_lists(d2[key].copy())
             # other case would already have been handled in d1 iteration
             else:
                 try:
@@ -1075,6 +1089,27 @@ def merge_dicts(d1, d2):
                         'key, current keys: ', key, ret.keys())
 
     return ret
+
+
+def transfer_lists(l):
+    """Helper method that passes references of a list to another, new list
+    such that modifying the output does not modify the input 
+
+    Args:
+        l (TYPE): the list to be transferred. 
+
+    Returns:
+        TYPE: new list
+    """
+    lst = []
+    for x in l:
+        if isinstance(x, (float, int)):
+            val = x
+        elif isinstance(x, set):
+            val = x.copy()
+        lst.append(val)
+
+    return lst
 
 
 def volids_from_ci(date_range, product, ci):

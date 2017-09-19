@@ -108,7 +108,7 @@ pf = combine_portfolios([pf1, pf2], hedges=gen_hedges,
                         name='all', refresh=True)
 
 
-# run the simulation.
-log = run_simulation(vdf, pdf, edf, pf,
-                     flat_price=False, flat_vols=False,
-                     plot_results=False, drawdown_limit=2000000)
+# # run the simulation.
+# log = run_simulation(vdf, pdf, edf, pf,
+#                      flat_price=False, flat_vols=False,
+#                      plot_results=False, drawdown_limit=2000000)
