@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-16 18:55:47
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-09-19 20:19:02
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -206,28 +206,19 @@ class Hedge:
                     else:
                         ttm = max([op.tau for op in options])
 
-                    # print('ttm: ', ttm)
-
                     # check available vol_ids and pick the closest one.
 
                     closest_tau_val = sorted(
                         df.tau, key=lambda x: abs(x - ttm))
-
-                    # print('closest_tau_val: ', closest_tau_val)
 
                     # sanity check: ensuring that the option being selected to
                     # hedge has at least 4 days to maturity (i.e. to account
                     # for a weekend)
 
                     valid = [x for x in closest_tau_val if x > 4/365]
-
                     closest_tau_val = valid[0]
-
-                    # print('closest_tau_val: ', closest_tau_val)
-
                     vol_ids = df[df.tau == closest_tau_val].vol_id.values
 
-                    # print('vol_ids: ', vol_ids)
                     # select the closest opmth/ftmth combination
                     split = [x.split()[1] for x in vol_ids]
                     # sort by ft_year, ft_month and op_month
@@ -261,16 +252,12 @@ class Hedge:
                     data = net[product][month]
                     loc = (product, month)
                     if df.empty:
-                        # df2.to_csv('hedge_vdf_debug.csv', index=False)
-                        # raise ValueError(
-                        #     'df is empty, data missing. product: ', product, uid, self.date)
                         if flag not in self.mappings:
                             self.mappings[flag] = {}
                         self.mappings[flag][loc] = False
                         continue
                     if not data or (data == [0, 0, 0, 0]):
                         continue
-
                     # grab max possible ttm (i.e. ttm of the same month option)
                     try:
                         volid = product + '  ' + month + '.' + month
@@ -408,9 +395,6 @@ class Hedge:
         self.greek_repr = self.pf.greeks_by_exp(self.buckets)
         net_greeks = self.greek_repr
         tst = self.hedges.copy()
-        # if 'delta' in tst:
-        #     tst.pop('delta')
-        # delta condition:
         conditions = []
         for greek in tst:
             conds = tst[greek]
@@ -421,36 +405,27 @@ class Hedge:
                     ltol, utol = val - 1, val + 1
                     conditions.append((strs[greek], (ltol, utol)))
                 elif cond[0] == 'bound':
-                    # print('to be literal eval-ed: ', hedges[greek][1])
                     c = cond[1]
                     tup = (strs[greek], c)
                     conditions.append(tup)
-        # print('conditions: ', conditions)
 
         for pdt in net_greeks:
             for exp in net_greeks[pdt]:
                 ops = net_greeks[pdt][exp][0]
                 greeks = net_greeks[pdt][exp][1:]
-                # print('ops: ', ops)
                 if ops:
-                    # print('ops is true for exp = ' + str(exp))
                     for cond in conditions:
                         ltol, utol = cond[1]
                         index = cond[0]
-
                         # sanity check: if greek is negative, flip the sign of the bounds
                         # in the case of gamma/theta/vega
                         if greeks[index] < 0 and index != 0:
                             tmp = ltol
                             ltol = -utol
                             utol = -tmp
-                        # print('scripts.hedge.check_exp_hedges: inputs - ',
-                        #       greeks[index], ltol, utol)
                         if (greeks[index] > utol) or \
                                 (greeks[index] < ltol):
-                            # print('exp hedges ' + ' ' + str(cond) + ' failed')
-                            # print(greeks[index], ltol, utol)
-                            # print('--- done checking exp hedges satisfied ---')
+
                             return False
         # rolls_satisfied = check_roll_hedges(pf, hedges)
         return True
@@ -507,12 +482,10 @@ class Hedge:
 
         if flag == 'delta' and hedge_type == 'static':
             fee = self.hedge_delta()
-            # print('======= done ' + flag + ' hedge =========')
             return fee
 
         for product in self.greek_repr:
             for loc in self.greek_repr[product]:
-                # print('>> hedging ' + str(product) + ' ' + str(loc) + ' <<')
                 fulldata = self.greek_repr[product][loc]
                 # case: options included in greek repr
                 if len(fulldata) == 5:
@@ -537,13 +510,11 @@ class Hedge:
                                            loc, greekval, target)
                     else:
                         continue
-                        # print(product + ' ' + str(loc) +
-                        #       ' ' + flag + ' within bounds. skipping...')
 
                 elif hedge_type == 'static':
                     val = self.params[flag]['target']
                     cost += self.hedge(flag, product, loc, greekval, val)
-        # print('======= done ' + flag + ' hedge =========')
+
         return cost
 
     def hedge(self, flag, product, loc, greekval, target):
@@ -562,12 +533,7 @@ class Hedge:
             target = -target
 
         cost = 0
-        # print('target ' + flag + ': ', target)
-        # print('current ' + flag + ': ', greekval)
-
         reqd_val = target - greekval
-
-        # print('required ' + flag + ': ', reqd_val)
         # all hedging info is contained in self.params[flag]
         data = self.params[flag]
 
@@ -654,12 +620,6 @@ class Hedge:
                 shorted = True if val < 0 else False
             elif flag == 'theta':
                 shorted = True if val > 0 else False
-
-        # elif desc in ('call', 'put'):
-        #     if flag in ('gamma', 'vega'):
-        #         shorted = True if val < 0 else False
-        #     elif flag == 'theta':
-                # shorted = True if val > 0 else False
 
         return shorted
 
