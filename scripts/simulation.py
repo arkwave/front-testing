@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-08 18:51:55
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-09-20 21:45:11
 
 ################################ imports ###################################
 
@@ -250,25 +250,45 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
             next_date = None
 
         # filter data specific to the current day of the simulation.
-        vdf = voldata[voldata.value_date == date]
-        pdf = pricedata[pricedata.value_date == date]
+        vdf_1 = voldata[voldata.value_date == date]
+        pdf_1 = pricedata[pricedata.value_date == date]
 
         print('Portfolio before any ops: ', pf)
 
-    # Step 3: Feed data into the portfolio.
-        pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
-            = feed_data(vdf, pdf, pf, init_val, flat_vols=flat_vols, flat_price=flat_price)
+        dailypnl = 0
+        # currently only takes into account price data timesteps
+        for ts in pdf_1.time:
 
-    # Step 4: Compute pnl for the day
-        updated_val = pf.compute_value()
-        dailypnl = (updated_val -
-                    init_val) + exercise_profit if (init_val != 0 and updated_val != 0) else 0
+            # base case:
 
-    # Detour: add in exercise & barrier futures if required.
-        if exercise_futures:
-            pf.add_security(exercise_futures, 'OTC')
-        if barrier_futures:
-            pf.add_security(barrier_futures, 'hedge')
+            print('===================== time: ' + str(ts) + ' =====================')
+            # for prices: filter and use exclusively the intraday data. 
+            pdf = pdf_1[pdf_1.time == ts & pdf_1.datatype == 'intraday']
+            vdf = vdf_1[vdf_1.time == ts]
+
+            # Step 3: Feed data into the portfolio.
+            pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
+                = feed_data(vdf, pdf, pf, init_val, flat_vols=flat_vols, flat_price=flat_price)
+
+            # Step 4: Compute pnl for the day
+            updated_val = pf.compute_value()
+            pnl = (updated_val -
+                        init_val) + exercise_profit if (init_val != 0 and updated_val != 0) else 0
+            dailypnl += pnl
+
+        # add in the intraday hedging step here. 
+
+        # Detour: add in exercise & barrier futures if required.
+            if exercise_futures:
+                pf.add_security(exercise_futures, 'OTC')
+            if barrier_futures:
+                pf.add_security(barrier_futures, 'hedge')
+
+            print('============= end timestamp ' + str(ts) + '===================')
+
+        # refilter the dataframe to use settlements from here on out. 
+        pdf = pdf_1[pdf_1.datatype == 'settlement']
+        vdf = vdf_1[vdf_1.datatype == 'settlement']
 
     # Step 5: Apply signal
         if signals is not None:
@@ -279,20 +299,21 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
                                              brokerage=brokerage, slippage=slippage)
             dailycost += cost
 
-    # Step 6: rolling over portfolio and hedges if required.
+        # Step 6: rolling over portfolio and hedges if required.
         cost = 0
         if roll_portfolio:
             pf, cost = roll_over(pf, vdf, pdf, date, brokerage=brokerage,
                                  slippage=slippage,
                                  target_product=pf_roll_product, ttm_tol=pf_ttm_tol)
 
-    # Step 7: Hedge - bring greek levels across portfolios (and families) into
-    # line with target levels.
+        # Step 7: Hedge - bring greek levels across portfolios (and families) into
+        # line with target levels.
         pf, cost, roll_hedged = rebalance(vdf, pdf, pf, brokerage=brokerage,
                                           slippage=slippage, next_date=next_date)
 
-    # Step 8: Subtract brokerage/slippage costs from rebalancing. Append to
-    # relevant lists.
+
+        # Step 8: Subtract brokerage/slippage costs from rebalancing. Append to
+        # relevant lists.
 
         # gamma/vega pnls
         gamma_pnl_daily.append(gamma_pnl)
@@ -309,8 +330,8 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         netpnl += (dailypnl - cost)
         net_cumul_values.append(netpnl)
 
-    # Step 9: Update highest_value so that the next
-    # loop can check for drawdown.
+        # Step 9: Update highest_value so that the next
+        # loop can check for drawdown.
         if netpnl > highest_value:
             highest_value = netpnl
 
