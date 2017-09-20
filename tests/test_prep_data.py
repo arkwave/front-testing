@@ -167,7 +167,7 @@ def test_handle_intraday():
 
     assert not df.empty
     assert len(df.columns) == 8
-    assert list(df.columns) == ['pdt', 'ftmth', 'uid', 'value_date',
+    assert list(df.columns) == ['pdt', 'ftmth', 'underlying_id', 'value_date',
                                 'time', 'price', 'volume', 'datatype']
 
     # check that length of processed <= length of init
@@ -183,14 +183,14 @@ def test_handle_intraday():
     assert df[df.value_date.isin(holidays)].empty
 
     # check columns and naming conventions.
-
-
 def test_insert_settlements():
     test_data = intraday_data[intraday_data.Commodity == 'S U7 Comdty']
     df = pr.handle_intraday_conventions(test_data)
     sd, ed = df.value_date.min().strftime('%Y-%m-%d'), \
         df.value_date.max().strftime('%Y-%m-%d')
     _, settlements, _ = grab_data(['S'], sd, ed, test=True)
+
+
     test = pr.insert_settlements(df, settlements)
     # test that for each day, settlement data is appended to the end.
     for date in pd.to_datetime(test.value_date.unique()):
@@ -205,17 +205,17 @@ def test_get_closest_price():
         intraday_data.Commodity.isin(['S U7 Comdty', 'S F8 Comdty'])]
     test_data = pr.handle_intraday_conventions(test_data)
     test_data = test_data[test_data.value_date == test_data.value_date.min()]
-    # isolate the dataframes on the basis of UID
-    udata = test_data[test_data.uid == 'S  U7']
-    fdata = test_data[test_data.uid == 'S  F8']
+    # isolate the dataframes on the basis of underlying_id
+    udata = test_data[test_data.underlying_id == 'S  U7']
+    fdata = test_data[test_data.underlying_id == 'S  F8']
 
     ts = udata.time.min()
     test = pr.get_closest_ts_data(ts, [fdata])
 
     assert len(test) == 1
     print('test: ', test)
-    assert len(test[0][0]) == 8
-    assert test[0][0][-3] == 1017.5
+    assert len(test[0]) == 8
+    assert test[0]['price'] == 1017.5
 
 
 def test_timestep_recon():
@@ -230,21 +230,21 @@ def test_timestep_recon():
 
     # filter to the first day.
     test_data = test_data[test_data.value_date == test_data.value_date.min()]
-    udata = test_data[test_data.uid == 'S  U7']
-    fdata = test_data[test_data.uid == 'S  F8']
+    udata = test_data[test_data.underlying_id == 'S  U7']
+    fdata = test_data[test_data.underlying_id == 'S  F8']
 
     # timestep reconciliation step.
     fin = pr.timestep_recon(test_data)
     assert len(fin) <= len(fdata) + len(udata)
 
-    assert len(fin[fin.uid == 'S  U7']) <= len(udata)
-    assert len(fin[fin.uid == 'S  F8']) <= len(fdata)
+    assert len(fin[fin.underlying_id == 'S  U7']) <= len(udata)
+    assert len(fin[fin.underlying_id == 'S  F8']) <= len(fdata)
 
     # the timesteps present should be a subset of fdata timesteps.
     assert set(fin.time).issubset(set(fdata.time))
 
     # check that settlement values are present.
-    fin_u = fin[fin.uid == 'S  U7']
-    fin_f = fin[fin.uid == 'S  F8']
+    fin_u = fin[fin.underlying_id == 'S  U7']
+    fin_f = fin[fin.underlying_id == 'S  F8']
     assert 'settlement' in fin_u.datatype.unique()
     assert 'settlement' in fin_f.datatype.unique()

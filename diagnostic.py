@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import time
 import scripts.prep_data as pr
-from scripts.util import create_skew
+from scripts.util import create_skew, create_underlying, create_vanilla_option
 from scripts.fetch_data import grab_data
 
 
@@ -63,40 +63,58 @@ contract_mths = {
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
-intraday_data = pd.read_csv('datasets/s_intraday.csv')
-intraday_data.Date = pd.to_datetime(intraday_data.Date)
+# intraday_data = pd.read_csv('datasets/s_intraday.csv')
+# intraday_data.Date = pd.to_datetime(intraday_data.Date)
 
-test_data = intraday_data[
-    intraday_data.Commodity.isin(['S U7 Comdty', 'S F8 Comdty'])]
+# test_data = intraday_data[
+#     intraday_data.Commodity.isin(['S U7 Comdty', 'S F8 Comdty'])]
 
+# # test_data = pr.handle_intraday_conventions(test_data)
+
+# sd, ed = test_data.Date.min().strftime('%Y-%m-%d'), \
+#     test_data.Date.max().strftime('%Y-%m-%d')
+
+
+# vdf.value_date = pd.to_datetime(vdf.value_date)
+# pdf.value_date = pd.to_datetime(pdf.value_date)
+
+# date = vdf.value_date.min()
+
+# op1, op2 = create_skew('S  U7.U7', vdf, pdf, date,
+#                        False, 25, greek='vega', greekval=100000)
+
+# print('op1: ', op1)
+# print('op2: ', op2)
+
+
+# print('handling intraday conventions...')
+# t1 = time.clock()
 # test_data = pr.handle_intraday_conventions(test_data)
-
-sd, ed = test_data.Date.min().strftime('%Y-%m-%d'), \
-    test_data.Date.max().strftime('%Y-%m-%d')
-
-vdf, pdf, edf = grab_data(['S'], sd, ed, test=True)
-
-vdf.value_date = pd.to_datetime(vdf.value_date)
-pdf.value_date = pd.to_datetime(pdf.value_date)
-
-date = vdf.value_date.min()
-
-op1, op2 = create_skew('S  U7.U7', vdf, pdf, date,
-                       False, 25, greek='vega', greekval=100000)
-
-print('op1: ', op1)
-print('op2: ', op2)
+# print('intraday conventions handled. elapsed: ', time.clock() - t1)
 
 
-print('handling intraday conventions...')
-t1 = time.clock()
-test_data = pr.handle_intraday_conventions(test_data)
-print('intraday conventions handled. elapsed: ', time.clock() - t1)
+# # small_df = test_data[test_data.value_date == test_data.value_date.min()]
+
+# print('running timestep recon..')
+# t = time.clock()
+# tst = pr.timestep_recon(test_data)
+# print('finished timestep recon. elapsed: ', time.clock() - t)
 
 
-# small_df = test_data[test_data.value_date == test_data.value_date.min()]
+df = pd.read_csv('alt_merged_data.csv')
+df.value_date = pd.to_datetime(df.value_date)
+df.time = df.time.astype(pd.Timestamp)
+date = df.value_date.min() 
+max_date = df.value_date.max() 
 
-print('running timestep recon..')
-t = time.clock()
-tst = pr.timestep_recon(test_data)
-print('finished timestep recon. elapsed: ', time.clock() - t)
+
+vdf, pdf, edf = grab_data(['S'], date.strftime('%Y-%m-%d'), max_date.strftime('%Y-%m-%d'), test=True)
+
+
+tst_underlying = create_underlying('S', 'U7', df, date=date, shorted=False)
+print(tst_underlying)
+
+
+tst_op = create_vanilla_option(vdf, df, 'S  U7.U7', 'call', False, date=date, strike='atm')
+
+tst_skew = create_skew('S  U7.U7', vdf, df, date, False, 25)

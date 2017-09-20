@@ -23,7 +23,7 @@ from scipy.interpolate import interp1d
 from scipy.stats import norm
 from math import log, sqrt
 import time
-import datetime
+import datetime as dt
 from ast import literal_eval
 from collections import OrderedDict
 import copy
@@ -550,7 +550,7 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None, sdf=None):
         df.vol = pd.to_numeric(df.vol)
         df.value_date = pd.to_datetime(df.value_date)
         df.time = df.time.astype(pd.Timestamp)
-    # cleaning price data
+    # cleaning price data. this is only called when NOT handling intraday data. 
     elif flag == 'price':
         # dealing with datatypes and generating new fields from existing ones.
         df['value_date'] = pd.to_datetime(df['value_date'])
@@ -1158,23 +1158,21 @@ def timestep_recon(df):
             for index in target_data.index:
                 data = target_data.iloc[index]
                 ts = data.time
-                # print('datalst: ', data.values)
-                # data = [data.values]
-                dic_lst.append(dict(zip(cols, data.values)))
+
                 # helper to get all the other individuals.
                 other_data = get_closest_ts_data(ts, dfs)
                 # case: others have no data earlier than ts.
                 if not other_data:
                     continue
+                # isolate data for this day. 
+                # append data
+                dic_lst.append(dict(zip(cols, data.values)))
+                # extend other data 
                 dic_lst.extend(other_data)
             print('datalen: ', list(zip(*ords))[1])
             print('%s completed' % (date.strftime('%Y-%m-%d')))
             print('elapsed: ', time.clock() - t)
             print('--------------------------------------')
-            # print('data: ', data)s
-            # for x in data:
-            #     # print('x: ', x)
-            #     final_df = final_df.append(x, ignore_index=True)
 
     fdf = pd.DataFrame.from_records(dic_lst)
     # removing all (time, price) duplicate entries.
@@ -1183,7 +1181,7 @@ def timestep_recon(df):
     fdf = fdf[fdf.columns[:-1]]
 
     fdf = fdf[['pdt', 'ftmth', 'underlying_id', 'value_date',
-               'time', 'price', 'volume', 'datatype']]
+               'time', 'price', 'datatype']]
 
     return fdf
 
@@ -1200,50 +1198,44 @@ def get_closest_ts_data(ts, others):
     for df in others:
         cols = df.columns
         ts_list = [x for x in df.time if x <= ts]
-        # TODO: think about this and make sure it's right.
         if not ts_list:
-            return []
+            continue
         valid_ts = max(ts_list)
         # filter data corresponding to closest timestep.
         data = df[df.time == valid_ts]
         # reassign timestep.
         data.time = ts
-        # print('ts - data.values: ', data.values)
         data = dict(zip(cols, data.values[0]))
         ret.append(data)
     return ret
 
 
-def insert_settlements(df, sdf):
-    """Helper method that inserts the settlement values pertaining to commodities present in df at the end of the day's data. 
 
+def insert_settlements(df, pdf):
+    """Appends the settlement data to the intraday data. 
+    
     Args:
-        df (TYPE): Dataframe of intraday values. 
-        sdf (TYPE): Dataframe of settlement values
+        df (TYPE): Dataframe of intraday prices
+        sdf (TYPE): Dataframe of settlement prices. 
     """
-    # print('sdf.columns: ', sdf.columns)
-    sdf = sdf[sdf.call_put_id == 'C'] if 'call_put_id' in sdf.columns else sdf
-    dates = pd.to_datetime(sdf.value_date.unique())
-    cols = list(df.columns)
-    final_df = pd.DataFrame(columns=cols)
-    for date in dates:
-        tdf = df[df.value_date == date]
-        uids = tdf.underlying_id.unique()
-        for uid in uids:
-            tdf2 = tdf[tdf.underlying_id == uid]
-            pdt, ftmth = uid.split()
-            try:
-                settle_val = sdf[(sdf.underlying_id == uid) &
-                                 (sdf.value_date == date)].price.values[0]
-            except IndexError as e:
-                settle_val = np.nan
-            row1 = [pdt, ftmth, uid, date, datetime.time.max,
-                    settle_val, 0, 'settlement']
-            row = dict(zip(cols, row1))
-            tdf2 = tdf2.append(row, ignore_index=True)
-            final_df = pd.concat([final_df, tdf2])
-    final_df.reset_index(drop=True, inplace=True)
-    return final_df
+    assert not df.empty 
+    assert not pdf.empty 
+    pdf['time'] = dt.time.max
+    pdf['datatype'] = 'settlement'
+    pdf = pdf[['value_date', 'time', 'pdt', 'ftmth', 'underlying_id', 'price', 'datatype']]
+    df = df[['value_date', 'time', 'pdt', 'ftmth', 'underlying_id', 'price', 'datatype']]
+    x = pd.concat([df, pdf])
+
+    # handle data types
+    x.value_date = pd.to_datetime(x.value_date)
+    x.time = x.time.astype(pd.Timestamp)
+
+    # some sanity checks. 
+    assert not x.empty 
+    assert 'settlement' in x.datatype.unique()
+    assert 'intraday' in x.datatype.unique()
+    return x
+
 
 
 ##########################################################################
