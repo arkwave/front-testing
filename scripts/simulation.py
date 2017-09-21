@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-21 18:13:26
+# @Last Modified time: 2017-09-21 20:53:40
 
 ################################ imports ###################################
 
@@ -261,7 +261,12 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         print("========================= END INIT ==========================")
 
         dailypnl = 0
+        price_changes = {}
+        latest_price = {}
+        exercise_futures = []
+        barrier_futures = []
 
+        print('================ beginning intraday loop =====================')
         for ts in pdf_1.time.unique():
             print('===================== time: ' +
                   str(ts) + ' =====================')
@@ -278,13 +283,25 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
 
             pf.assign_hedger_dataframes(vdf, pdf)
 
+            # populate the dictionary.
+            for uid in pdf.underlying_id.unique():
+                if uid not in latest_price:
+                    latest_price[uid] == pdf[
+                        pdf.underlying_id == uid].price.values[0]
+                prev_price = latest_price[uid]
+                price = pdf[pdf.underlying_id == uid].price.values[0]
+                price_changes[uid] = price - prev_price
+
         # Step 3: Feed data into the portfolio.
             print("========================= FEED DATA ==========================")
+            # NOTE: currently, exercising happens as soon as moneyness is triggered. This should
+            # not be much of an issue since exercise is never actually reached.
             pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
                 = feed_data(vdf, pdf, pf, init_val, flat_vols=flat_vols, flat_price=flat_price)
             print("========================= END FEED DATA ==========================")
 
             print("========================= PNL & BARR/EX ==========================")
+
         # Step 4: Compute pnl for the day
             updated_val = pf.compute_value()
             # print('updated value after feed: ', updated_val)
@@ -292,17 +309,27 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
             pnl = (updated_val -
                    init_val) + exercise_profit if (init_val != 0 and updated_val != 0) else 0
             dailypnl += pnl
-        # Detour: add in exercise & barrier futures if required.
+
+            # Detour: add in exercise & barrier futures if required.
             if exercise_futures:
                 print('adding exercise futures')
                 pf.add_security(exercise_futures, 'OTC')
+
             if barrier_futures:
                 print('adding barrier futures')
                 pf.add_security(barrier_futures, 'hedge')
+
+            # hedge the deltas.
+
+            # update the
+            init_val = pf.compute_value()
+
             print(
                 "========================= END PNL & BARR/EX ==========================")
             print('============= end timestamp ' +
                   str(ts) + '===================')
+
+        print('================ beginning intraday loop =====================')
 
         # refilter the dataframe to use settlements from here on out.
         pdf = pdf_1[pdf_1.datatype == 'settlement']
@@ -542,80 +569,10 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
                  alpha=0.8, label='gross pnl')
         plt.title('gamma/vega/cumulative pnls')
         plt.legend()
-        # plt.show()
-
-        # # net values
-        # plt.figure()
-        # # colors = ['c' if x >= 0 else 'r' for x in gamma_pnl_daily]
-        # plt.plot(log.value_date, log.eod_gamma_pnl, color='c',
-        #          alpha=0.6, label='eod gamma pnl')
-        # plt.plot(log.value_date, log.eod_vega_pnl,
-        #          color='m', alpha=0.6, label='eod vega pnl')
-        # plt.plot(log.value_date, log.eod_pnl_gross, color='k',
-        #          alpha=0.8, label='eod pnl')
-        # plt.title('gamma/vega/daily eod pnls')
-        # plt.legend()
-        # # plt.show()
-
-        # # plotting greeks with pnl
-        # plt.figure()
-        # # plt.plot(xvals, net_cumul_values, c='k',
-        # #          alpha=0.8, label='net cumulative pnl')
-        # plt.plot(log.value_date, log.net_delta, c='y', alpha=0.8, label='delta')
-        # plt.plot(log.value_date, log.net_gamma, c='g', alpha=0.8, label='gamma')
-        # plt.plot(log.value_date, log.net_theta, c='b', alpha=0.8, label='theta')
-        # plt.plot(log.value_date, log.net_vega, c='r', alpha=0.8, label='vega')
-        # # plt.plot(log.value_date, log.cu_pnl_net, c='k',
-        # #          alpha=0.6, label='cumulative pnl')
-        # plt.legend()
-        # plt.title('Greeks over simulation period')
-        # # plt.show()
-
-        # if signals is not None:
-        #     print('signals not none, proceeding to additional plots.')
-        #     plt.figure()
-        #     # y = (log.cu_pnl_net - np.mean(log.cu_pnl_net)) / \
-        #     #     (log.cu_pnl_net.max() - log.cu_pnl_net.min())
-
-        #     # y1 = log['dval_call_vol_change'] - log['dval_put_vol_change']
-        #     unique_log = log.drop_duplicates(subset='value_date')
-
-        #     settle_vals = unique_log.price
-        #     callvols = unique_log.call_vol
-        #     putvols = unique_log.put_vol
-        #     callvols *= 100
-        #     callvolchange = (callvols.shift(-1) - callvols).shift(1).fillna(0)
-        #     putvols *= 100
-        #     putvolchange = (putvols.shift(-1) - putvols).shift(1).fillna(0)
-        #     dates = unique_log.value_date
-
-        #     spotchange = (settle_vals.shift(-1) - settle_vals).shift(1).fillna(0)
-
-        #     plt.plot(dates, spotchange, c='k',
-        #              alpha=0.8, label='spot change')
-
-        #     plt.plot(dates, callvolchange,
-        #              c='c', alpha=0.7, label='call_vol change')
-
-        #     plt.plot(dates, putvolchange,
-        #              c='r', alpha=0.7, label='put_vol change')
-
-        #     plt.title('Spot Price, call_vol and put_vol changes')
-        #     plt.legend()
 
         plt.show()
 
-    # preparing the log file for analytics.
-    # analytics_csv = log.drop_duplicates('eod_pnl_gross')
-    # analytics_cols = ['value_date', 'option_lottage', 'strike',
-    #                   'future price', 'vol', 'eod_pnl_net', 'cu_pnl_net', 'eod_gamma_pnl',
-    #                   'cu_gamma_pnl', 'eod_vega_pnl', 'cu_vega_pnl', 'net_delta',
-    #                   'net_gamma', 'net_theta', 'net_vega']
-    # analytics_csv = analytics_csv[analytics_cols]
-
     return log
-    # return grosspnl, netpnl, pf, gross_daily_values, gross_cumul_values,
-    # net_daily_values, net_cumul_values, log
 
 
 ##########################################################################

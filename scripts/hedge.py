@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-21 18:48:12
+# @Last Modified time: 2017-09-21 22:27:37
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -100,10 +100,11 @@ class Hedge:
             all_conds = self.hedges[flag]
             r_conds = [x for x in all_conds if x[0] == 'bound']
             s_conds = [x for x in all_conds if x[0] == 'static']
+            it_conds = [x for x in all_conds if x[0] == 'intraday']
             if s_conds:
                 s_conds = s_conds[0]
                 val = 0 if s_conds[1] == 'zero' else int(s_conds[1])
-                params[flag]['target'] = val
+                params[flag]['eod'] = {'target': val}
 
             if r_conds:
                 r_conds = r_conds[0]
@@ -143,6 +144,12 @@ class Hedge:
                         elif r_conds[4] == 'ratio':
                             params[flag]['tau_val'] = r_conds[3]
                             params[flag]['tau_desc'] = 'ratio'
+            if it_conds:
+                # currently defaults to 0.
+                params[flag]['intraday'] = {'kind': it_conds[1],
+                                            'modifier': it_conds[2],
+                                            'target': 0}
+
             if desc is None:
                 desc = 'uid'
 
@@ -376,7 +383,7 @@ class Hedge:
             for cond in conds:
                 # static bound case
                 if cond[0] == 'static':
-                    val = self.params[greek]['target']
+                    val = self.params[greek]['eod']['target']
                     ltol, utol = (val - 1, val + 1)
                     conditions.append((strs[greek], (ltol, utol)))
                 elif cond[0] == 'bound':
@@ -477,7 +484,7 @@ class Hedge:
 
         # self.done = self.satisfied()
 
-    def apply(self, flag):
+    def apply(self, flag, price_changes=None):
         """Main method that actually applies the hedging logic specified.
         The kind of structure used to hedge is specified by self.params['kind']
 
@@ -593,33 +600,68 @@ class Hedge:
 
         return cost
 
-    def hedge_delta(self):
+    def hedge_delta(self, price_changes=None):
         """Helper method that hedges delta basis net greeks, irrespective of the
         greek representation the object was initialized with.
 
         Args:
             pf (TYPE): Description
         """
-        # print('hedging delta')
         cost = 0
         ft = None
         net_greeks = self.pf.get_net_greeks()
-        for product in net_greeks:
-            for month in net_greeks[product]:
+        tobehedged = {}
+        # be_dict = None
+
+        # case: intraday data
+        if price_changes is not None:
+            # static value.
+            if self.params['delta']['intraday']['kind'] == 'static':
+                comp_val = self.params['delta']['intraday']['modifier']
+                for uid in price_changes:
+                    pdt, mth = uid.split()
+                    if abs(price_changes[uid]) > comp_val:
+                        if pdt not in tobehedged:
+                            tobehedged[pdt] = set()
+                        tobehedged[pdt].add(mth)
+
+            # breakeven-based hedging.
+            else:
+                be_dic = self.pf.breakeven()
+                for pdt in be_dic:
+                    for mth in be_dic[pdt]:
+                        mults = self.params['delta']['be_mod']
+                        if pdt in mults and mth in mults[pdt]:
+                            be_mult = mults[pdt][mth]
+                        else:
+                            be_mult = 1
+                        uid = pdt + '  ' + mth
+                        be = be_dic[pdt][mth] * be_mult
+                        if price_changes[uid] >= be:
+                            if pdt not in tobehedged:
+                                tobehedged[pdt] = set()
+                            tobehedged[pdt].add(mth)
+
+        # case: settlement-to-settlement.
+        else:
+            tobehedged = net_greeks
+
+        target_flag = 'eod' if price_changes is None else 'intraday'
+        for product in tobehedged:
+            for month in tobehedged[product]:
                 # uid = product + '  ' + month
-                target = self.params['delta']['target']
+                target = self.params['delta'][target_flag]['target']
                 delta = net_greeks[product][month][0]
                 delta_diff = delta - target
                 shorted = True if delta_diff > 0 else False
                 num_lots_needed = abs(round(delta_diff))
                 if num_lots_needed == 0:
-                    # print(product + ' ' + month +
-                    #       ' delta is close enough to target. skipping hedging.')
                     continue
                 else:
                     try:
                         ft, _ = create_underlying(product, month, self.pdf,
-                                                  self.date, shorted=shorted, lots=num_lots_needed)
+                                                  self.date, shorted=shorted,
+                                                  lots=num_lots_needed)
                         if ft is not None:
                             self.pf.add_security([ft], 'hedge')
                             # print('adding ' + str(ft))
