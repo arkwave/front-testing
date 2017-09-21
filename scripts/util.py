@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-21 17:58:24
+# @Last Modified time: 2017-09-21 19:38:56
 
 
 from .portfolio import Portfolio
@@ -1236,7 +1236,7 @@ def assign_hedge_objects(pf, vdf=None, pdf=None):
     # case: composite portfolio
     if pf.families:
         for fa in pf.families:
-            hedger = Hedge(pf, pf.hedge_params)
+            hedger = Hedge(fa, fa.hedge_params, vdf=vdf, pdf=pdf)
             fa.hedger = hedger
 
     return pf

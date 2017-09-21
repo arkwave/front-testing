@@ -2,12 +2,12 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-21 18:02:32
+# @Last Modified time: 2017-09-21 18:48:12
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
 from .util import create_straddle, create_underlying, create_strangle, create_vanilla_option, blockPrint
-
+import pprint
 
 # blockPrint()
 
@@ -46,6 +46,8 @@ class Hedge:
         self.buckets = buckets if buckets is not None else [0, 30, 60, 90, 120]
         self.hedges = hedges
         self.desc, self.params = self.process_hedges()
+        self.date = None
+
         # check if vdf/pdf have been populated. if not, update.
         if (self.vdf is not None and self.pdf is not None):
             vdf.value_date = pd.to_datetime(vdf.value_date)
@@ -53,6 +55,16 @@ class Hedge:
             self.date = pd.to_datetime(pdf.value_date.unique()[0])
             self.calibrate_all()
             assert len([self.date]) == 1
+
+    def __str__(self):
+        # custom string representation for this class.
+        r_dict = {'desc': self.desc,
+                  'params': self.params,
+                  'mappings': self.mappings,
+                  'date': self.date,
+                  'hedges': self.hedges}
+
+        return str(pprint.pformat(r_dict))
 
     def update_dataframes(self, vdf, pdf, hedges=None):
         """ Helper method that updates the dataframes and (potentially) the hedges

@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-08-09 17:01:19
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-21 18:06:28
+# @Last Modified time: 2017-09-21 18:50:05
 
 from scripts.util import combine_portfolios, create_straddle, create_vanilla_option, create_underlying, merge_dicts, merge_lists, transfer_dict, assign_hedge_objects
 from scripts.fetch_data import grab_data
@@ -682,20 +682,29 @@ def test_merge_dicts_edge_case():
 
 def test_assign_hedge_objects():
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    print('------- TEST: Assigning Hedge Objects --------')
     # test simple case.
+    print('------- simple case --------')
     pf = copy.deepcopy(pf_simple)
     pf = assign_hedge_objects(pf)
     assert pf.hedger is not None
     assert pf.hedger.vdf is None
     assert pf.hedger.pdf is None
+    print('hedger: ', pf.hedger)
+    print('-------- end simple case --------')
 
     # complex case
+    print('-------- comp case ---------')
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf)
     assert pf.hedger is not None
     assert pf.hedger.vdf is None
     assert pf.hedger.pdf is None
+    print('pf.hedger: ', pf.hedger)
+
     for fa in pf.get_families():
         assert fa.hedger is not None
         assert fa.hedger.pdf is None
         assert fa.hedger.vdf is None
+        print('fa.hedger: ', fa.hedger)
+    print('-------- comp case ---------')
