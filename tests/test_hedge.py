@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-08-11 19:24:36
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-31 14:37:01
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-09-19 20:20:21
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios
@@ -172,21 +172,6 @@ def test_process_hedges():
 # NOTE: this test needs to be expanded to check for short-dated options.
 # at the moment, results are trivial.
 def test_calibrate():
-    pass
-
-
-def test_get_bucket():
-    pass
-
-
-# not implemented because this function is implicitly tested throughout
-# this test file.
-def test_uid_hedges_satisfied():
-    pass
-
-
-# not relevant.
-def test_exp_hedges_satisfied():
     pass
 
 
