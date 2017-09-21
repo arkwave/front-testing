@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-21 17:57:13
+# @Last Modified time: 2017-09-21 18:13:26
 
 ################################ imports ###################################
 
@@ -462,11 +462,11 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         signals.loc[signals['call/put'] == 'put', 'call_put_id'] = 'P'
 
         df = pd.merge(signals, pricedata[['value_date', 'underlying_id',
-                                          'settle_value', 'vol_id', 'call_put_id']],
+                                          'price', 'vol_id', 'call_put_id']],
                       on=['value_date', 'vol_id', 'call_put_id'])
         df = df.drop_duplicates()
 
-        log = pd.merge(log, df[['value_date', 'vol_id', 'settle_value',
+        log = pd.merge(log, df[['value_date', 'vol_id', 'price',
                                 'signal']],
                        on=['value_date', 'vol_id'])
 
@@ -580,7 +580,7 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         #     # y1 = log['dval_call_vol_change'] - log['dval_put_vol_change']
         #     unique_log = log.drop_duplicates(subset='value_date')
 
-        #     settle_vals = unique_log.settle_value
+        #     settle_vals = unique_log.price
         #     callvols = unique_log.call_vol
         #     putvols = unique_log.put_vol
         #     callvols *= 100
@@ -692,7 +692,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
                 else:
                     uid = ft.get_product() + '  ' + ft.get_month()
                     val = pdf[(pdf.pdt == pdt) &
-                              (pdf.underlying_id == uid)].settle_value.values[0]
+                              (pdf.underlying_id == uid)].price.values[0]
                     pf, cost, fts = handle_barriers(
                         voldf, pdf, ft, val, pf, date)
                     barrier_futures.extend(fts)
@@ -718,7 +718,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
                 try:
                     uid = ft.get_product() + '  ' + ft.get_month()
                     val = pdf[(pdf.pdt == pdt) &
-                              (pdf.underlying_id == uid)].settle_value.values[0]
+                              (pdf.underlying_id == uid)].price.values[0]
                     # calculate difference between ki price and current price
                     diff = val - ft.get_price()
                     pnl_diff = diff * ft.lots * pnl_mult
@@ -824,7 +824,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
                 val = voldf[(voldf.pdt == product) & (voldf.strike == strike) &
                             (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
                 df_tau = min(val.tau, key=lambda x: abs(x - tau))
-                strike_vol = val[val.tau == df_tau].settle_vol.values[0]
+                strike_vol = val[val.tau == df_tau].vol.values[0]
             except (IndexError, ValueError):
                 print('### VOLATILITY DATA MISSING ###')
                 # print('product: ', product)
@@ -843,7 +843,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
                     b_val = voldf[(voldf.pdt == product) & (voldf.strike == barlevel) &
                                   (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
                     df_tau = min(b_val.tau, key=lambda x: abs(x - tau))
-                    b_vol = val[val.tau == df_tau].settle_vol.values[0]
+                    b_vol = val[val.tau == df_tau].vol.values[0]
             except (IndexError, ValueError):
                 print('### BARRIER VOLATILITY DATA MISSING ###')
                 # print('product: ', product)
