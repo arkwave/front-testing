@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-11 15:10:38
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-09-21 17:58:24
 
 
 from .portfolio import Portfolio
@@ -10,6 +10,7 @@ from .classes import Future, Option
 from .prep_data import find_cdist, handle_dailies
 import pandas as pd
 import numpy as np
+import copy
 import os
 from .calc import compute_strike_from_delta, get_vol_from_delta
 import sys
@@ -187,13 +188,7 @@ def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=N
     if ftprice is None:
         try:
             ftprice = pdf[(pdf.underlying_id == uid) &
-                          (pdf.value_date == date)]
-            # NOTE: defaults to using settlement data if intraday data is
-            # passed in.
-            if 'datatype' in ftprice.columns:
-                ftprice = ftprice[ftprice.datatype == 'settlement']
-
-            ftprice = ftprice.price.values[0]
+                          (pdf.value_date == date)].price.values[0]
         except IndexError:
             print('util.create_underlying: cannot find price. printing outputs: ')
             print('uid: ', uid)
@@ -289,14 +284,12 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     except IndexError as e:
         raise IndexError(
             'util.create_vanilla_option - cannot find ttm in dataset. Inputs are: ', date, volid) from e
-        # print()
-        # print('inputs: ', date, volid)
 
     # Case 1 : Vol is None, but strike is specified.
     if vol is None and strike is not None:
         # get vol
         try:
-            # NOTE: this currently is settlement vol.
+            # print("Inputs: ", date.strftime('%Y-%m-%d'), volid, cpi, strike)
             vol = vdf[(vdf.value_date == date) &
                       (vdf.vol_id == volid) &
                       (vdf.call_put_id == cpi) &
@@ -308,23 +301,23 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     # Case 2: Option construction is basis delta. vol and strike are None.
     elif vol is None and strike is None:
         try:
-            # interpolate/calculate the vol for this particular delta.
             delta = delta/100
-            # NOTE: THIS USES SETTLEMENTS
-            vol = get_vol_from_delta(delta, vdf, pdf, volid,
-                                     char, shorted, date)
-            # if delta specified, compute strike appropriate to that delta
+            vol = get_vol_from_delta(
+                delta, vdf, pdf, volid, char, shorted, date)
             strike = compute_strike_from_delta(None, delta1=delta, vol=vol, s=ft.get_price(),
                                                char=char, pdt=ft.get_product(), tau=tau)
         except IndexError as e:
             raise IndexError(
                 'util.create_vanilla_option - cannot find vol by delta. Inputs are: ', volid, date, delta, cpi) from e
         except ValueError as e1:
-            raise ValueError("Something broke during the interpolation step")
+            raise ValueError(getattr(e1, 'message', repr(e1)))
 
-    print('util.create_vanilla_option - strike: ', strike)
-    print('util.create_vanilla_option - vol: ', vol)
-    print('util.create_vanilla_option - delta: ', delta)
+    # if delta specified, compute strike appropriate to that delta
+    if delta is not None:
+        # delta = delta/100
+        strike = compute_strike_from_delta(
+            None, delta1=delta, vol=vol, s=ft.get_price(), char=char, pdt=ft.get_product(), tau=tau)
+        print('util.create_vanilla_option - strike: ', strike)
 
     # specifying option with information gathered thus far.
     newop = Option(strike, tau, char, vol, ft, payoff, shorted,
@@ -347,7 +340,6 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
             print('theta req: ', theta_req)
             lm, dm = multipliers[pdt][1], multipliers[pdt][0]
             t1 = (newop.theta * 365)/(newop.lots * lm * dm)
-            # t2 = (op2.theta * 365) / (op2.lots * lm * dm)
             lots_req = round((abs(theta_req) * 365) / abs(t1 * lm * dm))
 
         if kwargs['greek'] == 'vega':
@@ -368,6 +360,10 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
         newop.underlying.update_lots(lots_req)
     return newop
 
+
+# def __init__(self, strike, tau, char, vol, underlying, payoff, shorted,
+# month, direc=None, barrier=None, lots=1000, bullet=True, ki=None,
+# ko=None, rebate=0, ordering=1e5, settlement='futures')
 
 def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriertype,
                           direction, ki, ko, bullet, rebate=0, payoff='amer', lots=None,
@@ -514,20 +510,24 @@ def create_butterfly(char, volid, vdf, pdf, date, shorted, **kwargs):
         # mid_delta = mid_delta/100
         dist = kwargs['dist']
 
-    mid_op1 = create_vanilla_option(vdf, pdf, volid, char, not shorted, date,
-                                    delta=mid_delta, strike=mid_strike, lots=lot2)
+    print('mid delta: ', mid_delta)
+    print('lots: ', lot1, lot2, lot3, lot4)
+    mid_op1 = create_vanilla_option(
+        vdf, pdf, volid, char, not shorted, date, delta=mid_delta, strike=mid_strike, lots=lot2)
 
-    mid_op2 = create_vanilla_option(vdf, pdf, volid, char, not shorted, date,
-                                    delta=mid_delta, strike=mid_strike, lots=lot3)
+    mid_op2 = create_vanilla_option(
+        vdf, pdf, volid, char, not shorted, date, delta=mid_delta, strike=mid_strike, lots=lot3)
+    print('mid strikes: ', mid_op1.K, mid_op2.K)
+
     if dist is not None:
         lower_strike = mid_op2.K - dist
         upper_strike = mid_op2.K + dist
 
-    lower_op = create_vanilla_option(vdf, pdf, volid, char, shorted, date,
-                                     strike=lower_strike, lots=lot1)
+    lower_op = create_vanilla_option(
+        vdf, pdf, volid, char, shorted, date, strike=lower_strike, lots=lot1)
 
-    upper_op = create_vanilla_option(vdf, pdf, volid, char, shorted, date,
-                                     strike=upper_strike, lots=lot4)
+    upper_op = create_vanilla_option(
+        vdf, pdf, volid, char, shorted, date, strike=upper_strike, lots=lot4)
 
     ops = [lower_op, mid_op1, mid_op2, upper_op]
 
@@ -574,10 +574,10 @@ def create_spread(char, volid, vdf, pdf, date, shorted, **kwargs):
     # short put spread:  buy itm put,  sell otm put,
     # make sure inputs are organized in the appropriate order.
 
-    op1 = create_vanilla_option(vdf, pdf, volid, char, shorted, date,
-                                delta=delta1, strike=strike1)
-    op2 = create_vanilla_option(vdf, pdf, volid, char, not shorted, date,
-                                delta=delta2, strike=strike2)
+    op1 = create_vanilla_option(
+        vdf, pdf, volid, char, shorted, date, delta=delta1, strike=strike1)
+    op2 = create_vanilla_option(
+        vdf, pdf, volid, char, not shorted, date, delta=delta2, strike=strike2)
 
     ops = [op1, op2]
 
@@ -650,10 +650,10 @@ def create_strangle(volid, vdf, pdf, date, shorted, pf=None, **kwargs):
     else:
         f_delta1, f_delta2 = delta1, delta2
 
-    op1 = create_vanilla_option(vdf, pdf, volid, char1, shorted, date,
-                                strike=strike1, lots=lot1, delta=f_delta1)
-    op2 = create_vanilla_option(vdf, pdf, volid, char2, shorted, date,
-                                strike=strike2, lots=lot2, delta=f_delta2)
+    op1 = create_vanilla_option(
+        vdf, pdf, volid, char1, shorted, date, strike=strike1, lots=lot1, delta=f_delta1)
+    op2 = create_vanilla_option(
+        vdf, pdf, volid, char2, shorted, date, strike=strike2, lots=lot2, delta=f_delta2)
 
     # setting lots based on greek value passed in
     if 'greek' in kwargs:
@@ -814,11 +814,11 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
     if 'tau' in kwargs:
         tau = kwargs['tau']
 
-    op1 = create_vanilla_option(vdf, pdf, volid, char1, shorted, date=date,
-                                strike=strike, lots=lots, vol=vol, tau=tau)
+    op1 = create_vanilla_option(
+        vdf, pdf, volid, char1, shorted, date=date, strike=strike, lots=lots, vol=vol, tau=tau)
 
-    op2 = create_vanilla_option(vdf, pdf, volid, char2, shorted, date=date,
-                                strike=strike, lots=lots, vol=vol, tau=tau)
+    op2 = create_vanilla_option(
+        vdf, pdf, volid, char2, shorted, date=date, strike=strike, lots=lots, vol=vol, tau=tau)
 
     lots_req = op1.lots
 
@@ -864,6 +864,8 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
 
     if ('composites' in kwargs and kwargs['composites']) or ('composites' not in kwargs):
         ops = create_composites(ops)
+
+    assert len(ops) == 2
 
     return ops
 
@@ -940,12 +942,15 @@ def combine_portfolios(lst, hedges=None, name=None, refresh=False):
 
     pf = Portfolio(None) if hedges is None else Portfolio(hedges, name)
     for p in lst:
+        # print('p: ', p)
         # update the lists first.
         pf.OTC_options.extend(p.OTC_options)
         pf.hedge_options.extend(p.hedge_options)
+        # print('--------- merging OTCs ---------')
         pf.OTC = merge_dicts(p.OTC, pf.OTC)
+        # print('--------- merging hedges ----------')
         pf.hedges = merge_dicts(p.hedges, pf.hedges)
-
+        # print('---------- next loop ----------')
     pf.set_families(lst)
 
     if refresh:
@@ -954,51 +959,42 @@ def combine_portfolios(lst, hedges=None, name=None, refresh=False):
     return pf
 
 
-def merge_dicts(d1, d2):
-    ret = {}
-    if len(d1) == 0:
-        return d2
-    elif len(d2) == 0:
-        return d1
-    else:
-        for key in d1:
-            if key not in ret:
-                ret[key] = {}
-            # base case: key is in d1 but not d2.
-            if key not in d2:
-                ret[key] = d1[key]
-            elif key in d2:
-                dat1, dat2 = d1[key], d2[key]
-                # case 1: nested dictionary.
-                if isinstance(dat1, dict):
-                    nd = merge_dicts(dat1, dat2)
-                    ret[key] = nd
-                # case 2: list.
-                elif isinstance(dat1, list):
-                    nl = merge_lists(dat1, dat2)
-                    ret[key] = nl
+def transfer_dict(d1):
+    """ Helper method that recreates a dictionary while
+    maintaining the memory location of all objects in the dictionary. 
 
-        for key in d2:
-            if key not in ret:
-                ret[key] = {}
-            # base case: key is in d1 but not d2.
-            if key not in d1:
-                ret[key] = d2[key]
-            elif key in d1:
-                dat1, dat2 = d1[key], d2[key]
-                # case 1: nested dictionary.
-                if isinstance(dat2, dict):
-                    nd = merge_dicts(dat1, dat2)
-                    ret[key] = nd
-                # case 2: list.
-                elif isinstance(dat2, list):
-                    nl = merge_lists(dat1, dat2)
-                    ret[key] = nl
+    Args:
+        d1 (TYPE): Description
+    """
+    values = []
+    keys = d1.keys()
+    for key in keys:
+        data = d1[key]
+        if isinstance(data, list):
+            newlst = []
+            for entry in data:
+                if isinstance(entry, (int, float)):
+                    val = entry
+                else:
+                    val = set()
+                    val.update(entry)
+                    # val = entry.copy()
+                newlst.append(val)
+            values = newlst
+        elif isinstance(data, dict):
+            newdic = transfer_dict(data)
+            values = newdic
+
+    ret = dict.fromkeys(keys, values)
+    # print('transfer_dict.ret: ', ret)
     return ret
 
 
-def merge_lists(l1, l2):
-    """Helper method that merges two lists. 
+def merge_lists(r1, r2):
+    """Helper method that merges two lists, of the form contained in 
+    the OTC[pdt][month] for the OTC/hedge dictionaries in a portfolio object.
+    Merges and returns the two lists such that modifying the result does NOT
+    modify the constituent lists
 
     Args:
         l1 (TYPE): Description
@@ -1007,22 +1003,113 @@ def merge_lists(l1, l2):
     Returns:
         TYPE: Description
     """
+    # print('merge lists triggered')
+    l1 = copy.copy(r1)
+    l2 = copy.copy(r2)
     if len(l1) == 0:
-        return l2
+        # print('basecase: l1 is empty: ', l2)
+        return transfer_lists(l2)
     elif len(l2) == 0:
-        return l1
+        # print('basecase: l2 is empty: ', l1)
+        return transfer_lists(l1)
 
     ret = []
     assert len(l1) == len(l2)
     for i in range(len(l1)):
         dat1, dat2 = l1[i], l2[i]
         if isinstance(dat1, set):
-            c = dat1.copy()
-            c.update(dat2)
+            # print('merge_lists: set case')
+            c = set()
+            for i in dat1:
+                c.add(i)
+            for j in dat2:
+                c.add(j)
         elif isinstance(dat1, (int, float)):
             c = dat1 + dat2
         ret.append(c)
     return ret
+
+
+def merge_dicts(d1, d2):
+    """Helper method that merges the OTC or hedges dictionaries of
+    portfolio objects such that modifying the result does NOT modify 
+    any of the constituent dictionaries. 
+
+    Args:
+        r1 (TYPE): First dictionary to be merged
+        r2 (TYPE): Second dictionary to be merged.
+
+    Returns:
+        TYPE: Dictionary.
+    # """
+    ret = {}
+    # base cases: either d1 or d2 are empty.
+    if len(d1) == 0:
+        # print('basecase: l1 is empty: ', d2)
+        ret = transfer_dict(d2.copy())
+    elif len(d2) == 0:
+        # print('basecase: l2 is empty: ', d1)
+        ret = transfer_dict(d1.copy())
+    else:
+        # handles d1-unique and d1-d2 overlap keys.
+        for key in d1:
+            # base case: key is not in d2 -> d1[key] becomes default value for
+            # this key in ret.
+            if key not in d2:
+                # print(key + ' unique to d1')
+                if isinstance(d1[key], dict):
+                    ret[key] = transfer_dict(d1[key].copy())
+                else:
+                    # print('hit list case')
+                    ret[key] = transfer_lists(d1[key].copy())
+            # case: this key exists in d2. need to merge the outputs of d1[key]
+            # and d2[key]
+            else:
+                # case 0: d1[key] and d2[key] are lists.
+                if isinstance(d1[key], list) and isinstance(d2[key], list):
+                    ret[key] = merge_lists(d1[key], d2[key])
+                # case 1: d1[key] and d2[key] are dictionaries themselves
+                elif isinstance(d1[key], dict) and isinstance(d2[key], dict):
+                    ret[key] = merge_dicts(d1[key], d2[key])
+
+        for key in d2:
+            if key not in d1:
+                # print(key + ' unique to d2')
+                if isinstance(d2[key], dict):
+                    ret[key] = transfer_dict(d2[key].copy())
+                else:
+                    # print('hit list case')
+                    ret[key] = transfer_lists(d2[key].copy())
+            # other case would already have been handled in d1 iteration
+            else:
+                try:
+                    assert key in ret
+                except AssertionError as e:
+                    raise AssertionError(
+                        'key, current keys: ', key, ret.keys())
+
+    return ret
+
+
+def transfer_lists(l):
+    """Helper method that passes references of a list to another, new list
+    such that modifying the output does not modify the input 
+
+    Args:
+        l (TYPE): the list to be transferred. 
+
+    Returns:
+        TYPE: new list
+    """
+    lst = []
+    for x in l:
+        if isinstance(x, (float, int)):
+            val = x
+        elif isinstance(x, set):
+            val = x.copy()
+        lst.append(val)
+
+    return lst
 
 
 def volids_from_ci(date_range, product, ci):
@@ -1126,3 +1213,30 @@ def pnp_format(filepath, pdts):
     final = final[final.vol_id.str[:2].str.strip().isin(pdts)]
 
     return final
+
+
+def assign_hedge_objects(pf, vdf=None, pdf=None):
+    """Helper method that generates and relates a portfolio object 
+    with the the Hedger object calibrated to pf.hedge_params. 
+
+    Args:
+        pf (TYPE): Portfolio object.
+        vdf (dataframe, optional): dataframe of volatilities. 
+        pdf (dataframe, optional): dataframe of prices 
+
+    Returns:
+        TYPE: Description
+
+    """
+    # case: simple portfolio.
+    from .hedge import Hedge
+    hedger = Hedge(pf, pf.hedge_params)
+    pf.hedger = hedger
+
+    # case: composite portfolio
+    if pf.families:
+        for fa in pf.families:
+            hedger = Hedge(pf, pf.hedge_params)
+            fa.hedger = hedger
+
+    return pf

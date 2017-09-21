@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-31 14:12:46
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-09-21 18:02:32
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -24,7 +24,7 @@ class Hedge:
     applying hedges is done via the _apply method.
     """
 
-    def __init__(self, portfolio, hedges, vdf, pdf,
+    def __init__(self, portfolio, hedges, vdf=None, pdf=None,
                  buckets=None, brokerage=None, slippage=None):
         """Constructor. Initializes a hedge object subject to the following parameters.
 
@@ -46,13 +46,33 @@ class Hedge:
         self.buckets = buckets if buckets is not None else [0, 30, 60, 90, 120]
         self.hedges = hedges
         self.desc, self.params = self.process_hedges()
-        # self.done = self.satisfied()
-        self.date = pd.to_datetime(pdf.value_date.unique()[0])
-        assert len([self.date]) == 1
+        # check if vdf/pdf have been populated. if not, update.
+        if (self.vdf is not None and self.pdf is not None):
+            vdf.value_date = pd.to_datetime(vdf.value_date)
+            pdf.value_date = pd.to_datetime(pdf.value_date)
+            self.date = pd.to_datetime(pdf.value_date.unique()[0])
+            self.calibrate_all()
+            assert len([self.date]) == 1
+
+    def update_dataframes(self, vdf, pdf, hedges=None):
+        """ Helper method that updates the dataframes and (potentially) the hedges
+        used for calibration/hedging in this hedger object. 
+
+        Args:
+            vdf (TYPE): dataframe of volatilities
+            pdf (TYPE): dataframe of prices 
+            hedges (None, optional): dictionary of hedges. 
+        """
+        self.vdf = vdf
+        self.pdf = pdf
+        if hedges is not None:
+            self.hedges = hedges
+            self.desc, self.params = self.process_hedges()
         self.calibrate_all()
 
     def process_hedges(self):
-        """Helper function that sorts through the mess that is the hedge dictionary. Returns the following:
+        """Helper function that sorts through the mess that is the hedge 
+        dictionary. Returns the following:
         1)  representation used to hedge gamma/theta/vega
         2) additional parameters used to hedge the same
             (such as the type of structure and the specifications of that structure.)
@@ -172,8 +192,8 @@ class Hedge:
                 if buckets is None else self.pf.greeks_by_exp(buckets)
 
             for product in calibration_dic:
-                df = self.pdf[(self.pdf.pdt == product) &
-                              (self.pdf.call_put_id == 'C')]
+                df = self.vdf[(self.vdf.pdt == product) &
+                              (self.vdf.call_put_id == 'C')]
                 for exp in calibration_dic[product]:
                     loc = (product, exp)
                     if df.empty:
@@ -203,28 +223,19 @@ class Hedge:
                     else:
                         ttm = max([op.tau for op in options])
 
-                    # print('ttm: ', ttm)
-
                     # check available vol_ids and pick the closest one.
 
                     closest_tau_val = sorted(
                         df.tau, key=lambda x: abs(x - ttm))
-
-                    # print('closest_tau_val: ', closest_tau_val)
 
                     # sanity check: ensuring that the option being selected to
                     # hedge has at least 4 days to maturity (i.e. to account
                     # for a weekend)
 
                     valid = [x for x in closest_tau_val if x > 4/365]
-
                     closest_tau_val = valid[0]
-
-                    # print('closest_tau_val: ', closest_tau_val)
-
                     vol_ids = df[df.tau == closest_tau_val].vol_id.values
 
-                    # print('vol_ids: ', vol_ids)
                     # select the closest opmth/ftmth combination
                     split = [x.split()[1] for x in vol_ids]
                     # sort by ft_year, ft_month and op_month
@@ -241,33 +252,35 @@ class Hedge:
 
         # second case: greeks by underlying (regular thing we're used to)
         elif self.desc == 'uid':
-            # self.pf.update_sec_by_month(None, 'OTC', update=True)
-            # self.pf.update_sec_by_month(None, 'hedge', update=True)
             self.greek_repr = self.pf.get_net_greeks()
-            # print('scripts.hedges.calibrate - greek repr ', self.greek_repr)
             net = self.pf.get_net_greeks()
+            assert not self.vdf.empty
             for product in net:
-                df = self.pdf[self.pdf.pdt == product]
+                product = product.strip()
+                df = self.vdf[self.vdf.pdt == product]
+                # case: holiday for this product.
+                if df.empty:
+                    print('data does not exist for this \
+                            date and product. ', self.date, product)
                 for month in net[product]:
+                    month = month.strip()
                     uid = product + '  ' + month
-                    df = df[(df.underlying_id == uid)]
+                    df = df[df.underlying_id == uid]
                     data = net[product][month]
                     loc = (product, month)
                     if df.empty:
-                        print('df is empty, data missing. skipping..')
                         if flag not in self.mappings:
                             self.mappings[flag] = {}
                         self.mappings[flag][loc] = False
                         continue
                     if not data or (data == [0, 0, 0, 0]):
                         continue
-
                     # grab max possible ttm (i.e. ttm of the same month option)
                     try:
                         volid = product + '  ' + month + '.' + month
-                        # print('max_ttm volid: ', volid)
-                        ttm = df[(df.vol_id == volid) & (
-                            df.call_put_id == 'C')].tau.values[0]
+                        ttm = df[(df.vol_id == volid) &
+                                 (df.call_put_id == 'C')].tau.values[0]
+
                     except IndexError:
                         print('hedge.uid_volid: cannot find max ttm')
                         print('debug 1: ', df[(df.vol_id == volid)])
@@ -277,24 +290,17 @@ class Hedge:
 
                     # case: ttm specification exists.
                     if 'tau_val' in data:
-                        # print('ttm specification exists for hedging ' + flag)
                         ttm_modifier = data['tau_val']
                         # case: ttm modifier is a ratio.
                         if data['tau_desc'] == 'ratio':
                             ttm = ttm * ttm_modifier
-                        # ttm modifier is an actual value. s
+                        # ttm modifier is an actual value.
                         else:
                             ttm = ttm_modifier
 
                     closest_tau_val = min(df.tau, key=lambda x: abs(x - ttm))
-
-                    # print('closest_tau_val: ', closest_tau_val)
-
                     vol_ids = df[(df.underlying_id == uid) &
                                  (df.tau == closest_tau_val)].vol_id.values
-
-                    # print('product, month: ', product, month)
-                    # print('vol_ids: ', vol_ids)
 
                     # select the closest opmth/ftmth combination
                     split = [x.split()[1] for x in vol_ids]
@@ -307,10 +313,7 @@ class Hedge:
                     # assign to parameter dictionary.
                     if flag not in self.mappings:
                         self.mappings[flag] = {}
-
                     self.mappings[flag][loc] = volid
-
-        # print('-+-+-+- done calibrating ' + flag + ' -+-+-+-')
 
     def get_bucket(self, val, buckets=None):
         """Helper method that gets the bucket associated with a given value according to self.buckets.
@@ -409,9 +412,6 @@ class Hedge:
         self.greek_repr = self.pf.greeks_by_exp(self.buckets)
         net_greeks = self.greek_repr
         tst = self.hedges.copy()
-        # if 'delta' in tst:
-        #     tst.pop('delta')
-        # delta condition:
         conditions = []
         for greek in tst:
             conds = tst[greek]
@@ -422,36 +422,27 @@ class Hedge:
                     ltol, utol = val - 1, val + 1
                     conditions.append((strs[greek], (ltol, utol)))
                 elif cond[0] == 'bound':
-                    # print('to be literal eval-ed: ', hedges[greek][1])
                     c = cond[1]
                     tup = (strs[greek], c)
                     conditions.append(tup)
-        # print('conditions: ', conditions)
 
         for pdt in net_greeks:
             for exp in net_greeks[pdt]:
                 ops = net_greeks[pdt][exp][0]
                 greeks = net_greeks[pdt][exp][1:]
-                # print('ops: ', ops)
                 if ops:
-                    # print('ops is true for exp = ' + str(exp))
                     for cond in conditions:
                         ltol, utol = cond[1]
                         index = cond[0]
-
                         # sanity check: if greek is negative, flip the sign of the bounds
                         # in the case of gamma/theta/vega
                         if greeks[index] < 0 and index != 0:
                             tmp = ltol
                             ltol = -utol
                             utol = -tmp
-                        # print('scripts.hedge.check_exp_hedges: inputs - ',
-                        #       greeks[index], ltol, utol)
                         if (greeks[index] > utol) or \
                                 (greeks[index] < ltol):
-                            # print('exp hedges ' + ' ' + str(cond) + ' failed')
-                            # print(greeks[index], ltol, utol)
-                            # print('--- done checking exp hedges satisfied ---')
+
                             return False
         # rolls_satisfied = check_roll_hedges(pf, hedges)
         return True
@@ -460,6 +451,7 @@ class Hedge:
         """Helper method that re-inializes all values. To be used when updating portfolio
         to ascertain hedges have been satisfied.
         """
+        self.pf.refresh()
         # print('scripts.hedge - pre-refresh greek repr: ', self.greek_repr)
         for flag in self.hedges:
             if flag != 'delta':
@@ -507,12 +499,10 @@ class Hedge:
 
         if flag == 'delta' and hedge_type == 'static':
             fee = self.hedge_delta()
-            # print('======= done ' + flag + ' hedge =========')
             return fee
 
         for product in self.greek_repr:
             for loc in self.greek_repr[product]:
-                # print('>> hedging ' + str(product) + ' ' + str(loc) + ' <<')
                 fulldata = self.greek_repr[product][loc]
                 # case: options included in greek repr
                 if len(fulldata) == 5:
@@ -537,13 +527,11 @@ class Hedge:
                                            loc, greekval, target)
                     else:
                         continue
-                        # print(product + ' ' + str(loc) +
-                        #       ' ' + flag + ' within bounds. skipping...')
 
                 elif hedge_type == 'static':
                     val = self.params[flag]['target']
                     cost += self.hedge(flag, product, loc, greekval, val)
-        # print('======= done ' + flag + ' hedge =========')
+
         return cost
 
     def hedge(self, flag, product, loc, greekval, target):
@@ -562,12 +550,7 @@ class Hedge:
             target = -target
 
         cost = 0
-        # print('target ' + flag + ': ', target)
-        # print('current ' + flag + ': ', greekval)
-
         reqd_val = target - greekval
-
-        # print('required ' + flag + ': ', reqd_val)
         # all hedging info is contained in self.params[flag]
         data = self.params[flag]
 
@@ -655,12 +638,6 @@ class Hedge:
             elif flag == 'theta':
                 shorted = True if val > 0 else False
 
-        # elif desc in ('call', 'put'):
-        #     if flag in ('gamma', 'vega'):
-        #         shorted = True if val < 0 else False
-        #     elif flag == 'theta':
-                # shorted = True if val > 0 else False
-
         return shorted
 
     def add_hedges(self, data, shorted, hedge_id, flag, greekval, loc):
@@ -712,8 +689,9 @@ class Hedge:
                     dval = data['spec']
 
                 if data['spectype'] == 'strike':
-                    strike = data['spectype']
-
+                    strike = data['spec']
+                print('inputs: ', hedge_id, shorted,
+                      dval, strike, flag, greekval)
                 op = create_vanilla_option(self.vdf, self.pdf, hedge_id, 'call',
                                            shorted, delta=dval, strike=strike,
                                            greek=flag, greekval=greekval)

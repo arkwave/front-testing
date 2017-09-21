@@ -12,21 +12,19 @@ Description    : Script contains methods to read-in and format data. These metho
 ############### Imports/Global Variables ##################
 ###########################################################
 
-# User-Defined
 from .portfolio import Portfolio
 from .classes import Option, Future
-from .calc import get_barrier_vol, compute_delta
-# Standard Imports
+from .calc import get_barrier_vol
 import pandas as pd
 import numpy as np
-from scipy.interpolate import interp1d
+from scipy.interpolate import PchipInterpolator, interp1d
 from scipy.stats import norm
 from math import log, sqrt
 import time
-import datetime as dt
 from ast import literal_eval
 from collections import OrderedDict
 import copy
+import datetime as dt
 
 seed = 7
 np.random.seed(seed)
@@ -122,7 +120,17 @@ def match_to_signals(vdf, pdf, signals):
     # pdf['monday'] = pdf.value_date.dt.weekday == 0
 
     vdf.loc[vdf.monday == True, 'value_date'] -= pd.Timedelta('3 day')
+    # pdf.loc[pdf.monday == True, 'value_date'] -= pd.Timedelta('3 day')
     vdf.loc[vdf.monday == False, 'value_date'] -= pd.Timedelta('1 day')
+    # pdf.loc[pdf.monday == False, 'value_date'] -= pd.Timedelta('1 day')
+
+    # vdf.value_date -= pd.Timedelta('1 day')
+
+    # filtering relevant dates
+    # vdf = vdf[(vdf.value_date > pd.Timestamp('2017-01-02')) &
+    #           (vdf.value_date < pd.Timestamp('2017-04-02'))]
+    # pdf = pdf[(pdf.value_date > pd.Timestamp('2017-01-02')) &
+    #           (pdf.value_date < pd.Timestamp('2017-04-02'))]
 
     d1 = [x for x in vdf.value_date.unique()
           if x not in signals.value_date.unique()]
@@ -301,10 +309,10 @@ def prep_portfolio(voldata, pricedata, filepath=None, spec=None):
             lst = contract_mths[product]
             ordering = find_cdist(curr_sym, mth, lst)
             # price = pricedata[(pricedata.order == ordering) &
-            #                   (pricedata.value_date == sim_start)]['price'].values[0]
+            #                   (pricedata.value_date == sim_start)]['settle_value'].values[0]
             print('volid: ', data.vol_id)
             price = pricedata[(pricedata['underlying_id'] == data.vol_id) &
-                              (pricedata['value_date'] == sim_start)]['price'].values[0]
+                              (pricedata['value_date'] == sim_start)]['settle_value'].values[0]
             flag = data.hedgeorOTC
             lots = 1000 if data.lots == 'None' else int(data.lots)
             shorted = True if data.shorted else False
@@ -329,7 +337,7 @@ def prep_portfolio(voldata, pricedata, filepath=None, spec=None):
 
             try:
                 f_price = pricedata[(pricedata['value_date'] == sim_start) &
-                                    (pricedata['underlying_id'] == u_name)]['price'].values[0]
+                                    (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
             except IndexError:
                 print('vol_id: ', volid)
                 print('f_name: ', f_name)
@@ -362,7 +370,7 @@ def prep_portfolio(voldata, pricedata, filepath=None, spec=None):
                 vol = voldata[(voldata['vol_id'] == volid) &
                               (voldata['call_put_id'] == volflag) &
                               (voldata['value_date'] == sim_start) &
-                              (voldata['strike'] == strike)]['vol'].values[0]
+                              (voldata['strike'] == strike)]['settle_vol'].values[0]
             except IndexError:
                 print('vol_id: ', volid)
                 print('call_put_id: ', volflag)
@@ -373,7 +381,7 @@ def prep_portfolio(voldata, pricedata, filepath=None, spec=None):
                              (voldata['call_put_id'] == volflag) &
                              (voldata['value_date'] == sim_start)]
                 df.sort_values(by='strike', inplace=True)
-                f1 = interp1d(df.strike, df.vol,
+                f1 = interp1d(df.strike, df.settle_vol,
                               fill_value='extrapolate')
                 vol = f1(strike)
                 # raise ValueError('vol cannot be located!',
@@ -454,7 +462,7 @@ def handle_dailies(dic, sim_start):
                 ttm_range = round(op.tau * 365)
                 expdate = sim_start + pd.Timedelta(str(ttm_range) + ' days')
                 daterange = pd.bdate_range(sim_start, expdate)
-                # print('daterange: ', daterange)
+                print('daterange: ', daterange)
                 taus = [((expdate - b_day).days) /
                         365 for b_day in daterange if b_day != expdate]
                 strike, char, vol, underlying, payoff, shorted, month, ordering, lots, settlement \
@@ -485,7 +493,7 @@ def handle_dailies(dic, sim_start):
 ###############################################################
 
 
-def clean_data(df, flag, date=None, edf=None, writeflag=None, sdf=None):
+def clean_data(df, flag, date=None, edf=None, writeflag=None):
     """Function that cleans the dataframes passed into it according to the flag passed in.
     1) flag == 'exp':
         > datatype conversion to pd.Timestamp
@@ -524,6 +532,7 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None, sdf=None):
 
     # cleaning volatility data
     elif flag == 'vol':
+        print('cleaning voldata')
         # handling data types
         df['value_date'] = pd.to_datetime(df['value_date'])
         df = df.dropna()
@@ -539,42 +548,41 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None, sdf=None):
         df['ftmth'] = df['underlying_id'].str.split().str[1]
         df['op_id'] = df['op_id'] = df.vol_id.str.split().str[
             1].str.split('.').str[0]
-        df = assign_ci(df)
-        # NOTE: this defaults to datetime.time.max since only settlement values
-        # are available currently.
-        df['time'] = datetime.time.max
+
         # setting data types
-        df.order = pd.to_numeric(df.order)
+        # df.order = pd.to_numeric(df.order)
         df.tau = pd.to_numeric(df.tau)
         df.strike = pd.to_numeric(df.strike)
-        df.vol = pd.to_numeric(df.vol)
+        df.settle_vol = pd.to_numeric(df.settle_vol)
         df.value_date = pd.to_datetime(df.value_date)
-        df.time = df.time.astype(pd.Timestamp)
-    # cleaning price data. this is only called when NOT handling intraday data. 
+
+        df['time'] = dt.time.max
+        df['time'] = df['time'].astype(pd.Timestamp)
+
+    # cleaning price data
     elif flag == 'price':
+        print('cleaning pricedata')
         # dealing with datatypes and generating new fields from existing ones.
         df['value_date'] = pd.to_datetime(df['value_date'])
-
-        if 'pdt' not in df.columns:
-            df['pdt'] = df['underlying_id'].str.split().str[0]
-        if 'ftmth' not in df.columns:
-            df['ftmth'] = df['underlying_id'].str.split().str[1]
-        df['time'] = datetime.time.max
-
+        df['pdt'] = df['underlying_id'].str.split().str[0]
+        df['ftmth'] = df['underlying_id'].str.split().str[1]
         # transformative functions.
-        df = get_expiry(df, edf)
-        df = assign_ci(df)
-        # df = scale_prices(df)
+        # df = get_expiry(df, edf)
+        # df = assign_ci(df, date)
+        df['order'] = ''
+        df = scale_prices(df)
         df = df.fillna(0)
-        df.expdate = pd.to_datetime(df.expdate)
-        df = df[df.value_date <= df.expdate]
-
-        # setting data types
-        df.order = pd.to_numeric(df.order)
         df.value_date = pd.to_datetime(df.value_date)
-        df.price = pd.to_numeric(df.price)
-        # df.returns = pd.to_numeric(df.returns)
-        df.expdate = pd.to_datetime(df.expdate)
+        df.settle_value = pd.to_numeric(df.settle_value)
+        df.returns = pd.to_numeric(df.returns)
+        df['time'] = dt.time.max
+        df['time'] = df['time'].astype(pd.Timestamp)
+
+        # df.expdate = pd.to_datetime(df.expdate)
+        # df = df[df.value_date <= df.expdate]
+        # setting data types
+        # df.order = pd.to_numeric(df.order)
+        # df.expdate = pd.to_datetime(df.expdate)
 
     df.reset_index(drop=True, inplace=True)
     df = df.dropna()
@@ -583,7 +591,79 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None, sdf=None):
     return df
 
 
-# currently only works for settlement prices.
+def ciprice(pricedata, rollover='opex'):
+    """Constructs the CI price series.
+
+    Args:
+        pricedata (TYPE): price data frame of same format as read_data
+        rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
+
+    Returns:
+        pandas dataframe : Dataframe with the following columns:
+            Product | date | underlying | order | settle_value | returns | expiry date
+    """
+    t = time.time()
+    if rollover == 'opex':
+        ro_dates = get_rollover_dates(pricedata)
+        products = pricedata['pdt'].unique()
+        # iterate over produts
+        by_product = None
+        for product in products:
+            df = pricedata[pricedata.pdt == product]
+            # lst = contract_mths[product]
+            assert not df.empty
+            most_recent = []
+            by_date = None
+            try:
+                relevant_dates = ro_dates[product]
+            except KeyError:
+                df2 = df[
+                        ['pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']]
+                df2.columns = [
+                    'pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']
+                by_product = df2
+                continue
+            # iterate over rollover dates for this product.
+            for date in relevant_dates:
+                df = df[df.order > 0]
+                order_nums = sorted(df.order.unique())
+                breakpoint = max(most_recent) if most_recent else min(
+                    df['value_date'])
+                # print('breakpoint, date: ', breakpoint, date)
+                by_order_num = None
+                # iterate over all order_nums for this product. for each cont, grab
+                # entries until first breakpoint, and stack wide.
+                for ordering in order_nums:
+                    # print('breakpoint, end, cont: ', breakpoint, date, cont)
+                    df2 = df[df.order == ordering]
+                    tdf = df2[(df2['value_date'] < date) & (df2['value_date'] >= breakpoint)][
+                        ['pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']]
+                    # print(tdf.empty)
+                    tdf.columns = [
+                        'pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']
+                    tdf.reset_index(drop=True, inplace=True)
+                    by_order_num = tdf if by_order_num is None else pd.concat(
+                        [by_order_num, tdf])
+
+                # by_date contains entries from all order_nums until current
+                # rollover date. take and stack this long.
+                by_date = by_order_num if by_date is None else pd.concat(
+                    [by_date, by_order_num])
+                most_recent.append(date)
+                df.order -= 1
+
+            by_product = by_date if by_product is None else pd.concat(
+                [by_product, by_order_num])
+        final = by_product
+
+    else:
+        final = -1
+    elapsed = time.time() - t
+    # print('[CI-PRICE] elapsed: ', elapsed)
+    # final.to_csv('ci_price_final.csv', index=False)
+    return final
+
+
 def vol_by_delta(voldata, pricedata):
     """takes in a dataframe of vols and prices (same format as those returned by read_data),
      and generates delta-wise vol organized hierarchically by date, underlying and vol_id
@@ -595,25 +675,25 @@ def vol_by_delta(voldata, pricedata):
     Returns:
         pandas dataframe: delta-wise vol of each option.
     """
-    relevant_price = pricedata[pricedata.datatype == 'settlement'][
-        ['pdt', 'underlying_id', 'value_date', 'price']]
+    # print('voldata: ', voldata)
+    # print('pricedata: ', pricedata)
+    relevant_price = pricedata[
+        ['pdt', 'underlying_id', 'value_date', 'settle_value']]
     relevant_vol = voldata[['pdt', 'value_date', 'vol_id', 'strike',
-                            'call_put_id', 'tau', 'vol', 'underlying_id']]
+                            'call_put_id', 'tau', 'settle_vol', 'underlying_id']]
 
     # handle discrepancies in underlying_id format
-    relevant_price.underlying_id = \
-        relevant_price.underlying_id.str.split().str[0] + '  ' +\
-        relevant_price.underlying_id.str.split().str[1]
+    relevant_price.underlying_id = relevant_price.underlying_id.str.split().str[0]\
+        + '  ' + relevant_price.underlying_id.str.split().str[1]
 
-    relevant_vol.underlying_id = \
-        relevant_vol.underlying_id.str.split().str[0] + '  ' + \
-        relevant_vol.underlying_id.str.split().str[1]
+    relevant_vol.underlying_id = relevant_vol.underlying_id.str.split().str[0] + '  '\
+        + relevant_vol.underlying_id.str.split().str[1]
 
     print('merging')
     merged = pd.merge(relevant_vol, relevant_price,
                       on=['pdt', 'value_date', 'underlying_id'])
     # filtering out negative tau values.
-    merged = merged[(merged['tau'] > 0) & (merged['vol'] > 0)]
+    merged = merged[(merged['tau'] > 0) & (merged['settle_vol'] > 0)]
 
     print('computing deltas')
 
@@ -630,8 +710,8 @@ def vol_by_delta(voldata, pricedata):
 
     print('preallocating')
     # preallocating dataframes
-    vdf = merged[['value_date', 'underlying_id', 'tau',
-                  'vol_id', 'pdt', 'call_put_id']].drop_duplicates()
+    vdf = merged[['value_date', 'underlying_id', 'tau', 'vol_id',
+                  'pdt', 'call_put_id']].drop_duplicates()
 
     products = merged.pdt.unique()
 
@@ -643,6 +723,7 @@ def vol_by_delta(voldata, pricedata):
     dlist = []
     for pdt in products:
         tmp = merged[merged.pdt == pdt]
+        # tmp.to_csv('test.csv')
         dates = tmp.value_date.unique()
         vids = tmp.vol_id.unique()
         cpi = list(tmp.call_put_id.unique())
@@ -661,18 +742,32 @@ def vol_by_delta(voldata, pricedata):
                     # reshaping data for interpolation.
                     drange = np.arange(0.05, 0.96, 0.01)
                     deltas = df.delta.values
-                    vols = df.vol.values
+                    vols = df.settle_vol.values
+                    # interpolating delta using Piecewise Cubic Hermite
+                    # Interpolation (Pchip)
+
                     try:
+                        # print('deltas: ', deltas)
+                        # print('vols: ', vols)
+                        # f1 = PchipInterpolator(
+                        #     deltas, vols, extrapolate=True)
                         f1 = interp1d(deltas, vols, kind='linear',
                                       fill_value='extrapolate')
                     except ValueError:
+                        # print('INTERPOLATION BROKE')
+                        # print('vid: ', vid)
+                        # print('cpi: ', ind)
+                        # print('date: ', date)
+                        # print('deltas: ', deltas)
+                        # print('vols: ', vols)
                         continue
 
                     # grabbing delta-wise vols based on interpolation.
                     vols = f1(drange)
-                    dic = dict(zip(delta_labels, vols))
 
+                    dic = dict(zip(delta_labels, vols))
                     # adding the relevant values from the indexing dataframe
+
                     dic['pdt'] = pdt
                     dic['vol_id'] = vid
                     dic['value_date'] = date
@@ -681,14 +776,87 @@ def vol_by_delta(voldata, pricedata):
                     dic['maxval'] = df.delta.values.max()
                     dlist.append(dic)
 
-    vbd = pd.DataFrame(dlist,
-                       columns=delta_labels.extend(['pdt', 'vol_id', 'value_date',
-                                                    'call_put_id', 'minval', 'maxval']))
+    vbd = pd.DataFrame(dlist, columns=delta_labels.extend([
+                       'pdt', 'vol_id', 'value_date', 'call_put_id', 'minval', 'maxval']))
 
     vbd = pd.merge(vdf, vbd, on=['pdt', 'vol_id', 'value_date', 'call_put_id'])
 
     # resetting indices
     return vbd
+
+
+def civols(vdf, pdf, rollover='opex'):
+    """Constructs the CI vol series.
+    Args:
+        vdf (TYPE): price data frame of same format as read_data
+        rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
+
+    Returns:
+        pandas dataframe : dataframe with the following columns:
+        pdt|order|value_date|underlying_id|vol_id|op_id|call_put_id|tau|strike|settle_vol
+
+    """
+    t = time.time()
+    if rollover == 'opex':
+        ro_dates = get_rollover_dates(pdf)
+        products = vdf['pdt'].unique()
+        # iterate over produts
+        by_product = None
+        for product in products:
+            df = vdf[vdf.pdt == product]
+            most_recent = []
+            by_date = None
+            try:
+                relevant_dates = ro_dates[product]
+            except KeyError:
+                # no rollover dates for this product
+                df2 = df[['pdt', 'order', 'value_date', 'underlying_id', 'vol_id',
+                          'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']]
+                df2.columns = ['pdt', 'order', 'value_date', 'underlying_id',
+                               'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
+                by_product = df2
+                continue
+
+            # iterate over rollover dates for this product.
+            for date in relevant_dates:
+                # filter order > 0 to get rid of C_i that have been dealt with.
+                df = df[df.order > 0]
+                # sort orderings.
+                order_nums = sorted(df.order.unique())
+                breakpoint = max(most_recent) if most_recent else min(
+                    df['value_date'])
+                by_order_num = None
+                # iterate over all order_nums for this product. for each cont, grab
+                # entries until first breakpoint, and stack wide.
+                for ordering in order_nums:
+                    cols = ['pdt', 'order', 'value_date', 'underlying_id', 'vol_id',
+                            'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
+                    df2 = df[df.order == ordering]
+                    tdf = df2[(df2['value_date'] < date) &
+                              (df2['value_date'] >= breakpoint)][cols]
+                    # renaming columns
+                    tdf.columns = ['pdt', 'order', 'value_date', 'underlying_id',
+                                   'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
+                    # tdf.reset_index(drop=True, inplace=True)
+                    by_order_num = tdf if by_order_num is None else pd.concat(
+                        [by_order_num, tdf])
+
+                # by_date contains entries from all order_nums until current
+                # rollover date. take and stack this long.
+                by_date = by_order_num if by_date is None else pd.concat(
+                    [by_date, by_order_num])
+                most_recent.append(date)
+                df.order -= 1
+
+            by_product = by_date if by_product is None else pd.concat(
+                [by_product, by_date])
+
+        final = by_product
+    else:
+        final = -1
+    elapsed = time.time() - t
+    # print('[CI-VOLS] elapsed: ', elapsed)
+    return final
 
 
 #####################################################
@@ -712,6 +880,7 @@ def ttm(df, s, edf):
             expdate = pd.to_datetime(expdate.values[0])
         except IndexError:
             print('expdate not found for Vol ID: ', iden)
+            expdate = pd.Timestamp('1990-01-01')
         currdate = pd.to_datetime(df[(df['vol_id'] == iden)]['value_date'])
         timedelta = (expdate - currdate).dt.days / 365
         df.ix[df['vol_id'] == iden, 'tau'] = timedelta
@@ -736,7 +905,7 @@ def get_expiry_date(volid, edf):
     return expdate
 
 
-def assign_ci(df):
+def assign_ci(df, date):
     """Identifies the continuation numbers of each underlying.
 
     Args:
@@ -745,40 +914,25 @@ def assign_ci(df):
     Returns:
         Pandas dataframe     : Dataframe with the CIs populated.
     """
+    today = pd.to_datetime(date)
+    # today = pd.Timestamp('2017-01-01')
+    curr_mth = month_to_sym[today.month]
+    curr_yr = today.year
     products = df['pdt'].unique()
     df['order'] = ''
-    df.value_date = pd.to_datetime(df.value_date)
     for pdt in products:
         lst = contract_mths[pdt]
         df2 = df[df.pdt == pdt]
         ftmths = df2.ftmth.unique()
-        mod = 0
         for ftmth in ftmths:
-            df3 = df2[df2.ftmth == ftmth]
-            df3.sort_values(by='value_date', inplace=True)
-            prev_date = None
-            expdates = list(pd.to_datetime(df2.expdate.unique()))
-            roll_mth = None
-            for date in df3.value_date.unique():
-                rollover_date = min(expdates)
-                today = pd.to_datetime(date)
-                curr_mth = month_to_sym[today.month]
-                curr_yr = today.year
-                m1 = curr_mth + str(curr_yr % (2000 + decade))
+            m1 = curr_mth + str(curr_yr % (2000 + decade))
+            # print('ftmth: ', ftmth)
+            # print('m1: ', m1)
+            try:
                 dist = find_cdist(m1, ftmth, lst)
-                # sanity check for date being an expiry case.
-                if (prev_date is not None and
-                        (prev_date < rollover_date and
-                         today > rollover_date)) or (today == rollover_date):
-                    print('HIT ROLLOVER: ', ftmth, date)
-                    roll_mth = m1
-                    expdates.remove(rollover_date)
-                mod = -1 if (m1 == roll_mth) else 0
-                df.ix[(df.pdt == pdt) &
-                      (df.ftmth == ftmth) &
-                      (df.value_date == today), 'order'] = dist + mod
-                prev_date = today
-            roll_mth = None
+            except ValueError:
+                dist = -99
+            df.ix[(df.pdt == pdt) & (df.ftmth == ftmth), 'order'] = dist
     return df
 
 
@@ -814,10 +968,9 @@ def find_cdist(x1, x2, lst):
             # print('case 2')
             yrdiff = x2yr - x1yr
             dist = reg + (len(lst) * yrdiff)
-        # examples: (Z7, H7)
+        # examples: (Z7, H8), (N7, Z7), (Z7, U7)
         elif (x2yr == x1yr) and (x1mth > x2mth):
             return -1
-        # examples: (Z7, H8), (N7, Z7), (Z7, U7)
         else:
             # print('case 3')
             # print('reg: ', reg)
@@ -863,7 +1016,7 @@ def scale_prices(pricedata):
     for x in ids:
         # scale each price independently
         df = pricedata[(pricedata['underlying_id'] == x)]
-        s = df['price']
+        s = df['settle_value']
         s1 = s.shift(-1)
         if len(s1) == 1 and np.isnan(s1.values[0]):
             ret = 0
@@ -946,6 +1099,37 @@ def get_rollover_dates(pricedata):
                 expdate = df2['expdate'].unique()[0]
                 rollover_dates[product][i] = pd.Timestamp(expdate)
     return rollover_dates
+
+
+def compute_delta(x):
+    """Helper function to aid with vol_by_delta, rendered in this format to make use of pd.apply
+
+    Args:
+        x (pandas dataframe): dataframe of vols.
+
+    Returns:
+        double: value of delta
+    """
+    s = x.settle_value
+    K = x.strike
+    tau = x.tau
+    char = x.call_put_id
+    vol = x.settle_vol
+    r = 0
+    try:
+        d1 = (log(s/K) + (r + 0.5 * vol ** 2)*tau) / \
+            (vol * sqrt(tau))
+    except (ZeroDivisionError):
+        d1 = -np.inf
+
+    if char == 'C':
+        # call option calc for delta and theta
+        delta1 = norm.cdf(d1)
+    if char == 'P':
+        # put option calc for delta and theta
+        delta1 = norm.cdf(d1) - 1
+
+    return delta1
 
 
 def get_min_start_date(vdf, pdf, lst, signals=None):
@@ -1044,6 +1228,7 @@ def sanity_check(vdates, pdates, start_date, end_date, signals=None,):
 
 
 ############### Intraday Data Processing Functions ####################
+
 
 def clean_intraday_data(df, sdf):
     """Helper function that processes intraday data into a usable format. Performs the
@@ -1164,10 +1349,10 @@ def timestep_recon(df):
                 # case: others have no data earlier than ts.
                 if not other_data:
                     continue
-                # isolate data for this day. 
+                # isolate data for this day.
                 # append data
                 dic_lst.append(dict(zip(cols, data.values)))
-                # extend other data 
+                # extend other data
                 dic_lst.extend(other_data)
             print('datalen: ', list(zip(*ords))[1])
             print('%s completed' % (date.strftime('%Y-%m-%d')))
@@ -1210,33 +1395,32 @@ def get_closest_ts_data(ts, others):
     return ret
 
 
-
 def insert_settlements(df, pdf):
     """Appends the settlement data to the intraday data. 
-    
+
     Args:
         df (TYPE): Dataframe of intraday prices
         sdf (TYPE): Dataframe of settlement prices. 
     """
-    assert not df.empty 
-    assert not pdf.empty 
+    assert not df.empty
+    assert not pdf.empty
     pdf['time'] = dt.time.max
     pdf['datatype'] = 'settlement'
-    pdf = pdf[['value_date', 'time', 'pdt', 'ftmth', 'underlying_id', 'price', 'datatype']]
-    df = df[['value_date', 'time', 'pdt', 'ftmth', 'underlying_id', 'price', 'datatype']]
+    pdf = pdf[['value_date', 'time', 'pdt', 'ftmth',
+               'underlying_id', 'price', 'datatype']]
+    df = df[['value_date', 'time', 'pdt', 'ftmth',
+             'underlying_id', 'price', 'datatype']]
     x = pd.concat([df, pdf])
 
     # handle data types
     x.value_date = pd.to_datetime(x.value_date)
     x.time = x.time.astype(pd.Timestamp)
 
-    # some sanity checks. 
-    assert not x.empty 
+    # some sanity checks.
+    assert not x.empty
     assert 'settlement' in x.datatype.unique()
     assert 'intraday' in x.datatype.unique()
     return x
-
-
 
 ##########################################################################
 ##########################################################################
