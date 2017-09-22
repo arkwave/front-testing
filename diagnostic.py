@@ -140,7 +140,7 @@ print('pf.hedger: ', pf.get_hedger())
 
 prices = prices[prices.underlying_id == 'S  U7']
 
-prices = prices[prices.value_date > sim_start]
-vols = vols[vols.value_date > sim_start]
+# prices = prices[prices.value_date > sim_start]
+# vols = vols[vols.value_date > sim_start]
 
 log = run_simulation(vols, prices, edf, pf, plot_results=False)
