@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-22 16:44:50
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-09-22 19:34:08
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -521,7 +521,7 @@ class Hedge:
             hedge_type = 'bound'
 
         if flag == 'delta' and hedge_type == 'static':
-            fee = self.hedge_delta()
+            fee = self.hedge_delta(price_changes=price_changes)
             return fee
 
         for product in self.greek_repr:
@@ -617,8 +617,11 @@ class Hedge:
         tobehedged = {}
         # be_dict = None
 
+        print('price_changes: ', price_changes)
+
         # case: intraday data
         if price_changes is not None:
+            print('intraday hedging case')
             # static value.
             if self.params['delta']['intraday']['kind'] == 'static':
                 comp_val = self.params['delta']['intraday']['modifier']
@@ -635,14 +638,18 @@ class Hedge:
                 for pdt in be_dic:
                     for mth in be_dic[pdt]:
                         mults = self.params['delta']['intraday']['modifier']
-                        if pdt in mults and mth in mults[pdt]:
-                            be_mult = mults[pdt][mth]
+                        uid = pdt + '  ' + mth
+                        print('mults: ', mults)
+                        if uid in mults:
+                            be_mult = mults[uid]
                             print('pdt, mth, mult: ', pdt, mth, be_mult)
                         else:
                             be_mult = 1
-                        uid = pdt + '  ' + mth
                         be = be_dic[pdt][mth] * be_mult
+                        print('be: ', be_dic[pdt][mth])
+                        print('mult: ', be_mult)
                         print('target_breakeven: ', be)
+                        print('actual move: ', price_changes[uid])
                         if price_changes[uid] >= be:
                             if pdt not in tobehedged:
                                 tobehedged[pdt] = set()
@@ -658,6 +665,7 @@ class Hedge:
         for product in tobehedged:
             for month in tobehedged[product]:
                 # uid = product + '  ' + month
+                print('delta hedging ' + product + '  ' + month)
                 target = self.params['delta'][target_flag]['target']
                 delta = net_greeks[product][month][0]
                 delta_diff = delta - target
@@ -669,10 +677,10 @@ class Hedge:
                     try:
                         ft, _ = create_underlying(product, month, self.pdf,
                                                   self.date, shorted=shorted,
-                                                  lots=num_lots_needed)
+                                                  lots=num_lots_needed, flag=target_flag)
                         if ft is not None:
                             self.pf.add_security([ft], 'hedge')
-                            # print('adding ' + str(ft))
+                            print('adding ' + str(ft))
                     except IndexError:
                         print('price data for this day ' + '-- ' + self.date.strftime(
                             '%Y-%m-%d') + ' --' + ' does not exist. skipping...')

@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-08 18:52:47
+# @Last Modified time: 2017-09-22 21:05:59
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -245,24 +245,6 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
         final_vol = final_vol[~vmask]
         final_price = final_price[~pmask]
 
-    if not test:
-        vbd = vol_by_delta(final_vol, final_price)
-
-        # merging vol_by_delta and price dataframes on product, underlying_id,
-        # value_date and order
-        vbd.underlying_id = vbd.underlying_id.str.split().str[0]\
-            + '  ' + vbd.underlying_id.str.split().str[1]
-        final_price.underlying_id = final_price.underlying_id.str.split().str[0]\
-            + '  ' + final_price.underlying_id.str.split().str[1]
-        merged = pd.merge(vbd, final_price, on=[
-                          'pdt', 'value_date', 'underlying_id'])
-        final_price = merged
-
-        # handle conventions for vol_id in price/vol data.
-        final_vol.vol_id = final_vol.vol_id.str.split().str[0]\
-            + '  ' + final_vol.vol_id.str.split().str[1]
-        final_price.vol_id = final_price.vol_id.str.split().str[0]\
-            + '  ' + final_price.vol_id.str.split().str[1]
     assert not vdf.empty
     assert not pdf.empty
 

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-22 17:08:57
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-09-22 20:14:10
 
 ################################ imports ###################################
 # general imports
@@ -209,6 +209,9 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
     ########################################
     # constructing/assigning hedge objects #
     pf = assign_hedge_objects(pf)
+    # initial timestep, because previous day's settlements were used to construct
+    # the portfolio.
+    pf.timestep(timestep)
     ########################################
 
     for i in range(len(date_range)):
@@ -271,25 +274,36 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
                   str(ts) + ' =====================')
             # for prices: filter and use exclusively the intraday data. assign
             # to hedger objects.
+            print('pf at start: ', pf)
 
             # base case: only settlement data.
             pdf = pdf_1[pdf_1.time == ts]
             vdf = vdf_1[vdf_1.time == ts]
+            # print('vdf: ', vdf)
+            # print('pdf: ', pdf)
+            print('datatype: ', pdf.datatype.unique())
 
             # sanity check to ensure that intraday data is actually present.
-            if 'intraday' in pdf.datatype.unique():
-                pdf = pdf[pdf.datatype == 'intraday']
+            # if 'intraday' in pdf.datatype.unique():
+            #     pdf = pdf[pdf.datatype == 'intraday']
 
             pf.assign_hedger_dataframes(vdf, pdf)
 
+            print('last price before update: ', latest_price)
+            print('price changes before update: ', price_changes)
+
             # populate the dictionary.
             for uid in pf.get_unique_uids():
+                print('uid: ', uid)
                 if uid not in latest_price:
-                    latest_price[uid] == pdf[
-                        pdf.underlying_id == uid].price.values[0]
+                    latest_price[uid] = pf.get_uid_price(uid)
                 prev_price = latest_price[uid]
                 price = pdf[pdf.underlying_id == uid].price.values[0]
-                price_changes[uid] = price - prev_price
+                price_changes[uid] = abs(price - prev_price)
+                latest_price[uid] = price
+
+            print('last price after update: ', latest_price)
+            print('price changes after update: ', price_changes)
 
         # Step 3: Feed data into the portfolio.
             print("========================= FEED DATA ==========================")
@@ -324,9 +338,11 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
 
             # update the initial value post hedge.
             init_val = pf.compute_value()
+            print('new init val: ', init_val)
 
             print(
                 "========================= END PNL & BARR/EX ==========================")
+            print('pf at end: ', pf)
             print('============= end timestamp ' +
                   str(ts) + '===================')
 
@@ -633,9 +649,6 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
     if pf.empty():
         return pf, False, 0, 0, 0, [], []
 
-    if voldf.empty:
-        raise ValueError('vol df is empty!')
-
     # print('curr_date: ', curr_date)
     date = pd.to_datetime(pdf.value_date.unique()[0])
 
@@ -764,57 +777,62 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
             if (init_val != 0 and intermediate_val != 0) else 0
 
     # update option attributes by feeding in vol.
-    for op in pf.get_all_options():
-        # info reqd: strike, order, product, tau
-        strike, product, tau = op.K, op.product, op.tau
-        b_vol, strike_vol = None, None
-        cpi = 'C' if op.char == 'call' else 'P'
-        # interpolate or round? currently rounding, interpolation easy.
-        ticksize = multipliers[op.get_product()][-2]
-        # get strike corresponding to closest available ticksize.
-        strike = round(round(strike / ticksize) * ticksize, 2)
-        vid = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
-        # case: flat vols.
-        if flat_vols:
-            op.update_greeks(vol=op.vol, bvol=op.bvol)
-        else:
-            try:
-                val = voldf[(voldf.pdt == product) & (voldf.strike == strike) &
-                            (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
-                df_tau = min(val.tau, key=lambda x: abs(x - tau))
-                strike_vol = val[val.tau == df_tau].vol.values[0]
-            except (IndexError, ValueError):
-                print('### VOLATILITY DATA MISSING ###')
-                # print('product: ', product)
-                # print('strike: ', strike)
-                # print('order: ', order)
-                # print('vid: ', vid)
-                # print('call put id: ', cpi)
-                # print('tau: ', df_tau)
-                # broken = True
-                strike_vol = op.vol
-                # break
+    volskip = False
+    if voldf.empty:
+        print('=== No Vol Data Present! ===')
+        volskip = True
+    if not volskip:
+        for op in pf.get_all_options():
+            # info reqd: strike, order, product, tau
+            strike, product, tau = op.K, op.product, op.tau
+            b_vol, strike_vol = None, None
+            cpi = 'C' if op.char == 'call' else 'P'
+            # interpolate or round? currently rounding, interpolation easy.
+            ticksize = multipliers[op.get_product()][-2]
+            # get strike corresponding to closest available ticksize.
+            strike = round(round(strike / ticksize) * ticksize, 2)
+            vid = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
+            # case: flat vols.
+            if flat_vols:
+                op.update_greeks(vol=op.vol, bvol=op.bvol)
+            else:
+                try:
+                    val = voldf[(voldf.pdt == product) & (voldf.strike == strike) &
+                                (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
+                    df_tau = min(val.tau, key=lambda x: abs(x - tau))
+                    strike_vol = val[val.tau == df_tau].vol.values[0]
+                except (IndexError, ValueError):
+                    print('### VOLATILITY DATA MISSING ###')
+                    # print('product: ', product)
+                    # print('strike: ', strike)
+                    # print('order: ', order)
+                    # print('vid: ', vid)
+                    # print('call put id: ', cpi)
+                    # print('tau: ', df_tau)
+                    # broken = True
+                    strike_vol = op.vol
+                    # break
 
-            try:
-                if op.barrier is not None:
-                    barlevel = op.ki if op.ki is not None else op.ko
-                    b_val = voldf[(voldf.pdt == product) & (voldf.strike == barlevel) &
-                                  (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
-                    df_tau = min(b_val.tau, key=lambda x: abs(x - tau))
-                    b_vol = val[val.tau == df_tau].vol.values[0]
-            except (IndexError, ValueError):
-                print('### BARRIER VOLATILITY DATA MISSING ###')
-                # print('product: ', product)
-                # print('strike: ', barlevel)
-                # print('order: ', order)
-                # print('vid: ', vid)
-                # print('call put id: ', cpi)
-                # print('tau: ', df_tau)
-                # broken = True
-                b_vol = op.bvol
-                # break
+                try:
+                    if op.barrier is not None:
+                        barlevel = op.ki if op.ki is not None else op.ko
+                        b_val = voldf[(voldf.pdt == product) & (voldf.strike == barlevel) &
+                                      (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
+                        df_tau = min(b_val.tau, key=lambda x: abs(x - tau))
+                        b_vol = val[val.tau == df_tau].vol.values[0]
+                except (IndexError, ValueError):
+                    print('### BARRIER VOLATILITY DATA MISSING ###')
+                    # print('product: ', product)
+                    # print('strike: ', barlevel)
+                    # print('order: ', order)
+                    # print('vid: ', vid)
+                    # print('call put id: ', cpi)
+                    # print('tau: ', df_tau)
+                    # broken = True
+                    b_vol = op.bvol
+                    # break
 
-            op.update_greeks(vol=strike_vol, bvol=b_vol)
+                op.update_greeks(vol=strike_vol, bvol=b_vol)
 
     # (today's price, today's vol) - (today's price, yesterday's vol)
     vega_pnl = pf.compute_value() - intermediate_val \

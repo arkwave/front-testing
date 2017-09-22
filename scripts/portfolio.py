@@ -1015,6 +1015,8 @@ class Portfolio:
             for fa in self.families:
                 fa.hedger.update_dataframes(vdf, pdf)
 
+        print('hedger dataframes updated!')
+
     def get_hedger(self):
         return self.hedger
 
@@ -1024,3 +1026,7 @@ class Portfolio:
         """
         ret = set([x.get_uid() for x in self.get_all_options()])
         return ret
+
+    def get_uid_price(self, uid):
+        fts = [x for x in self.get_all_futures() if x.get_uid() == uid]
+        return fts[0].get_price()

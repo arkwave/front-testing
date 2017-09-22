@@ -967,11 +967,13 @@ def get_vol_from_delta(delta, vdf, pdf, volid, char, shorted, date):
     uid = volid.split()[0] + '  ' + volid.split('.')[1]
 
     price = pdf[(pdf.value_date == date) &
-                (pdf.underlying_id == uid)].price.values[0]
+                (pdf.underlying_id == uid) &
+                (pdf.datatype == 'settlement')].price.values[0]
 
     vdata = copy.deepcopy(vdf[(vdf.value_date == date) &
                               (vdf.vol_id == volid) &
-                              (vdf.call_put_id == cpi)][v_cols])
+                              (vdf.call_put_id == cpi) &
+                              (vdf.datatype == 'settlement')][v_cols])
 
     # print('vdata: ', vdata)
 

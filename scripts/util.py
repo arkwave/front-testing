@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-22 16:42:37
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-09-22 20:23:34
 
 
 from .portfolio import Portfolio
@@ -169,7 +169,7 @@ contract_mths = {
 #     return pf
 
 
-def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=None):
+def create_underlying(pdt, ftmth, pdf, date, flag='settlement', ftprice=None, shorted=False, lots=None):
     """Utility method that creates the underlying future object 
         given a product, month, price data and date. 
 
@@ -184,15 +184,24 @@ def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=N
     Returns:
         tuple: future object, and price. 
     """
+    # print('pdf: ', pdf)
+    # datatype = 'settlement' if settlement else 'intraday'
+    flag = 'settlement' if flag == 'eod' else flag
     uid = pdt + '  ' + ftmth
     if ftprice is None:
         try:
             ftprice = pdf[(pdf.underlying_id == uid) &
-                          (pdf.value_date == date)].price.values[0]
+                          (pdf.value_date == date)]
+            if flag == 'settlement':
+                ftprice = ftprice[(ftprice.datatype == flag)].price.values[0]
+            else:
+                ftprice = ftprice.price.values[0]
+
         except IndexError:
             print('util.create_underlying: cannot find price. printing outputs: ')
             print('uid: ', uid)
             print('date: ', date)
+            print('flag: ', flag)
             return None, 0
 
     curr_mth = date.month
@@ -293,7 +302,8 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
             vol = vdf[(vdf.value_date == date) &
                       (vdf.vol_id == volid) &
                       (vdf.call_put_id == cpi) &
-                      (vdf.strike == strike)].vol.values[0]
+                      (vdf.strike == strike) &
+                      (vdf.datatype == 'settlement')].vol.values[0]
         except IndexError as e:
             raise IndexError(
                 'util.create_vanilla_option - vol not found in the dataset. inputs are: ', date, volid, cpi, strike) from e

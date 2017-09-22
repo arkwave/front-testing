@@ -558,6 +558,7 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
 
         df['time'] = dt.time.max
         df['time'] = df['time'].astype(pd.Timestamp)
+        df['datatype'] = 'settlement'
 
     # cleaning price data
     elif flag == 'price':
@@ -577,6 +578,7 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
         df.returns = pd.to_numeric(df.returns)
         df['time'] = dt.time.max
         df['time'] = df['time'].astype(pd.Timestamp)
+        df['datatype'] = 'settlement'
 
         # df.expdate = pd.to_datetime(df.expdate)
         # df = df[df.value_date <= df.expdate]

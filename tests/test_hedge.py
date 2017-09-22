@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-08-11 19:24:36
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-22 17:00:57
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-09-22 20:24:58
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -440,7 +440,7 @@ def test_intraday_hedge_processing_be():
 
 
 def test_intraday_hedging_be():
-    price_changes = {'CC  Z7': 20, 'QC  Z7': 50}
+    price_changes = {'CC  Z7': 20, 'QC  Z7': 20}
     be = {'CC': {'U7': 1, 'Z7': 1.3},
           'QC': {'U7': 1.5, 'Z7': 2}}
     gen_hedges = OrderedDict({'delta': [['static', 0, 1],
@@ -465,7 +465,7 @@ def test_intraday_hedging_be():
     # print('pf.net_greeks: ', pf.net_greeks)
 
     # case 2: CC move exceeds breakeven * mult.
-    price_changes = {'CC  Z7': 60, 'QC  Z7': 50}
+    price_changes = {'CC  Z7': 60, 'QC  Z7': 20}
     init_greeks = pf.net_greeks.copy()
     print('pf.net_greeks pre_hedge: ', pf.net_greeks)
     engine.hedge_delta(price_changes=price_changes)
