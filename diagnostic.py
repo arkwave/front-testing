@@ -1,9 +1,11 @@
 import numpy as np
 import pandas as pd
 import time
+from scripts.portfolio import Portfolio
 import scripts.prep_data as pr
-from scripts.util import create_skew, create_underlying, create_vanilla_option
+from scripts.util import create_skew, create_underlying, create_vanilla_option, assign_hedge_objects
 from scripts.fetch_data import grab_data
+from scripts.simulation import run_simulation
 
 
 multipliers = {
@@ -104,17 +106,41 @@ contract_mths = {
 df = pd.read_csv('alt_merged_data.csv')
 df.value_date = pd.to_datetime(df.value_date)
 df.time = df.time.astype(pd.Timestamp)
-date = df.value_date.min() 
-max_date = df.value_date.max() 
+date = df.value_date.min()
+max_date = df.value_date.max()
 
 
-vdf, pdf, edf = grab_data(['S'], date.strftime('%Y-%m-%d'), max_date.strftime('%Y-%m-%d'), test=True)
+vdf, pdf, edf = grab_data(['S'], date.strftime(
+    '%Y-%m-%d'), max_date.strftime('%Y-%m-%d'), test=True)
 
+sim_start, sim_end = pd.to_datetime('2017-02-23'), pd.to_datetime('2017-02-24')
 
-tst_underlying = create_underlying('S', 'U7', df, date=date, shorted=False)
-print(tst_underlying)
+sim_start = pd.Timestamp('2017-02-23')
+sim_end = pd.Timestamp('2017-02-24')
 
+prices = df[df.value_date.isin([sim_start, sim_end])]
+vols = vdf[vdf.value_date.isin([sim_start, sim_end])]
 
-tst_op = create_vanilla_option(vdf, df, 'S  U7.U7', 'call', False, date=date, strike='atm')
+print('price: ', prices.columns)
+print('vols: ', vols.columns)
 
-tst_skew = create_skew('S  U7.U7', vdf, df, date, False, 25)
+# create the portfolio
+op = create_vanilla_option(vols, prices, 'S  U7.U7', 'call',
+                           False, date=sim_start, strike='atm')
+
+hedges = {'delta': [['static', 'zero', 1],
+                    ['intraday', 'breakeven', {'S  U7': 0.75}]]}
+
+pf = Portfolio(hedges, name='it_test')
+pf.add_security([op], 'OTC')
+pf = assign_hedge_objects(pf)
+
+print('pf: ', pf)
+print('pf.hedger: ', pf.get_hedger())
+
+prices = prices[prices.underlying_id == 'S  U7']
+
+prices = prices[prices.value_date > sim_start]
+vols = vols[vols.value_date > sim_start]
+
+log = run_simulation(vols, prices, edf, pf, plot_results=False)
