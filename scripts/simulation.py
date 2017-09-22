@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-22 20:14:10
+# @Last Modified time: 2017-09-22 22:26:48
 
 ################################ imports ###################################
 # general imports
@@ -135,16 +135,14 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         pricedata (TYPE): Description
         expdata (TYPE): Description
         pf (TYPE): Description
+        flat_vols (bool, optional): Description
+        flat_price (bool, optional): Description
         end_date (None, optional): Description
         brokerage (None, optional): Description
         slippage (None, optional): Description
         signals (TYPE): Description
-        roll_portfolio (None, optional): Description
-        pf_ttm_tol (None, optional): Description
-        pf_roll_product (None, optional): Description
-        roll_hedges (None, optional): Description
-        h_ttm_tol (None, optional): Description
-        h_roll_product (None, optional): Description
+        plot_results (bool, optional): Description
+        drawdown_limit (None, optional): Description
 
     Returns:
         TYPE: Description
@@ -154,6 +152,12 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         hedges (TYPE): Description
         roll_product (None, optional): Description
         ttm_tol (None, optional): Description
+        roll_portfolio (None, optional): Description
+        pf_ttm_tol (None, optional): Description
+        pf_roll_product (None, optional): Description
+        roll_hedges (None, optional): Description
+        h_ttm_tol (None, optional): Description
+        h_roll_product (None, optional): Description
 
 
     """
@@ -179,14 +183,27 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
     net_daily_values = []
     net_cumul_values = []
     ##################################################
+    date_range = sorted(voldata.value_date.unique())
+
+    ########################################
+    # constructing/assigning hedge objects #
+    pf = assign_hedge_objects(pf)
+    pre_ts_val = pf.compute_value()
+    # initial timestep, because previous day's settlements were used to construct
+    # the portfolio.
+
+    # get the init diff and timestep
+    init_diff = (pd.to_datetime(
+        date_range[1]) - pd.to_datetime(date_range[0])).days
+    print('init_diff: ', init_diff)
+    pf.timestep(init_diff * timestep)
+    init_timestep_pnl = pf.compute_value() - pre_ts_val
+
+    date_range = date_range[1:]
+    ########################################
 
     ############ Other useful variables: #############
     loglist = []
-
-    date_range = sorted(voldata.value_date.unique())
-
-    # initial value for pnl calculations.
-    init_val = 0
 
     # highest cumulative pnl until this point
     highest_value = 0
@@ -206,13 +223,9 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
     # Note: [partially depreciated]
     broken = False
     ##################################################
-    ########################################
-    # constructing/assigning hedge objects #
-    pf = assign_hedge_objects(pf)
-    # initial timestep, because previous day's settlements were used to construct
-    # the portfolio.
-    pf.timestep(timestep)
-    ########################################
+
+    # initial value for pnl calculations.
+    init_val = pf.compute_value()
 
     for i in range(len(date_range)):
         # get the current date
@@ -263,6 +276,8 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         print("========================= END INIT ==========================")
 
         dailypnl = 0
+        dailygamma = 0
+        dailyvega = 0
         price_changes = {}
         latest_price = {}
         exercise_futures = []
@@ -304,7 +319,7 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
 
             print('last price after update: ', latest_price)
             print('price changes after update: ', price_changes)
-
+            print('old init val: ', pf.compute_value())
         # Step 3: Feed data into the portfolio.
             print("========================= FEED DATA ==========================")
             # NOTE: currently, exercising happens as soon as moneyness is triggered. This should
@@ -320,8 +335,15 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
             # print('updated value after feed: ', updated_val)
             # print('init val: ', init_val)
             pnl = (updated_val -
-                   init_val) + exercise_profit if (init_val != 0 and updated_val != 0) else 0
+                   init_val) + exercise_profit
+
+            print('timestep pnl: ', pnl)
+            print('timestep gamma pnl: ', gamma_pnl)
+            print('timestep vega pnl: ', vega_pnl)
+
             dailypnl += pnl
+            dailygamma += gamma_pnl
+            dailyvega += vega_pnl
 
             # Detour: add in exercise & barrier futures if required.
             if exercise_futures:
@@ -337,6 +359,7 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
             hedge_engine.apply('delta', price_changes=price_changes)
 
             # update the initial value post hedge.
+
             init_val = pf.compute_value()
             print('new init val: ', init_val)
 
@@ -381,18 +404,18 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
     # relevant lists.
 
         # gamma/vega pnls
-        gamma_pnl_daily.append(gamma_pnl)
-        vega_pnl_daily.append(vega_pnl)
-        gammapnl += gamma_pnl
-        vegapnl += vega_pnl
+        gamma_pnl_daily.append(dailygamma)
+        vega_pnl_daily.append(dailyvega)
+        gammapnl += dailygamma
+        vegapnl += dailyvega
         gamma_pnl_cumul.append(gammapnl)
         vega_pnl_cumul.append(vegapnl)
         # gross/net pnls
         gross_daily_values.append(dailypnl)
-        net_daily_values.append(dailypnl - dailycost)
+        netpnl += (dailypnl - cost)
+        net_daily_values.append(netpnl)
         grosspnl += dailypnl
         gross_cumul_values.append(grosspnl)
-        netpnl += (dailypnl - cost)
         net_cumul_values.append(netpnl)
 
     # Step 9.5: Update highest_value so that the next
@@ -410,8 +433,8 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         pf.timestep(num_days * timestep)
 
         print('[1.0]   EOD PNL (GROSS): ', dailypnl)
-        print('[1.0.1] EOD Vega PNL: ', vega_pnl)
-        print('[1.0.2] EOD Gamma PNL: ', gamma_pnl)
+        print('[1.0.1] EOD Vega PNL: ', dailyvega)
+        print('[1.0.2] EOD Gamma PNL: ', dailygamma)
         print('[1.0.3] EOD PNL (NET) :', dailypnl - dailycost)
         print('[1.0.4] Cumulative PNL (GROSS): ', grosspnl)
         print('[1.0.5] Cumulative Vega PNL: ', vegapnl)
@@ -773,8 +796,8 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
         else:
             gamma_pnl = (intermediate_val + total_profit) - init_val
     else:
-        gamma_pnl = intermediate_val + total_profit - init_val \
-            if (init_val != 0 and intermediate_val != 0) else 0
+        gamma_pnl = (intermediate_val + total_profit -
+                     init_val) if intermediate_val != 0 else 0
 
     # update option attributes by feeding in vol.
     volskip = False
@@ -835,8 +858,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
                 op.update_greeks(vol=strike_vol, bvol=b_vol)
 
     # (today's price, today's vol) - (today's price, yesterday's vol)
-    vega_pnl = pf.compute_value() - intermediate_val \
-        if (init_val != 0 and intermediate_val != 0) else 0
+    vega_pnl = pf.compute_value() - intermediate_val if intermediate_val != 0 else 0
 
     # updating portfolio after modifying underlying objects
     pf.refresh()
