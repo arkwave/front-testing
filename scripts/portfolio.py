@@ -995,9 +995,9 @@ class Portfolio:
                 gamma, theta = abs(dic[pdt][mth][1]), abs(dic[pdt][mth][2])
                 thetas.append(theta)
                 gammas.append(gamma)
-                bes[pdt][mth] = theta/gamma
-            total_be = sum(thetas) / sum(gammas)
-            bes[pdt]['all'] = total_be
+                bes[pdt][mth] = ((2*theta)/gamma) ** 0.5
+            # total_be = (2*sum(thetas) / sum(gammas))**0.5
+            # bes[pdt]['all'] = total_be
         return bes
 
     def assign_hedger_dataframes(self, vdf, pdf):

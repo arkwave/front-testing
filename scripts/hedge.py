@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-21 22:27:37
+# @Last Modified time: 2017-09-22 16:44:50
 import pandas as pd
 from timeit import default_timer as timer
 import numpy as np
@@ -77,9 +77,11 @@ class Hedge:
         """
         self.vdf = vdf
         self.pdf = pdf
+        self.date = pd.to_datetime(pdf.value_date.min())
         if hedges is not None:
             self.hedges = hedges
             self.desc, self.params = self.process_hedges()
+
         self.calibrate_all()
 
     def process_hedges(self):
@@ -146,6 +148,8 @@ class Hedge:
                             params[flag]['tau_desc'] = 'ratio'
             if it_conds:
                 # currently defaults to 0.
+                it_conds = it_conds[0]
+                print('it_conds: ', it_conds)
                 params[flag]['intraday'] = {'kind': it_conds[1],
                                             'modifier': it_conds[2],
                                             'target': 0}
@@ -630,13 +634,15 @@ class Hedge:
                 be_dic = self.pf.breakeven()
                 for pdt in be_dic:
                     for mth in be_dic[pdt]:
-                        mults = self.params['delta']['be_mod']
+                        mults = self.params['delta']['intraday']['modifier']
                         if pdt in mults and mth in mults[pdt]:
                             be_mult = mults[pdt][mth]
+                            print('pdt, mth, mult: ', pdt, mth, be_mult)
                         else:
                             be_mult = 1
                         uid = pdt + '  ' + mth
                         be = be_dic[pdt][mth] * be_mult
+                        print('target_breakeven: ', be)
                         if price_changes[uid] >= be:
                             if pdt not in tobehedged:
                                 tobehedged[pdt] = set()
@@ -645,6 +651,8 @@ class Hedge:
         # case: settlement-to-settlement.
         else:
             tobehedged = net_greeks
+
+        print('tobehedged: ', tobehedged)
 
         target_flag = 'eod' if price_changes is None else 'intraday'
         for product in tobehedged:

@@ -2,10 +2,10 @@
 # @Author: arkwave
 # @Date:   2017-08-11 19:24:36
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-19 20:20:21
+# @Last Modified time: 2017-09-22 17:00:57
 
 from collections import OrderedDict
-from scripts.util import create_straddle, combine_portfolios
+from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
 from scripts.portfolio import Portfolio
 from scripts.fetch_data import grab_data
 from scripts.hedge import Hedge
@@ -180,6 +180,8 @@ def test_hedge_delta():
 
     # uid representation: no ttm
     cc_engine = Hedge(pf_simple, pf_simple.hedge_params, r_vdf, r_pdf)
+
+    print('cc_engine: ', cc_engine)
 
     # check that deltas are zeroed out.
     cc_engine.hedge_delta()
@@ -399,26 +401,81 @@ def test_hedge():
     print('____________________ HEDGE TEST 1 END _____________________')
 
 
-# # this test will fail.
-# def test_hedge_exp_ttm_mod():
-#     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio()
-#     cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
-#                    'theta': [['bound', (4500, 5000), 1, 0.6, 'ratio',
-#                               'straddle', 'strike', 'atm', (0, 20, 40, 60, 80), 'exp']]}
+def test_intraday_hedge_processing_static():
+    # from scripts.util import assign_hedge_objects
+    gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+                                        ['intraday', 'static', 10]]})
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    pf_comp.hedge_params = gen_hedges
 
-#     pf = copy.deepcopy(pfcc)
-#     pf.hedge_params = cc_hedges_c
-#     print('____________________ HEDGE TEST 2 _____________________')
-#     engine = Hedge(pf, pf.hedge_params, r_vdf, r_pdf)
-#     tval = pf.net_greeks['CC']['Z7'][2]
-#     bounds = pf.hedge_params['theta'][0][1]
+    # assign hedge objects and create copy
+    pf = copy.deepcopy(pf_comp)
+    pf = assign_hedge_objects(pf)
 
-#     assert not engine.satisfied()
+    engine = pf.get_hedger()
+    assert 'intraday' in engine.params['delta']
+    assert len(engine.params['delta']['intraday']) == 3
+    assert engine.params['delta']['intraday']['kind'] == 'static'
+    assert engine.params['delta']['intraday']['modifier'] == 10
 
-#     engine.hedge('theta', 'CC', 80, tval, (bounds[0] + bounds[1]/2))
 
-#     try:
-#         assert engine.satisfied()
-#     except AssertionError:
-#         print('greek_repr: ', engine.greek_repr)
-#     print('____________________ HEDGE TEST 2 END _____________________')
+def test_intraday_hedge_processing_be():
+    be = {'CC': {'U7': 1, 'Z7': 1.3},
+          'QC': {'U7': 1.5, 'Z7': 2}}
+    gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+                                        ['intraday', 'breakeven', be]]})
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    pf_comp.hedge_params = gen_hedges
+    # assign hedge objects and create copy
+    pf = copy.deepcopy(pf_comp)
+    pf = assign_hedge_objects(pf)
+    print('pf_be: ', pf.breakeven())
+
+    engine = pf.get_hedger()
+    assert 'intraday' in engine.params['delta']
+    assert len(engine.params['delta']['intraday']) == 3
+    assert engine.params['delta']['intraday']['kind'] == 'breakeven'
+    assert engine.params['delta']['intraday']['modifier'] == be
+    print('engine: ', engine)
+
+
+def test_intraday_hedging_be():
+    price_changes = {'CC  Z7': 20, 'QC  Z7': 50}
+    be = {'CC': {'U7': 1, 'Z7': 1.3},
+          'QC': {'U7': 1.5, 'Z7': 2}}
+    gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+                                        ['intraday', 'breakeven', be]]})
+
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    pf_comp.hedge_params = gen_hedges
+    # assign hedge objects and create copy
+    pf = copy.deepcopy(pf_comp)
+    pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf)
+    print('pf_be: ', pf.breakeven())
+
+    # assign hedger dataframes
+
+    # case 1: for both products, moves are less than breakeven * be_mult. no
+    # change.
+    engine = pf.get_hedger()
+    # print('pf.net_greeks: ', pf.net_greeks)
+    init_greeks = pf.net_greeks.copy()
+    engine.hedge_delta(price_changes=price_changes)
+    assert pf.net_greeks == init_greeks
+    # print('pf.net_greeks: ', pf.net_greeks)
+
+    # case 2: CC move exceeds breakeven * mult.
+    price_changes = {'CC  Z7': 60, 'QC  Z7': 50}
+    init_greeks = pf.net_greeks.copy()
+    print('pf.net_greeks pre_hedge: ', pf.net_greeks)
+    engine.hedge_delta(price_changes=price_changes)
+    # pf.refresh()
+    print('pf.net_greeks post_hedge: ', pf.net_greeks)
+    # assert that CC is hedged, QC is not.
+    assert abs(pf.net_greeks['CC']['Z7'][0]) < 1
+    assert pf.net_greeks['QC'] == init_greeks['QC']
+
+    # case 3: QC move exceeds breakeven
+    price_changes = {'CC  Z7': 30, 'QC  Z7': 56}
+    engine.hedge_delta(price_changes=price_changes)
+    assert abs(pf.net_greeks['QC']['Z7'][0]) < 1

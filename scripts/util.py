@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-21 19:38:56
+# @Last Modified time: 2017-09-22 16:42:37
 
 
 from .portfolio import Portfolio
@@ -1238,5 +1238,8 @@ def assign_hedge_objects(pf, vdf=None, pdf=None):
         for fa in pf.families:
             hedger = Hedge(fa, fa.hedge_params, vdf=vdf, pdf=pdf)
             fa.hedger = hedger
+
+    if vdf is not None and pdf is not None:
+        pf.assign_hedger_dataframes(vdf, pdf)
 
     return pf

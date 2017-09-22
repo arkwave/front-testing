@@ -2,10 +2,9 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-21 20:53:40
+# @Last Modified time: 2017-09-22 17:08:57
 
 ################################ imports ###################################
-
 # general imports
 import numpy as np
 import pandas as pd
@@ -284,7 +283,7 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
             pf.assign_hedger_dataframes(vdf, pdf)
 
             # populate the dictionary.
-            for uid in pdf.underlying_id.unique():
+            for uid in pf.get_unique_uids():
                 if uid not in latest_price:
                     latest_price[uid] == pdf[
                         pdf.underlying_id == uid].price.values[0]
@@ -320,8 +319,10 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
                 pf.add_security(barrier_futures, 'hedge')
 
             # hedge the deltas.
+            hedge_engine = pf.get_hedger()
+            hedge_engine.apply('delta', price_changes=price_changes)
 
-            # update the
+            # update the initial value post hedge.
             init_val = pf.compute_value()
 
             print(
