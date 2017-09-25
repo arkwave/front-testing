@@ -551,6 +551,7 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
 
         # setting data types
         # df.order = pd.to_numeric(df.order)
+        print('df.columns: ', df.columns)
         df.tau = pd.to_numeric(df.tau)
         df.strike = pd.to_numeric(df.strike)
         df.vol = pd.to_numeric(df.vol)

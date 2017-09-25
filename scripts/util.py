@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-22 20:23:34
+# @Last Modified time: 2017-09-25 14:20:56
 
 
 from .portfolio import Portfolio
@@ -739,11 +739,13 @@ def create_skew(volid, vdf, pdf, date, shorted, delta, **kwargs):
         else:
             clot, plot = kwargs['lots'][0], kwargs['lots'][1]
 
+    print('clot: ', clot)
+    print('plot: ', plot)
     # creating the options
     op1 = create_vanilla_option(
         vdf, pdf, volid, 'call', shorted, date, delta=delta, lots=clot)
     op2 = create_vanilla_option(
-        vdf, pdf, volid, 'put', not shorted, date, delta=delta, puts=plot)
+        vdf, pdf, volid, 'put', not shorted, date, delta=delta, lots=plot)
 
     if 'greek' in kwargs:
         if kwargs['greek'] == 'vega':

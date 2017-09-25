@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-22 21:05:59
+# @Last Modified time: 2017-09-25 14:14:53
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -214,8 +214,13 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
         raise ValueError(
             '[scripts/prep_data.read_data] : ' +
             'Improper start date entered; resultant dataframes are empty')
-    # print('pdf: ', pdf)
-    # print('vdf: ', vdf)
+
+    print('vdf.columns: ', vdf.columns)
+    print('pdf.columns: ', pdf.columns)
+
+    vdf.columns = ['value_date', 'vol_id', 'call_put_id', 'strike', 'vol']
+    pdf.columns = ['value_date', 'underlying_id', 'price']
+
     # clean dataframes
     edf = clean_data(edf, 'exp')
     vdf = clean_data(vdf, 'vol', date=start_date,
