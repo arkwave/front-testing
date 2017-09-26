@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-22 22:26:48
+# @Last Modified time: 2017-09-26 19:16:42
 
 ################################ imports ###################################
 # general imports
@@ -13,6 +13,7 @@ import time
 import matplotlib.pyplot as plt
 from collections import OrderedDict
 import pprint
+# import datetime
 
 
 # user defined imports
@@ -99,7 +100,7 @@ np.random.seed(seed)
 ############## Main Simulation Loop #################
 #####################################################
 
-def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=False,
+def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                    end_date=None, brokerage=None, slippage=None, signals=None,
                    plot_results=True, drawdown_limit=None):
     """
@@ -131,33 +132,20 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         Process then repeats from step 1 for the next input.
 
     Args:
-        voldata (TYPE): Description
-        pricedata (TYPE): Description
-        expdata (TYPE): Description
-        pf (TYPE): Description
-        flat_vols (bool, optional): Description
-        flat_price (bool, optional): Description
-        end_date (None, optional): Description
-        brokerage (None, optional): Description
-        slippage (None, optional): Description
-        signals (TYPE): Description
-        plot_results (bool, optional): Description
-        drawdown_limit (None, optional): Description
+        voldata (pandas dataframe): Dataframe of volatilities (strikewise)
+        pricedata (pandas dataframe): Dataframe of prices (either intraday or settlement-to-settlement)
+        pf (portfolio object): The portfolio being run through the simulation
+        flat_vols (bool, optional): boolean flag indicating if vols are to be kept constant
+        flat_price (bool, optional): boolean flag indicating if prices are to be kept constant
+        end_date (pandas datetime, optional): end date of the simulation if so desired. 
+        brokerage (float, optional): brokerage value. 
+        slippage (float, optional): slippage value. 
+        signals (pandas dataframe): dataframe of signals if they are applicable. 
+        plot_results (bool, optional): boolean flag indicating if results are to be plotted.
+        drawdown_limit (float, optional): surpassing this limit causes the simulation to terminate. 
 
     Returns:
-        TYPE: Description
-
-
-    Deleted Parameters:
-        hedges (TYPE): Description
-        roll_product (None, optional): Description
-        ttm_tol (None, optional): Description
-        roll_portfolio (None, optional): Description
-        pf_ttm_tol (None, optional): Description
-        pf_roll_product (None, optional): Description
-        roll_hedges (None, optional): Description
-        h_ttm_tol (None, optional): Description
-        h_roll_product (None, optional): Description
+        dataframe: dataframe consisting of the logs on each day of the simulation. 
 
 
     """
@@ -191,14 +179,18 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
     pre_ts_val = pf.compute_value()
     # initial timestep, because previous day's settlements were used to construct
     # the portfolio.
-
     # get the init diff and timestep
+    init_val = pf.compute_value()
+    print('init_val: ', init_val)
+
     init_diff = (pd.to_datetime(
         date_range[1]) - pd.to_datetime(date_range[0])).days
     print('init_diff: ', init_diff)
     pf.timestep(init_diff * timestep)
     init_timestep_pnl = pf.compute_value() - pre_ts_val
+    print('init timestep pnl: ', init_timestep_pnl)
 
+    # reassign the dates since the first datapoint is the init date.
     date_range = date_range[1:]
     ########################################
 
@@ -225,7 +217,7 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
     ##################################################
 
     # initial value for pnl calculations.
-    init_val = pf.compute_value()
+    # init_val = pf.compute_value()  # - init_timestep_pnl
 
     for i in range(len(date_range)):
         # get the current date
@@ -298,10 +290,6 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
             # print('pdf: ', pdf)
             print('datatype: ', pdf.datatype.unique())
 
-            # sanity check to ensure that intraday data is actually present.
-            # if 'intraday' in pdf.datatype.unique():
-            #     pdf = pdf[pdf.datatype == 'intraday']
-
             pf.assign_hedger_dataframes(vdf, pdf)
 
             print('last price before update: ', latest_price)
@@ -319,7 +307,7 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
 
             print('last price after update: ', latest_price)
             print('price changes after update: ', price_changes)
-            print('old init val: ', pf.compute_value())
+            print('old init val: ', init_val)
         # Step 3: Feed data into the portfolio.
             print("========================= FEED DATA ==========================")
             # NOTE: currently, exercising happens as soon as moneyness is triggered. This should
@@ -330,17 +318,20 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
 
             print("========================= PNL & BARR/EX ==========================")
 
-        # Step 4: Compute pnl for the day
+        # Step 4: Compute pnl for the this timestep.
             updated_val = pf.compute_value()
-            # print('updated value after feed: ', updated_val)
-            # print('init val: ', init_val)
-            pnl = (updated_val -
-                   init_val) + exercise_profit
+            # sanity check: if the portfolio is closed out during this
+            # timestep, pnl = exercise proft.
+            if pf.empty():
+                pnl = exercise_profit
+            else:
+                pnl = (updated_val - init_val) + exercise_profit
 
             print('timestep pnl: ', pnl)
             print('timestep gamma pnl: ', gamma_pnl)
             print('timestep vega pnl: ', vega_pnl)
 
+            # update the daily counters.
             dailypnl += pnl
             dailygamma += gamma_pnl
             dailyvega += vega_pnl
@@ -354,22 +345,30 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
                 print('adding barrier futures')
                 pf.add_security(barrier_futures, 'hedge')
 
-            # hedge the deltas.
-            hedge_engine = pf.get_hedger()
-            hedge_engine.apply('delta', price_changes=price_changes)
+            # check: if type is settlement, defer EOD delta hedging to
+            # rebalance function.
+            if 'settlement' not in pdf.datatype.unique():
+                print('--- intraday hedge case ---')
+                hedge_engine = pf.get_hedger()
+                hedge_engine.apply('delta', price_changes=price_changes)
+                print('--- updating init_val post hedge ---')
+                init_val = pf.compute_value()
+                print('end timestamp init val: ', init_val)
 
-            # update the initial value post hedge.
+            else:
+                print('settlement delta case. deferring hedging to rebalance step.')
+                continue
 
-            init_val = pf.compute_value()
-            print('new init val: ', init_val)
-
+            # update the initial value at the end of the timestep to compute
+            # next loop's pnl.
             print(
                 "========================= END PNL & BARR/EX ==========================")
             print('pf at end: ', pf)
             print('============= end timestamp ' +
                   str(ts) + '===================')
 
-        print('================ beginning intraday loop =====================')
+        print('================ end intraday loop =====================')
+        print('pf after intraday loop: ', pf)
 
         # refilter the dataframe to use settlements from here on out.
         pdf = pdf_1[pdf_1.datatype == 'settlement']
@@ -384,7 +383,9 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
             pf, cost, sigvals = apply_signal(pf, pdf, vdf, relevant_signals, date,
                                              sigvals, strat='filo',
                                              brokerage=brokerage, slippage=slippage)
+            print('signals cost: ', cost)
             dailycost += cost
+            # print('signals cost: ', cost)
         print("========================= END SIGNALS ==========================")
     # Step 6: rolling over portfolio and hedges if required.
         # simple case
@@ -392,6 +393,8 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         pf, cost, all_deltas = roll_over(pf, vdf, pdf, date, brokerage=brokerage,
                                          slippage=slippage)
         pf.refresh()
+        print('roll_over cost: ', cost)
+        dailycost += cost
         print("========================= END ROLLOVER ==========================")
 
     # Step 7: Hedge - bring greek levels across portfolios (and families) into
@@ -399,6 +402,8 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         print("========================= REBALANCE ==========================")
         pf, cost, roll_hedged = rebalance(vdf, pdf, pf, brokerage=brokerage,
                                           slippage=slippage, next_date=next_date)
+        print('rebalance cost: ', cost)
+        dailycost += cost
         print("========================= END REBALANCE ==========================")
     # Step 9: Subtract brokerage/slippage costs from rebalancing. Append to
     # relevant lists.
@@ -412,8 +417,9 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         vega_pnl_cumul.append(vegapnl)
         # gross/net pnls
         gross_daily_values.append(dailypnl)
-        netpnl += (dailypnl - cost)
-        net_daily_values.append(netpnl)
+        dailynet = dailypnl - dailycost
+        netpnl += dailynet
+        net_daily_values.append(dailynet)
         grosspnl += dailypnl
         gross_cumul_values.append(grosspnl)
         net_cumul_values.append(netpnl)
@@ -423,7 +429,7 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         if netpnl > highest_value:
             highest_value = netpnl
 
-    # Step 10: Initialize init_val to be used in the next loop.
+    # Step 10: Initialize init_val to be used in the next day.
         num_days = 0 if next_date is None else (
             pd.Timestamp(next_date) - pd.Timestamp(date)).days
         init_val = pf.compute_value()
@@ -435,12 +441,13 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
         print('[1.0]   EOD PNL (GROSS): ', dailypnl)
         print('[1.0.1] EOD Vega PNL: ', dailyvega)
         print('[1.0.2] EOD Gamma PNL: ', dailygamma)
-        print('[1.0.3] EOD PNL (NET) :', dailypnl - dailycost)
+        print('[1.0.2.5] Daily cost: ', dailycost)
+        print('[1.0.3] EOD PNL (NET) :', dailynet)
         print('[1.0.4] Cumulative PNL (GROSS): ', grosspnl)
         print('[1.0.5] Cumulative Vega PNL: ', vegapnl)
         print('[1.0.6] Cumulative Gamma PNL: ', gammapnl)
         print('[1.0.7] Cumulative PNL (net): ', netpnl)
-        # print('[1.1]  EOD PORTFOLIO: ', pf)
+        print('[1.1]  EOD PORTFOLIO: ', pf)
 
     # Step 12: Logging relevant output to csv
     ##########################################################################
@@ -474,11 +481,11 @@ def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=
             d, g, t, v = dic[pdt][ftmth]
 
             lst = [date, vol_id, char, where, tau, op_value, oplots,
-                   ftprice, strike, opvol, dailypnl, dailypnl - dailycost, grosspnl, netpnl,
-                   gamma_pnl, gammapnl, vega_pnl, vegapnl, roll_hedged, d, g, t, v]
+                   ftprice, strike, opvol, dailypnl, dailynet, grosspnl, netpnl,
+                   dailygamma, gammapnl, dailyvega, vegapnl, roll_hedged, d, g, t, v]
 
-            cols = ['value_date', 'vol_id', 'call/put', 'otc/hedge', 'ttm', 'option_value', 'option_lottage',
-                    'future price', 'strike', 'vol',
+            cols = ['value_date', 'vol_id', 'call/put', 'otc/hedge', 'ttm', 'option_value',
+                    'option_lottage', 'future price', 'strike', 'vol',
                     'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross', 'cu_pnl_net',
                     'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl', 'cu_vega_pnl',
                     'delta_rolled', 'net_delta', 'net_gamma', 'net_theta', 'net_vega']
@@ -737,14 +744,20 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
 
     total_profit = exercise_profit + barrier_profit
 
+    print('total_profit: ', total_profit)
+
+    # print('pf post update pre refresh 1: ', pf)
     # refresh portfolio after price updates.
     pf.refresh()
+    # print('pf post update post refresh 1: ', pf)
 
     # removing expiries
     pf.remove_expired()
 
     # refresh after handling expiries.
+    # print('pf post update pre refresh 2: ', pf)
     pf.refresh()
+    # print('pf post update post refresh 2: ', pf)
 
     # TODO: Need to re-implement the sanity checks for when portfolio needs
     # to be cleaned out.
@@ -786,19 +799,22 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
     intermediate_val = pf.compute_value()
 
     # TODO: Reimplement this.
-    # print('intermediate value: ', intermediate_val)
+    print('intermediate value: ', intermediate_val)
     if exercised:
         # case: portfolio is empty after data feed step (i.e. expiries and
         # associated deltas closed)
         if intermediate_val == 0:
+            print('gamma pnl calc: portfolio closed out case')
             gamma_pnl = total_profit
         # case: portfolio is NOT empty.
         else:
+            print('other case')
             gamma_pnl = (intermediate_val + total_profit) - init_val
     else:
+        print('pnl calc: not exercised case')
         gamma_pnl = (intermediate_val + total_profit -
                      init_val) if intermediate_val != 0 else 0
-
+        print('gamma pnl: ', gamma_pnl)
     # update option attributes by feeding in vol.
     volskip = False
     if voldf.empty:

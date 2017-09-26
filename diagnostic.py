@@ -143,4 +143,4 @@ prices = prices[prices.underlying_id == 'S  U7']
 # prices = prices[prices.value_date > sim_start]
 # vols = vols[vols.value_date > sim_start]
 
-log = run_simulation(vols, prices, edf, pf, plot_results=False)
+log = run_simulation(vols, prices, pf, plot_results=False)
