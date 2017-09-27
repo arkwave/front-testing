@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-26 19:16:42
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-09-27 20:49:25
 
 ################################ imports ###################################
 # general imports
@@ -228,7 +228,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         # checks to make sure if there are still non-hedge securities in pf
         # isolate data relevant for this day.
         date = pd.to_datetime(date)
-        print('##################### date: ', date, '################')
+        print('########################### date: ',
+              date, '############################')
 
         if len(pf.OTC_options) == 0 and len(pf.OTC_futures) == 0 and not pf.empty():
             print('ALL OTC OPTIONS HAVE EXPIRED. ENDING SIMULATION...')
@@ -265,7 +266,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
         print("========================= INIT ==========================")
         print('Portfolio before any ops pf:', pf)
-        print("========================= END INIT ==========================")
+        print("==========================================================")
 
         dailypnl = 0
         dailygamma = 0
@@ -275,10 +276,14 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         exercise_futures = []
         barrier_futures = []
 
+        # reset the breakeven dictionaries in the portfolio's hedger object.
+        pf.update_hedger_breakeven()
+
         print('================ beginning intraday loop =====================')
         for ts in pdf_1.time.unique():
             print('===================== time: ' +
                   str(ts) + ' =====================')
+
             # for prices: filter and use exclusively the intraday data. assign
             # to hedger objects.
             print('pf at start: ', pf)
@@ -286,8 +291,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             # base case: only settlement data.
             pdf = pdf_1[pdf_1.time == ts]
             vdf = vdf_1[vdf_1.time == ts]
-            # print('vdf: ', vdf)
-            # print('pdf: ', pdf)
+
             print('datatype: ', pdf.datatype.unique())
 
             pf.assign_hedger_dataframes(vdf, pdf)
@@ -308,13 +312,14 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             print('last price after update: ', latest_price)
             print('price changes after update: ', price_changes)
             print('old init val: ', init_val)
+
         # Step 3: Feed data into the portfolio.
+
             print("========================= FEED DATA ==========================")
             # NOTE: currently, exercising happens as soon as moneyness is triggered. This should
             # not be much of an issue since exercise is never actually reached.
             pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
                 = feed_data(vdf, pdf, pf, init_val, flat_vols=flat_vols, flat_price=flat_price)
-            print("========================= END FEED DATA ==========================")
 
             print("========================= PNL & BARR/EX ==========================")
 
@@ -362,7 +367,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             # update the initial value at the end of the timestep to compute
             # next loop's pnl.
             print(
-                "========================= END PNL & BARR/EX ==========================")
+                "=================================================================")
             print('pf at end: ', pf)
             print('============= end timestamp ' +
                   str(ts) + '===================')
@@ -386,7 +391,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             print('signals cost: ', cost)
             dailycost += cost
             # print('signals cost: ', cost)
-        print("========================= END SIGNALS ==========================")
+        print("====================================================================")
     # Step 6: rolling over portfolio and hedges if required.
         # simple case
         print("========================= ROLLOVER ==========================")
@@ -395,7 +400,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         pf.refresh()
         print('roll_over cost: ', cost)
         dailycost += cost
-        print("========================= END ROLLOVER ==========================")
+        print("===================================================================")
 
     # Step 7: Hedge - bring greek levels across portfolios (and families) into
     # line with target levels.
@@ -404,7 +409,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                                           slippage=slippage, next_date=next_date)
         print('rebalance cost: ', cost)
         dailycost += cost
-        print("========================= END REBALANCE ==========================")
+        print("==================================================================")
     # Step 9: Subtract brokerage/slippage costs from rebalancing. Append to
     # relevant lists.
 
