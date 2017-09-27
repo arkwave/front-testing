@@ -1,18 +1,13 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-25 14:33:40
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-09-27 20:05:08
+
 import pandas as pd
-from timeit import default_timer as timer
-import numpy as np
-from .util import create_straddle, create_underlying, create_strangle, create_vanilla_option, blockPrint
 import pprint
-
-# blockPrint()
-
-# TODO: accept specifications on hedge option construction from hedge
-# dictionary.
+import numpy as np
+from .util import create_straddle, create_underlying, create_strangle, create_vanilla_option
 
 
 class Hedge:
@@ -47,6 +42,7 @@ class Hedge:
         self.hedges = hedges
         self.desc, self.params = self.process_hedges()
         self.date = None
+        self.breakeven = self.pf.breakeven().copy()
 
         # check if vdf/pdf have been populated. if not, update.
         if (self.vdf is not None and self.pdf is not None):
@@ -65,6 +61,14 @@ class Hedge:
                   'hedges': self.hedges}
 
         return str(pprint.pformat(r_dict))
+
+    def set_breakeven(self, dic):
+        """Setter method that sets self.breakeven = dic
+
+        Args:
+            dic (TYPE): dictionary of breakevens, organized by product/month
+        """
+        self.breakeven = dic
 
     def update_dataframes(self, vdf, pdf, hedges=None):
         """ Helper method that updates the dataframes and (potentially) the hedges
@@ -634,7 +638,7 @@ class Hedge:
 
             # breakeven-based hedging.
             else:
-                be_dic = self.pf.breakeven()
+                be_dic = self.breakeven
                 for pdt in be_dic:
                     for mth in be_dic[pdt]:
                         mults = self.params['delta']['intraday']['modifier']

@@ -996,8 +996,7 @@ class Portfolio:
                 thetas.append(theta)
                 gammas.append(gamma)
                 bes[pdt][mth] = ((2*theta)/gamma) ** 0.5
-            # total_be = (2*sum(thetas) / sum(gammas))**0.5
-            # bes[pdt]['all'] = total_be
+
         return bes
 
     def assign_hedger_dataframes(self, vdf, pdf):
@@ -1030,3 +1029,9 @@ class Portfolio:
     def get_uid_price(self, uid):
         fts = [x for x in self.get_all_futures() if x.get_uid() == uid]
         return fts[0].get_price()
+
+    def update_hedger_breakeven(self):
+        """Proxy method that calls this portfolio's hedger objects' set_breakeven method. 
+        """
+        if self.hedger is not None:
+            self.hedger.set_breakeven(self.breakeven())
