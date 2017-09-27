@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-18 21:05:03
+# @Last Modified time: 2017-09-27 13:44:48
 
 ################################ imports ###################################
 
@@ -100,7 +100,7 @@ np.random.seed(seed)
 ############## Main Simulation Loop #################
 #####################################################
 
-def run_simulation(voldata, pricedata, expdata, pf, flat_vols=False, flat_price=False,
+def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                    end_date=None, brokerage=None, slippage=None, signals=None,
                    plot_results=True, drawdown_limit=None):
     """
