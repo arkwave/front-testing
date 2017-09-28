@@ -1197,7 +1197,63 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 		buy/sell to close it off. 
 
 - vol/price reconciliation on the basis of timestep. > on hold until intraday vols are available. 
-		
+
+
+
+
+
+#### As of 09/28/2017
+- [Done] Pulling intraday data from the database/cleaning. 
+- [Done] reconciling intraday data with settlements. 
+
+##### Scenario-based implementations 
+- Three different scenarios:
+	+ Case A: Flat vols + step-update.
+		* EOD update step.
+	+ Case B: Settlement to settlement
+		* Sanity check and ensure that results work the same when just dealing with settlements as opposed to settlements + intraday.
+	+ Case C: hedging basis book vols and pnl basis settlement. 
+		* update vols function that takes in a dataframe, updates the vols of all relevant options.
+
+- common implementation requirements across scenarios:
+	* Market Minuses update/reset.
+	* book vol variable/dataframe
+	* refactor PnL computations. 
+		 
+##### Hedging Updates:
+- Re-implementing hedging logic:
+	+ {breakeven multiple} -> {percentage} -> {buyback logic}
+
+##### UI Implementation:
+- Volgraphix implementation for each of the scenarios. 
+	+ checkboxes for each scenario:	
+		* Book PnL and Book Hedging
+		* Settle PnL and Settle Hedging
+		* Settle PnL and Book Hedging
+	> pipe these booleans as flags into the simulation to determine behavior. 
+
+- volgraphix implementation for intraday hedging conditions. 
+
+##### VAR Module implementation:
+- Move simulation into scripts, handle imports. 
+
+- Build a user interface containing simulation inputs. 
+
+- Sanity check data processing steps. 
+
+- Error handling & testing
+	+ barrier events. 
+	+ calc steps. 
+
+- Trim the fat:
+	+ move hedging into a separate file altogether, remove from simulation. 
+	+ remove multi-day run functionality altogether?
+
+- Fix the basic variables:
+	+ run length
+	+ block size 
+
+	
 ===============================================================================
 
 #### Expand HSM to allow for Intraday data. 
@@ -1241,6 +1297,7 @@ _________________ Intraday implementation: Notes _____________________
 	> edge case 2: limit up/limit down implementations required?
 
 #### Feed steps
+- Done. 
 
 #### PnL Calculation
 
