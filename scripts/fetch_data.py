@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-25 14:14:53
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-09-28 19:18:56
 
+# import time
 import pandas as pd
 from sqlalchemy import create_engine
 import time
 import os
 import numpy as np
-from .prep_data import match_to_signals, get_min_start_date, clean_data, vol_by_delta, sanity_check
+from .prep_data import match_to_signals, get_min_start_date, clean_data, vol_by_delta, sanity_check, handle_intraday_conventions
 from .global_vars import main_direc
 
 contract_mths = {
@@ -479,3 +480,98 @@ def pull_expdata():
     df.ix[:, 'opmth'] = s.str[0] + (pd.to_numeric(s.str[1:]) % 10).astype(str)
 
     return df
+
+
+def pull_intraday_data(pdts, start_date=None, end_date=None):
+    """Helper method that pulls intraday data from the DB. 
+
+    Args:
+        pdts (TYPE): Products for which intraday data is required
+        start_date (None, optional): start date
+        end_date (None, optional): end date
+
+    Returns:
+        TYPE: Dataframe
+    """
+    user = 'sumit'
+    password = 'Olam1234'
+    engine = create_engine('postgresql://' + user + ':' + password +
+                           '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+    connection = engine.connect()
+    print('constructing query...')
+    query = construct_intraday_query(
+        pdts, start_date=start_date, end_date=end_date)
+    print('query: ', query)
+
+    # fetch the dataframe from the db.
+    t = time.clock()
+    print('fetching intraday data...')
+    df = pd.read_sql_query(query, connection)
+    print('fetch completed. elapsed: ', time.clock() - t)
+
+    df = handle_intraday_conventions(df)
+
+    # cleaning up the columns in preparation for clean_data call
+    # df.date_time = pd.to_datetime(df.date_time)
+    # df['time'] = df.date_time.dt.time
+    # df['value_date'] = df.date_time.dt.date
+    # df['pdt'] = df.commodity.str[:2].str.strip()
+    # df['ftmth'] = df.commodity.str[2:-6].str.strip()
+    # df['underlying_id'] = df.pdt + '  ' + df.ftmth
+
+    # # setting datatype: intraday vs settlements
+    # df['datatype'] = 'intraday'
+
+    cols = ['value_date', 'time', 'underlying_id',
+            'pdt', 'ftmth', 'price', 'datatype']
+    df = df[cols]
+
+    df.value_date = pd.to_datetime(df.value_date)
+    df.time = df.time.astype(pd.Timestamp)
+    df.sort_values(by=['value_date', 'time'], inplace=True)
+    df.reset_index(drop=True, inplace=True)
+
+    return df
+
+
+def construct_intraday_query(pdts, start_date=None, end_date=None):
+    """Helper method that generates the SQL query for pulling from the intraday table. 
+
+    Args:
+        pdts (TYPE): Description
+        start_date (None, optional): Description
+        end_date (None, optional): Description
+    """
+    init_query = 'select commodity, date_time, trade_type, price from public.table_intra_day_trade_cumulative_volume_group where ('
+
+    # generate product query
+    pdt_str = ''
+    for pdt in pdts:
+        space = 1 if len(pdt) == 1 else 0
+        pdt_str += ' commodity like ' + "'" + pdt + ' '*space + '%%' + "'"
+        if pdt != pdts[-1]:
+            pdt_str += ' or '
+        else:
+            pdt_str += ' ) '
+
+    init_query += pdt_str
+
+    date_str = ''
+
+    # add in date conditions
+    if start_date is not None or end_date is not None:
+        date_str += ' and ('
+        if start_date is not None:
+            date_str += ' date(date_time) >= ' + "'" + start_date + "'"
+            if end_date is None:
+                date_str += ' )'
+            else:
+                date_str += ' and '
+
+        if end_date is not None:
+            date_str += ' date(date_time) <= ' + "'" + end_date + "'" + ')'
+
+    init_query += ' ' + date_str
+
+    # print('init_query: ', init_query)
+    return init_query

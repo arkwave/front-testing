@@ -103,44 +103,61 @@ contract_mths = {
 # print('finished timestep recon. elapsed: ', time.clock() - t)
 
 
-df = pd.read_csv('alt_merged_data.csv')
-df.value_date = pd.to_datetime(df.value_date)
-df.time = df.time.astype(pd.Timestamp)
-date = df.value_date.min()
-max_date = df.value_date.max()
+# df = pd.read_csv('alt_merged_data.csv')
+# df.value_date = pd.to_datetime(df.value_date)
+# df.time = df.time.astype(pd.Timestamp)
+# date = df.value_date.min()
+# max_date = df.value_date.max()
 
 
-vdf, pdf, edf = grab_data(['S'], date.strftime(
-    '%Y-%m-%d'), max_date.strftime('%Y-%m-%d'), test=True)
+# vdf, pdf, edf = grab_data(['S'], date.strftime(
+#     '%Y-%m-%d'), max_date.strftime('%Y-%m-%d'), test=True)
 
-sim_start, sim_end = pd.to_datetime('2017-02-23'), pd.to_datetime('2017-02-24')
+# sim_start, sim_end = pd.to_datetime('2017-02-23'), pd.to_datetime('2017-02-24')
 
-sim_start = pd.Timestamp('2017-02-23')
-sim_end = pd.Timestamp('2017-02-24')
+# sim_start = pd.Timestamp('2017-02-23')
+# sim_end = pd.Timestamp('2017-02-24')
 
-prices = df[df.value_date.isin([sim_start, sim_end])]
-vols = vdf[vdf.value_date.isin([sim_start, sim_end])]
+# prices = df[df.value_date.isin([sim_start, sim_end])]
+# vols = vdf[vdf.value_date.isin([sim_start, sim_end])]
 
-print('price: ', prices.columns)
-print('vols: ', vols.columns)
+# print('price: ', prices.columns)
+# print('vols: ', vols.columns)
 
-# create the portfolio
-op = create_vanilla_option(vols, prices, 'S  U7.U7', 'call',
-                           False, date=sim_start, strike='atm')
+# # create the portfolio
+# op = create_vanilla_option(vols, prices, 'S  U7.U7', 'call',
+#                            False, date=sim_start, strike='atm')
 
-hedges = {'delta': [['static', 'zero', 1],
-                    ['intraday', 'breakeven', {'S  U7': 0.75}]]}
+# hedges = {'delta': [['static', 'zero', 1],
+#                     ['intraday', 'breakeven', {'S  U7': 0.75}]]}
 
-pf = Portfolio(hedges, name='it_test')
-pf.add_security([op], 'OTC')
-pf = assign_hedge_objects(pf)
+# pf = Portfolio(hedges, name='it_test')
+# pf.add_security([op], 'OTC')
+# pf = assign_hedge_objects(pf)
 
-print('pf: ', pf)
-print('pf.hedger: ', pf.get_hedger())
+# print('pf: ', pf)
+# print('pf.hedger: ', pf.get_hedger())
 
-prices = prices[prices.underlying_id == 'S  U7']
+# prices = prices[prices.underlying_id == 'S  U7']
 
 # prices = prices[prices.value_date > sim_start]
 # vols = vols[vols.value_date > sim_start]
 
-log = run_simulation(vols, prices, pf, plot_results=False)
+# log = run_simulation(vols, prices, pf, plot_results=False)
+
+from scripts.fetch_data import pull_intraday_data
+from scripts.prep_data import insert_settlements
+
+pdts = ['S', 'SM']
+start_date = '2017-03-02'
+end_date = '2017-03-07'
+
+svols, sprices, _ = grab_data(pdts, start_date, end_date)
+
+df = pull_intraday_data(pdts, start_date=start_date, end_date=end_date)
+
+df = insert_settlements(df, sprices)
+
+
+sms = df[df.pdt == 'SM']
+sdf = df[df.pdt == 'S']

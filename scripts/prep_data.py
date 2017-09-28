@@ -1271,39 +1271,31 @@ def handle_intraday_conventions(df):
     from pandas.tseries.holiday import USFederalHolidayCalendar as calendar
     ## Step 1 ##
     # first: Convert S H8 Comdty -> S  H8
-    interm = df.Commodity.str.split()
-    df['pdt'] = interm.str[0].str.strip()
-    # df['pdt'] = df.Commodity.str.split().str[0].str.strip()
-    df['ftmth'] = interm.str[1].str.strip()
-    # df['ftmth'] = df.Commodity.str.split().str[1].str.strip()
-    df['underlying_id'] = df.pdt + '  ' + df.ftmth
 
+    df['pdt'] = df.commodity.str[:2].str.strip()
+    df['ftmth'] = df.commodity.str[2:-6].str.strip()
+    df['underlying_id'] = df.pdt + '  ' + df.ftmth
     # datetime -> date and time columns.
-    df.Date = pd.to_datetime(df.Date)
-    df['time'] = df.Date.dt.time.astype(pd.Timestamp)
-    df['date'] = pd.to_datetime(df.Date.dt.date)
+    df.date_time = pd.to_datetime(df.date_time)
+    df['time'] = df.date_time.dt.time.astype(pd.Timestamp)
+    df['value_date'] = pd.to_datetime(df.date_time.dt.date)
 
     # filter out weekends/bank holidays.
     cal = calendar()
     holidays = pd.to_datetime(cal.holidays(
-        start=df.date.min(), end=df.date.max())).tolist()
-
-    df = df[~df.date.isin(holidays)]
-    df = df[df.date.dt.dayofweek < 5]
+        start=df.value_date.min(), end=df.value_date.max())).tolist()
+    df = df[~df.value_date.isin(holidays)]
+    df = df[df.value_date.dt.dayofweek < 5]
 
     # adding in flags used to isolate intraday vs settlement and intraday vs
     # settlement period
     df['datatype'] = 'intraday'
 
-    # filter out relevant columns, rename.
-    df = df[['pdt', 'ftmth', 'underlying_id', 'date',
-             'time', 'Price', 'Volume', 'datatype']]
-    df.columns = ['pdt', 'ftmth', 'underlying_id', 'value_date',
-                  'time', 'price', 'volume', 'datatype']
+    cols = ['value_date', 'time', 'underlying_id',
+            'pdt', 'ftmth', 'price', 'datatype']
+    df = df[cols]
 
     return df
-
-# TODO: fix technical debt.
 
 
 def timestep_recon(df):
