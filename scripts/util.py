@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-25 14:20:56
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-09-28 21:15:47
 
 
 from .portfolio import Portfolio
@@ -906,25 +906,27 @@ def close_out_deltas(pf, dtc):
     """
     # print('simulation.closing out deltas')
     cost = 0
-    toberemoved = []
+    toberemoved = {}
     print('simulation.close_out_deltas - dtc: ', dtc)
     for pdt, mth, price in dtc:
         # print(pdt, mth, price)
         all_fts = pf.get_pos_futures()
         futures = [x for x in all_fts if (x.get_product() == pdt and
                                           x.get_month() == mth)]
-
-        # print([str(ft) for ft in futures])
-        # toberemoved = []
         for ft in futures:
+            flag = 'hedge' if ft in pf.hedge_futures else 'OTC'
+            if flag not in toberemoved:
+                toberemoved[flag] = []
+
             # need to spend to buy back
             val = price if ft.shorted else -price
             cost += val
-            toberemoved.append(ft)
+            toberemoved[flag].append(ft)
 
     # print('close_out_deltas - toberemoved: ',
     #       [str(sec) for sec in toberemoved])
-    pf.remove_security(toberemoved, 'hedge')
+    for flag in toberemoved:
+        pf.remove_security(toberemoved[flag], flag)
     print('cost of closing out deltas: ', cost)
 
     # print('pf after closing out deltas: ', pf)

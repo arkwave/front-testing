@@ -1234,26 +1234,11 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 - volgraphix implementation for intraday hedging conditions. 
 
-##### VAR Module implementation:
-- Move simulation into scripts, handle imports. 
+##### Testing:
+- all the intraday shit
+- close out deltas 
 
-- Build a user interface containing simulation inputs. 
 
-- Sanity check data processing steps. 
-
-- Error handling & testing
-	+ barrier events. 
-	+ calc steps. 
-
-- Trim the fat:
-	+ move hedging into a separate file altogether, remove from simulation. 
-	+ remove multi-day run functionality altogether?
-
-- Fix the basic variables:
-	+ run length
-	+ block size 
-
-	
 ===============================================================================
 
 #### Expand HSM to allow for Intraday data. 
