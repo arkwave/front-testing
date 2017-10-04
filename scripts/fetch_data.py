@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-28 19:18:56
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-10-04 14:40:35
 
 # import time
+import datetime as dt
 import pandas as pd
 from sqlalchemy import create_engine
 import time
@@ -341,6 +342,8 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
             vdf.value_date = pd.to_datetime(vdf.value_date)
             pdf.value_date = pd.to_datetime(pdf.value_date)
             edf.expiry_date = pd.to_datetime(edf.expiry_date)
+            vdf.time = dt.time.max
+            pdf.time = pdf.time.astype(pd.Timestamp)
 
             final_pdf = pd.concat([final_pdf, pdf])
             final_vols = pd.concat([final_vols, vdf])

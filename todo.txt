@@ -1189,25 +1189,19 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 #### As of 09/12/2017
 - [Dev] Rollovers per family.
-- speeding up data processing; cleaning intraday prices takes a long, long time.
-- marking beginning of settlement period. 
+- [Done] speeding up data processing; cleaning intraday prices takes a long, long time.
+- [Done] marking beginning of settlement period. 
 	> issue: settlement vs last data entry of intraday data
 		- solution: hedge all remaning deltas using first price at beginning of settlement 
 		period. wait till settlement, and if settlement price results in residual delta, 
 		buy/sell to close it off. 
-
-- vol/price reconciliation on the basis of timestep. > on hold until intraday vols are available. 
-
-
-
-
 
 #### As of 09/28/2017
 - [Done] Pulling intraday data from the database/cleaning. 
 - [Done] reconciling intraday data with settlements. 
 
 ##### Scenario-based implementations 
-- Three different scenarios:
+- [Done] Three different scenarios:
 	+ Case A: Flat vols + step-update.
 		* EOD update step.
 	+ Case B: Settlement to settlement
@@ -1216,11 +1210,19 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 		* update vols function that takes in a dataframe, updates the vols of all relevant options.
 
 - common implementation requirements across scenarios:
-	* Market Minuses update/reset.
-	* book vol variable/dataframe
-	* refactor PnL computations. 
+	* [Done] Market Minuses update/reset
+	* [Done] book vol variable/dataframe
+	* [Done] refactor PnL computations. 
+	* [Done] book vols and contract rolls. 
+	* [Done] book vols and delta rolls
+	* [Done] book vols and hedging with options. 
+		- if using book vols, initialize/add with book vols, but compute cost using settle vols. 
+		- [Done] ISSUE: TTM is wrong when hedging basis book vols
+	* double check the PnL differential between HBPB and HBPS
+	* testing. 
 		 
 ##### Hedging Updates:
+- move delta roll-hedging into the hedge object. 
 - Re-implementing hedging logic:
 	+ {breakeven multiple} -> {percentage} -> {buyback logic}
 

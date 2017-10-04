@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-28 21:15:47
+# @Last Modified time: 2017-10-04 21:53:02
 
 
 from .portfolio import Portfolio
@@ -291,6 +291,8 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
             tau = vdf[(vdf.value_date == date) &
                       (vdf.vol_id == volid)].tau.values[0]
     except IndexError as e:
+        print('debug_1: ', vdf[vdf.value_date == date])
+        print('debug_2: ', vdf[vdf.vol_id == volid])
         raise IndexError(
             'util.create_vanilla_option - cannot find ttm in dataset. Inputs are: ', date, volid) from e
 
@@ -327,7 +329,6 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
         # delta = delta/100
         strike = compute_strike_from_delta(
             None, delta1=delta, vol=vol, s=ft.get_price(), char=char, pdt=ft.get_product(), tau=tau)
-        print('util.create_vanilla_option - strike: ', strike)
 
     # specifying option with information gathered thus far.
     newop = Option(strike, tau, char, vol, ft, payoff, shorted,
@@ -786,6 +787,10 @@ def create_skew(volid, vdf, pdf, date, shorted, delta, **kwargs):
     if ('composites' in kwargs and kwargs['composites']) or ('composites' not in kwargs):
         ops = create_composites(ops)
 
+    for op in ops:
+        print('util.create_skew - strike, char, short: ',
+              op.K, op.char, op.shorted)
+
     return ops
 
 
@@ -878,6 +883,10 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
         ops = create_composites(ops)
 
     assert len(ops) == 2
+
+    for op in ops:
+        print('util.create_straddle - strike, char, short: ',
+              op.K, op.char, op.shorted)
 
     return ops
 
@@ -1229,7 +1238,7 @@ def pnp_format(filepath, pdts):
     return final
 
 
-def assign_hedge_objects(pf, vdf=None, pdf=None):
+def assign_hedge_objects(pf, vdf=None, pdf=None, book=False):
     """Helper method that generates and relates a portfolio object 
     with the the Hedger object calibrated to pf.hedge_params. 
 
@@ -1244,16 +1253,88 @@ def assign_hedge_objects(pf, vdf=None, pdf=None):
     """
     # case: simple portfolio.
     from .hedge import Hedge
-    hedger = Hedge(pf, pf.hedge_params)
+    hedger = Hedge(pf, pf.hedge_params, vdf=vdf, pdf=pdf, book=book)
     pf.hedger = hedger
 
     # case: composite portfolio
     if pf.families:
         for fa in pf.families:
-            hedger = Hedge(fa, fa.hedge_params, vdf=vdf, pdf=pdf)
+            hedger = Hedge(fa, fa.hedge_params, vdf=vdf, pdf=pdf, book=book)
             fa.hedger = hedger
 
     if vdf is not None and pdf is not None:
         pf.assign_hedger_dataframes(vdf, pdf)
 
     return pf
+
+
+def mark_to_vols(pfx, vdf, dup=False):
+    """Helper method that computes the value of a portfolio marked to the 
+    specified vols
+
+    Args:
+        pfx (Portfolio): the portfolio being marked. 
+        vdf (TYPE): volatility surface the portfolio is being marked to. 
+        dup (bool, optional): flag that indicates whether or not this method 
+        should modify the portfolio passed in (if marking is desired) or 
+        return a duplicate. 
+
+    Returns:
+        TYPE: Portfolio object with the updated vols. 
+    """
+    pf = copy.deepcopy(pfx) if dup else pfx
+
+    for op in pf.get_all_options():
+        ticksize = multipliers[op.get_product()][-2]
+        vid = op.get_vol_id()
+        cpi = 'C' if op.char == 'call' else 'P'
+        strike = round(round(op.K / ticksize) * ticksize, 2)
+        try:
+
+            vol = vdf[(vdf.vol_id == vid) &
+                      (vdf.call_put_id == cpi) &
+                      (vdf.strike == strike)].vol.values[0]
+        except IndexError as e:
+            print("scripts.util.mark_to_vols: cannot find vol with inputs ",
+                  vid, cpi, op.K, strike)
+            # print('scripts.mark_to_vols: debug1 = ', vdf[(vdf.vol_id == vid)])
+            print('scripts.mark_to_vols: debug2 = ', vdf[(vdf.vol_id == vid) &
+                                                         (vdf.call_put_id == cpi)])
+            print('scripts.mark_to_vols: debug3 = ', vdf[(vdf.vol_id == vid) &
+                                                         (vdf.strike == strike)])
+            vol = op.vol
+        op.update_greeks(vol=vol)
+
+    pf.refresh()
+    return pf
+
+
+def compute_market_minus(pf, vdf):
+    """Helper method that takes the difference of the portfolio's 
+    current value and the value as per vols specified in vdf. 
+
+    Args:
+        pf (TYPE): The portfolio (assumed to be basis book vols)
+        vdf (TYPE): The settlement vols of that particular day. 
+    """
+    # update the vols
+
+    newpf = copy.deepcopy(pf)
+    for op in newpf.get_all_options():
+        ticksize = multipliers[op.get_product()][-2]
+        vid = op.get_vol_id()
+        cpi = 'C' if op.char == 'call' else 'P'
+        strike = round(round(op.K / ticksize) * ticksize, 2)
+        try:
+            vol = vdf[(vdf.vol_id == vid) &
+                      (vdf.call_put_id == cpi) &
+                      (vdf.strike == strike)].vol.values[0]
+            op.update_greeks(vol=vol)
+
+        except IndexError:
+            print('scripts.calc.market_minus - data not found. ',
+                  vid, cpi, op.K, strike)
+            print('date: ', vdf.value_date.unique())
+    val = pf.compute_value() - newpf.compute_value()
+    mm = abs(val)
+    return mm, val

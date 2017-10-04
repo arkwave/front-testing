@@ -2,12 +2,34 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-27 20:05:08
+# @Last Modified time: 2017-10-04 22:10:39
 
 import pandas as pd
 import pprint
 import numpy as np
 from .util import create_straddle, create_underlying, create_strangle, create_vanilla_option
+from .calc import _compute_value
+
+multipliers = {
+    'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
+    'LSU': [1, 50, 0.1, 10, 50],
+    'QC': [1.2153, 10, 1, 25, 12.153],
+    'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
+    'CC':  [1, 10, 1, 50, 10],
+    'CT':  [22.046, 22.679851, 0.01, 1, 500],
+    'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
+    'W':   [0.3674333, 136.07911, 0.25, 10, 50],
+    'S':   [0.3674333, 136.07911, 0.25, 20, 50],
+    'C':   [0.393678571428571, 127.007166832986, 0.25, 10, 50],
+    'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
+    'LC':  [22.046, 18.143881, 0.025, 1, 400],
+    'LRC': [1, 10, 1, 50, 10],
+    'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
+    'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
+    'COM': [1.0604, 50, 0.25, 2.5, 53.02],
+    'OBM': [1.0604, 50, 0.25, 1, 53.02],
+    'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
+}
 
 
 class Hedge:
@@ -20,17 +42,25 @@ class Hedge:
     """
 
     def __init__(self, portfolio, hedges, vdf=None, pdf=None,
-                 buckets=None, brokerage=None, slippage=None):
+                 buckets=None, brokerage=None, slippage=None,
+                 book=False, settlements=None):
         """Constructor. Initializes a hedge object subject to the following parameters.
 
         Args:
-            portfolio (TYPE): the portfolio being hedged
-            vdf (TYPE): dataframe of volatilites
-            pdf (TYPE): Description
-            view (TYPE): a string description of the greek representation.
+            portfolio (object): the portfolio being hedged
+            hedges (dictionary): Description
+            vdf (dataframe): dataframe of volatilites
+            pdf (dataframe): dataframe of prices
+            buckets (None, optional): buckets to be used in hedging by exp
+            brokerage (None, optional): brokergae value
+            slippage (None, optional): slippage value 
+            book (bool, optional): True if hedging is done basis book vols, false otherwise.
+            settlements (dataframe, optional): dataframe of settlement vols. 
             valid inputs are 'exp' for greeks-by-expiry and 'uid' for greeks by underlying.
-            buckets (None, optional): Description
+
         """
+        self.settlements = settlements
+        self.book = book
         self.b = brokerage
         self.s = slippage
         self.mappings = {}
@@ -62,6 +92,9 @@ class Hedge:
 
         return str(pprint.pformat(r_dict))
 
+    def set_book(self, val):
+        self.book = val
+
     def set_breakeven(self, dic):
         """Setter method that sets self.breakeven = dic
 
@@ -70,7 +103,7 @@ class Hedge:
         """
         self.breakeven = dic
 
-    def update_dataframes(self, vdf, pdf, hedges=None):
+    def update_dataframes(self, vdf, pdf, hedges=None, settles=None):
         """ Helper method that updates the dataframes and (potentially) the hedges
         used for calibration/hedging in this hedger object. 
 
@@ -79,9 +112,17 @@ class Hedge:
             pdf (TYPE): dataframe of prices 
             hedges (None, optional): dictionary of hedges. 
         """
-        self.vdf = vdf
-        self.pdf = pdf
+        self.vdf = vdf.copy()
+        self.pdf = pdf.copy()
+        self.settlements = settles
         self.date = pd.to_datetime(pdf.value_date.min())
+        # # overriding the date and recomputing ttm if book is true
+        # if self.book:
+        #     self.vdf.value_date = self.date
+        #     self.vdf.expdate = pd.to_datetime(self.vdf.expdate)
+        #     self.vdf.tau = (
+        #         (self.vdf.expdate - self.vdf.value_date).dt.days)/365
+        #     # self.pdf.value_date = self.date
         if hedges is not None:
             self.hedges = hedges
             self.desc, self.params = self.process_hedges()
@@ -281,14 +322,14 @@ class Hedge:
         elif self.desc == 'uid':
             self.greek_repr = self.pf.get_net_greeks()
             net = self.pf.get_net_greeks()
-            assert not self.vdf.empty
+            # assert not self.vdf.empty
             for product in net:
                 product = product.strip()
                 df = self.vdf[self.vdf.pdt == product]
                 # case: holiday for this product.
                 if df.empty:
-                    print('data does not exist for this \
-                            date and product. ', self.date, product)
+                    print('data does not exist for this date and product. ',
+                          self.date, product)
                 for month in net[product]:
                     month = month.strip()
                     uid = product + '  ' + month
@@ -503,7 +544,8 @@ class Hedge:
         # base case: flag not in hedges
         # print('======= applying ' + flag + ' hedge =========')
         if flag not in self.hedges:
-            raise ValueError(flag + ' hedge is not specified in hedging.csv')
+            raise ValueError(
+                flag + ' hedge is not specified in hedging logic for family ' + self.pf.name)
 
         cost = 0
         indices = {'delta': 0, 'gamma': 1, 'theta': 2, 'vega': 3}
@@ -605,6 +647,33 @@ class Hedge:
                 pass
             if self.b:
                 cost += self.b * sum([op.lots for op in ops])
+
+            # case: hedging is being done basis book vols. In this case,
+            # the difference in premium paid must be computed basis settlement
+            # vols, and the added to the cost of transaction.
+            if self.book:
+                for op in ops:
+                    try:
+                        cpi = 'C' if op.char == 'call' else 'P'
+                        df = self.settlements
+                        settle_vol = df[(df.vol_id == op.get_vol_id()) &
+                                        (df.call_put_id == cpi) &
+                                        (df.strike == op.K)].vol.values[0]
+                    except IndexError as e:
+                        print('scripts.hedge - book vol case: cannot find vol: ',
+                              op.get_vol_id(), cpi, op.K)
+                        settle_vol = op.vol
+                    print(op.get_vol_id() + ' settle_vol: ', settle_vol)
+                    print('op.book vol: ', op.vol)
+                    true_value = _compute_value(op.char, op.tau, settle_vol, op.K,
+                                                op.underlying.get_price(), 0, 'amer', ki=op.ki,
+                                                ko=op.ko, barrier=op.barrier, d=op.direc,
+                                                product=op.get_product(), bvol=op.bvol)
+                    print('op value basis settlements: ', true_value)
+                    pnl_mult = multipliers[op.get_product()][-1]
+                    diff = (true_value - op.get_price()) * op.lots * pnl_mult
+                    print('diff: ', diff)
+                    cost += diff
 
         return cost
 

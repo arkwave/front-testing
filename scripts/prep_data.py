@@ -1272,13 +1272,13 @@ def handle_intraday_conventions(df):
     ## Step 1 ##
     # first: Convert S H8 Comdty -> S  H8
 
-    df['pdt'] = df.commodity.str[:2].str.strip()
-    df['ftmth'] = df.commodity.str[2:-6].str.strip()
+    df['pdt'] = df.Commodity.str[:2].str.strip()
+    df['ftmth'] = df.Commodity.str[2:-6].str.strip()
     df['underlying_id'] = df.pdt + '  ' + df.ftmth
     # datetime -> date and time columns.
-    df.date_time = pd.to_datetime(df.date_time)
-    df['time'] = df.date_time.dt.time.astype(pd.Timestamp)
-    df['value_date'] = pd.to_datetime(df.date_time.dt.date)
+    df.Date = pd.to_datetime(df.Date)
+    df['time'] = df.Date.dt.time.astype(pd.Timestamp)
+    df['value_date'] = pd.to_datetime(df.Date.dt.date)
 
     # filter out weekends/bank holidays.
     cal = calendar()
@@ -1292,8 +1292,11 @@ def handle_intraday_conventions(df):
     df['datatype'] = 'intraday'
 
     cols = ['value_date', 'time', 'underlying_id',
-            'pdt', 'ftmth', 'price', 'datatype']
+            'pdt', 'ftmth', 'Price', 'datatype']
     df = df[cols]
+
+    df.columns = ['value_date', 'time', 'underlying_id',
+                  'pdt', 'ftmth', 'price', 'datatype']
 
     return df
 

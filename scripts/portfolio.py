@@ -999,7 +999,7 @@ class Portfolio:
 
         return bes
 
-    def assign_hedger_dataframes(self, vdf, pdf):
+    def assign_hedger_dataframes(self, vdf, pdf, settles=None):
         """Helper method that updates the dataframes
         present in this portfolio's hedger object. 
 
@@ -1009,10 +1009,10 @@ class Portfolio:
 
         """
         if self.hedger is not None:
-            self.hedger.update_dataframes(vdf, pdf)
+            self.hedger.update_dataframes(vdf, pdf, settles=settles)
         if self.families:
             for fa in self.families:
-                fa.hedger.update_dataframes(vdf, pdf)
+                fa.hedger.update_dataframes(vdf, pdf, settles=settles)
 
         print('hedger dataframes updated!')
 
