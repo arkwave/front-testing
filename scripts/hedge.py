@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-10-04 22:10:39
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-10-09 20:25:55
 
 import pandas as pd
 import pprint
@@ -73,6 +73,7 @@ class Hedge:
         self.desc, self.params = self.process_hedges()
         self.date = None
         self.breakeven = self.pf.breakeven().copy()
+        self.last_hedgepoints = {}
 
         # check if vdf/pdf have been populated. if not, update.
         if (self.vdf is not None and self.pdf is not None):
@@ -103,6 +104,13 @@ class Hedge:
         """
         self.breakeven = dic
 
+    def update_hedgepoints(self):
+        """Helper method that constructs the self.hedge_points dictionary, which maps 
+        vol_ids to the price point the last hedged was placed at. Used for intraday hedging
+        to keep track of where on the breakeven/static value we are at. 
+        """
+        self.last_hedgepoints = self.pf.uid_price_dict()
+
     def update_dataframes(self, vdf, pdf, hedges=None, settles=None):
         """ Helper method that updates the dataframes and (potentially) the hedges
         used for calibration/hedging in this hedger object. 
@@ -116,13 +124,7 @@ class Hedge:
         self.pdf = pdf.copy()
         self.settlements = settles
         self.date = pd.to_datetime(pdf.value_date.min())
-        # # overriding the date and recomputing ttm if book is true
-        # if self.book:
-        #     self.vdf.value_date = self.date
-        #     self.vdf.expdate = pd.to_datetime(self.vdf.expdate)
-        #     self.vdf.tau = (
-        #         (self.vdf.expdate - self.vdf.value_date).dt.days)/365
-        #     # self.pdf.value_date = self.date
+
         if hedges is not None:
             self.hedges = hedges
             self.desc, self.params = self.process_hedges()
@@ -533,7 +535,7 @@ class Hedge:
 
         # self.done = self.satisfied()
 
-    def apply(self, flag, price_changes=None):
+    def apply(self, flag, intraday=False):
         """Main method that actually applies the hedging logic specified.
         The kind of structure used to hedge is specified by self.params['kind']
 
@@ -567,7 +569,7 @@ class Hedge:
             hedge_type = 'bound'
 
         if flag == 'delta' and hedge_type == 'static':
-            fee = self.hedge_delta(price_changes=price_changes)
+            fee = self.hedge_delta(intraday=intraday)
             return fee
 
         for product in self.greek_repr:
@@ -677,7 +679,7 @@ class Hedge:
 
         return cost
 
-    def hedge_delta(self, price_changes=None):
+    def hedge_delta(self, intraday=False):
         """Helper method that hedges delta basis net greeks, irrespective of the
         greek representation the object was initialized with.
 
@@ -688,22 +690,29 @@ class Hedge:
         ft = None
         net_greeks = self.pf.get_net_greeks()
         tobehedged = {}
-        # be_dict = None
-
-        print('price_changes: ', price_changes)
-
+        print('last hedgepoints: ', self.last_hedgepoints)
         # case: intraday data
-        if price_changes is not None:
+        if intraday:
             print('intraday hedging case')
+            curr_prices = self.pf.uid_price_dict()
             # static value.
             if self.params['delta']['intraday']['kind'] == 'static':
                 comp_val = self.params['delta']['intraday']['modifier']
-                for uid in price_changes:
+                print('comp_val :', comp_val)
+                for uid in self.pf.get_unique_uids():
+                    print('----- handling ' + uid + ' -------')
                     pdt, mth = uid.split()
-                    if abs(price_changes[uid]) > comp_val:
+                    # get the current price for each uid.
+                    # case: distance between last hedge point for this uid
+                    # and the current price is > the static value.
+                    actual_value = abs(self.last_hedgepoints[
+                                       uid] - curr_prices[uid])
+                    print('actual move: ', actual_value)
+                    if actual_value > comp_val[uid]:
                         if pdt not in tobehedged:
                             tobehedged[pdt] = set()
                         tobehedged[pdt].add(mth)
+                    print('------------------------')
 
             # breakeven-based hedging.
             else:
@@ -711,30 +720,33 @@ class Hedge:
                 for pdt in be_dic:
                     for mth in be_dic[pdt]:
                         mults = self.params['delta']['intraday']['modifier']
-                        uid = pdt + '  ' + mth
                         print('mults: ', mults)
+                        uid = pdt + '  ' + mth
+                        print('----- handling ' + uid + ' -------')
+                        # get the breakeven modifier if it has been specified.
                         if uid in mults:
                             be_mult = mults[uid]
                             print('pdt, mth, mult: ', pdt, mth, be_mult)
                         else:
                             be_mult = 1
                         be = be_dic[pdt][mth] * be_mult
-                        print('be: ', be_dic[pdt][mth])
-                        print('mult: ', be_mult)
-                        print('target_breakeven: ', be)
-                        print('actual move: ', price_changes[uid])
-                        if price_changes[uid] >= be:
+                        print(uid + ' be: ', be_dic[pdt][mth])
+                        print(uid + ' mult: ', be_mult)
+                        print(uid + ' target_breakeven: ', be)
+                        actual_move = abs(
+                            self.last_hedgepoints[uid] - curr_prices[uid])
+                        print(uid + ' actual move: ', actual_move)
+                        if actual_move >= be:
                             if pdt not in tobehedged:
                                 tobehedged[pdt] = set()
                             tobehedged[pdt].add(mth)
-
+                        print('------------------------')
         # case: settlement-to-settlement.
         else:
             tobehedged = net_greeks
 
         print('tobehedged: ', tobehedged)
-
-        target_flag = 'eod' if price_changes is None else 'intraday'
+        target_flag = 'intraday' if intraday else 'eod'
         for product in tobehedged:
             for month in tobehedged[product]:
                 # uid = product + '  ' + month
@@ -751,7 +763,13 @@ class Hedge:
                         ft, _ = create_underlying(product, month, self.pdf,
                                                   self.date, shorted=shorted,
                                                   lots=num_lots_needed, flag=target_flag)
+
                         if ft is not None:
+                            # update the last hedgepoint dictionary
+                            self.last_hedgepoints[
+                                ft.get_uid()] = ft.get_price()
+                            print('hedge point for ' +
+                                  ft.get_uid() + ' updated')
                             self.pf.add_security([ft], 'hedge')
                             print('adding ' + str(ft))
                     except IndexError:

@@ -1030,6 +1030,17 @@ class Portfolio:
         fts = [x for x in self.get_all_futures() if x.get_uid() == uid]
         return fts[0].get_price()
 
+    def uid_price_dict(self):
+        """Helper method that returns a dictionary of uid -> price. 
+        """
+        ret = {}
+        for x in self.get_all_futures():
+            if x.get_uid() in ret:
+                continue
+            ret[x.get_uid()] = x.get_price()
+
+        return ret
+
     def update_hedger_breakeven(self):
         """Proxy method that calls this portfolio's hedger objects' set_breakeven method. 
         """

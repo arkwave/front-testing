@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-10-04 21:53:02
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-10-09 19:36:33
 
 
 from .portfolio import Portfolio
@@ -1255,12 +1255,14 @@ def assign_hedge_objects(pf, vdf=None, pdf=None, book=False):
     from .hedge import Hedge
     hedger = Hedge(pf, pf.hedge_params, vdf=vdf, pdf=pdf, book=book)
     pf.hedger = hedger
+    pf.hedger.update_hedgepoints()
 
     # case: composite portfolio
     if pf.families:
         for fa in pf.families:
             hedger = Hedge(fa, fa.hedge_params, vdf=vdf, pdf=pdf, book=book)
             fa.hedger = hedger
+            fa.hedger.update_hedgepoints()
 
     if vdf is not None and pdf is not None:
         pf.assign_hedger_dataframes(vdf, pdf)
