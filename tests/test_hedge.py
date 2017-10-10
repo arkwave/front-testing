@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-08-11 19:24:36
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-10-09 20:27:54
+# @Last Modified time: 2017-10-10 18:16:50
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -496,8 +496,8 @@ def test_intraday_hedge_processing_be():
 
 def test_intraday_hedging_be():
     # price_changes = {'CC  Z7': 20, 'QC  Z7': 20}
-    be = {'CC': {'U7': 1, 'Z7': 1.3},
-          'QC': {'U7': 1.5, 'Z7': 2}}
+    be = {'CC': {'U7': 1, 'Z7': 1},
+          'QC': {'U7': 1.5, 'Z7': 1}}
     gen_hedges = OrderedDict({'delta': [['static', 0, 1],
                                         ['intraday', 'breakeven', be]]})
 
@@ -576,3 +576,57 @@ def test_breakeven():
         op.update_greeks(vol=(op.vol + 0.2))
     pf.refresh()
     assert hedge_engine.breakeven == init_be
+
+
+def test_is_relevant_price_move_be():
+    be = {'CC': {'U7': 1, 'Z7': 1},
+          'QC': {'U7': 1.5, 'Z7': 1}}
+    gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+                                        ['intraday', 'breakeven', be]]})
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    pf_comp.hedge_params = gen_hedges
+    # assign hedge objects and create copy
+    pf = copy.deepcopy(pf_comp)
+    pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf)
+    init_be = pf.breakeven()
+    print('be: ', init_be)
+
+    ccfts = [x for x in pf.get_all_futures() if x.get_uid() == 'CC  Z7']
+    qcfts = [x for x in pf.get_all_futures() if x.get_uid() == 'QC  Z7']
+
+    ccprice = ccfts[0].get_price()
+    qcprice = qcfts[0].get_price()
+
+    assert not pf.hedger.is_relevant_price_move('CC  Z7', ccprice + 30)
+    assert pf.hedger.is_relevant_price_move('CC  Z7', ccprice + 33)
+    assert not pf.hedger.is_relevant_price_move('QC  Z7', qcprice + 20)
+    assert pf.hedger.is_relevant_price_move('QC  Z7', qcprice + 28)
+
+
+def test_is_relevant_price_move_static():
+    vals = {'CC  Z7': 10, 'QC  Z7': 10}
+    gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+                                        ['intraday', 'static', vals]]})
+
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    pf_comp.hedge_params = gen_hedges
+
+    # assign hedge objects and create copy
+    pf = copy.deepcopy(pf_comp)
+    pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf)
+
+    print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
+
+    # case 1: for both products, moves are less than static value.
+    engine = pf.get_hedger()
+
+    ccfts = [x for x in pf.get_all_futures() if x.get_uid() == 'CC  Z7']
+    qcfts = [x for x in pf.get_all_futures() if x.get_uid() == 'QC  Z7']
+
+    ccprice = ccfts[0].get_price()
+    qcprice = qcfts[0].get_price()
+
+    assert not engine.is_relevant_price_move('CC  Z7', ccprice + 5)
+    assert engine.is_relevant_price_move('CC  Z7', ccprice + 10)
+    assert not engine.is_relevant_price_move('QC  Z7', qcprice + 5)
+    assert engine.is_relevant_price_move('QC  Z7', qcprice + 10)
