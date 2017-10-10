@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-10-09 20:56:22
+# @Last Modified time: 2017-10-10 19:20:56
 
 import pandas as pd
 import pprint
@@ -92,6 +92,9 @@ class Hedge:
                   'hedges': self.hedges}
 
         return str(pprint.pformat(r_dict))
+
+    def get_hedgepoints(self):
+        return self.last_hedgepoints
 
     def set_book(self, val):
         self.book = val
@@ -679,6 +682,43 @@ class Hedge:
 
         return cost
 
+    def is_relevant_price_move(self, uid, val):
+        """Helper method that checks to see if a price-uid combo fed in is a valid price move. Three cases are handled: 
+        1) price move > breakeven * mult
+        2) price move > flat value
+        3) price type is settlement. 
+        """
+        last_val = self.last_hedgepoints[uid]
+
+        # case: intraday hedges not specified -> data is settlement.
+        if 'intraday' not in self.params['delta']:
+            return True
+        else:
+            actual_value = abs(last_val - val)
+            if self.params['delta']['intraday']['kind'] == 'static':
+                # print('static value intraday case')
+                comp_val = self.params['delta']['intraday']['modifier']
+                if actual_value >= comp_val[uid]:
+                    print('last, curr, actual, comp: ', last_val,
+                          val, actual_value, comp_val[uid])
+                    return True
+                return False
+            elif self.params['delta']['intraday']['kind'] == 'breakeven':
+                # print('breakeven intraday case')
+                mults = self.params['delta']['intraday']['modifier']
+                # print('mults: ', mults)
+                pdt, mth = uid.split()
+                if pdt in mults and mth in mults[pdt]:
+                    be_mult = mults[pdt][mth]
+                    print('pdt, mth, mult: ', pdt, mth, be_mult)
+                else:
+                    be_mult = 1
+                be = self.breakeven[pdt][mth] * be_mult
+                print('be: ', be)
+                if actual_value >= be:
+                    return True
+                return False
+
     def hedge_delta(self, intraday=False):
         """Helper method that hedges delta basis net greeks, irrespective of the
         greek representation the object was initialized with.
@@ -695,52 +735,13 @@ class Hedge:
         if intraday:
             print('intraday hedging case')
             curr_prices = self.pf.uid_price_dict()
-            # static value.
-            if self.params['delta']['intraday']['kind'] == 'static':
-                comp_val = self.params['delta']['intraday']['modifier']
-                print('comp_val :', comp_val)
-                for uid in self.pf.get_unique_uids():
-                    print('----- handling ' + uid + ' -------')
-                    pdt, mth = uid.split()
-                    # get the current price for each uid.
-                    # case: distance between last hedge point for this uid
-                    # and the current price is > the static value.
-                    actual_value = abs(self.last_hedgepoints[
-                                       uid] - curr_prices[uid])
-                    print('actual move: ', actual_value)
-                    if actual_value > comp_val[uid]:
-                        if pdt not in tobehedged:
-                            tobehedged[pdt] = set()
-                        tobehedged[pdt].add(mth)
-                    print('------------------------')
+            for uid in self.pf.get_unique_uids():
+                pdt, mth = uid.split()
+                if self.is_relevant_price_move(uid, curr_prices[uid]):
+                    if pdt not in tobehedged:
+                        tobehedged[pdt] = set()
+                    tobehedged[pdt].add(mth)
 
-            # breakeven-based hedging.
-            else:
-                be_dic = self.breakeven
-                for pdt in be_dic:
-                    for mth in be_dic[pdt]:
-                        mults = self.params['delta']['intraday']['modifier']
-                        print('mults: ', mults)
-                        uid = pdt + '  ' + mth
-                        print('----- handling ' + uid + ' -------')
-                        # get the breakeven modifier if it has been specified.
-                        if uid in mults:
-                            be_mult = mults[uid]
-                            print('pdt, mth, mult: ', pdt, mth, be_mult)
-                        else:
-                            be_mult = 1
-                        be = be_dic[pdt][mth] * be_mult
-                        print(uid + ' be: ', be_dic[pdt][mth])
-                        print(uid + ' mult: ', be_mult)
-                        print(uid + ' target_breakeven: ', be)
-                        actual_move = abs(
-                            self.last_hedgepoints[uid] - curr_prices[uid])
-                        print(uid + ' actual move: ', actual_move)
-                        if actual_move >= be:
-                            if pdt not in tobehedged:
-                                tobehedged[pdt] = set()
-                            tobehedged[pdt].add(mth)
-                        print('------------------------')
         # case: settlement-to-settlement.
         else:
             tobehedged = net_greeks
@@ -769,7 +770,7 @@ class Hedge:
                             self.last_hedgepoints[
                                 ft.get_uid()] = ft.get_price()
                             print('hedge point for ' +
-                                  ft.get_uid() + ' updated')
+                                  ft.get_uid() + ' updated to ' + str(ft.get_price()))
                             self.pf.add_security([ft], 'hedge')
                             print('adding ' + str(ft))
                     except IndexError:

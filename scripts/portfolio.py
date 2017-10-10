@@ -689,35 +689,45 @@ class Portfolio:
         """
         val = 0
         # try:
-        for sec in self.OTC_options:
+        for sec in self.get_all_securities():
             pnl_mult = multipliers[sec.get_product()][-1]
             if sec.shorted:
                 val += -sec.lots * sec.get_price() * pnl_mult
             else:
                 val += sec.lots * sec.get_price() * pnl_mult
 
-        for sec in self.hedge_options:
-            pnl_mult = multipliers[sec.get_product()][-1]
-            if sec.shorted:
-                val += -sec.lots * sec.get_price() * pnl_mult
-            else:
-                val += sec.lots * sec.get_price() * pnl_mult
+        # for sec in self.OTC_options:
+        #     pnl_mult = multipliers[sec.get_product()][-1]
+        #     if sec.shorted:
+        #         val += -sec.lots * sec.get_price() * pnl_mult
+        #     else:
+        #         val += sec.lots * sec.get_price() * pnl_mult
 
-        for sec in self.OTC_futures:
-            pnl_mult = multipliers[sec.get_product()][-1]
-            if sec.shorted:
-                val += -sec.lots * sec.price * pnl_mult
-            else:
-                val += sec.lots * sec.price * pnl_mult
+        # for sec in self.hedge_options:
+        #     pnl_mult = multipliers[sec.get_product()][-1]
+        #     if sec.shorted:
+        #         val += -sec.lots * sec.get_price() * pnl_mult
+        #     else:
+        #         val += sec.lots * sec.get_price() * pnl_mult
 
-        for sec in self.hedge_futures:
-            pnl_mult = multipliers[sec.get_product()][-1]
-            if sec.shorted:
-                val -= sec.lots * sec.price * pnl_mult
-            else:
-                val += sec.lots * sec.price * pnl_mult
+        # for sec in self.OTC_futures:
+        #     pnl_mult = multipliers[sec.get_product()][-1]
+        #     if sec.shorted:
+        #         val += -sec.lots * sec.price * pnl_mult
+        #     else:
+        #         val += sec.lots * sec.price * pnl_mult
+
+        # for sec in self.hedge_futures:
+        #     pnl_mult = multipliers[sec.get_product()][-1]
+        #     if sec.shorted:
+        #         val -= sec.lots * sec.price * pnl_mult
+        #     else:
+        #         val += sec.lots * sec.price * pnl_mult
 
         return val
+
+    def get_all_securities(self):
+        return list(self.OTC_options) + list(self.hedge_options) + self.OTC_futures + self.hedge_futures
 
     def exercise_option(self, sec, flag):
         """Exercises an option if it is in-the-money. This consist of removing an object object

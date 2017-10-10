@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-10-09 20:55:04
+# @Last Modified time: 2017-10-10 20:13:52
 
 
 from .portfolio import Portfolio
@@ -1284,7 +1284,10 @@ def mark_to_vols(pfx, vdf, dup=False):
     Returns:
         TYPE: Portfolio object with the updated vols. 
     """
+    assert not vdf.empty
     pf = copy.deepcopy(pfx) if dup else pfx
+
+    # print('vdf: ', vdf)
 
     for op in pf.get_all_options():
         ticksize = multipliers[op.get_product()][-2]
@@ -1292,14 +1295,13 @@ def mark_to_vols(pfx, vdf, dup=False):
         cpi = 'C' if op.char == 'call' else 'P'
         strike = round(round(op.K / ticksize) * ticksize, 2)
         try:
-
             vol = vdf[(vdf.vol_id == vid) &
                       (vdf.call_put_id == cpi) &
                       (vdf.strike == strike)].vol.values[0]
         except IndexError as e:
             print("scripts.util.mark_to_vols: cannot find vol with inputs ",
                   vid, cpi, op.K, strike)
-            # print('scripts.mark_to_vols: debug1 = ', vdf[(vdf.vol_id == vid)])
+            print('scripts.mark_to_vols: debug1 = ', vdf[(vdf.vol_id == vid)])
             print('scripts.mark_to_vols: debug2 = ', vdf[(vdf.vol_id == vid) &
                                                          (vdf.call_put_id == cpi)])
             print('scripts.mark_to_vols: debug3 = ', vdf[(vdf.vol_id == vid) &

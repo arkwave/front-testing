@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-10-09 21:48:42
+# @Last Modified time: 2017-10-10 21:34:31
 
 ################################ imports ###################################
 # general imports
@@ -302,7 +302,18 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             vdf = vdf_1[vdf_1.time == ts]
             for index in pdf.index:
                 pdf_ts = pdf[pdf.index == index]
-                print('pdf_ts: ', pdf_ts.columns)
+                datatype = pdf_ts.datatype.values[0]
+                uid = pdf_ts.underlying_id.values[0]
+                val = pdf_ts.price.values[0]
+                lp = pf.hedger.last_hedgepoints[uid]
+                print('uid, price: ', uid, val)
+                if (not pf.hedger.is_relevant_price_move(uid, val) and datatype == 'intraday'):
+                    print('skipping irrelevant price move for ' + uid +
+                          ' to ' + str(val) + ' last hedged at ' + str(lp))
+                    continue
+                else:
+                    print('valid price move to ' + str(val) +
+                          ' for uid last hedged at ' + str(lp))
                 # for prices: filter and use exclusively the intraday data. assign
                 # to hedger objects.
                 print('pf at start: ', pf)
@@ -320,7 +331,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 # This should not be much of an issue since exercise is never
                 # actually reached.
                 pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
-                    = feed_data(vdf, pdf, pf, init_val, flat_vols=flat_vols, flat_price=flat_price)
+                    = feed_data(vdf, pdf_ts, pf, init_val, flat_vols=flat_vols, flat_price=flat_price)
 
                 print(
                     "========================= PNL & BARR/EX ==========================")
@@ -375,6 +386,10 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         print('================ end intraday loop =====================')
         print('pf after intraday loop: ', pf)
 
+        # refilter the dataframe to use settlements from here on out.
+        pdf = pdf_1[pdf_1.datatype == 'settlement']
+        vdf = vdf_1[vdf_1.datatype == 'settlement']
+
         # case: if mode = HBPS, update current dailypnl value to factor in
         # settlement vols.
         if mode == 'HBPS':
@@ -388,10 +403,6 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             dailypnl += dailyvega
             print('dailypnl: ', dailypnl)
             print('total = gamma + vega: ', dailypnl, dailyvega + dailygamma)
-
-        # refilter the dataframe to use settlements from here on out.
-        pdf = pdf_1[pdf_1.datatype == 'settlement']
-        vdf = vdf_1[vdf_1.datatype == 'settlement']
 
     # Step 5: Apply signal
         print("========================= SIGNALS ==========================")
@@ -705,7 +716,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
         plt.show()
 
-    return log, net_cumul_values
+    return log, net_cumul_values[-1]
 
 
 ##########################################################################
@@ -770,14 +781,15 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
 
     # 2)  update prices of futures, underlying & portfolio alike.
     if not broken:
+        # price_updated = False
         for ft in pf.get_all_futures():
             pdt = ft.get_product()
+            uid = ft.get_uid()
             try:
                 # case: flat price.
                 if flat_price:
-                    ft.update_price(ft.get_price())
+                    continue
                 else:
-                    uid = ft.get_product() + '  ' + ft.get_month()
                     val = pdf[(pdf.pdt == pdt) &
                               (pdf.underlying_id == uid)].price.values[0]
                     pf, cost, fts = handle_barriers(
@@ -832,10 +844,10 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
     print('total_profit: ', total_profit)
 
     # refresh portfolio after price updates.
+    # if price_updated:
     pf.refresh()
     # removing expiries
     pf.remove_expired()
-
     # refresh after handling expiries.
     pf.refresh()
 
@@ -876,8 +888,6 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
 
     # calculating gamma pnl
     intermediate_val = pf.compute_value()
-
-    # TODO: Reimplement this.
     print('intermediate value: ', intermediate_val)
     if exercised:
         # case: portfolio is empty after data feed step (i.e. expiries and
@@ -937,7 +947,8 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
 
             op.update_greeks(vol=strike_vol, bvol=b_vol)
 
-    pf.refresh()
+        pf.refresh()
+
     vega_pnl = pf.compute_value() - intermediate_val if intermediate_val != 0 else 0
     return pf, broken, gamma_pnl, vega_pnl, total_profit, exercise_futures, barrier_futures
 
