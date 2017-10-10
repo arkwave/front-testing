@@ -1200,6 +1200,18 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 - [Done] Pulling intraday data from the database/cleaning. 
 - [Done] reconciling intraday data with settlements. 
 
+
+#### As of 10/5/2017:
+- [Done] parallelize to run multiple simulations at once. 
+- [Done] proper implementation of hedging per breakeven and per price move.
+
+
+#### As of 10/10/2017:
+- Go through profile results to isolate/refactor bottlenecks. 
+- ensure that delta rolling works properly with book vols
+- double check the PnL computation for HBPB and HBPS modes. 
+
+
 ##### Scenario-based implementations 
 - [Done] Three different scenarios:
 	+ Case A: Flat vols + step-update.
@@ -1221,10 +1233,13 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 	* double check the PnL differential between HBPB and HBPS
 	* testing. 
 		 
+
 ##### Hedging Updates:
 - move delta roll-hedging into the hedge object. 
 - Re-implementing hedging logic:
 	+ {breakeven multiple} -> {percentage} -> {buyback logic}
+
+
 
 ##### UI Implementation:
 - Volgraphix implementation for each of the scenarios. 
@@ -1236,12 +1251,32 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 - volgraphix implementation for intraday hedging conditions. 
 
+
+
 ##### Testing:
 - all the intraday shit
 - close out deltas 
 
 
 ===============================================================================
+
+_________________ Intraday implementation: Notes _____________________
+
+#### Hedging steps. 
+- delta:
+	> hedging every breakeven.
+		- formula/convention for calculating breakeven. 
+		- what breakeven to use? when should it be initialized?
+		- will this change or remain fixed?
+	> static move-based hedging
+	> where do these params get passed in? --> need to update the GUI with an intraday feature too. 	
+	> edge case 1: multiple products, one hits breakeven and one doesn't. Do we hedge one or both or none? partners in terms of products/hedging?
+	> edge case 2: limit up/limit down implementations required?
+
+#### Feed steps
+- Done. 
+
+#### PnL Calculation
 
 #### Expand HSM to allow for Intraday data. 
 
@@ -1268,67 +1303,33 @@ underlying_ids. --> need to prune with gui, implying that GUI needs to have a vo
 		- something that will look for the EOD flag; one timestamp will be designated the EOD timestamp 
 			--> this is when rebalance(), signal() and pf.Timestep() will be called
 
-
-
-_________________ Intraday implementation: Notes _____________________
-
-#### Hedging steps. 
-- delta:
-	> hedging every breakeven.
-		- formula/convention for calculating breakeven. 
-		- what breakeven to use? when should it be initialized?
-		- will this change or remain fixed?
-	> static move-based hedging
-	> where do these params get passed in? --> need to update the GUI with an intraday feature too. 	
-	> edge case 1: multiple products, one hits breakeven and one doesn't. Do we hedge one or both or none? partners in terms of products/hedging?
-	> edge case 2: limit up/limit down implementations required?
-
-#### Feed steps
-- Done. 
-
-#### PnL Calculation
-
-
 -------------------------- OPEN ISSUES: ------------------------
 
 #### Backend Implementation
+
+- [Done] multithreading to allow for multiple runs at once (per breakeven etc)
+- Go through the profile results and try to refactor when time permits. 
 - proper conceptualizing of slippage, aside from flat-value. bring all in line to this. 
 - Signals and Families
 	1. adjusting signals to include family paradigm 
 	2. related: implement a future signals thing.
 	
 #### Plotly visualization:
-- same contract vol surface on two different days. 
+- visualize vol surface
+- position visualizer 
 - more descriptive statistics:
 	- [Done] drawdown
 	- labeling when the rolls happened (i.e. different color when log.delta_rolled) 
-
 
 #### GUI Dev:
 - [Done] need to fix/debug assign_ci / ciprice / civols. pretty badly. 
 - integrate with Portfolio VAR Module. 
 - Figure out new windows for each family. 
 
-===============================================================================
-
-#### Notes on certain issues: 
-
-##### Open issue: move from centralized hedging specifications to more general forumlation via families, possibly. 
-- TENTATIVE SOLUTION:
-	> each family is a portfolio object.
-	> hedges now come in two types: family-specific and portfolio-wide. 
-	> family-specific hedges (and by extension hedge object) will be associated with the relevant family. 
-
-- things that need to change:
-	1) hedging for gamma/theta/vega/delta-rolls would be family-specific. 
-	2) static delta hedging would be portfolio-wide. 
-	3) rolling over contract to next month can either be family specific (if ttm_tol only specified) or portfolio-wide (if roll_product is also specified.)
-	4) hedges [dict] would need to be altogether removed from simulation. 
-	5) hedge [object] would now be associated with a portfolio. 
-	6) creating a portfolio would now take in options/futures as well as a hedge. 
-
 
 ===============================================================================
+> Hedging dictionary example:
+
 {'all': OrderedDict([('delta', [['static', 'zero', 1]])]), 
    '1': OrderedDict([('delta', [['roll', 25.0, 1, (-5, 5)]])]), 
    '2': OrderedDict([('delta', [['roll', 50.0, 1, (-20, 20)]])]), 
@@ -1340,13 +1341,6 @@ _________________ Intraday implementation: Notes _____________________
 
 ===============================================================================
 
-hedging parameters:
-delta,zero,,1,,,,,,,
-delta,roll,50,1,"(30,70)",,,,,,
-gamma,bound,"(45, 55)",1,,0.5,years,straddle,strike,atm,uid
-
-===============================================================================
-
 ##### Notes from meeting: 
 
 -- to do: --
@@ -1355,11 +1349,9 @@ gamma,bound,"(45, 55)",1,,0.5,years,straddle,strike,atm,uid
 3. high/low prices for barriers
 	> todo once data is acquired.
 
-
 --- followed through ---
 1. XML instead of text files, read using beautiful soup.
 	> replaced using csv
-
 
 4. correlation surfaces as inputs
 	> required for monte carlo generation of series & pricing 

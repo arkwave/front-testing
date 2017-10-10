@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-10-04 22:08:27
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-10-09 21:48:42
 
 ################################ imports ###################################
 # general imports
@@ -32,7 +32,7 @@ from .signals import apply_signal
 
 multipliers = {
 
-    'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
+    'LH':  [22.046, 18.143881, 0.025, 1, 400],
     'LSU': [1, 50, 0.1, 10, 50],
     'QC': [1.2153, 10, 1, 25, 12.153],
     'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
@@ -40,8 +40,8 @@ multipliers = {
     'CT':  [22.046, 22.679851, 0.01, 1, 500],
     'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
     'W':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'S':   [0.3674333, 136.07911, 0.25, 20, 50],
-    'C':   [0.3936786, 127.00717, 0.25, 10, 50],
+    'S':   [0.3674333, 136.07911, 0.25, 10, 50],
+    'C':   [0.393678571428571, 127.007166832986, 0.25, 10, 50],
     'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
     'LC':  [22.046, 18.143881, 0.025, 1, 400],
     'LRC': [1, 10, 1, 50, 10],
@@ -191,7 +191,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     print('book vols initialized at ' +
           pd.to_datetime(date_range[0]).strftime('%Y-%m-%d'))
     # reassign the dates since the first datapoint is the init date.
-    date_range = date_range[1:]
+    # date_range = date_range[1:]
     ########################################
 
     ############ Other useful variables: #############
@@ -275,7 +275,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         dailypnl = 0
         dailygamma = 0
         dailyvega = 0
-        price_changes = {}
+        # price_changes = {}
         latest_price = {}
         exercise_futures = []
         barrier_futures = []
@@ -291,96 +291,86 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         pf.update_hedger_breakeven()
 
         print('================ beginning intraday loop =====================')
+        # for index in pdf_1.index:
+
         for ts in pdf_1.time.unique():
             print('===================== time: ' +
                   str(ts) + ' =====================')
-
-            # for prices: filter and use exclusively the intraday data. assign
-            # to hedger objects.
-            print('pf at start: ', pf)
-
-            # base case: only settlement data.
             pdf = pdf_1[pdf_1.time == ts]
+            print('pdf.index: ', pdf.index)
+            # currently, vdf only exists for settlement anyway.
             vdf = vdf_1[vdf_1.time == ts]
+            for index in pdf.index:
+                pdf_ts = pdf[pdf.index == index]
+                print('pdf_ts: ', pdf_ts.columns)
+                # for prices: filter and use exclusively the intraday data. assign
+                # to hedger objects.
+                print('pf at start: ', pf)
+                print('price datatype: ', pdf_ts.datatype.unique())
+                print('vol datatype: ', vdf.datatype.unique())
 
-            print('price datatype: ', pdf.datatype.unique())
-            print('vol datatype: ', vdf.datatype.unique())
+                pf.assign_hedger_dataframes(vdf, pdf_ts)
 
-            pf.assign_hedger_dataframes(vdf, pdf)
+                print('last price before update: ', latest_price)
 
-            print('last price before update: ', latest_price)
-            print('price changes before update: ', price_changes)
+            # Step 3: Feed data into the portfolio.
 
-            # populate the dictionary.
-            for uid in pf.get_unique_uids():
-                print('uid: ', uid)
-                if uid not in latest_price:
-                    latest_price[uid] = pf.get_uid_price(uid)
-                prev_price = latest_price[uid]
-                price = pdf[pdf.underlying_id == uid].price.values[0]
-                price_changes[uid] = abs(price - prev_price)
-                latest_price[uid] = price
+                print("========================= FEED DATA ==========================")
+                # NOTE: currently, exercising happens as soon as moneyness is triggered.
+                # This should not be much of an issue since exercise is never
+                # actually reached.
+                pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
+                    = feed_data(vdf, pdf, pf, init_val, flat_vols=flat_vols, flat_price=flat_price)
 
-            print('last price after update: ', latest_price)
-            print('price changes after update: ', price_changes)
-            print('old init val: ', init_val)
+                print(
+                    "========================= PNL & BARR/EX ==========================")
 
-        # Step 3: Feed data into the portfolio.
+            # Step 4: Compute pnl for the this timestep.
+                updated_val = pf.compute_value()
+                # sanity check: if the portfolio is closed out during this
+                # timestep, pnl = exercise proft.
+                if pf.empty():
+                    pnl = exercise_profit
+                else:
+                    pnl = (updated_val - init_val) + exercise_profit
 
-            print("========================= FEED DATA ==========================")
-            # NOTE: currently, exercising happens as soon as moneyness is triggered. This should
-            # not be much of an issue since exercise is never actually reached.
-            pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
-                = feed_data(vdf, pdf, pf, init_val, flat_vols=flat_vols, flat_price=flat_price)
+                print('timestep pnl: ', pnl)
+                print('timestep gamma pnl: ', gamma_pnl)
+                print('timestep vega pnl: ', vega_pnl)
 
-            print("========================= PNL & BARR/EX ==========================")
+                # update the daily variables.
+                dailypnl += pnl
+                dailygamma += gamma_pnl
+                dailyvega += vega_pnl
 
-        # Step 4: Compute pnl for the this timestep.
-            updated_val = pf.compute_value()
-            # sanity check: if the portfolio is closed out during this
-            # timestep, pnl = exercise proft.
-            if pf.empty():
-                pnl = exercise_profit
-            else:
-                pnl = (updated_val - init_val) + exercise_profit
+                # Detour: add in exercise & barrier futures if required.
+                if exercise_futures:
+                    print('adding exercise futures')
+                    pf.add_security(exercise_futures, 'OTC')
 
-            print('timestep pnl: ', pnl)
-            print('timestep gamma pnl: ', gamma_pnl)
-            print('timestep vega pnl: ', vega_pnl)
+                if barrier_futures:
+                    print('adding barrier futures')
+                    pf.add_security(barrier_futures, 'hedge')
 
-            # update the daily variables.
-            dailypnl += pnl
-            dailygamma += gamma_pnl
-            dailyvega += vega_pnl
+                # check: if type is settlement, defer EOD delta hedging to
+                # rebalance function.
+                if 'settlement' not in pdf.datatype.unique():
+                    print('--- intraday hedge case ---')
+                    hedge_engine = pf.get_hedger()
+                    hedge_engine.apply('delta', intraday=True)
+                    print('--- updating init_val post hedge ---')
+                    init_val = pf.compute_value()
+                    print('end timestamp init val: ', init_val)
 
-            # Detour: add in exercise & barrier futures if required.
-            if exercise_futures:
-                print('adding exercise futures')
-                pf.add_security(exercise_futures, 'OTC')
+                else:
+                    init_val = pf.compute_value()
+                    print('settlement delta case. deferring hedging to rebalance step.')
+                    continue
 
-            if barrier_futures:
-                print('adding barrier futures')
-                pf.add_security(barrier_futures, 'hedge')
-
-            # check: if type is settlement, defer EOD delta hedging to
-            # rebalance function.
-            if 'settlement' not in pdf.datatype.unique():
-                print('--- intraday hedge case ---')
-                hedge_engine = pf.get_hedger()
-                hedge_engine.apply('delta', price_changes=price_changes)
-                print('--- updating init_val post hedge ---')
-                init_val = pf.compute_value()
-                print('end timestamp init val: ', init_val)
-
-            else:
-                init_val = pf.compute_value()
-                print('settlement delta case. deferring hedging to rebalance step.')
-                continue
-
-            print("================================================================")
-            print('pf at end: ', pf)
-            print('============= end timestamp ' +
-                  str(ts) + '===================')
+                print("================================================================")
+                print('pf at end: ', pf)
+                print('============= end timestamp ' +
+                      str(ts) + '===================')
 
         print('================ end intraday loop =====================')
         print('pf after intraday loop: ', pf)
@@ -457,8 +447,11 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
         mm, diff = compute_market_minus(pf, settle_vols)
         print('market minuses for the day: ', mm, diff)
-        end_sim = (next_date == date_range[-1] or next_date ==
-                   end_date or (date < end_date and next_date > end_date))
+        if end_date is not None:
+            end_sim = (next_date == date_range[-1] or next_date ==
+                       end_date or (date < end_date and next_date > end_date))
+        else:
+            end_sim = next_date == date_range[-1]
     # Step 9: Initialize init_val to be used in the next day, and handle book
     # vol resets.
         num_days = 0 if next_date is None else\
@@ -712,7 +705,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
         plt.show()
 
-    return log
+    return log, net_cumul_values
 
 
 ##########################################################################
