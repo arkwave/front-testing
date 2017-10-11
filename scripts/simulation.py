@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-10-10 21:34:31
+# @Last Modified time: 2017-10-11 18:22:09
 
 ################################ imports ###################################
 # general imports
@@ -294,10 +294,9 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         # for index in pdf_1.index:
 
         for ts in pdf_1.time.unique():
-            print('===================== time: ' +
-                  str(ts) + ' =====================')
+
             pdf = pdf_1[pdf_1.time == ts]
-            print('pdf.index: ', pdf.index)
+            # print('pdf.index: ', pdf.index)
             # currently, vdf only exists for settlement anyway.
             vdf = vdf_1[vdf_1.time == ts]
             for index in pdf.index:
@@ -306,12 +305,14 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 uid = pdf_ts.underlying_id.values[0]
                 val = pdf_ts.price.values[0]
                 lp = pf.hedger.last_hedgepoints[uid]
-                print('uid, price: ', uid, val)
+                # print('uid, price: ', uid, val)
                 if (not pf.hedger.is_relevant_price_move(uid, val) and datatype == 'intraday'):
-                    print('skipping irrelevant price move for ' + uid +
-                          ' to ' + str(val) + ' last hedged at ' + str(lp))
+                    # print('skipping irrelevant price move for ' + uid +
+                    #       ' to ' + str(val) + ' last hedged at ' + str(lp))
                     continue
                 else:
+                    print('===================== time: ' +
+                          str(ts) + ' =====================')
                     print('valid price move to ' + str(val) +
                           ' for uid last hedged at ' + str(lp))
                 # for prices: filter and use exclusively the intraday data. assign
