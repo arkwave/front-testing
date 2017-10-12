@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-10-11 18:22:09
+# @Last Modified time: 2017-10-12 17:53:41
 
 ################################ imports ###################################
 # general imports
@@ -103,7 +103,7 @@ np.random.seed(seed)
 
 def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                    end_date=None, brokerage=None, slippage=None, signals=None,
-                   plot_results=True, drawdown_limit=None, mode='HSPS', mkt_minus=200000):
+                   plot_results=True, drawdown_limit=None, mode='HSPS', mkt_minus=1e9):
     """
     Each run of the simulation consists of 5 steps:
         1) Feed data into the portfolio.
@@ -284,7 +284,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         book_vols.value_date = pd.to_datetime(date)
         book_vols.tau = (pd.to_datetime(book_vols.expdate) -
                          book_vols.value_date).dt.days/365
-        print('finished updating book vols to ' +
+        print('finished updating book vol date to ' +
               pd.to_datetime(book_vols.value_date.unique()[0]).strftime('%Y-%m-%d'))
 
         # reset the breakeven dictionaries in the portfolio's hedger object.
