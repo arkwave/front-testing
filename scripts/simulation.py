@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-27 13:44:48
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-10-19 16:59:44
 
 ################################ imports ###################################
 
@@ -475,12 +475,14 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # plotting histogram of daily pnls
 
     if plot_results:
+        yrs = log.value_date.dt.year.unique()
+        yr_str = '_'.join([str(x) for x in yrs])
         plt.figure()
         plt.hist(gross_daily_values, bins=20,
                  alpha=0.6, label='gross pnl distribution')
         plt.hist(net_daily_values, bins=20,
                  alpha=0.6, label='net pnl distribution')
-        plt.title('PnL Distribution: Gross/Net')
+        plt.title('PnL Distribution: Gross/Net ' + yr_str)
         plt.legend()
         # plt.show()
 
@@ -497,7 +499,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         plt.plot(xvals, gamma_pnl_cumul, c='g',
                  alpha=0.5, label='cu. gamma pnl')
         plt.plot(xvals, vega_pnl_cumul, c='y', alpha=0.5, label='cu. vega pnl')
-        plt.title('gross/net pnl daily')
+        plt.title('gross/net pnl daily ' + yr_str)
         plt.legend()
         # plt.show()
 
@@ -510,7 +512,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                  color='m', alpha=0.6, label='cu. vega pnl')
         plt.plot(log.value_date, log.cu_pnl_gross, color='k',
                  alpha=0.8, label='gross pnl')
-        plt.title('gamma/vega/cumulative pnls')
+        plt.title('gamma/vega/cumulative pnls ' + yr_str)
         plt.legend()
         # plt.show()
 
