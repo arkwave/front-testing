@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import time
+from sqlalchemy import create_engine
 from scripts.portfolio import Portfolio
 import scripts.prep_data as pr
 from scripts.util import create_skew, create_underlying, create_vanilla_option, assign_hedge_objects
@@ -65,99 +66,12 @@ contract_mths = {
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
-# intraday_data = pd.read_csv('datasets/s_intraday.csv')
-# intraday_data.Date = pd.to_datetime(intraday_data.Date)
+user = 'sumit'
+password = 'Olam1234'
+engine = create_engine('postgresql://' + user + ':' + password +
+                       '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+connection = engine.connect()
 
-# test_data = intraday_data[
-#     intraday_data.Commodity.isin(['S U7 Comdty', 'S F8 Comdty'])]
+query = "select * from bbg_price_data_table where ticker like 'SBH7%%' and valuedate > '20161010' and valuedate < '20170115'"
 
-# # test_data = pr.handle_intraday_conventions(test_data)
-
-# sd, ed = test_data.Date.min().strftime('%Y-%m-%d'), \
-#     test_data.Date.max().strftime('%Y-%m-%d')
-
-
-# vdf.value_date = pd.to_datetime(vdf.value_date)
-# pdf.value_date = pd.to_datetime(pdf.value_date)
-
-# date = vdf.value_date.min()
-
-# op1, op2 = create_skew('S  U7.U7', vdf, pdf, date,
-#                        False, 25, greek='vega', greekval=100000)
-
-# print('op1: ', op1)
-# print('op2: ', op2)
-
-
-# print('handling intraday conventions...')
-# t1 = time.clock()
-# test_data = pr.handle_intraday_conventions(test_data)
-# print('intraday conventions handled. elapsed: ', time.clock() - t1)
-
-
-# # small_df = test_data[test_data.value_date == test_data.value_date.min()]
-
-# print('running timestep recon..')
-# t = time.clock()
-# tst = pr.timestep_recon(test_data)
-# print('finished timestep recon. elapsed: ', time.clock() - t)
-
-
-# df = pd.read_csv('alt_merged_data.csv')
-# df.value_date = pd.to_datetime(df.value_date)
-# df.time = df.time.astype(pd.Timestamp)
-# date = df.value_date.min()
-# max_date = df.value_date.max()
-
-
-# vdf, pdf, edf = grab_data(['S'], date.strftime(
-#     '%Y-%m-%d'), max_date.strftime('%Y-%m-%d'), test=True)
-
-# sim_start, sim_end = pd.to_datetime('2017-02-23'), pd.to_datetime('2017-02-24')
-
-# sim_start = pd.Timestamp('2017-02-23')
-# sim_end = pd.Timestamp('2017-02-24')
-
-# prices = df[df.value_date.isin([sim_start, sim_end])]
-# vols = vdf[vdf.value_date.isin([sim_start, sim_end])]
-
-# print('price: ', prices.columns)
-# print('vols: ', vols.columns)
-
-# # create the portfolio
-# op = create_vanilla_option(vols, prices, 'S  U7.U7', 'call',
-#                            False, date=sim_start, strike='atm')
-
-# hedges = {'delta': [['static', 'zero', 1],
-#                     ['intraday', 'breakeven', {'S  U7': 0.75}]]}
-
-# pf = Portfolio(hedges, name='it_test')
-# pf.add_security([op], 'OTC')
-# pf = assign_hedge_objects(pf)
-
-# print('pf: ', pf)
-# print('pf.hedger: ', pf.get_hedger())
-
-# prices = prices[prices.underlying_id == 'S  U7']
-
-# prices = prices[prices.value_date > sim_start]
-# vols = vols[vols.value_date > sim_start]
-
-# log = run_simulation(vols, prices, pf, plot_results=False)
-
-from scripts.fetch_data import pull_intraday_data
-from scripts.prep_data import insert_settlements
-
-pdts = ['S', 'SM']
-start_date = '2017-03-02'
-end_date = '2017-03-07'
-
-svols, sprices, _ = grab_data(pdts, start_date, end_date)
-
-df = pull_intraday_data(pdts, start_date=start_date, end_date=end_date)
-
-df = insert_settlements(df, sprices)
-
-
-sms = df[df.pdt == 'SM']
-sdf = df[df.pdt == 'S']
+df = pd.read_sql_query(query, connection)

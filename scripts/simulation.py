@@ -16,7 +16,8 @@ from collections import OrderedDict
 # user defined imports
 # from .scripts.prep_data import prep_portfolio, generate_hedges, sanity_check
 # from .scripts.fetch_data import prep_datasets, pull_alt_data
-from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites, blockPrint, assign_hedge_objects, compute_market_minus, mark_to_vols
+from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites, assign_hedge_objects, compute_market_minus, mark_to_vols
+
 from .calc import get_barrier_vol, _compute_value
 from .signals import apply_signal
 

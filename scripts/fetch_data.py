@@ -578,3 +578,29 @@ def construct_intraday_query(pdts, start_date=None, end_date=None):
 
     # print('init_query: ', init_query)
     return init_query
+
+
+
+def construct_ohlc_query(pdts, start_date, end_date):
+    """Helper function that constructs the sql query used to pull OHLC data
+    from the database.
+    
+    Args:
+        pdts (TYPE): the products being pulled. 
+        start_date (TYPE): simulation start date
+        end_date (TYPE): simulation end date
+    """
+    pass 
+
+
+
+def pull_ohlc_data(pdts, start_date, end_date):
+    """Helper function that pulls/cleans open-high-low-close data from the
+    relevant table. 
+    
+    Args:
+        pdts (TYPE): products being pulled
+        start_date (TYPE): simulation start_date
+        end_date (TYPE): simulation end date 
+    """
+    pass 

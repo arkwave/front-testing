@@ -17,8 +17,8 @@ write_path = 'results/' + pdt.lower() + '/logs/'
 
 
 ######### automate path selection based on inputs ##########
-# main_direc = 'anant_000'
-main_direc = 'Ananth'
+main_direc = 'anant_000'
+# main_direc = 'Ananth'
 
 folder = 'C:/Users/' + main_direc + \
     '/Desktop/Modules/HistoricSimulator/datasets/data_dump/'
