@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-10-10 19:20:56
+# @Last Modified time: 2017-10-26 20:07:20
 
 import pandas as pd
 import pprint
@@ -688,10 +688,14 @@ class Hedge:
         2) price move > flat value
         3) price type is settlement. 
         """
-        last_val = self.last_hedgepoints[uid]
+        if uid in self.last_hedgepoints:
+            last_val = self.last_hedgepoints[uid]
+
+        print('self.last_hedgepoints: ', self.last_hedgepoints)
+        print('self.params: ', self.params)
 
         # case: intraday hedges not specified -> data is settlement.
-        if 'intraday' not in self.params['delta']:
+        if not self.params or 'intraday' not in self.params['delta']:
             return True
         else:
             actual_value = abs(last_val - val)
@@ -719,14 +723,22 @@ class Hedge:
                     return True
                 return False
 
-    def hedge_delta(self, intraday=False):
+    def hedge_delta(self, intraday=False, ohlc=False):
         """Helper method that hedges delta basis net greeks, irrespective of the
         greek representation the object was initialized with.
 
         Args:
+            intraday (bool, optional): Description
+            ohlc (bool, optional): Description
+            diff (None, optional): Description
+
+        Deleted Parameters:
             pf (TYPE): Description
+
+        Returns:
+            TYPE: Description
         """
-        cost = 0
+        pnl = 0
         ft = None
         net_greeks = self.pf.get_net_greeks()
         tobehedged = {}
@@ -737,7 +749,9 @@ class Hedge:
             curr_prices = self.pf.uid_price_dict()
             for uid in self.pf.get_unique_uids():
                 pdt, mth = uid.split()
-                if self.is_relevant_price_move(uid, curr_prices[uid]):
+                relevant_move = self.is_relevant_price_move(
+                    uid, curr_prices[uid])
+                if relevant_move:
                     if pdt not in tobehedged:
                         tobehedged[pdt] = set()
                     tobehedged[pdt].add(mth)
@@ -750,13 +764,13 @@ class Hedge:
         target_flag = 'intraday' if intraday else 'eod'
         for product in tobehedged:
             for month in tobehedged[product]:
-                # uid = product + '  ' + month
                 print('delta hedging ' + product + '  ' + month)
                 target = self.params['delta'][target_flag]['target']
                 delta = net_greeks[product][month][0]
                 delta_diff = delta - target
                 shorted = True if delta_diff > 0 else False
                 num_lots_needed = abs(round(delta_diff))
+                ft = None
                 if num_lots_needed == 0:
                     continue
                 else:
@@ -764,24 +778,49 @@ class Hedge:
                         ft, _ = create_underlying(product, month, self.pdf,
                                                   self.date, shorted=shorted,
                                                   lots=num_lots_needed, flag=target_flag)
-
-                        if ft is not None:
-                            # update the last hedgepoint dictionary
-                            self.last_hedgepoints[
-                                ft.get_uid()] = ft.get_price()
-                            print('hedge point for ' +
-                                  ft.get_uid() + ' updated to ' + str(ft.get_price()))
-                            self.pf.add_security([ft], 'hedge')
-                            print('adding ' + str(ft))
                     except IndexError:
                         print('price data for this day ' + '-- ' + self.date.strftime(
                             '%Y-%m-%d') + ' --' + ' does not exist. skipping...')
+                    if ohlc:
+                        # want to use the real difference, not abs, because
+                        # pnl will depend on direction of move + if the future
+                        # is short or long.
+                        real_diff = curr_prices[uid] - \
+                            self.last_hedgepoints[uid]
+                        ft_pnl = self.handle_ohlc_pnl(ft, real_diff)
+                        pnl += ft_pnl
+
+                    if ft is not None:
+                        # update the last hedgepoint dictionary
+                        self.last_hedgepoints[
+                            ft.get_uid()] = ft.get_price()
+                        print('hedge point for ' + ft.get_uid() +
+                              ' updated to ' + str(ft.get_price()))
+                        self.pf.add_security([ft], 'hedge')
+                        print('adding ' + str(ft))
         if self.s:
             pass
         if self.b:
-            cost += self.b * ft.lots
+            pnl -= self.b * ft.lots
 
-        return cost
+        return pnl
+
+    def handle_ohlc_pnl(ft, diff):
+        """Helper function that handles the PnL from futures when running the simulation
+        on OHLC data. This function computes the PnL the future would have produced had it been
+        added with price at the breakeven/static value, and ridden up/down to the current level. 
+
+        Args:
+            ft (TYPE): The future that was created as a result of an intraday hedge
+            diff (TYPE): the difference between the actual magnitude of the move and the 
+                         static value/breakeven the hedge was put in at. as such, the magnitude of the price
+                         move we care about is precisely diff. 
+        """
+        print('handling OHLC PnL for ' + str(ft) + ' with diff of ' + str(diff))
+        pnl_mult = multipliers[ft.get_product()][-1]
+        shorted = -1 if ft.shorted else 1
+
+        return diff * ft.lots * pnl_mult * shorted
 
     # TODO: shorted check for other structures, implement as and when necessary
     def pos_type(self, desc, val, flag):

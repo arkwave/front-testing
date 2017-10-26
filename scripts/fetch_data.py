@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-10-04 14:40:35
+# @Last Modified time: 2017-10-26 18:08:41
 
 # import time
 import datetime as dt
@@ -37,8 +37,8 @@ contract_mths = {
 }
 
 
-def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False,
-                  direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/'):
+def pull_settlement_data(pdt, start_date=None, end_date=None, write_dump=False,
+                         direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/'):
     """Utility function that draws/cleans data from the alternate data table.
 
     Args:
@@ -371,11 +371,11 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
 
                 if write_dump:
                     print('pulling and saving dumps')
-                    vdf, pdf, raw_df = pull_alt_data(
+                    vdf, pdf, raw_df = pull_settlement_data(
                         pdt, write_dump=True, direc=direc)
                 else:
                     print('pulling relevant data; not saving dumps')
-                    vdf, pdf, raw_df = pull_alt_data(
+                    vdf, pdf, raw_df = pull_settlement_data(
                         pdt, start_date, end_date, write_dump=False, direc=direc)
             else:
                 print('dumps exist, reading in')
@@ -580,27 +580,87 @@ def construct_intraday_query(pdts, start_date=None, end_date=None):
     return init_query
 
 
-
 def construct_ohlc_query(pdts, start_date, end_date):
     """Helper function that constructs the sql query used to pull OHLC data
     from the database.
-    
+
     Args:
         pdts (TYPE): the products being pulled. 
         start_date (TYPE): simulation start date
         end_date (TYPE): simulation end date
     """
-    pass 
 
+    init_query = "select * from view_future_data_for_ananth where valuedate >= " + \
+        "'" + start_date + "'" + " and valuedate <= " + "'" + end_date + "'" + ' and '
+
+    for pdt in pdts:
+        space = 1 if len(pdt) == 1 else 0
+        if pdts.index(pdt) > 0:
+            init_query += ' or'
+        init_query += "  ticker like " + "'" + pdt + ' '*space + '%%' + "'"
+
+    print('OHLC query: ', init_query)
+    return init_query
 
 
 def pull_ohlc_data(pdts, start_date, end_date):
     """Helper function that pulls/cleans open-high-low-close data from the
     relevant table. 
-    
+
     Args:
         pdts (TYPE): products being pulled
-        start_date (TYPE): simulation start_date
+        start_date (TYPE): startimulation start_date
         end_date (TYPE): simulation end date 
     """
-    pass 
+    user = 'sumit'
+    password = 'Olam1234'
+    engine = create_engine('postgresql://' + user + ':' + password +
+                           '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+    connection = engine.connect()
+    print('constructing query...')
+    query = construct_ohlc_query(
+        pdts, start_date=start_date, end_date=end_date)
+    # print('query: ', query)
+    df = pd.read_sql_query(query, connection)
+
+    # rename the columns
+    df.columns = ['ticker', 'value_date', 'px_open',
+                  'px_high', 'px_low', 'px_settle', 'agg_vol', 'agg_oi']
+    df['underlying_id'] = df.ticker.str[:5].str.strip()
+
+    # more tidying up
+    df['pdt'] = df.underlying_id.str[:2].str.strip()
+
+    df['ftmth'] = df.underlying_id.str[2:5].str.strip()
+
+    df['underlying_id'] = df.pdt + '  ' + df.ftmth
+
+    cols = ['underlying_id',  'pdt', 'ftmth', 'value_date',
+            'px_open', 'px_high', 'px_low', 'px_settle']
+
+    df = df[cols]
+
+    # melt the dataframe to get identifier/price.
+    df = pd.melt(df, id_vars=['underlying_id', 'pdt', 'ftmth', 'value_date'],
+                 value_vars=['px_open', 'px_high', 'px_low', 'px_settle'])
+
+    # assign the datatype
+    df.ix[df.variable.isin(['px_open', 'px_high', 'px_low']),
+          'datatype'] = 'intraday'
+    df.ix[df.variable == 'px_settle', 'datatype'] = 'settlement'
+
+    # assign times. the order of the high and low have yet to be determined, so
+    # do nothing yet.
+    df.ix[df.variable == 'px_open', 'time'] = dt.time(20, 59, 59, 999999)
+    df.ix[df.variable == 'px_settle', 'time'] = dt.time.max
+
+    df.columns = ['underlying_id', 'pdt', 'ftmth', 'value_date',
+                  'price_id', 'price', 'datatype', 'time']
+
+    df.sort_values(by=['value_date', 'time'], inplace=True)
+    df.reset_index(drop=True, inplace=True)
+    # df = df.dropna()
+
+    df = clean_data(df, 'price')
+
+    return df

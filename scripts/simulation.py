@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-10-12 17:53:41
+# @Last Modified time: 2017-10-26 20:08:15
 
 ################################ imports ###################################
 # general imports
@@ -17,7 +17,7 @@ from collections import OrderedDict
 # from .scripts.prep_data import prep_portfolio, generate_hedges, sanity_check
 # from .scripts.fetch_data import prep_datasets, pull_alt_data
 from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites, assign_hedge_objects, compute_market_minus, mark_to_vols
-
+from .prep_data import reorder_ohlc_data
 from .calc import get_barrier_vol, _compute_value
 from .signals import apply_signal
 
@@ -104,7 +104,8 @@ np.random.seed(seed)
 
 def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                    end_date=None, brokerage=None, slippage=None, signals=None,
-                   plot_results=True, drawdown_limit=None, mode='HSPS', mkt_minus=1e9):
+                   plot_results=True, drawdown_limit=None, mode='HSPS', mkt_minus=1e9,
+                   ohlc=False):
     """
     Each run of the simulation consists of 5 steps:
         1) Feed data into the portfolio.
@@ -297,6 +298,11 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         for ts in pdf_1.time.unique():
 
             pdf = pdf_1[pdf_1.time == ts]
+
+            # TODO: make sure this doesn't break anything significantly.
+            if ohlc:
+                init_pdf, pdf = reorder_ohlc_data(pdf, pf)
+
             # print('pdf.index: ', pdf.index)
             # currently, vdf only exists for settlement anyway.
             vdf = vdf_1[vdf_1.time == ts]
@@ -304,14 +310,19 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 pdf_ts = pdf[pdf.index == index]
                 datatype = pdf_ts.datatype.values[0]
                 uid = pdf_ts.underlying_id.values[0]
+                if uid not in pf.get_unique_uids():
+                    continue
                 val = pdf_ts.price.values[0]
-                lp = pf.hedger.last_hedgepoints[uid]
+
+                diff = 0
                 # print('uid, price: ', uid, val)
-                if (not pf.hedger.is_relevant_price_move(uid, val) and datatype == 'intraday'):
+                relevant_move = pf.hedger.is_relevant_price_move(uid, val)
+                if (not relevant_move and datatype == 'intraday'):
                     # print('skipping irrelevant price move for ' + uid +
                     #       ' to ' + str(val) + ' last hedged at ' + str(lp))
                     continue
                 else:
+                    lp = pf.hedger.last_hedgepoints[uid]
                     print('===================== time: ' +
                           str(ts) + ' =====================')
                     print('valid price move to ' + str(val) +
@@ -370,7 +381,9 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 if 'settlement' not in pdf.datatype.unique():
                     print('--- intraday hedge case ---')
                     hedge_engine = pf.get_hedger()
-                    hedge_engine.apply('delta', intraday=True)
+                    pnl = hedge_engine.apply(
+                        'delta', intraday=True, ohlc=ohlc, diff=diff)
+                    dailypnl += pnl
                     print('--- updating init_val post hedge ---')
                     init_val = pf.compute_value()
                     print('end timestamp init val: ', init_val)

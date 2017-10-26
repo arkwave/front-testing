@@ -127,3 +127,7 @@ def test_daily_to_bullets():
     # except AssertionError:
     #     print('actual len: ', len(ret2['OTC']))
     #     print('desired: ', 13)
+
+
+def test_reorder_ohlc_data():
+    pass

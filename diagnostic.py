@@ -66,12 +66,46 @@ contract_mths = {
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
-user = 'sumit'
-password = 'Olam1234'
-engine = create_engine('postgresql://' + user + ':' + password +
-                       '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
-connection = engine.connect()
 
-query = "select * from bbg_price_data_table where ticker like 'SBH7%%' and valuedate > '20161010' and valuedate < '20170115'"
+# from scripts.fetch_data import pull_ohlc_data
+# pdts = ['SB']
+# start = '2016-10-10'
+# end = '2017-01-15'
 
-df = pd.read_sql_query(query, connection)
+# df = pull_ohlc_data(pdts, start, end)
+# vdf, pdf, edf = grab_data(pdts, start, end)
+
+# # check if they are the same
+# df.sort_values(by='value_date')
+# vdf.sort_values(by='value_date')
+
+# assert np.array_equal(vdf.value_date.unique(), df.value_date.unique())
+
+# callop = create_vanilla_option(
+#     vdf, df, 'SB  H7.H7', 'call', False, delta=25)
+
+# pf = Portfolio(None)
+# pf.add_security([callop], 'OTC')
+# print('pf: ', pf)
+# print('breakevens: ', pf.breakeven())
+
+# tst = df[(df.value_date == df.value_date.min()) &
+#          (df.underlying_id == 'SB  H7')]
+
+# print('tst: ', tst)
+
+# tst, mod = pr.reorder_ohlc_data(tst, pf)
+
+start_date = '2017-01-01'
+end_date = '2017-01-31'
+pdts = ['CT']
+
+vdf, pdf, edf = grab_data(pdts, start_date, end_date)
+pf = Portfolio(None, name='settle_test')
+
+callop = create_vanilla_option(vdf, pdf, 'CT  H7.H7',
+                               'call', False, strike='atm')
+
+pf.add_security([callop], 'OTC')
+
+outputs = run_simulation(vdf, pdf, pf)

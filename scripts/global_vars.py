@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-12 13:32:49
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-08-31 21:43:13
+# @Last Modified time: 2017-10-26 15:35:56
 import pandas as pd
 
 ################ CHANGE THESE #################
@@ -17,8 +17,8 @@ write_path = 'results/' + pdt.lower() + '/logs/'
 
 
 ######### automate path selection based on inputs ##########
-main_direc = 'anant_000'
-# main_direc = 'Ananth'
+# main_direc = 'anant_000'
+main_direc = 'Ananth'
 
 folder = 'C:/Users/' + main_direc + \
     '/Desktop/Modules/HistoricSimulator/datasets/data_dump/'

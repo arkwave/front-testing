@@ -566,21 +566,25 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
         print('cleaning pricedata')
         # dealing with datatypes and generating new fields from existing ones.
         df['value_date'] = pd.to_datetime(df['value_date'])
-        df['pdt'] = df['underlying_id'].str.split().str[0]
-        df['ftmth'] = df['underlying_id'].str.split().str[1]
+        if 'pdt' not in df.columns:
+            df['pdt'] = df['underlying_id'].str.split().str[0]
+        if 'ftmth' not in df.columns:
+            df['ftmth'] = df['underlying_id'].str.split().str[1]
         # transformative functions.
         # df = get_expiry(df, edf)
         # df = assign_ci(df, date)
-        df['order'] = ''
-        df = scale_prices(df)
+        # df['order'] = ''
+        # df = scale_prices(df)
         df = df.fillna(0)
         df.value_date = pd.to_datetime(df.value_date)
         df.price = pd.to_numeric(df.price)
-        df.returns = pd.to_numeric(df.returns)
-        df['time'] = dt.time.max
-        df['time'] = df['time'].astype(pd.Timestamp)
-        df['datatype'] = 'settlement'
+        # df.returns = pd.to_numeric(df.returns)
+        if 'time' not in df.columns:
+            df['time'] = dt.time.max
+        if 'datatype' not in df.columns:
+            df['datatype'] = 'settlement'
 
+        df['time'] = df['time'].astype(pd.Timestamp)
         # df.expdate = pd.to_datetime(df.expdate)
         # df = df[df.value_date <= df.expdate]
         # setting data types
@@ -588,7 +592,7 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
         # df.expdate = pd.to_datetime(df.expdate)
 
     df.reset_index(drop=True, inplace=True)
-    df = df.dropna()
+    # df = df.dropna()
     assert not df.empty
 
     return df
@@ -1419,6 +1423,67 @@ def insert_settlements(df, pdf):
     assert 'settlement' in x.datatype.unique()
     assert 'intraday' in x.datatype.unique()
     return x
+
+
+def reorder_ohlc_data(df, pf):
+    """Processes the OHLC data based on the breakeven of the 
+    portfolio at on the simulation date.  
+
+    Args:
+        df (TYPE): dataframe of prices that 
+        pf (TYPE): portfolio being handled 
+
+    Returns:
+        tuple: the initial dataframe and the modified dataframe. 
+    """
+    unique_uids = pf.get_unique_uids()
+    breakevens = pf.breakeven()
+    init_df = copy.deepcopy(df)
+
+    # filter out all unnecessary uids.
+    df = df[df.underlying_id.isin(unique_uids)]
+
+    for uid in unique_uids:
+        pdt, mth = uid.split()
+        # first: filter the dataframe to just consider this uid.
+        tdf = df[df.underlying_id == uid]
+        # second: get the breakeven for this uid.
+        be = breakevens[pdt][mth]
+        # sanity check: there should be exactly 4 entries.
+        assert len(tdf) == 4
+        px_open = tdf[tdf.price_id == 'px_open'].price.values[0]
+        px_high = tdf[tdf.price_id == 'px_high'].price.values[0]
+        px_low = tdf[tdf.price_id == 'px_low'].price.values[0]
+        px_close = tdf[tdf.price_id == 'px_settle'].price.values[0]
+
+        # case 1: open -> high -> low -> close.
+        ord1 = (abs(px_high-px_open)**2 + abs(px_low-px_high)**2 +
+                abs(px_close-px_low)**2) / be
+        # case 2: open -> low -> high -> close.
+        ord2 = (abs(px_open-px_low)**2 + abs(px_high-px_low)**2 +
+                abs(px_high-px_close)**2) / be
+        print('uid, ord1, ord2: ', uid, ord1, ord2)
+
+        # if OHLC provides more breakevens than OLHC, go with OLHC and vice
+        # versa
+        if ord1 > ord2:
+            # case: order as open-low-high-close.
+            df.ix[df.price_id == 'px_high', 'time'] = dt.time(
+                22, 59, 59, 999999)
+            df.ix[df.price_id == 'px_low', 'time'] = dt.time(
+                21, 59, 59, 999999)
+        else:
+            # case: order as open-high-low-close
+            df.ix[df.price_id == 'px_low', 'time'] = dt.time(
+                22, 59, 59, 999999)
+            df.ix[df.price_id == 'px_high', 'time'] = dt.time(
+                21, 59, 59, 999999)
+
+    df.sort_values(by=['value_date', 'time'])
+    df.reset_index(drop=True, inplace=True)
+
+    return init_df, df
+
 
 ##########################################################################
 ##########################################################################
