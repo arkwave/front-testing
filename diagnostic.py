@@ -100,7 +100,15 @@ start_date = '2017-01-01'
 end_date = '2017-01-31'
 pdts = ['CT']
 
+import datetime as dt
+
 vdf, pdf, edf = grab_data(pdts, start_date, end_date)
+
+vdf.value_date = pd.to_datetime(vdf.value_date)
+pdf.value_date = pd.to_datetime(pdf.value_date)
+pdf.time = pd.to_datetime(pdf.time).dt.time
+
+
 pf = Portfolio(None, name='settle_test')
 
 callop = create_vanilla_option(vdf, pdf, 'CT  H7.H7',

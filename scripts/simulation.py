@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-10-26 20:08:15
+# @Last Modified time: 2017-10-26 21:39:02
 
 ################################ imports ###################################
 # general imports
@@ -193,7 +193,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     print('book vols initialized at ' +
           pd.to_datetime(date_range[0]).strftime('%Y-%m-%d'))
     # reassign the dates since the first datapoint is the init date.
-    # date_range = date_range[1:]
+    date_range = date_range[1:]
     ########################################
 
     ############ Other useful variables: #############
