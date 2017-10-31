@@ -992,7 +992,13 @@ class Portfolio:
 
         return set(otc_products + hedge_products)
 
-    def breakeven(self):
+    def get_unique_volids(self):
+        """Returns a set of all unique vol_ids in the portfolio. 
+        """
+        allops = self.get_all_options()
+        return set([x.get_vol_id() for x in allops])
+
+    def breakeven(self, flag=None, conv=None):
         """Returns a dictionary of {pdt: {month: breakeven}} where breakeven is calculated by theta/gamma. 
         """
         bes = {}
@@ -1005,7 +1011,8 @@ class Portfolio:
                 gamma, theta = abs(dic[pdt][mth][1]), abs(dic[pdt][mth][2])
                 thetas.append(theta)
                 gammas.append(gamma)
-                bes[pdt][mth] = ((2*theta)/gamma) ** 0.5
+                bes[pdt][mth] = (((2.8*theta)/gamma) ** 0.5) / \
+                    multipliers[pdt][0]
 
         return bes
 

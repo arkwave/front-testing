@@ -25,6 +25,7 @@ from ast import literal_eval
 from collections import OrderedDict
 import copy
 import datetime as dt
+import pprint
 
 seed = 7
 np.random.seed(seed)
@@ -1171,11 +1172,11 @@ def get_min_start_date(vdf, pdf, lst, signals=None):
             df = vdf[vdf.vol_id == vid]
             v_dates.append(min(df.value_date))
         for uid in p_lst:
-            print('uid, date: ', uid, df.value_date.min())
+            # print('uid, date: ', uid, df.value_date.min())
             df = pdf[pdf.underlying_id == uid]
             p_dates.append(df.value_date.min())
-        print('get_min_start_date - vdates: ', v_dates)
-        print('get_min_start_date - pdates: ', p_dates)
+        # print('get_min_start_date - vdates: ', v_dates)
+        # print('get_min_start_date - pdates: ', p_dates)
         return max(max(v_dates), max(p_dates))
 
     else:
@@ -1276,13 +1277,15 @@ def handle_intraday_conventions(df):
     ## Step 1 ##
     # first: Convert S H8 Comdty -> S  H8
 
-    df['pdt'] = df.Commodity.str[:2].str.strip()
-    df['ftmth'] = df.Commodity.str[2:-6].str.strip()
+    print('df.columns: ', df.columns)
+
+    df['pdt'] = df.commodity.str[:2].str.strip()
+    df['ftmth'] = df.commodity.str[2:-6].str.strip()
     df['underlying_id'] = df.pdt + '  ' + df.ftmth
     # datetime -> date and time columns.
-    df.Date = pd.to_datetime(df.Date)
-    df['time'] = df.Date.dt.time.astype(pd.Timestamp)
-    df['value_date'] = pd.to_datetime(df.Date.dt.date)
+    df.date_time = pd.to_datetime(df.date_time)
+    df['time'] = df.date_time.dt.time
+    df['value_date'] = pd.to_datetime(df.date_time.dt.date)
 
     # filter out weekends/bank holidays.
     cal = calendar()
@@ -1296,11 +1299,15 @@ def handle_intraday_conventions(df):
     df['datatype'] = 'intraday'
 
     cols = ['value_date', 'time', 'underlying_id',
-            'pdt', 'ftmth', 'Price', 'datatype']
+            'pdt', 'ftmth', 'price', 'datatype']
     df = df[cols]
 
     df.columns = ['value_date', 'time', 'underlying_id',
                   'pdt', 'ftmth', 'price', 'datatype']
+
+    df = df[df.price > 0]
+
+    df.reset_index(drop=True, inplace=True)
 
     return df
 
@@ -1320,7 +1327,6 @@ def timestep_recon(df):
         df (pandas dataframe): dataframe of intraday price data. 
     """
     cols = df.columns
-    final_df = pd.DataFrame(columns=cols)
     uids = df.underlying_id.unique()
     dic_lst = []
     # base case: 1 uid.
@@ -1441,7 +1447,15 @@ def reorder_ohlc_data(df, pf):
     init_df = copy.deepcopy(df)
 
     # filter out all unnecessary uids.
+    # print('df: ', df)
+
+    print('unique uids: ', unique_uids)
     df = df[df.underlying_id.isin(unique_uids)]
+
+    # print('reorder_ohlc_data - df: ', df)
+
+    # assign the time for opens, leaving settlements the same.
+    df.ix[df.price_id == 'px_open', 'time'] = dt.time(20, 59, 59, 0)
 
     for uid in unique_uids:
         pdt, mth = uid.split()
@@ -1450,18 +1464,21 @@ def reorder_ohlc_data(df, pf):
         # second: get the breakeven for this uid.
         be = breakevens[pdt][mth]
         # sanity check: there should be exactly 4 entries.
-        assert len(tdf) == 4
+        try:
+            assert len(tdf) == 4
+        except AssertionError as e:
+            raise AssertionError("faulty tdf: ", tdf) from e
         px_open = tdf[tdf.price_id == 'px_open'].price.values[0]
         px_high = tdf[tdf.price_id == 'px_high'].price.values[0]
         px_low = tdf[tdf.price_id == 'px_low'].price.values[0]
         px_close = tdf[tdf.price_id == 'px_settle'].price.values[0]
 
         # case 1: open -> high -> low -> close.
-        ord1 = (abs(px_high-px_open)**2 + abs(px_low-px_high)**2 +
-                abs(px_close-px_low)**2) / be
+        ord1 = (abs(px_high-px_open) + abs(px_low-px_high) +
+                abs(px_close-px_low)) / be
         # case 2: open -> low -> high -> close.
-        ord2 = (abs(px_open-px_low)**2 + abs(px_high-px_low)**2 +
-                abs(px_high-px_close)**2) / be
+        ord2 = (abs(px_open-px_low) + abs(px_high-px_low) +
+                abs(px_high-px_close)) / be
         print('uid, ord1, ord2: ', uid, ord1, ord2)
 
         # if OHLC provides more breakevens than OLHC, go with OLHC and vice
@@ -1469,20 +1486,96 @@ def reorder_ohlc_data(df, pf):
         if ord1 > ord2:
             # case: order as open-low-high-close.
             df.ix[df.price_id == 'px_high', 'time'] = dt.time(
-                22, 59, 59, 999999)
+                22, 59, 58, 0)
             df.ix[df.price_id == 'px_low', 'time'] = dt.time(
-                21, 59, 59, 999999)
+                21, 59, 58, 0)
         else:
             # case: order as open-high-low-close
             df.ix[df.price_id == 'px_low', 'time'] = dt.time(
-                22, 59, 59, 999999)
+                22, 59, 58, 0)
             df.ix[df.price_id == 'px_high', 'time'] = dt.time(
-                21, 59, 59, 999999)
+                21, 59, 58, 0)
 
     df.sort_values(by=['value_date', 'time'])
     df.reset_index(drop=True, inplace=True)
 
+    df = granularize(df, pf)
+
+    # print('df after reorder: ', df)
+
     return init_df, df
+
+
+def granularize(df, pf, interval=None):
+    """Helper function that takes in a dataframe filtered through reorder_ohlc_data, 
+    and checks for consecutive price moves that exceed the breakeven/flat value hedging
+    interval specified for that underlying id. If this condition is met, it splits up the move into 
+    hedge-interval level moves. 
+
+    Args:
+        df (TYPE): dataframe of prices
+        pf (TYPE): portfolio being handled. 
+
+
+    Returns:
+        dataframe: dataframe with the price moves granularized according to the flat value/breakeven
+    """
+    # initial sanity check to see if only settlement data is present.
+    if 'intraday' not in df.datatype.unique():
+        return df
+
+    fin_df = df.copy()
+    # get the UIDS that need to be handled.
+    uids = df.underlying_id.unique()
+    curr_prices = pf.uid_price_dict()
+    for uid in uids:
+        uid_df = df[df.underlying_id == uid]
+        uid_df.reset_index(drop=True, inplace=True)
+        # get the hedging value.
+        interval = pf.hedger.get_hedge_interval(
+            uid) if interval is None else interval
+        curr_price = curr_prices[uid]
+        uid_df['diff'] = uid_df.price - curr_price
+        # uid_df['diff'] = uid_df.price.diff().fillna(0)
+        # iterate over the rows of the uid_df
+        for index in uid_df.index:
+            # print('-------------- handling ' +
+            #       str(index) + ' ----------------')
+            row = uid_df.iloc[index]
+            # print('index: ', index)
+            # print('row: ', row)
+            if abs(row['diff']) <= interval:
+                continue
+            # case: difference is greater than the hedge level
+            else:
+                # number of breakevens/value moved = number of new rows that
+                # need to be created.
+                move_mult = np.floor(abs(row['diff'])/interval)
+                curr_time = uid_df.iloc[index-1].time
+
+                # print('move_mult: ', move_mult)
+                # print('curr_price: ', curr_price)
+                # print('curr_time: ', curr_time)
+
+                for x in range(int(move_mult)):
+                    mult = -1 if row['diff'] < 0 else 1
+                    newprice = curr_price + ((x+1)*interval*mult)
+                    newtime = dt.time(curr_time.hour, curr_time.minute,
+                                      curr_time.second, curr_time.microsecond + (x+1))
+                    newrow = [row.underlying_id, row.pdt,
+                              row.ftmth, row.value_date, 'midpt', newprice, 'intraday', newtime, interval]
+                    newrow = dict(zip(uid_df.columns, newrow))
+                    # print('newrow: ', newrow)
+                    fin_df = fin_df.append(newrow, ignore_index=True)
+
+    # fin_df.time = pd.to_datetime(fin_df.time).dt.time
+
+    # fin_df.drop('diff', inplace=True, axis=1)
+    fin_df.time = pd.to_datetime(fin_df.time).dt.time
+    fin_df.sort_values(by='time', inplace=True)
+    fin_df.reset_index(drop=True, inplace=True)
+
+    return fin_df
 
 
 ##########################################################################

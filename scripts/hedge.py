@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-10-26 20:07:20
+# @Last Modified time: 2017-10-30 18:12:27
 
 import pandas as pd
 import pprint
@@ -538,7 +538,7 @@ class Hedge:
 
         # self.done = self.satisfied()
 
-    def apply(self, flag, intraday=False):
+    def apply(self, flag, intraday=False, ohlc=False):
         """Main method that actually applies the hedging logic specified.
         The kind of structure used to hedge is specified by self.params['kind']
 
@@ -549,8 +549,9 @@ class Hedge:
         # base case: flag not in hedges
         # print('======= applying ' + flag + ' hedge =========')
         if flag not in self.hedges:
-            raise ValueError(
+            print(
                 flag + ' hedge is not specified in hedging logic for family ' + self.pf.name)
+            return 0
 
         cost = 0
         indices = {'delta': 0, 'gamma': 1, 'theta': 2, 'vega': 3}
@@ -691,22 +692,22 @@ class Hedge:
         if uid in self.last_hedgepoints:
             last_val = self.last_hedgepoints[uid]
 
-        print('self.last_hedgepoints: ', self.last_hedgepoints)
-        print('self.params: ', self.params)
+        # print('self.last_hedgepoints: ', self.last_hedgepoints)
+        # print('self.params: ', self.params)
 
         # case: intraday hedges not specified -> data is settlement.
         if not self.params or 'intraday' not in self.params['delta']:
-            return True
+            return True, 0
         else:
             actual_value = abs(last_val - val)
             if self.params['delta']['intraday']['kind'] == 'static':
                 # print('static value intraday case')
                 comp_val = self.params['delta']['intraday']['modifier']
                 if actual_value >= comp_val[uid]:
-                    print('last, curr, actual, comp: ', last_val,
-                          val, actual_value, comp_val[uid])
-                    return True
-                return False
+                    # print('last, curr, actual, comp: ', last_val,
+                    #       val, actual_value, comp_val[uid])
+                    return True, np.floor(actual_value/comp_val[uid])
+                return False, 0
             elif self.params['delta']['intraday']['kind'] == 'breakeven':
                 # print('breakeven intraday case')
                 mults = self.params['delta']['intraday']['modifier']
@@ -714,14 +715,40 @@ class Hedge:
                 pdt, mth = uid.split()
                 if pdt in mults and mth in mults[pdt]:
                     be_mult = mults[pdt][mth]
-                    print('pdt, mth, mult: ', pdt, mth, be_mult)
+                    # print('pdt, mth, mult: ', pdt, mth, be_mult)
                 else:
                     be_mult = 1
                 be = self.breakeven[pdt][mth] * be_mult
-                print('be: ', be)
+                # print('be: ', be)
                 if actual_value >= be:
-                    return True
-                return False
+                    return True, np.floor(actual_value/be)
+                return False, 0
+
+    def get_hedge_interval(self, uid):
+        """Helper function that gets the hedging interval.
+
+        Args:
+            uid (str): the underlying id in question. 
+
+        Returns:
+            TYPE: the move level at which this uid should be hedged. 
+        """
+        if self.params['delta']['intraday']['kind'] == 'static':
+            # print('static value intraday case')
+            comp_val = self.params['delta']['intraday']['modifier']
+        elif self.params['delta']['intraday']['kind'] == 'breakeven':
+            # print('breakeven intraday case')
+            mults = self.params['delta']['intraday']['modifier']
+            # print('mults: ', mults)
+            pdt, mth = uid.split()
+            if pdt in mults and mth in mults[pdt]:
+                be_mult = mults[pdt][mth]
+                print('pdt, mth, mult: ', pdt, mth, be_mult)
+            else:
+                be_mult = 1
+            comp_val = self.breakeven[pdt][mth] * be_mult
+
+        return comp_val
 
     def hedge_delta(self, intraday=False, ohlc=False):
         """Helper method that hedges delta basis net greeks, irrespective of the
@@ -749,7 +776,7 @@ class Hedge:
             curr_prices = self.pf.uid_price_dict()
             for uid in self.pf.get_unique_uids():
                 pdt, mth = uid.split()
-                relevant_move = self.is_relevant_price_move(
+                relevant_move, move_mult = self.is_relevant_price_move(
                     uid, curr_prices[uid])
                 if relevant_move:
                     if pdt not in tobehedged:
@@ -774,6 +801,7 @@ class Hedge:
                 if num_lots_needed == 0:
                     continue
                 else:
+                    # takes care of the first hedge.
                     try:
                         ft, _ = create_underlying(product, month, self.pdf,
                                                   self.date, shorted=shorted,
@@ -781,14 +809,12 @@ class Hedge:
                     except IndexError:
                         print('price data for this day ' + '-- ' + self.date.strftime(
                             '%Y-%m-%d') + ' --' + ' does not exist. skipping...')
-                    if ohlc:
-                        # want to use the real difference, not abs, because
-                        # pnl will depend on direction of move + if the future
-                        # is short or long.
-                        real_diff = curr_prices[uid] - \
-                            self.last_hedgepoints[uid]
-                        ft_pnl = self.handle_ohlc_pnl(ft, real_diff)
-                        pnl += ft_pnl
+
+                    # if intraday:
+                    #     real_diff = curr_prices[uid] - \
+                    #         self.last_hedgepoints[uid]
+                    #     ft_pnl = self.handle_ohlc_pnl(ft, real_diff)
+                    #     pnl += ft_pnl
 
                     if ft is not None:
                         # update the last hedgepoint dictionary

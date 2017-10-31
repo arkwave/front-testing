@@ -2,11 +2,12 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-10-26 18:08:41
+# @Last Modified time: 2017-10-30 18:53:10
 
 # import time
 import datetime as dt
 import pandas as pd
+from pandas.tseries.offsets import BDay
 from sqlalchemy import create_engine
 import time
 import os
@@ -525,12 +526,14 @@ def pull_intraday_data(pdts, start_date=None, end_date=None):
     # # setting datatype: intraday vs settlements
     # df['datatype'] = 'intraday'
 
+    print('df.columns: ', df.columns)
+
     cols = ['value_date', 'time', 'underlying_id',
             'pdt', 'ftmth', 'price', 'datatype']
     df = df[cols]
 
     df.value_date = pd.to_datetime(df.value_date)
-    df.time = df.time.astype(pd.Timestamp)
+    # df.time = pd.to_datetime(df.time).dt.time
     df.sort_values(by=['value_date', 'time'], inplace=True)
     df.reset_index(drop=True, inplace=True)
 
@@ -589,9 +592,13 @@ def construct_ohlc_query(pdts, start_date, end_date):
         start_date (TYPE): simulation start date
         end_date (TYPE): simulation end date
     """
+    start_date = pd.to_datetime(start_date)
+
+    # change start date to one business day earlier.
+    real_start = (start_date - BDay(1)).strftime('%Y-%m-%d')
 
     init_query = "select * from view_future_data_for_ananth where valuedate >= " + \
-        "'" + start_date + "'" + " and valuedate <= " + "'" + end_date + "'" + ' and '
+        "'" + real_start + "'" + " and valuedate <= " + "'" + end_date + "'" + ' and '
 
     for pdt in pdts:
         space = 1 if len(pdt) == 1 else 0
@@ -603,7 +610,7 @@ def construct_ohlc_query(pdts, start_date, end_date):
     return init_query
 
 
-def pull_ohlc_data(pdts, start_date, end_date):
+def pull_ohlc_data(pdts, start_date, end_date, writepath='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/datasets/debug'):
     """Helper function that pulls/cleans open-high-low-close data from the
     relevant table. 
 
@@ -612,55 +619,102 @@ def pull_ohlc_data(pdts, start_date, end_date):
         start_date (TYPE): startimulation start_date
         end_date (TYPE): simulation end date 
     """
-    user = 'sumit'
-    password = 'Olam1234'
-    engine = create_engine('postgresql://' + user + ':' + password +
-                           '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
-    connection = engine.connect()
-    print('constructing query...')
-    query = construct_ohlc_query(
-        pdts, start_date=start_date, end_date=end_date)
-    # print('query: ', query)
-    df = pd.read_sql_query(query, connection)
 
-    # rename the columns
-    df.columns = ['ticker', 'value_date', 'px_open',
-                  'px_high', 'px_low', 'px_settle', 'agg_vol', 'agg_oi']
-    df['underlying_id'] = df.ticker.str[:5].str.strip()
+    # check if the data has been saved.
+    init_path = writepath + '/' + \
+        '_'.join([x for x in pdts]) + '_' + \
+        start_date + '_' + end_date + '_intraday'
+    pricepath = init_path + '_price.csv'
 
-    # more tidying up
-    df['pdt'] = df.underlying_id.str[:2].str.strip()
+    if os.path.exists(pricepath):
+        df = pd.read_csv(pricepath)
+        df.value_date = pd.to_datetime(df.value_date)
+        df.time = pd.to_datetime(df.time).dt.time
 
-    df['ftmth'] = df.underlying_id.str[2:5].str.strip()
+    else:
+        user = 'sumit'
+        password = 'Olam1234'
+        engine = create_engine('postgresql://' + user + ':' + password +
+                               '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+        connection = engine.connect()
+        print('constructing query...')
+        query = construct_ohlc_query(
+            pdts, start_date=start_date, end_date=end_date)
+        # print('query: ', query)
+        df = pd.read_sql_query(query, connection)
 
-    df['underlying_id'] = df.pdt + '  ' + df.ftmth
+        # rename the columns
+        df.columns = ['ticker', 'value_date', 'px_open',
+                      'px_high', 'px_low', 'px_settle', 'agg_vol', 'agg_oi']
+        df['underlying_id'] = df.ticker.str[:5].str.strip()
 
-    cols = ['underlying_id',  'pdt', 'ftmth', 'value_date',
-            'px_open', 'px_high', 'px_low', 'px_settle']
+        # more tidying up
+        df['pdt'] = df.underlying_id.str[:2].str.strip()
 
-    df = df[cols]
+        df['ftmth'] = df.underlying_id.str[2:5].str.strip()
 
-    # melt the dataframe to get identifier/price.
-    df = pd.melt(df, id_vars=['underlying_id', 'pdt', 'ftmth', 'value_date'],
-                 value_vars=['px_open', 'px_high', 'px_low', 'px_settle'])
+        df['underlying_id'] = df.pdt + '  ' + df.ftmth
 
-    # assign the datatype
-    df.ix[df.variable.isin(['px_open', 'px_high', 'px_low']),
-          'datatype'] = 'intraday'
-    df.ix[df.variable == 'px_settle', 'datatype'] = 'settlement'
+        cols = ['underlying_id',  'pdt', 'ftmth', 'value_date',
+                'px_high', 'px_low', 'px_settle']
 
-    # assign times. the order of the high and low have yet to be determined, so
-    # do nothing yet.
-    df.ix[df.variable == 'px_open', 'time'] = dt.time(20, 59, 59, 999999)
-    df.ix[df.variable == 'px_settle', 'time'] = dt.time.max
+        df = df[cols]
 
-    df.columns = ['underlying_id', 'pdt', 'ftmth', 'value_date',
-                  'price_id', 'price', 'datatype', 'time']
+        df.sort_values(by='value_date', inplace=True)
+        df.reset_index(drop=True, inplace=True)
 
-    df.sort_values(by=['value_date', 'time'], inplace=True)
-    df.reset_index(drop=True, inplace=True)
-    # df = df.dropna()
+        df = handle_open_to_prev_close(df)
+        # df = df.groupby('underlying_id').transform(handle_open_to_prev_close)
 
-    df = clean_data(df, 'price')
+        # df['px_open'] = df['px_settle'].shift()
+
+        df.to_csv('prevclose_debug.csv', index=False)
+
+        # melt the dataframe to get identifier/price.
+        df = pd.melt(df, id_vars=['underlying_id', 'pdt', 'ftmth', 'value_date'],
+                     value_vars=['px_open', 'px_high', 'px_low', 'px_settle'])
+
+        # assign the datatype
+        df.ix[df.variable.isin(['px_open', 'px_high', 'px_low']),
+              'datatype'] = 'intraday'
+        df.ix[df.variable == 'px_settle', 'datatype'] = 'settlement'
+
+        # assign times. the order of the high and low have yet to be determined, so
+        # do nothing yet.
+        # df.ix[df.variable == 'px_open', 'time'] = dt.time(20, 59, 59, 999999)
+        # df.ix[df.variable == 'px_settle', 'time'] = dt.time.max
+
+        # replace open with prev close.
+
+        df['time'] = dt.time(23, 59, 59, 999999)
+
+        df.columns = ['underlying_id', 'pdt', 'ftmth', 'value_date',
+                      'price_id', 'price', 'datatype', 'time']
+
+        df.sort_values(by=['value_date', 'time'], inplace=True)
+        df.reset_index(drop=True, inplace=True)
+        # df = df.dropna()
+
+        # handle H13 -> H3
+        df.underlying_id = df.pdt + '  ' + \
+            df.ftmth.str[0] + (df.ftmth.str[1:].astype(int) % 10).astype(str)
+
+        df = clean_data(df, 'price')
+        df.to_csv(pricepath, index=False)
+
+    return df
+
+
+def handle_open_to_prev_close(df):
+    """iterates through the underlying_ids and replaces 
+    open with previous day's close price. 
+
+    Args:
+        df (TYPE): Dataframe of prices. 
+    """
+    for uid in df.underlying_id.unique():
+        tdf = df[df.underlying_id == uid]
+        df.ix[df.underlying_id == uid, 'px_open'] = tdf[
+            'px_settle'].shift().fillna(0)
 
     return df

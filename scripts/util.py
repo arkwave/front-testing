@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-10-10 20:13:52
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-10-27 21:13:22
 
 
 from .portfolio import Portfolio
@@ -266,7 +266,7 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     cpi = 'C' if char == 'call' else 'P'
 
     # get min start date for debugging
-    min_start_date = min(pdf[pdf.pdt == pdt].value_date)
+    min_start_date = min(vdf[vdf.pdt == pdt].value_date)
 
     date = min_start_date if (date is None or min_start_date > date) else date
 
@@ -1253,9 +1253,13 @@ def assign_hedge_objects(pf, vdf=None, pdf=None, book=False):
     """
     # case: simple portfolio.
     from .hedge import Hedge
+    # print('assign_hedge_objects - init pf: ', pf)
     hedger = Hedge(pf, pf.hedge_params, vdf=vdf, pdf=pdf, book=book)
+    # print('assign_hedge_objects - after creating hedge object: ', pf)
     pf.hedger = hedger
+    # print('assign_hedge_objects - after assigning hedger: ', pf)
     pf.hedger.update_hedgepoints()
+    # print('assign_hedge_objects - pf after updating hedgepoints: ', pf)
 
     # case: composite portfolio
     if pf.families:
@@ -1267,6 +1271,7 @@ def assign_hedge_objects(pf, vdf=None, pdf=None, book=False):
     if vdf is not None and pdf is not None:
         pf.assign_hedger_dataframes(vdf, pdf)
 
+    # print('assign_hedge_objects - pf after hedger dataframes: ', pf)
     return pf
 
 
