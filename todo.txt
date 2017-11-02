@@ -1207,9 +1207,19 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 
 #### As of 10/10/2017:
-- Go through profile results to isolate/refactor bottlenecks. 
-- ensure that delta rolling works properly with book vols
-- double check the PnL computation for HBPB and HBPS modes. 
+- [Done] Go through profile results to isolate/refactor bottlenecks. 
+- [Done] ensure that delta rolling works properly with book vols
+- [Done] double check the PnL computation for HBPB and HBPS modes. 
+
+
+##### As of 11/2/2017:
+1) fix granularize function. 
+2) standardize inputs for OHLC and intraday types 
+3) re-run the hedging simulator for LH. 
+4) testing required:
+	> granularize
+	> all OHLC functions
+	> 
 
 
 ##### Scenario-based implementations 
@@ -1232,13 +1242,13 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 		- [Done] ISSUE: TTM is wrong when hedging basis book vols
 	* double check the PnL differential between HBPB and HBPS
 	* testing. 
+
 		 
 
 ##### Hedging Updates:
 - move delta roll-hedging into the hedge object. 
 - Re-implementing hedging logic:
 	+ {breakeven multiple} -> {percentage} -> {buyback logic}
-
 
 
 ##### UI Implementation:
@@ -1255,8 +1265,7 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 ##### Testing:
 - all the intraday shit
-- close out deltas 
-
+- OHLC functions 
 
 ===============================================================================
 
