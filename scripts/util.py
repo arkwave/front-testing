@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-03 19:04:17
+# @Last Modified time: 2017-11-03 19:44:39
 
 
 from .portfolio import Portfolio
@@ -184,7 +184,7 @@ def create_underlying(pdt, ftmth, pdf, date, flag='settlement', ftprice=None, sh
     Returns:
         tuple: future object, and price. 
     """
-    print('pdf: ', pdf)
+    # print('pdf: ', pdf)
     # datatype = 'settlement' if settlement else 'intraday'
     flag = 'settlement' if flag == 'eod' else flag
     uid = pdt + '  ' + ftmth

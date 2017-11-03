@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-03 19:37:10
+# @Last Modified time: 2017-11-03 19:47:48
 
 import pandas as pd
 import pprint
@@ -733,7 +733,8 @@ class Hedge:
         """
         if self.params['delta']['intraday']['kind'] == 'static':
             # print('static value intraday case')
-            comp_val = self.params['delta']['intraday']['modifier']
+            comp_val = self.params['delta']['intraday']['modifier'][uid]
+
         elif self.params['delta']['intraday']['kind'] == 'breakeven':
             # print('breakeven intraday case')
             mults = self.params['delta']['intraday']['modifier']
