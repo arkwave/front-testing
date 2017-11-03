@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-08-11 19:24:36
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-10-10 18:16:50
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-10-27 21:57:58
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -497,7 +497,7 @@ def test_intraday_hedge_processing_be():
 def test_intraday_hedging_be():
     # price_changes = {'CC  Z7': 20, 'QC  Z7': 20}
     be = {'CC': {'U7': 1, 'Z7': 1},
-          'QC': {'U7': 1.5, 'Z7': 1}}
+          'QC': {'U7': 1, 'Z7': 1}}
     gen_hedges = OrderedDict({'delta': [['static', 0, 1],
                                         ['intraday', 'breakeven', be]]})
 
@@ -530,9 +530,9 @@ def test_intraday_hedging_be():
     init_greeks = pf.net_greeks.copy()
     print('pf.net_greeks pre_hedge: ', pf.net_greeks)
     for x in ccfts:
-        x.update_price(x.get_price() + 28)
+        x.update_price(x.get_price() + 33)
     for x in qcfts:
-        x.update_price(x.get_price() + 15)
+        x.update_price(x.get_price() + 20)
     engine.hedge_delta(intraday=True)
     print('pf.net_greeks post_hedge: ', pf.net_greeks)
     # assert that CC is hedged, QC is not.
@@ -580,7 +580,7 @@ def test_breakeven():
 
 def test_is_relevant_price_move_be():
     be = {'CC': {'U7': 1, 'Z7': 1},
-          'QC': {'U7': 1.5, 'Z7': 1}}
+          'QC': {'U7': 1, 'Z7': 1}}
     gen_hedges = OrderedDict({'delta': [['static', 0, 1],
                                         ['intraday', 'breakeven', be]]})
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
@@ -597,10 +597,10 @@ def test_is_relevant_price_move_be():
     ccprice = ccfts[0].get_price()
     qcprice = qcfts[0].get_price()
 
-    assert not pf.hedger.is_relevant_price_move('CC  Z7', ccprice + 30)
-    assert pf.hedger.is_relevant_price_move('CC  Z7', ccprice + 33)
-    assert not pf.hedger.is_relevant_price_move('QC  Z7', qcprice + 20)
-    assert pf.hedger.is_relevant_price_move('QC  Z7', qcprice + 28)
+    assert not pf.hedger.is_relevant_price_move('CC  Z7', ccprice + 30)[0]
+    assert pf.hedger.is_relevant_price_move('CC  Z7', ccprice + 38)[0]
+    assert not pf.hedger.is_relevant_price_move('QC  Z7', qcprice + 20)[0]
+    assert pf.hedger.is_relevant_price_move('QC  Z7', qcprice + 28)[0]
 
 
 def test_is_relevant_price_move_static():
@@ -626,7 +626,7 @@ def test_is_relevant_price_move_static():
     ccprice = ccfts[0].get_price()
     qcprice = qcfts[0].get_price()
 
-    assert not engine.is_relevant_price_move('CC  Z7', ccprice + 5)
-    assert engine.is_relevant_price_move('CC  Z7', ccprice + 10)
-    assert not engine.is_relevant_price_move('QC  Z7', qcprice + 5)
-    assert engine.is_relevant_price_move('QC  Z7', qcprice + 10)
+    assert not engine.is_relevant_price_move('CC  Z7', ccprice + 5)[0]
+    assert engine.is_relevant_price_move('CC  Z7', ccprice + 10)[0]
+    assert not engine.is_relevant_price_move('QC  Z7', qcprice + 5)[0]
+    assert engine.is_relevant_price_move('QC  Z7', qcprice + 10)[0]

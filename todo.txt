@@ -1208,18 +1208,23 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 #### As of 10/10/2017:
 - [Done] Go through profile results to isolate/refactor bottlenecks. 
-- [Done] ensure that delta rolling works properly with book vols
 - [Done] double check the PnL computation for HBPB and HBPS modes. 
 
 
+
 ##### As of 11/2/2017:
-1) fix granularize function. 
-2) standardize inputs for OHLC and intraday types 
-3) re-run the hedging simulator for LH. 
-4) testing required:
-	> granularize
-	> all OHLC functions
-	> 
+1) [Done] fix granularize function. 
+2) [Done] standardize inputs for OHLC and intraday types 
+3) ensure that rolling works properly with book vols
+	> [Done] delta rolling
+	> [Done] contract rolling.
+		- [Done] fix the dataframe issue with rollovers not finding price data. 
+		- [Done] remark all rolled products to settlement vols on that day, pending flag. 
+
+4) [Done] re-run the hedging simulator for LH. 
+
+5) testing required:
+	> granularize for intraday.
 
 
 ##### Scenario-based implementations 
@@ -1269,107 +1274,4 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 ===============================================================================
 
-_________________ Intraday implementation: Notes _____________________
-
-#### Hedging steps. 
-- delta:
-	> hedging every breakeven.
-		- formula/convention for calculating breakeven. 
-		- what breakeven to use? when should it be initialized?
-		- will this change or remain fixed?
-	> static move-based hedging
-	> where do these params get passed in? --> need to update the GUI with an intraday feature too. 	
-	> edge case 1: multiple products, one hits breakeven and one doesn't. Do we hedge one or both or none? partners in terms of products/hedging?
-	> edge case 2: limit up/limit down implementations required?
-
-#### Feed steps
-- Done. 
-
-#### PnL Calculation
-
-#### Expand HSM to allow for Intraday data. 
-
-- First major paradigm shift: dataset must contain ONLY relevant vol_ids and 
-underlying_ids. --> need to prune with gui, implying that GUI needs to have a vol_id check. 
-	- flag as to whether or not data is intraday or settlement to settlement. ==> infer from dataset? pass in as input?
-		- can be inferred quite easily for prices. 
-
-- conditional intraday delta Hedging
-	= value-based
-	= breakeven-based 
- 	--> need to write new functions/reconceptualize delta hedging;
- 		- rethink hedge object => initialize at the start of the day, use throughout for hedging delta. 		 		
-		   => can use existing framework to specify parameters (i.e. breakeven, value, 
-		   etc.)
-
-	= Data processing steps: 
-		- how will this change data grabbing functions?
-		- new functions to prepare intraday data for simulation -> need samples. 
-		  	> for each date in dates:
-		  		for timestamp in pdf[pdf.date == date]:
-		  			do the things. 
-
-		- something that will look for the EOD flag; one timestamp will be designated the EOD timestamp 
-			--> this is when rebalance(), signal() and pf.Timestep() will be called
-
--------------------------- OPEN ISSUES: ------------------------
-
-#### Backend Implementation
-
-- [Done] multithreading to allow for multiple runs at once (per breakeven etc)
-- Go through the profile results and try to refactor when time permits. 
-- proper conceptualizing of slippage, aside from flat-value. bring all in line to this. 
-- Signals and Families
-	1. adjusting signals to include family paradigm 
-	2. related: implement a future signals thing.
-	
-#### Plotly visualization:
-- visualize vol surface
-- position visualizer 
-- more descriptive statistics:
-	- [Done] drawdown
-	- labeling when the rolls happened (i.e. different color when log.delta_rolled) 
-
-#### GUI Dev:
-- [Done] need to fix/debug assign_ci / ciprice / civols. pretty badly. 
-- integrate with Portfolio VAR Module. 
-- Figure out new windows for each family. 
-
-
-===============================================================================
-> Hedging dictionary example:
-
-{'all': OrderedDict([('delta', [['static', 'zero', 1]])]), 
-   '1': OrderedDict([('delta', [['roll', 25.0, 1, (-5, 5)]])]), 
-   '2': OrderedDict([('delta', [['roll', 50.0, 1, (-20, 20)]])]), 
-   '3': OrderedDict([('delta', [['roll', 25.0, 1, (-7, 7)]])])}
-
-{ '2': OrderedDict([('delta', [['static', 'zero', 1], ['roll', 50.0, 1, (-10, 10)]]), 
-				   ('theta', [['bound', (9000, 11000), 1, 'straddle', 'strike', 'atm', 'uid']])]), 
-'all': OrderedDict()}
-
-===============================================================================
-
-##### Notes from meeting: 
-
--- to do: --
-2. vanna/volga methods for vols. 
-
-3. high/low prices for barriers
-	> todo once data is acquired.
-
---- followed through ---
-1. XML instead of text files, read using beautiful soup.
-	> replaced using csv
-
-4. correlation surfaces as inputs
-	> required for monte carlo generation of series & pricing 
-
-
-MC Pricing for Barriers:
-1) Brownian bridge-based methods.
-
-
-MC Generation of Price and Vol series:
-No idea yet man.
 
