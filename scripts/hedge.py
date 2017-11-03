@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-10-30 18:12:27
+# @Last Modified time: 2017-11-03 19:37:10
 
 import pandas as pd
 import pprint
@@ -703,9 +703,7 @@ class Hedge:
             if self.params['delta']['intraday']['kind'] == 'static':
                 # print('static value intraday case')
                 comp_val = self.params['delta']['intraday']['modifier']
-                if actual_value >= comp_val[uid]:
-                    # print('last, curr, actual, comp: ', last_val,
-                    #       val, actual_value, comp_val[uid])
+                if actual_value >= comp_val[uid] or np.isclose(actual_value, comp_val[uid]):
                     return True, np.floor(actual_value/comp_val[uid])
                 return False, 0
             elif self.params['delta']['intraday']['kind'] == 'breakeven':
@@ -720,7 +718,7 @@ class Hedge:
                     be_mult = 1
                 be = self.breakeven[pdt][mth] * be_mult
                 # print('be: ', be)
-                if actual_value >= be:
+                if actual_value >= be or np.isclose(actual_value, be):
                     return True, np.floor(actual_value/be)
                 return False, 0
 

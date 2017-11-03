@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-10-27 21:13:22
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-11-03 19:04:17
 
 
 from .portfolio import Portfolio
@@ -184,7 +184,7 @@ def create_underlying(pdt, ftmth, pdf, date, flag='settlement', ftprice=None, sh
     Returns:
         tuple: future object, and price. 
     """
-    # print('pdf: ', pdf)
+    print('pdf: ', pdf)
     # datatype = 'settlement' if settlement else 'intraday'
     flag = 'settlement' if flag == 'eod' else flag
     uid = pdt + '  ' + ftmth
@@ -901,7 +901,6 @@ def enablePrint():
     sys.stdout = sys.__stdout__
 
 
-# TODO: close out OTC futures as well
 def close_out_deltas(pf, dtc):
     """Checks to see if the portfolio is emtpty but with residual deltas. 
     Closes out all remaining future positions, resulting in an empty portfolio.
@@ -1275,7 +1274,7 @@ def assign_hedge_objects(pf, vdf=None, pdf=None, book=False):
     return pf
 
 
-def mark_to_vols(pfx, vdf, dup=False):
+def mark_to_vols(pfx, vdf, dup=False, pdt=None):
     """Helper method that computes the value of a portfolio marked to the 
     specified vols
 
@@ -1292,9 +1291,13 @@ def mark_to_vols(pfx, vdf, dup=False):
     assert not vdf.empty
     pf = copy.deepcopy(pfx) if dup else pfx
 
+    if pdt is None:
+        ops = pf.get_all_options()
+    else:
+        ops = [op for op in pf.get_all_options() if op.get_product() == pdt]
     # print('vdf: ', vdf)
 
-    for op in pf.get_all_options():
+    for op in ops:
         ticksize = multipliers[op.get_product()][-2]
         vid = op.get_vol_id()
         cpi = 'C' if op.char == 'call' else 'P'
