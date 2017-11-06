@@ -1576,14 +1576,8 @@ def granularize(df, pf, interval=None, ohlc=False):
         # iterate over the rows of the uid_df
         lastrow = None
         for index in uid_df.index:
-            if index == 0:
-                continue
-            # print('-------------- handling ' +
-            #       str(index) + ' ----------------')
             row = uid_df.iloc[index]
             diff = row.price - curr_price
-
-            # print('diff: ', diff)
 
             if abs(diff) < interval:
                 continue
@@ -1591,61 +1585,71 @@ def granularize(df, pf, interval=None, ohlc=False):
             else:
                 print('--------------- handling row ' +
                       str(index) + ' --------------')
-                print('curr_price: ', curr_price)
-                print('row price: ', row.price)
-                print('diff: ', diff)
-                # number of breakevens/value moved = number of new rows that
-                # need to be created.
-                move_mult = np.floor(abs(diff/interval))
-                curr_time = uid_df.iloc[index-1].time
-                print('curr_time: ', curr_time)
+                # open case is taken care of above.
+                if index == 0:
+                    # edge case: if open is > 1 be move, take hedge there, but set
+                    # it as last hedge point
+                    curr_price = row.price
+                    print('open is > 1 be move; \
+                          curr_price updated to ' + str(row.price))
 
-                print('move mult: ', move_mult)
+                else:
+                    print('curr_price: ', curr_price)
+                    print('row price: ', row.price)
+                    print('diff: ', diff)
+                    # number of breakevens/value moved = number of new rows that
+                    # need to be created.
+                    move_mult = np.floor(abs(diff/interval))
+                    curr_time = uid_df.iloc[index-1].time
+                    print('curr_time: ', curr_time)
 
-                for x in range(int(move_mult)):
-                    # multiplier to ascertain if the price rose or fell from
-                    # last hedgepoint
-                    mult = -1 if diff < 0 else 1
-                    newprice = curr_price + (interval*mult)
-                    if lastrow is not None:
-                        # case: new row added in previous loop has a time greater than
-                        # the previous index row in the dataframe; use this
-                        # time.
-                        if lastrow['time'] > curr_time:
-                            prev_time = lastrow['time']
-                            print('using lastrow time: ', prev_time)
-                            newtime = dt.time(prev_time.hour, prev_time.minute,
-                                              prev_time.second, prev_time.microsecond + 1)
+                    print('move mult: ', move_mult)
+
+                    for x in range(int(move_mult)):
+                        # multiplier to ascertain if the price rose or fell from
+                        # last hedgepoint
+                        mult = -1 if diff < 0 else 1
+                        newprice = curr_price + (interval*mult)
+                        if lastrow is not None:
+                            # case: new row added in previous loop has a time greater than
+                            # the previous index row in the dataframe; use this
+                            # time.
+                            if lastrow['time'] > curr_time:
+                                prev_time = lastrow['time']
+                                print('using lastrow time: ', prev_time)
+                                newtime = dt.time(prev_time.hour, prev_time.minute,
+                                                  prev_time.second, prev_time.microsecond + 1)
+                            else:
+                                newtime = dt.time(curr_time.hour, curr_time.minute,
+                                                  curr_time.second, curr_time.microsecond + 1)
+                                print('newtime, currtime: ',
+                                      newtime, curr_time)
+
                         else:
                             newtime = dt.time(curr_time.hour, curr_time.minute,
                                               curr_time.second, curr_time.microsecond + 1)
                             print('newtime, currtime: ', newtime, curr_time)
 
-                    else:
-                        newtime = dt.time(curr_time.hour, curr_time.minute,
-                                          curr_time.second, curr_time.microsecond + 1)
-                        print('newtime, currtime: ', newtime, curr_time)
+                        newrow = {'value_date': row.value_date, 'time': newtime, 'pdt': row.pdt,
+                                  'ftmth': row.ftmth, 'price': newprice, 'datatype': 'intraday',
+                                  'underlying_id': uid}
 
-                    newrow = {'value_date': row.value_date, 'time': newtime, 'pdt': row.pdt,
-                              'ftmth': row.ftmth, 'price': newprice, 'datatype': 'intraday',
-                              'underlying_id': uid}
+                        lastrow = newrow
+                        if ohlc:
+                            newrow['price_id'] = 'midpt'
 
-                    lastrow = newrow
-                    if ohlc:
-                        newrow['price_id'] = 'midpt'
+                        # newrow = [row.value_date, newtime, row.pdt,
+                        # row.ftmth, row.underlying_id, newprice, 'intraday']
 
-                    # newrow = [row.value_date, newtime, row.pdt,
-                    # row.ftmth, row.underlying_id, newprice, 'intraday']
+                        # newrow = [row.underlying_id, row.pdt, row.ftmth, row.value_date,
+                        #           'midpt', newprice, 'intraday', newtime]
 
-                    # newrow = [row.underlying_id, row.pdt, row.ftmth, row.value_date,
-                    #           'midpt', newprice, 'intraday', newtime]
-
-                    # newrow = dict(zip(uid_df.columns, newrow))
-                    # print('newrow: ', newrow)
-                    print('newrow added: ', newrow)
-                    fin_df = fin_df.append(newrow, ignore_index=True)
-                    print('curr_price updated to ' + str(newprice))
-                    curr_price = newprice
+                        # newrow = dict(zip(uid_df.columns, newrow))
+                        # print('newrow: ', newrow)
+                        print('newrow added: ', newrow)
+                        fin_df = fin_df.append(newrow, ignore_index=True)
+                        print('curr_price updated to ' + str(newprice))
+                        curr_price = newprice
 
     # fin_df.to_csv('debug_granular.csv', index=False)
     # return

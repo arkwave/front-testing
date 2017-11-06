@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-03 21:00:39
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-11-06 20:15:02
 
 ################################ imports ###################################
 # general imports
@@ -14,8 +14,6 @@ import matplotlib.pyplot as plt
 from collections import OrderedDict
 
 # user defined imports
-# from .scripts.prep_data import prep_portfolio, generate_hedges, sanity_check
-# from .scripts.fetch_data import prep_datasets, pull_alt_data
 from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites, assign_hedge_objects, compute_market_minus, mark_to_vols
 from .prep_data import reorder_ohlc_data, granularize
 from .calc import get_barrier_vol, _compute_value
@@ -184,6 +182,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # the portfolio.
     # get the init diff and timestep
     init_val = pf.compute_value()
+    print('pf before init timestep: ', init_val)
+    print('init val before initial timestep: ', init_val)
     init_diff = (pd.to_datetime(
         date_range[1]) - pd.to_datetime(date_range[0])).days
     print('init diff: ', init_diff)
@@ -194,7 +194,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     print('book vols initialized at ' +
           pd.to_datetime(date_range[0]).strftime('%Y-%m-%d'))
     # reassign the dates since the first datapoint is the init date.
-    # date_range = date_range[1:]
+    date_range = date_range[1:]
     ########################################
 
     ############ Other useful variables: #############
@@ -548,7 +548,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             print('next_date: ', next_date)
             print('end_sim: ', end_sim)
 
-            if end_sim or (mm >= mkt_minus) or all_deltas:
+            if end_sim or (mm >= mkt_minus):
                 tmp = pf.compute_value()
                 pf = mark_to_vols(pf, settle_vols)
                 newval = pf.compute_value()
@@ -571,7 +571,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # Step 10: reset book vols if the market minuses are too great, or if
     # contract roll occurred. remark portfolio to book vols.
     # value differential is counted  as vega pnl
-        if (mode in ('HBPB', 'HBPS')) and ((mm >= mkt_minus) or (all_deltas)):
+        if (mode in ('HBPB', 'HBPS')) and (mm >= mkt_minus):
             # reset the book vols
             tmp = pf.compute_value()
             book_vols = settle_vols
@@ -643,17 +643,21 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             tau = round(op.tau * 365)
             where = 'OTC' if op in pf.OTC_options else 'hedge'
 
+            num_hedges = len(hedges_hit[date])
+
             d, g, t, v = dic[pdt][ftmth]
 
             lst = [date, vol_id, char, where, tau, op_value, oplots,
                    ftprice, strike, opvol, dailypnl, dailynet, grosspnl, netpnl,
-                   dailygamma, gammapnl, dailyvega, vegapnl, roll_hedged, d, g, t, v]
+                   dailygamma, gammapnl, dailyvega, vegapnl, roll_hedged, d, g, t, v,
+                   num_hedges]
 
             cols = ['value_date', 'vol_id', 'call/put', 'otc/hedge', 'ttm', 'option_value',
                     'option_lottage', 'future price', 'strike', 'vol',
                     'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross', 'cu_pnl_net',
                     'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl', 'cu_vega_pnl',
-                    'delta_rolled', 'net_delta', 'net_gamma', 'net_theta', 'net_vega']
+                    'delta_rolled', 'net_delta', 'net_gamma', 'net_theta', 'net_vega',
+                    '# hedges hit']
 
             adcols = ['pdt', 'ft_month', 'op_month', 'delta', 'gamma', 'theta',
                       'vega', 'net_call_vega', 'net_put_vega', 'b/s']
@@ -746,13 +750,13 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     if plot_results:
         yrs = log.value_date.dt.year.unique()
         yr_str = '-'.join([str(x) for x in yrs])
-        plt.figure()
-        plt.hist(gross_daily_values, bins=20,
-                 alpha=0.6, label='gross pnl distribution')
-        plt.hist(net_daily_values, bins=20,
-                 alpha=0.6, label='net pnl distribution')
-        plt.title('PnL Distribution: Gross/Net ' + yr_str)
-        plt.legend()
+        # plt.figure()
+        # plt.hist(gross_daily_values, bins=20,
+        #          alpha=0.6, label='gross pnl distribution')
+        # plt.hist(net_daily_values, bins=20,
+        #          alpha=0.6, label='net pnl distribution')
+        # plt.title('PnL Distribution: Gross/Net ' + yr_str)
+        # plt.legend()
         # plt.show()
 
         # plotting gross pnl values
@@ -770,21 +774,21 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         plt.plot(xvals, vega_pnl_cumul, c='y', alpha=0.5, label='cu. vega pnl')
         plt.title('gross/net pnl daily ' + yr_str)
         plt.legend()
-        # plt.show()
+        plt.show()
 
         # cumulative gamma/vega/cumulpnl values
-        plt.figure()
-        # colors = ['c' if x >= 0 else 'r' for x in gamma_pnl_daily]
-        plt.plot(log.value_date, log.cu_gamma_pnl, color='c',
-                 alpha=0.6, label='cu. gamma pnl')
-        plt.plot(log.value_date, log.cu_vega_pnl,
-                 color='m', alpha=0.6, label='cu. vega pnl')
-        plt.plot(log.value_date, log.cu_pnl_gross, color='k',
-                 alpha=0.8, label='gross pnl')
-        plt.title('gamma/vega/cumulative pnls ' + yr_str)
-        plt.legend()
+        # plt.figure()
+        # # colors = ['c' if x >= 0 else 'r' for x in gamma_pnl_daily]
+        # plt.plot(log.value_date, log.cu_gamma_pnl, color='c',
+        #          alpha=0.6, label='cu. gamma pnl')
+        # plt.plot(log.value_date, log.cu_vega_pnl,
+        #          color='m', alpha=0.6, label='cu. vega pnl')
+        # plt.plot(log.value_date, log.cu_pnl_gross, color='k',
+        #          alpha=0.8, label='gross pnl')
+        # plt.title('gamma/vega/cumulative pnls ' + yr_str)
+        # plt.legend()
 
-        plt.show()
+        # plt.show()
 
     return log, net_cumul_values[-1], hedges_hit
 
