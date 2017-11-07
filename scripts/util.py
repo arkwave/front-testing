@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-03 19:44:39
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-11-06 22:04:01
 
 
 from .portfolio import Portfolio
@@ -929,6 +929,7 @@ def close_out_deltas(pf, dtc):
             # need to spend to buy back
             val = price if ft.shorted else -price
             cost += val
+            # cost += val * ft.lots * multipliers[pdt][-1]
             toberemoved[flag].append(ft)
 
     # print('close_out_deltas - toberemoved: ',

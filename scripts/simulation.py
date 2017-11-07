@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-11-06 20:15:02
+# @Last Modified time: 2017-11-06 21:53:39
 
 ################################ imports ###################################
 # general imports
@@ -643,7 +643,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             tau = round(op.tau * 365)
             where = 'OTC' if op in pf.OTC_options else 'hedge'
 
-            num_hedges = len(hedges_hit[date])
+            num_hedges = len(hedges_hit[date]) - 1
 
             d, g, t, v = dic[pdt][ftmth]
 
@@ -1964,6 +1964,8 @@ def delta_roll(pf, op, roll_val, vdf, pdf, flag, slippage=None,
     # considering this option basis book vols and basis settle vols, and add the difference to the
     # cost.
     if book:
+        print('volid, book vol: ', op.get_vol_id(), op.vol)
+
         try:
             cpi = 'C' if op.char == 'call' else 'P'
             df = settlements
@@ -1975,6 +1977,7 @@ def delta_roll(pf, op, roll_val, vdf, pdf, flag, slippage=None,
                   op.get_vol_id(), cpi, op.K)
             settle_vol = op.vol
 
+        print('volid, settle vol: ', op.get_vol_id(), settle_vol)
         true_value = _compute_value(newop.char, newop.tau, settle_vol, newop.K,
                                     newop.underlying.get_price(), 0, 'amer', ki=newop.ki,
                                     ko=newop.ko, barrier=newop.barrier, d=newop.direc,
