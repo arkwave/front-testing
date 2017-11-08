@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-11-06 21:53:39
+# @Last Modified time: 2017-11-07 19:51:08
 
 ################################ imports ###################################
 # general imports
@@ -599,21 +599,6 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         gross_cumul_values.append(grosspnl)
         net_cumul_values.append(netpnl)
 
-    # Step 12: timestep after all operations have been performed.
-        print('actual timestep of ' + str(num_days))
-        pf.timestep(num_days * timestep)
-
-        print('[1.0]   EOD PNL (GROSS): ', dailypnl)
-        print('[1.0.1] EOD Vega PNL: ', dailyvega)
-        print('[1.0.2] EOD Gamma PNL: ', dailygamma)
-        print('[1.0.2.5] Daily cost: ', dailycost)
-        print('[1.0.3] EOD PNL (NET) :', dailynet)
-        print('[1.0.4] Cumulative PNL (GROSS): ', grosspnl)
-        print('[1.0.5] Cumulative Vega PNL: ', vegapnl)
-        print('[1.0.6] Cumulative Gamma PNL: ', gammapnl)
-        print('[1.0.7] Cumulative PNL (net): ', netpnl)
-        print('[1.1]  EOD PORTFOLIO: ', pf)
-
     # Step 13: Logging relevant output to csv
     ##########################################################################
         print("========================= LOG WRITING  ==========================")
@@ -688,6 +673,22 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             l_dic = OrderedDict(zip(cols, lst))
             loglist.append(l_dic)
         print("========================= END LOG WRITING ==========================")
+
+        # Step 12: timestep after all operations have been performed.
+        print('actual timestep of ' + str(num_days))
+        pf.timestep(num_days * timestep)
+
+        print('[1.0]   EOD PNL (GROSS): ', dailypnl)
+        print('[1.0.1] EOD Vega PNL: ', dailyvega)
+        print('[1.0.2] EOD Gamma PNL: ', dailygamma)
+        print('[1.0.2.5] Daily cost: ', dailycost)
+        print('[1.0.3] EOD PNL (NET) :', dailynet)
+        print('[1.0.4] Cumulative PNL (GROSS): ', grosspnl)
+        print('[1.0.5] Cumulative Vega PNL: ', vegapnl)
+        print('[1.0.6] Cumulative Gamma PNL: ', gammapnl)
+        print('[1.0.7] Cumulative PNL (net): ', netpnl)
+        print('[1.1]  EOD PORTFOLIO: ', pf)
+
     ##########################################################################
 
 
