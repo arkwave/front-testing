@@ -1509,7 +1509,7 @@ def reorder_ohlc_data(df, pf):
     return init_df, df, data_order
 
 
-def sanitize_intraday_timings(df):
+def sanitize_intraday_timings(df, filepath=None):
     """Helper function that ignores pre-exchange printed results and only keeps entries
     within the start/end of the exchange timings. 
 
@@ -1520,9 +1520,13 @@ def sanitize_intraday_timings(df):
         Dataframe: With all timings outside of exchange timings removed. 
     """
     # read in the exchange timing dataframe.
+    print('sanitize_intraday_timings: filepath - ', filepath)
 
-    pdts = df.pdt.unique()
-    edf = pd.read_csv('datasets/exchange_timings.csv')
+    filepath = filepath if filepath is not None else ''
+    filepath += 'datasets/exchange_timings.csv'
+
+    print('final filepath: ', filepath)
+    edf = pd.read_csv(filepath)
     edf['Exch Start Hours'] = pd.to_datetime(edf['Exch Start Hours']).dt.time
     edf['Exch End Hours'] = pd.to_datetime(edf['Exch End Hours']).dt.time
 
@@ -1573,16 +1577,17 @@ def granularize(df, pf, interval=None, ohlc=False):
         curr_price = curr_prices[uid]
         print('curr_price: ', curr_price)
         print('uid, last hedgepoint: ', uid, curr_price)
-        # uid_df['diff'] = uid_df.price - curr_price
-        print('uid_df: ', uid_df)
-        # uid_df['diff'] = uid_df.price.diff().fillna(0)
+
         # iterate over the rows of the uid_df
         lastrow = None
         for index in uid_df.index:
             row = uid_df.iloc[index]
             diff = row.price - curr_price
 
-            if abs(diff) < interval:
+            # if it's less than interval, nothing needs to be done.
+            # if it's close to interval, then is_relevant_price_move will pick
+            # this anyway.
+            if abs(diff) < interval or np.isclose(interval, abs(diff)):
                 continue
             # case: difference is greater than the hedge level
             else:

@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-11-08 13:40:56
+# @Last Modified time: 2017-11-08 20:00:31
 
 ################################ imports ###################################
 # general imports
@@ -181,13 +181,13 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # initial timestep, because previous day's settlements were used to construct
     # the portfolio.
     # get the init diff and timestep
-    init_val = pf.compute_value()
-    print('pf before init timestep: ', init_val)
-    print('init val before initial timestep: ', init_val)
+    # init_val = pf.compute_value()
     init_diff = (pd.to_datetime(
         date_range[1]) - pd.to_datetime(date_range[0])).days
     print('init diff: ', init_diff)
     pf.timestep(init_diff * timestep)
+    init_val = pf.compute_value()
+    print('sim_start BOD init_value: ', init_val)
     # assign book vols; defaults to initialization date.
     book_vols = voldata[voldata.value_date ==
                         pd.to_datetime(date_range[0])]
@@ -280,6 +280,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         print('init val BOD: ', init_val)
         print("==========================================================")
 
+        log_pf = copy.deepcopy(pf)
         dailypnl = 0
         dailygamma = 0
         dailyvega = 0
@@ -330,7 +331,6 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         unique_ts = pdf_1.time.unique()
         for ts in unique_ts:
             pdf = pdf_1[pdf_1.time == ts]
-            # TODO: make sure this doesn't break anything significantly.
             if ohlc:
                 print('@@@@@@@@@@@@@@@ OHLC STEP GRANULARIZING @@@@@@@@@@@@@@@@')
                 init_pdf, pdf, data_order = reorder_ohlc_data(pdf, pf)
@@ -362,8 +362,13 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                     hedges_hit[date].append((uid, val, lp))
                     print('===================== time: ' +
                           str(pdf_ts.time.values[0]) + ' =====================')
-                    print('valid price move to ' + str(val) +
-                          ' for uid last hedged at ' + str(lp))
+                    if datatype == 'intraday':
+                        print('valid price move to ' + str(val) +
+                              ' for uid last hedged at ' + str(lp))
+                    elif datatype == 'settlement':
+                        print('settlement price move to ' + str(val) +
+                              ' for uid last hedged at ' + str(lp))
+
                     print('timestep init val: ', init_val)
 
                 # for prices: filter and use exclusively the intraday data. assign
@@ -519,12 +524,14 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
     # Step 8: Update highest_value so that the next
     # loop can check for drawdown.
+
+    # store a copy for log writing purposes.
+
         if netpnl > highest_value:
             print('net pnl exceeds highes value, resetting drawdown benchmark.')
             highest_value = netpnl
 
-    # Isolate settlement vols to be used.
-
+        # compute market minuses, isolate if end of sim.
         mm, diff = compute_market_minus(pf, settle_vols)
         print('market minuses for the day: ', mm, diff)
         if end_date is not None:
@@ -532,10 +539,28 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                        end_date or (date < end_date and next_date > end_date))
         else:
             end_sim = date == date_range[-1]
-    # Step 9: Initialize init_val to be used in the next day, and handle book
-    # vol resets.
+
+    # Step 9: timestep before computing PnL. store and compute the theta
+    # debit/credit. update dailypnl and dailygamma with theta debit.
         num_days = 0 if next_date is None else\
             (pd.Timestamp(next_date) - pd.Timestamp(date)).days
+
+        print('actual timestep of ' + str(num_days))
+
+        # isolate the change due to timestep (i.e. theta debit/credit)
+
+        pre_timestep_value = pf.compute_value()
+        pf.timestep(num_days * timestep)
+        theta_change = pf.compute_value() - pre_timestep_value
+
+        print('dailypnl before theta change: ', dailypnl)
+        print('dailygamma before theta change: ', dailygamma)
+
+        dailypnl += theta_change
+        dailygamma += theta_change
+
+        print('theta debit/credit: ', theta_change)
+
         if mode == 'HSPS':
             init_val = pf.compute_value()
             print('HSPS Init val: ', init_val)
@@ -556,6 +581,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 dailyvega += newval - tmp
                 # reset book vols
                 print('dailyvega: ', dailyvega)
+                # temporarily skip the final remark
                 dailypnl += dailyvega
                 book_vols = settle_vols
 
@@ -604,20 +630,21 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     ##########################################################################
         print("========================= LOG WRITING  ==========================")
         # Portfolio-wide information
-        dic = pf.get_net_greeks()
-        call_vega = sum([op.vega for op in pf.get_all_options()
+        # dic = log_pf.get_net_greeks()
+        call_vega = sum([op.vega for op in log_pf.get_all_options()
                          if op.K >= op.underlying.get_price()])
 
-        put_vega = sum([op.vega for op in pf.get_all_options()
+        put_vega = sum([op.vega for op in log_pf.get_all_options()
                         if op.K < op.underlying.get_price()])
+
         if drawdown_limit is not None:
             drawdown_val = highest_value - net_cumul_values[-1]
             drawdown_pct = (
                 highest_value - net_cumul_values[-1])/(drawdown_limit)
 
+        settlement_prices = pf.uid_price_dict()
         # option specific information
-        for op in pf.get_all_options():
-            ftprice = op.underlying.get_price()
+        for op in log_pf.get_all_options():
             op_value = op.get_price()
             # pos = 'long' if not op.shorted else 'short'
             char = op.char
@@ -629,22 +656,26 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             tau = round(op.tau * 365)
             where = 'OTC' if op in pf.OTC_options else 'hedge'
             underlying_id = op.get_uid()
+            ftprice = settlement_prices[underlying_id]
 
             num_hedges = len(hedges_hit[date]) - 1
-
+            dic = log_pf.get_net_greeks()
             d, g, t, v = dic[pdt][ftmth]
 
+            breakeven = log_pf.hedger.breakeven[pdt][ftmth]
+
+            # fix logging to take into account BOD to BOD convention.
             lst = [date, vol_id, underlying_id, char, where, tau, op_value, oplots,
                    ftprice, strike, opvol, dailypnl, dailynet, grosspnl, netpnl,
                    dailygamma, gammapnl, dailyvega, vegapnl, roll_hedged, d, g, t, v,
-                   num_hedges, data_order]
+                   num_hedges, data_order, num_days, breakeven]
 
             cols = ['value_date', 'vol_id', 'underlying_id', 'call/put', 'otc/hedge',
-                    'ttm', 'option_value', 'option_lottage', 'future price',
+                    'ttm', 'option_value', 'option_lottage', 'px_settle',
                     'strike', 'vol', 'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross',
                     'cu_pnl_net', 'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl',
                     'cu_vega_pnl', 'delta_rolled', 'net_delta', 'net_gamma', 'net_theta',
-                    'net_vega', '# hedges hit', 'data order']
+                    'net_vega', '# hedges hit', 'data order', 'timestep', 'breakeven']
 
             adcols = ['pdt', 'ft_month', 'op_month', 'delta', 'gamma', 'theta',
                       'vega', 'net_call_vega', 'net_put_vega', 'b/s']
@@ -675,10 +706,6 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             l_dic = OrderedDict(zip(cols, lst))
             loglist.append(l_dic)
         print("========================= END LOG WRITING ==========================")
-
-        # Step 12: timestep after all operations have been performed.
-        print('actual timestep of ' + str(num_days))
-        pf.timestep(num_days * timestep)
 
         print('[1.0]   EOD PNL (GROSS): ', dailypnl)
         print('[1.0.1] EOD Vega PNL: ', dailyvega)
