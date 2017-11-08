@@ -1489,6 +1489,7 @@ def reorder_ohlc_data(df, pf):
                 21, 59, 58, 0)
             df.ix[df.price_id == 'px_high', 'time'] = dt.time(
                 22, 59, 58, 0)
+            data_order = 'olhc'
 
         else:
             # case: order as open-high-low-close
@@ -1496,6 +1497,7 @@ def reorder_ohlc_data(df, pf):
                 21, 59, 58, 0)
             df.ix[df.price_id == 'px_low', 'time'] = dt.time(
                 22, 59, 58, 0)
+            data_order = 'ohlc'
 
     df.sort_values(by=['time'])
     df.reset_index(drop=True, inplace=True)
@@ -1504,7 +1506,7 @@ def reorder_ohlc_data(df, pf):
 
     # print('df after reorder: ', df)
 
-    return init_df, df
+    return init_df, df, data_order
 
 
 def sanitize_intraday_timings(df):
@@ -1560,6 +1562,7 @@ def granularize(df, pf, interval=None, ohlc=False):
     # get the last hedge points to ascertain the base
     # value against which we need to base interval-level moves.
     curr_prices = pf.hedger.get_hedgepoints()
+
     for uid in uids:
         uid_df = df[df.underlying_id == uid].sort_values('time')
         uid_df.reset_index(drop=True, inplace=True)

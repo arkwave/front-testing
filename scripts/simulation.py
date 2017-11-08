@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-11-07 19:51:08
+# @Last Modified time: 2017-11-08 13:40:56
 
 ################################ imports ###################################
 # general imports
@@ -625,25 +625,26 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             opvol = op.vol
             strike = op.K
             pdt, ftmth, opmth = op.get_product(), op.get_month(), op.get_op_month()
-            vol_id = pdt + '  ' + opmth + '.' + ftmth
+            vol_id = op.get_vol_id()
             tau = round(op.tau * 365)
             where = 'OTC' if op in pf.OTC_options else 'hedge'
+            underlying_id = op.get_uid()
 
             num_hedges = len(hedges_hit[date]) - 1
 
             d, g, t, v = dic[pdt][ftmth]
 
-            lst = [date, vol_id, char, where, tau, op_value, oplots,
+            lst = [date, vol_id, underlying_id, char, where, tau, op_value, oplots,
                    ftprice, strike, opvol, dailypnl, dailynet, grosspnl, netpnl,
                    dailygamma, gammapnl, dailyvega, vegapnl, roll_hedged, d, g, t, v,
                    num_hedges, data_order]
 
-            cols = ['value_date', 'vol_id', 'call/put', 'otc/hedge', 'ttm', 'option_value',
-                    'option_lottage', 'future price', 'strike', 'vol',
-                    'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross', 'cu_pnl_net',
-                    'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl', 'cu_vega_pnl',
-                    'delta_rolled', 'net_delta', 'net_gamma', 'net_theta', 'net_vega',
-                    '# hedges hit', 'data order']
+            cols = ['value_date', 'vol_id', 'underlying_id', 'call/put', 'otc/hedge',
+                    'ttm', 'option_value', 'option_lottage', 'future price',
+                    'strike', 'vol', 'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross',
+                    'cu_pnl_net', 'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl',
+                    'cu_vega_pnl', 'delta_rolled', 'net_delta', 'net_gamma', 'net_theta',
+                    'net_vega', '# hedges hit', 'data order']
 
             adcols = ['pdt', 'ft_month', 'op_month', 'delta', 'gamma', 'theta',
                       'vega', 'net_call_vega', 'net_put_vega', 'b/s']
@@ -703,21 +704,26 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
     # append the open high low close if applicable
     if ohlc:
+        print('merging OHLC data with logs...', end="")
         tdf = pricedata[['value_date', 'underlying_id', 'price', 'price_id']]
         opens = tdf[tdf.price_id == 'px_open']
-        opens.columns = ['px_open' if x == 'price' else x for x in opens.columns]
+        print('opens columns: ', opens.columns)
+        opens.columns = ['px_open' if x ==
+                         'price' else x for x in opens.columns]
         opens = opens.drop('price_id', axis=1)
         highs = tdf[tdf.price_id == 'px_high']
-        highs.columns = ['px_high' if x == 'price' else x for x in highs.columns]
+        highs.columns = ['px_high' if x ==
+                         'price' else x for x in highs.columns]
         highs = highs.drop('price_id', axis=1)
         lows = tdf[tdf.price_id == 'px_low']
         lows.columns = ['px_low' if x == 'price' else x for x in lows.columns]
         lows = lows.drop('price_id', axis=1)
         # close = tdf[tdf.price_id == 'px_settle']
-        # join each to the log. 
+        # join each to the log.
         log = pd.merge(log, opens, on=['value_date', 'underlying_id'])
         log = pd.merge(log, highs, on=['value_date', 'underlying_id'])
         log = pd.merge(log, lows, on=['value_date', 'underlying_id'])
+        print('done.')
 
     # appending 25d vol changes and price changes
     if signals is not None:
