@@ -311,6 +311,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             pf.get_unique_uids())].reset_index(drop=True)
         vdf_1 = vdf_1[vdf_1.underlying_id.isin(
             pf.get_unique_volids())].reset_index(drop=True)
+        data_order = None
 
         # need this check because for intraday/settlement to settlement, no reordering
         # is required; granularize is called in OHLC case only after an order
@@ -332,7 +333,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             # TODO: make sure this doesn't break anything significantly.
             if ohlc:
                 print('@@@@@@@@@@@@@@@ OHLC STEP GRANULARIZING @@@@@@@@@@@@@@@@')
-                init_pdf, pdf = reorder_ohlc_data(pdf, pf)
+                init_pdf, pdf, data_order = reorder_ohlc_data(pdf, pf)
                 print('pdf: ', pdf)
                 print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
 
@@ -635,14 +636,14 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             lst = [date, vol_id, char, where, tau, op_value, oplots,
                    ftprice, strike, opvol, dailypnl, dailynet, grosspnl, netpnl,
                    dailygamma, gammapnl, dailyvega, vegapnl, roll_hedged, d, g, t, v,
-                   num_hedges]
+                   num_hedges, data_order]
 
             cols = ['value_date', 'vol_id', 'call/put', 'otc/hedge', 'ttm', 'option_value',
                     'option_lottage', 'future price', 'strike', 'vol',
                     'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross', 'cu_pnl_net',
                     'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl', 'cu_vega_pnl',
                     'delta_rolled', 'net_delta', 'net_gamma', 'net_theta', 'net_vega',
-                    '# hedges hit']
+                    '# hedges hit', 'data order']
 
             adcols = ['pdt', 'ft_month', 'op_month', 'delta', 'gamma', 'theta',
                       'vega', 'net_call_vega', 'net_put_vega', 'b/s']
@@ -699,6 +700,24 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # Step 10: Plotting results/data viz
     ######################### PRINTING OUTPUT ###########################
     log = pd.DataFrame(loglist)
+
+    # append the open high low close if applicable
+    if ohlc:
+        tdf = pricedata[['value_date', 'underlying_id', 'price', 'price_id']]
+        opens = tdf[tdf.price_id == 'px_open']
+        opens.columns = ['px_open' if x == 'price' else x for x in opens.columns]
+        opens = opens.drop('price_id', axis=1)
+        highs = tdf[tdf.price_id == 'px_high']
+        highs.columns = ['px_high' if x == 'price' else x for x in highs.columns]
+        highs = highs.drop('price_id', axis=1)
+        lows = tdf[tdf.price_id == 'px_low']
+        lows.columns = ['px_low' if x == 'price' else x for x in lows.columns]
+        lows = lows.drop('price_id', axis=1)
+        # close = tdf[tdf.price_id == 'px_settle']
+        # join each to the log. 
+        log = pd.merge(log, opens, on=['value_date', 'underlying_id'])
+        log = pd.merge(log, highs, on=['value_date', 'underlying_id'])
+        log = pd.merge(log, lows, on=['value_date', 'underlying_id'])
 
     # appending 25d vol changes and price changes
     if signals is not None:
