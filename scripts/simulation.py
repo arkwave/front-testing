@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-11-08 20:00:31
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-11-10 14:54:50
 
 ################################ imports ###################################
 # general imports
@@ -12,6 +12,7 @@ import copy
 import time
 import matplotlib.pyplot as plt
 from collections import OrderedDict
+import datetime as dt
 
 # user defined imports
 from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites, assign_hedge_objects, compute_market_minus, mark_to_vols
@@ -102,7 +103,7 @@ np.random.seed(seed)
 
 def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                    end_date=None, brokerage=None, slippage=None, signals=None,
-                   plot_results=True, drawdown_limit=None, mode='HSPS', mkt_minus=200000,
+                   plot_results=True, drawdown_limit=None, mode='HSPS', mkt_minus=1e7,
                    ohlc=False, remark_on_roll=False):
     """
     Each run of the simulation consists of 5 steps:
@@ -296,6 +297,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         print('finished updating book vol date to ' +
               pd.to_datetime(book_vols.value_date.unique()[0]).strftime('%Y-%m-%d'))
 
+        # reset the breakeven dictionaries in the portfolio's hedger object.
         pf.update_hedger_breakeven()
         print('breakeven for the day: ', pf.hedger.breakeven)
         print('last hedgepoints: ', pf.hedger.last_hedgepoints)
@@ -310,20 +312,19 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         # filter dataframes to get only pertinent UIDs data.
         pdf_1 = pdf_1[pdf_1.underlying_id.isin(
             pf.get_unique_uids())].reset_index(drop=True)
-        vdf_1 = vdf_1[vdf_1.underlying_id.isin(
+        vdf_1 = vdf_1[vdf_1.vol_id.isin(
             pf.get_unique_volids())].reset_index(drop=True)
         data_order = None
 
+        print('vdf unique times: ', vdf_1.time.unique())
         # need this check because for intraday/settlement to settlement, no reordering
         # is required; granularize is called in OHLC case only after an order
         # has been determined
         if not ohlc:
             print('@@@@@@@@@@@@@@@@@ Granularizing: Intraday Case @@@@@@@@@@@@@@@@')
             pdf_1 = granularize(pdf_1, pf)
-            # print('pdf_1: ', pdf_1)
             try:
                 assert len(pdf_1.underlying_id.unique()) == 1
-        # reset the breakeven dictionaries in the portfolio's hedger object.
             except AssertionError as e:
                 raise AssertionError(
                     "dataset not filtered for UIDS: ", pdf_1.underlying_id.unique()) from e
@@ -331,13 +332,12 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         unique_ts = pdf_1.time.unique()
         for ts in unique_ts:
             pdf = pdf_1[pdf_1.time == ts]
+            print('ts: ', ts)
             if ohlc:
                 print('@@@@@@@@@@@@@@@ OHLC STEP GRANULARIZING @@@@@@@@@@@@@@@@')
                 init_pdf, pdf, data_order = reorder_ohlc_data(pdf, pf)
-                print('pdf: ', pdf)
                 print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
 
-            # print('pdf.index: ', pdf.index)
             # currently, vdf only exists for settlement anyway.
             vdf = vdf_1[vdf_1.time == ts]
             for index in pdf.index:
@@ -350,26 +350,26 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                     continue
                 val = pdf_ts.price.values[0]
                 diff = 0
-                # determine if it's a relevant move or not.
-                relevant_move, move_mult = pf.hedger.is_relevant_price_move(
-                    uid, val)
-                # case: move is irrelevant. skip.
-                if (not relevant_move and datatype == 'intraday'):
-                    continue
-                # case: move is relevant. proceed.
-                else:
-                    lp = pf.hedger.last_hedgepoints[uid]
-                    hedges_hit[date].append((uid, val, lp))
-                    print('===================== time: ' +
-                          str(pdf_ts.time.values[0]) + ' =====================')
-                    if datatype == 'intraday':
-                        print('valid price move to ' + str(val) +
-                              ' for uid last hedged at ' + str(lp))
-                    elif datatype == 'settlement':
-                        print('settlement price move to ' + str(val) +
-                              ' for uid last hedged at ' + str(lp))
 
-                    print('timestep init val: ', init_val)
+                if ohlc:
+                    # since OHLC timestamps are set after reorder,
+                    # this is required to select settlement vols only
+                    # when handling settlement price.
+                    vdf = vdf_1[vdf_1.time == pdf_ts.time.values[0]]
+
+                lp = pf.hedger.last_hedgepoints[uid]
+                hedges_hit[date].append((uid, val, lp))
+                print('===================== time: ' +
+                      str(pdf_ts.time.values[0]) + ' =====================')
+                print('index: ', index)
+                if datatype == 'intraday':
+                    print('valid price move to ' + str(val) +
+                          ' for uid last hedged at ' + str(lp))
+                elif datatype == 'settlement':
+                    print('settlement price move to ' + str(val) +
+                          ' for uid last hedged at ' + str(lp))
+
+                print('timestep init val: ', init_val)
 
                 # for prices: filter and use exclusively the intraday data. assign
                 # to hedger objects.
@@ -528,7 +528,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # store a copy for log writing purposes.
 
         if netpnl > highest_value:
-            print('net pnl exceeds highes value, resetting drawdown benchmark.')
+            print('net pnl exceeds highest value, resetting drawdown benchmark.')
             highest_value = netpnl
 
         # compute market minuses, isolate if end of sim.
@@ -2093,4 +2093,3 @@ def check_roll_status(pf):
 #######################################################################
 #######################################################################
 #######################################################################
-#

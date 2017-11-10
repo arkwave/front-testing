@@ -7,6 +7,7 @@ Python version : 3.5
 Description    : Script contains methods to read-in and format data. These methods are used in simulation.py.
 
 """
+# TODO: Update documentation.
 
 ###########################################################
 ############### Imports/Global Variables ##################
@@ -19,7 +20,7 @@ import pandas as pd
 import numpy as np
 from scipy.interpolate import PchipInterpolator, interp1d
 from scipy.stats import norm
-from math import log, sqrt
+from math import log, sqrt, ceil
 import time
 from ast import literal_eval
 from collections import OrderedDict
@@ -58,7 +59,7 @@ contract_mths = {
     'S':   ['F', 'H', 'K', 'N', 'Q', 'U', 'X'],
     'C':   ['H', 'K', 'N', 'U', 'Z'],
     'BO':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
-    'LC':  ['G', 'J', 'M', 'Q', 'V' 'Z'],
+    'LC':  ['G', 'J', 'M', 'Q', 'V', 'Z'],
     'LRC': ['F', 'H', 'K', 'N', 'U', 'X'],
     'KW':  ['H', 'K', 'N', 'U', 'Z'],
     'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
@@ -960,6 +961,8 @@ def find_cdist(x1, x2, lst):
     x2mth = x2[0]
     x2yr = int(x2[1:])
 
+    print('find_cdist inputs: ', x1, x2, lst)
+
     # print(x1yr >)
     # case 1: month is a contract month.
     if x1mth in lst:
@@ -1333,8 +1336,6 @@ def timestep_recon(df):
     if len(uids) == 1:
         return df
     else:
-        # TODO: handle sanity checking date ranges in the pulling function when
-        # it's written.
         date_range = pd.to_datetime(df.value_date.unique())
         for date in date_range:
             t = time.clock()
@@ -1542,32 +1543,56 @@ def sanitize_intraday_timings(df, filepath=None):
     return merged
 
 
+# TODO: handle rounding of strikes when necessary.
 def granularize(df, pf, interval=None, ohlc=False):
     """Helper function that takes in a dataframe filtered through reorder_ohlc_data, 
     and checks for consecutive price moves that exceed the breakeven/flat value hedging
-    interval specified for that underlying id. If this condition is met, it splits up the move into 
-    hedge-interval level moves. 
+    interval specified for that underlying id. If this condition is met, it splits up the move into hedge-interval level moves. Cases checked are as follows:
+
+    1) case where the move is less than interval. 
+        > ignores data, continues to next value. 
+    2) case where move is exactly equal to interval. 
+        > marks price point as relevant, updates comparative value to this value. 
+    3) case where move is larger than interval. 
+        > creates move_mult rows with intermediate values, where move_mult = floor(move/interval)
+
 
     Args:
-        df (TYPE): dataframe of prices
-        pf (TYPE): portfolio being handled. 
+        df (dataframe): dataframe of prices
+        pf (portfolio object): portfolio being handled. 
 
 
     Returns:
-        dataframe: dataframe with the price moves granularized according to the flat value/breakeven
+        dataframe: dataframe with the price moves granularized according to the flat value/breakeven value. irrelevant datapoints are filtered out. 
     """
+
     # initial sanity check to see if only settlement data is present.
     if 'intraday' not in df.datatype.unique():
         return df
 
     fin_df = df.copy()
+
+    # marking all relevant price moves as such.
+    fin_df['relevant'] = ''
+
+    # mark all settlements as relevant
+    fin_df.ix[(fin_df.datatype == 'settlement'), 'relevant'] = True
+
+    # edge case: OHLC data is handled a little differently. All default to true,
+    # and irrelevant prices are explicitly set to false.
+    # if ohlc:
+    #     fin_df['relevant'] = True
+
     # get the UIDS that need to be handled.
     uids = df.underlying_id.unique()
+
     # get the last hedge points to ascertain the base
     # value against which we need to base interval-level moves.
-    curr_prices = pf.hedger.get_hedgepoints()
+    curr_prices = pf.hedger.get_hedgepoints().copy()
 
     for uid in uids:
+        pdt = uid.split()[0]
+        ticksize = multipliers[pdt][2]
         uid_df = df[df.underlying_id == uid].sort_values('time')
         uid_df.reset_index(drop=True, inplace=True)
         # get the hedging value.
@@ -1584,86 +1609,120 @@ def granularize(df, pf, interval=None, ohlc=False):
             row = uid_df.iloc[index]
             diff = row.price - curr_price
 
-            # if it's less than interval, nothing needs to be done.
-            # if it's close to interval, then is_relevant_price_move will pick
-            # this anyway.
-            if abs(diff) < interval or np.isclose(interval, abs(diff)):
+            relevant, move_mult = pf.hedger.is_relevant_price_move(
+                uid, row.price, comparison=curr_price)
+
+            # skip settlements since they are valid by default.
+            if row.datatype == 'settlement':
                 continue
-            # case: difference is greater than the hedge level
+
+            # if it's less than interval and intraday, nothing needs to be
+            # done. set to false.
+            if not relevant and row.datatype == 'intraday':
+                # set it to false.
+                if ohlc:
+                    fin_df.ix[(fin_df.underlying_id == uid) &
+                              (fin_df.time == row.time) &
+                              (fin_df.price == row.price), 'relevant'] = False
+                continue
+
+            # case: price move is relevant.
             else:
-                print('--------------- handling row ' +
-                      str(index) + ' --------------')
-                # open case is taken care of above.
-                if index == 0:
-                    # edge case: if open is > 1 be move, take hedge there, but set
-                    # it as last hedge point
+                # if it's close to interval, then is_relevant_price_move will pick it up.
+                # just reset comparative price , and mark as relevant
+                if np.isclose(abs(diff), interval) or abs(diff) == interval:
+                    print('--------------- handling row ' +
+                          str(index) + ' --------------')
+                    print('diff, interval: ', diff, interval)
+                    print(
+                        'found move close to interval. resetting curr_price to ' + str(row.price))
+
+                    fin_df.ix[(fin_df.underlying_id == uid) &
+                              (fin_df.time == row.time) &
+                              (fin_df.price == row.price), 'relevant'] = True
+
                     curr_price = row.price
-                    print('open is > 1 be move; \
-                          curr_price updated to ' + str(row.price))
 
+                # case: difference is greater than the hedge level. need to
+                # create new row.
                 else:
-                    print('curr_price: ', curr_price)
-                    print('row price: ', row.price)
-                    print('diff: ', diff)
-                    # number of breakevens/value moved = number of new rows that
-                    # need to be created.
-                    move_mult = np.floor(abs(diff/interval))
-                    curr_time = uid_df.iloc[index-1].time
-                    print('curr_time: ', curr_time)
+                    print('--------------- handling row ' +
+                          str(index) + ' --------------')
+                    if index == 0:
+                        # edge case: if open is > 1 be move, take hedge there, but set
+                        # it as last hedge point
+                        curr_price = row.price
+                        print(
+                            'open is > 1 be move; curr_price updated to ' + str(row.price))
+                        # mark this point as relevant.
+                        fin_df.ix[(fin_df.underlying_id == uid) &
+                                  (fin_df.time == row.time) &
+                                  (fin_df.price == row.price), 'relevant'] = True
 
-                    print('move mult: ', move_mult)
+                    # not the first row. create new rows to simulate resting
+                    # orders.
+                    else:
+                        print('curr_price: ', curr_price)
+                        print('row price: ', row.price)
+                        print('diff: ', diff)
+                        print('datatype: ', row.datatype)
+                        # number of breakevens/value moved = number of new rows that
+                        # need to be created, and is given by move_mult
+                        curr_time = uid_df.iloc[index-1].time
+                        print('curr_time: ', curr_time)
 
-                    for x in range(int(move_mult)):
-                        # multiplier to ascertain if the price rose or fell from
-                        # last hedgepoint
-                        mult = -1 if diff < 0 else 1
-                        newprice = curr_price + (interval*mult)
-                        if lastrow is not None:
-                            # case: new row added in previous loop has a time greater than
-                            # the previous index row in the dataframe; use this
-                            # time.
-                            if lastrow['time'] > curr_time:
-                                prev_time = lastrow['time']
-                                print('using lastrow time: ', prev_time)
-                                newtime = dt.time(prev_time.hour, prev_time.minute,
-                                                  prev_time.second, prev_time.microsecond + 1)
+                        print('move mult: ', move_mult)
+
+                        for x in range(int(move_mult)):
+                            # multiplier to ascertain if the price rose or fell from
+                            # last hedgepoint
+                            mult = -1 if diff < 0 else 1
+
+                            newprice = curr_price + (interval*mult)
+                            # round newprice to closest future tick that is larger
+                            # than newprice.
+                            # newprice = ceil(newprice/ticksize)*ticksize
+                            print('intermediate price: ', newprice)
+
+                            if lastrow is not None:
+                                # case: new row added in previous loop has a time greater than
+                                # the previous index row in the dataframe; use this
+                                # time.
+                                if lastrow['time'] > curr_time:
+                                    prev_time = lastrow['time']
+                                    print('using lastrow time: ', prev_time)
+                                    newtime = dt.time(prev_time.hour, prev_time.minute,
+                                                      prev_time.second, prev_time.microsecond + 1)
+                                else:
+                                    newtime = dt.time(curr_time.hour, curr_time.minute,
+                                                      curr_time.second, curr_time.microsecond + 1)
+                                    print('newtime, currtime: ',
+                                          newtime, curr_time)
+
                             else:
                                 newtime = dt.time(curr_time.hour, curr_time.minute,
                                                   curr_time.second, curr_time.microsecond + 1)
                                 print('newtime, currtime: ',
                                       newtime, curr_time)
 
-                        else:
-                            newtime = dt.time(curr_time.hour, curr_time.minute,
-                                              curr_time.second, curr_time.microsecond + 1)
-                            print('newtime, currtime: ', newtime, curr_time)
+                            newrow = {'value_date': row.value_date, 'time': newtime, 'pdt': row.pdt,
+                                      'ftmth': row.ftmth, 'price': newprice, 'datatype': 'intraday',
+                                      'underlying_id': uid, 'relevant': True}
 
-                        newrow = {'value_date': row.value_date, 'time': newtime, 'pdt': row.pdt,
-                                  'ftmth': row.ftmth, 'price': newprice, 'datatype': 'intraday',
-                                  'underlying_id': uid}
+                            lastrow = newrow
+                            if ohlc:
+                                newrow['price_id'] = 'midpt'
 
-                        lastrow = newrow
-                        if ohlc:
-                            newrow['price_id'] = 'midpt'
+                            print('newrow added: ', newrow)
+                            fin_df = fin_df.append(newrow, ignore_index=True)
+                            print('curr_price updated to ' + str(newprice))
+                            curr_price = newprice
 
-                        # newrow = [row.value_date, newtime, row.pdt,
-                        # row.ftmth, row.underlying_id, newprice, 'intraday']
-
-                        # newrow = [row.underlying_id, row.pdt, row.ftmth, row.value_date,
-                        #           'midpt', newprice, 'intraday', newtime]
-
-                        # newrow = dict(zip(uid_df.columns, newrow))
-                        # print('newrow: ', newrow)
-                        print('newrow added: ', newrow)
-                        fin_df = fin_df.append(newrow, ignore_index=True)
-                        print('curr_price updated to ' + str(newprice))
-                        curr_price = newprice
-
-    # fin_df.to_csv('debug_granular.csv', index=False)
-    # return
-    # fin_df.drop('diff', inplace=True, axis=1)
-    # fin_df.time = pd.to_datetime(fin_df.time).dt.time
+    # sort values by time, filter relevant entries and reset indexes.
     fin_df.sort_values(by='time', inplace=True)
+    if ohlc:
+        print('pdf after ohlc reorder: ', fin_df)
+    fin_df = fin_df[fin_df.relevant == True]
     fin_df.reset_index(drop=True, inplace=True)
 
     return fin_df
