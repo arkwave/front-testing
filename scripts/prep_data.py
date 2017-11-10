@@ -1241,33 +1241,33 @@ def sanity_check(vdates, pdates, start_date, end_date, signals=None,):
 ############### Intraday Data Processing Functions ####################
 
 
-def clean_intraday_data(df, sdf):
-    """Helper function that processes intraday data into a usable format. Performs the
-    following steps:
-    1) Column generation/naming: adds pdt, ftmth, uid, time and date columns, filters these columns
-    2) Timestep reconciliation.
-        > if there are multiple products, reconciles the timesteps as follows:
-            - for each day:
-                d1, d2 = len(p1), len(p2)
-                x = min(d1, d2)
-                - for e in x:
-                    find closest thing in other <= e
-                    bundle together as e. 
-    3) merges settlement data with intraday data, marks with a flag
-    4) isolates beginning of settlement period, marks with a flag. 
+# def clean_intraday_data(df, sdf):
+#     """Helper function that processes intraday data into a usable format. Performs the
+#     following steps:
+#     1) Column generation/naming: adds pdt, ftmth, uid, time and date columns, filters these columns
+#     2) Timestep reconciliation.
+#         > if there are multiple products, reconciles the timesteps as follows:
+#             - for each day:
+#                 d1, d2 = len(p1), len(p2)
+#                 x = min(d1, d2)
+#                 - for e in x:
+#                     find closest thing in other <= e
+#                     bundle together as e.
+#     3) merges settlement data with intraday data, marks with a flag
+#     4) isolates beginning of settlement period, marks with a flag.
 
 
-    Args:
-        df (TYPE): Dataframe of intraday prices. 
-    """
-    ## Step 1 ##
-    df = handle_intraday_conventions(df)
-    ## Step 2 ##
-    df = timestep_recon(df)
-    ## Step 3 ##
-    df = insert_settlements(df, sdf)
+#     Args:
+#         df (TYPE): Dataframe of intraday prices.
+#     """
+#     ## Step 1 ##
+#     df = handle_intraday_conventions(df)
+#     ## Step 2 ##
+#     df = timestep_recon(df)
+#     ## Step 3 ##
+#     df = insert_settlements(df, sdf)
 
-    return df
+#     return df
 
 
 def handle_intraday_conventions(df):
@@ -1510,7 +1510,42 @@ def reorder_ohlc_data(df, pf):
     return init_df, df, data_order
 
 
-def sanitize_intraday_timings(df, filepath=None):
+def clean_intraday_data(df, edf=None):
+    """Does the following: 
+    1) For each product/time combo:
+        filter out price points with 0 volume
+        aggregates volumes by price. 
+        removes duplicate price entries. 
+
+
+    Args:
+        df (TYPE): Description
+    """
+    df = df[df.volume > 0]
+    if 'pdt' not in df.columns:
+        df['pdt'] = df.commodity.str[:2].str.strip()
+    if 'time' not in df.columns:
+        df['time'] = df.date_time.dt.time
+    df['ftmth'] = df.commodity.str[2:5].str.strip()
+    df['underlying_id'] = df.pdt + '  ' + df.ftmth
+    df.date_time = pd.to_datetime(df.date_time)
+    # filter for exchange timings.
+    df = sanitize_intraday_timings(df, edf=edf)
+    lst = []
+    for (comm, date_time), grp in df.groupby(['underlying_id', 'date_time']):
+        grp['block'] = (grp.price.shift(1) != grp.price).astype(int).cumsum()
+        # print(grp)
+        for (price, block), grp2 in grp.groupby(['price', 'block'], sort=False):
+            dic = {'underlying_id': comm,
+                   'date_time': date_time,
+                   'price': price,
+                   'volume': grp2.volume.sum()}
+            lst.append(dic)
+    ret = pd.DataFrame(lst)
+    return ret
+
+
+def sanitize_intraday_timings(df, filepath=None, edf=None):
     """Helper function that ignores pre-exchange printed results and only keeps entries
     within the start/end of the exchange timings. 
 
@@ -1527,7 +1562,7 @@ def sanitize_intraday_timings(df, filepath=None):
     filepath += 'datasets/exchange_timings.csv'
 
     print('final filepath: ', filepath)
-    edf = pd.read_csv(filepath)
+    edf = pd.read_csv(filepath) if edf is None else edf
     edf['Exch Start Hours'] = pd.to_datetime(edf['Exch Start Hours']).dt.time
     edf['Exch End Hours'] = pd.to_datetime(edf['Exch End Hours']).dt.time
 

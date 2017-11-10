@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-10-30 18:53:10
+# @Last Modified time: 2017-11-10 21:30:25
 
 # import time
 import datetime as dt
@@ -12,7 +12,7 @@ from sqlalchemy import create_engine
 import time
 import os
 import numpy as np
-from .prep_data import match_to_signals, get_min_start_date, clean_data, vol_by_delta, sanity_check, handle_intraday_conventions
+from .prep_data import match_to_signals, get_min_start_date, clean_data, vol_by_delta, sanity_check, handle_intraday_conventions, clean_intraday_data
 from .global_vars import main_direc
 
 contract_mths = {
@@ -512,6 +512,8 @@ def pull_intraday_data(pdts, start_date=None, end_date=None):
     print('fetching intraday data...')
     df = pd.read_sql_query(query, connection)
     print('fetch completed. elapsed: ', time.clock() - t)
+    df = clean_intraday_data(df)
+    print('aggregating complete. elapsed: ', time.clock() - t)
 
     df = handle_intraday_conventions(df)
 
@@ -526,7 +528,7 @@ def pull_intraday_data(pdts, start_date=None, end_date=None):
     # # setting datatype: intraday vs settlements
     # df['datatype'] = 'intraday'
 
-    print('df.columns: ', df.columns)
+    # print('df.columns: ', df.columns)
 
     cols = ['value_date', 'time', 'underlying_id',
             'pdt', 'ftmth', 'price', 'datatype']
@@ -536,6 +538,7 @@ def pull_intraday_data(pdts, start_date=None, end_date=None):
     # df.time = pd.to_datetime(df.time).dt.time
     df.sort_values(by=['value_date', 'time'], inplace=True)
     df.reset_index(drop=True, inplace=True)
+    print('intraday data processing complete. elapsed: ', time.clock() - t)
 
     return df
 
@@ -548,7 +551,7 @@ def construct_intraday_query(pdts, start_date=None, end_date=None):
         start_date (None, optional): Description
         end_date (None, optional): Description
     """
-    init_query = 'select commodity, date_time, trade_type, price from public.table_intra_day_trade_cumulative_volume_group where ('
+    init_query = 'select commodity, date_time, trade_type, price from public.table_intra_day_trade where ('
 
     # generate product query
     pdt_str = ''
