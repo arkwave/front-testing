@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-03 19:47:48
+# @Last Modified time: 2017-11-10 14:46:10
 
 import pandas as pd
 import pprint
@@ -683,17 +683,19 @@ class Hedge:
 
         return cost
 
-    def is_relevant_price_move(self, uid, val):
+    def is_relevant_price_move(self, uid, val, comparison=None):
         """Helper method that checks to see if a price-uid combo fed in is a valid price move. Three cases are handled: 
         1) price move > breakeven * mult
         2) price move > flat value
         3) price type is settlement. 
         """
+
         if uid in self.last_hedgepoints:
             last_val = self.last_hedgepoints[uid]
 
-        # print('self.last_hedgepoints: ', self.last_hedgepoints)
-        # print('self.params: ', self.params)
+        # rawval overrwrites the last hedge point if passed in.
+        if comparison is not None:
+            last_val = comparison
 
         # case: intraday hedges not specified -> data is settlement.
         if not self.params or 'intraday' not in self.params['delta']:
@@ -798,9 +800,10 @@ class Hedge:
                 num_lots_needed = abs(round(delta_diff))
                 ft = None
                 if num_lots_needed == 0:
+                    print('no hedging required for ' + product +
+                          '  ' + month + '; hedge point not updated.')
                     continue
                 else:
-                    # takes care of the first hedge.
                     try:
                         ft, _ = create_underlying(product, month, self.pdf,
                                                   self.date, shorted=shorted,
@@ -808,12 +811,6 @@ class Hedge:
                     except IndexError:
                         print('price data for this day ' + '-- ' + self.date.strftime(
                             '%Y-%m-%d') + ' --' + ' does not exist. skipping...')
-
-                    # if intraday:
-                    #     real_diff = curr_prices[uid] - \
-                    #         self.last_hedgepoints[uid]
-                    #     ft_pnl = self.handle_ohlc_pnl(ft, real_diff)
-                    #     pnl += ft_pnl
 
                     if ft is not None:
                         # update the last hedgepoint dictionary

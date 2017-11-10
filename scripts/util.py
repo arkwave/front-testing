@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-11-06 22:04:01
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-11-10 14:43:54
 
 
 from .portfolio import Portfolio
@@ -63,7 +63,7 @@ contract_mths = {
     'S':   ['F', 'H', 'K', 'N', 'Q', 'U', 'X'],
     'C':   ['H', 'K', 'N', 'U', 'Z'],
     'BO':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
-    'LC':  ['G', 'J', 'M', 'Q', 'V' 'Z'],
+    'LC':  ['G', 'J', 'M', 'Q', 'V', 'Z'],
     'LRC': ['F', 'H', 'K', 'N', 'U', 'X'],
     'KW':  ['H', 'K', 'N', 'U', 'Z'],
     'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
@@ -211,6 +211,8 @@ def create_underlying(pdt, ftmth, pdf, date, flag='settlement', ftprice=None, sh
     order = find_cdist(curr_sym, ftmth, contract_mths[pdt])
     ft = Future(ftmth, ftprice, pdt, shorted=shorted, ordering=order)
     if lots is not None:
+        if lots == 0:
+            return None, ftprice
         ft.update_lots(lots)
 
     return ft, ftprice

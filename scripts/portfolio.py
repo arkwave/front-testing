@@ -46,6 +46,9 @@ multipliers = {
 seed = 7
 np.random.seed(seed)
 
+# TODO: Abstract away reliance on greeks by month; should be able to
+# accept any other convention as well.
+
 
 class Portfolio:
 
@@ -695,34 +698,6 @@ class Portfolio:
                 val += -sec.lots * sec.get_price() * pnl_mult
             else:
                 val += sec.lots * sec.get_price() * pnl_mult
-
-        # for sec in self.OTC_options:
-        #     pnl_mult = multipliers[sec.get_product()][-1]
-        #     if sec.shorted:
-        #         val += -sec.lots * sec.get_price() * pnl_mult
-        #     else:
-        #         val += sec.lots * sec.get_price() * pnl_mult
-
-        # for sec in self.hedge_options:
-        #     pnl_mult = multipliers[sec.get_product()][-1]
-        #     if sec.shorted:
-        #         val += -sec.lots * sec.get_price() * pnl_mult
-        #     else:
-        #         val += sec.lots * sec.get_price() * pnl_mult
-
-        # for sec in self.OTC_futures:
-        #     pnl_mult = multipliers[sec.get_product()][-1]
-        #     if sec.shorted:
-        #         val += -sec.lots * sec.price * pnl_mult
-        #     else:
-        #         val += sec.lots * sec.price * pnl_mult
-
-        # for sec in self.hedge_futures:
-        #     pnl_mult = multipliers[sec.get_product()][-1]
-        #     if sec.shorted:
-        #         val -= sec.lots * sec.price * pnl_mult
-        #     else:
-        #         val += sec.lots * sec.price * pnl_mult
 
         return val
 
