@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-10 21:30:25
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-11-13 14:47:33
 
 # import time
 import datetime as dt
@@ -486,7 +486,7 @@ def pull_expdata():
     return df
 
 
-def pull_intraday_data(pdts, start_date=None, end_date=None):
+def pull_intraday_data(pdts, start_date=None, end_date=None, filepath=None):
     """Helper method that pulls intraday data from the DB. 
 
     Args:
@@ -497,22 +497,38 @@ def pull_intraday_data(pdts, start_date=None, end_date=None):
     Returns:
         TYPE: Dataframe
     """
-    user = 'sumit'
-    password = 'Olam1234'
-    engine = create_engine('postgresql://' + user + ':' + password +
-                           '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
-    connection = engine.connect()
-    print('constructing query...')
-    query = construct_intraday_query(
-        pdts, start_date=start_date, end_date=end_date)
-    print('query: ', query)
 
-    # fetch the dataframe from the db.
+    filename = 'datasets/debug/' + '_'.join([x for x in pdts])
+    filename += '_' + start_date + '_' + end_date + '_raw_intraday_data.csv'
+
+    print('pull_intraday_data - full path: ', filepath + filename)
     t = time.clock()
-    print('fetching intraday data...')
-    df = pd.read_sql_query(query, connection)
+    if os.path.exists(filepath + filename):
+        print('raw file exists, reading in.')
+        df = pd.read_csv(filepath + filename)
+        df.date_time = pd.to_datetime(df.date_time)
+
+    else:
+        print('raw file does not exists, pulling.')
+        user = 'sumit'
+        password = 'Olam1234'
+        engine = create_engine('postgresql://' + user + ':' + password +
+                               '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+        connection = engine.connect()
+        print('constructing query...')
+        query = construct_intraday_query(
+            pdts, start_date=start_date, end_date=end_date)
+        print('query: ', query)
+
+        # fetch the dataframe from the db.
+
+        print('fetching intraday data...')
+        df = pd.read_sql_query(query, connection)
+        df.to_csv(filepath, index=False)
+
     print('fetch completed. elapsed: ', time.clock() - t)
-    df = clean_intraday_data(df)
+
+    df = clean_intraday_data(df, filepath=filepath)
     print('aggregating complete. elapsed: ', time.clock() - t)
 
     df = handle_intraday_conventions(df)
@@ -551,7 +567,7 @@ def construct_intraday_query(pdts, start_date=None, end_date=None):
         start_date (None, optional): Description
         end_date (None, optional): Description
     """
-    init_query = 'select commodity, date_time, trade_type, price from public.table_intra_day_trade where ('
+    init_query = 'select * from public.table_intra_day_trade where ('
 
     # generate product query
     pdt_str = ''

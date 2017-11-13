@@ -1241,35 +1241,6 @@ def sanity_check(vdates, pdates, start_date, end_date, signals=None,):
 ############### Intraday Data Processing Functions ####################
 
 
-# def clean_intraday_data(df, sdf):
-#     """Helper function that processes intraday data into a usable format. Performs the
-#     following steps:
-#     1) Column generation/naming: adds pdt, ftmth, uid, time and date columns, filters these columns
-#     2) Timestep reconciliation.
-#         > if there are multiple products, reconciles the timesteps as follows:
-#             - for each day:
-#                 d1, d2 = len(p1), len(p2)
-#                 x = min(d1, d2)
-#                 - for e in x:
-#                     find closest thing in other <= e
-#                     bundle together as e.
-#     3) merges settlement data with intraday data, marks with a flag
-#     4) isolates beginning of settlement period, marks with a flag.
-
-
-#     Args:
-#         df (TYPE): Dataframe of intraday prices.
-#     """
-#     ## Step 1 ##
-#     df = handle_intraday_conventions(df)
-#     ## Step 2 ##
-#     df = timestep_recon(df)
-#     ## Step 3 ##
-#     df = insert_settlements(df, sdf)
-
-#     return df
-
-
 def handle_intraday_conventions(df):
     """Helper method that deals with product/ftmth/uid construction from BBG ticker symbols, checks/amends data types and filters out weekends/bank holidays from the data. 
 
@@ -1282,8 +1253,11 @@ def handle_intraday_conventions(df):
 
     print('df.columns: ', df.columns)
 
-    df['pdt'] = df.commodity.str[:2].str.strip()
-    df['ftmth'] = df.commodity.str[2:-6].str.strip()
+    # df['pdt'] = df.commodity.str[:2].str.strip()
+    # df['ftmth'] = df.commodity.str[2:-6].str.strip()
+    df['pdt'] = df.underlying_id.str[:2].str.strip()
+    df['ftmth'] = df.underlying_id.str[2:].str.strip()
+
     df['underlying_id'] = df.pdt + '  ' + df.ftmth
     # datetime -> date and time columns.
     df.date_time = pd.to_datetime(df.date_time)
@@ -1510,7 +1484,7 @@ def reorder_ohlc_data(df, pf):
     return init_df, df, data_order
 
 
-def clean_intraday_data(df, edf=None):
+def clean_intraday_data(df, edf=None, filepath=None):
     """Does the following: 
     1) For each product/time combo:
         filter out price points with 0 volume
@@ -1521,6 +1495,12 @@ def clean_intraday_data(df, edf=None):
     Args:
         df (TYPE): Description
     """
+    print('cleaning intraday data')
+
+    assert not df.empty
+
+    print('df.colums: ', df.columns)
+
     df = df[df.volume > 0]
     if 'pdt' not in df.columns:
         df['pdt'] = df.commodity.str[:2].str.strip()
@@ -1529,9 +1509,17 @@ def clean_intraday_data(df, edf=None):
     df['ftmth'] = df.commodity.str[2:5].str.strip()
     df['underlying_id'] = df.pdt + '  ' + df.ftmth
     df.date_time = pd.to_datetime(df.date_time)
+
+    assert not df.empty
+    print('df.columns: ', df.columns)
+
     # filter for exchange timings.
-    df = sanitize_intraday_timings(df, edf=edf)
+    df = sanitize_intraday_timings(df, edf=edf, filepath=filepath)
+    assert not df.empty
     lst = []
+
+    print('beginning aggregation...')
+
     for (comm, date_time), grp in df.groupby(['underlying_id', 'date_time']):
         grp['block'] = (grp.price.shift(1) != grp.price).astype(int).cumsum()
         # print(grp)
@@ -1542,9 +1530,14 @@ def clean_intraday_data(df, edf=None):
                    'volume': grp2.volume.sum()}
             lst.append(dic)
     ret = pd.DataFrame(lst)
+
+    assert not ret.empty
+
+    print('cleaning done')
     return ret
 
 
+# TODO: need to update this to handle multiple products.
 def sanitize_intraday_timings(df, filepath=None, edf=None):
     """Helper function that ignores pre-exchange printed results and only keeps entries
     within the start/end of the exchange timings. 
@@ -1571,11 +1564,32 @@ def sanitize_intraday_timings(df, filepath=None, edf=None):
     merged = pd.merge(
         df, edf[['pdt', 'Exch Start Hours', 'Exch End Hours']], on=['pdt'])
 
-    merged = merged[(merged.time >= merged['Exch Start Hours']) &
-                    (merged.time <= merged['Exch End Hours'])]
+    fin = pd.DataFrame()
 
-    merged.drop(['Exch Start Hours', 'Exch End Hours'], inplace=True, axis=1)
-    return merged
+    for pdt in merged.pdt.unique():
+        t_merged = merged[merged.pdt == pdt]
+        pdt_start = t_merged['Exch Start Hours'].values[0]
+        pdt_end = t_merged['Exch End Hours'].values[0]
+        # overnight market case.
+        if pdt_start > pdt_end:
+            t_merged.ix[(t_merged.time > t_merged['Exch Start Hours']) &
+                        (t_merged.time < t_merged['Exch End Hours']), 'unwanted'] = True
+
+            t_merged = t_merged[pd.isnull(t_merged.unwanted)]
+
+            t_merged.drop('unwanted', axis=1, inplace=True)
+            print('t_merged.columns: ', t_merged.columns)
+            assert not t_merged.empty
+
+        else:
+            t_merged = t_merged[(t_merged.time >= t_merged['Exch Start Hours']) &
+                                (t_merged.time <= t_merged['Exch End Hours'])]
+            assert not t_merged.empty
+
+        fin = pd.concat([fin, t_merged])
+
+    fin.drop(['Exch Start Hours', 'Exch End Hours'], inplace=True, axis=1)
+    return fin
 
 
 # TODO: handle rounding of strikes when necessary.
@@ -1606,6 +1620,8 @@ def granularize(df, pf, interval=None, ohlc=False):
         return df
 
     fin_df = df.copy()
+
+    print('pre-granularize df: ', df)
 
     # marking all relevant price moves as such.
     fin_df['relevant'] = ''
@@ -1754,8 +1770,8 @@ def granularize(df, pf, interval=None, ohlc=False):
                             curr_price = newprice
 
     # sort values by time, filter relevant entries and reset indexes.
-    fin_df.sort_values(by='time', inplace=True)
     if ohlc:
+        fin_df.sort_values(by='time', inplace=True)
         print('pdf after ohlc reorder: ', fin_df)
     fin_df = fin_df[fin_df.relevant == True]
     fin_df.reset_index(drop=True, inplace=True)
@@ -1766,3 +1782,4 @@ def granularize(df, pf, interval=None, ohlc=False):
 ##########################################################################
 ##########################################################################
 ##########################################################################
+####

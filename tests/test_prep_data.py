@@ -129,5 +129,6 @@ def test_daily_to_bullets():
     #     print('desired: ', 13)
 
 
-def test_reorder_ohlc_data():
+def test_granularize():
+    # create a sample dataframe that has random values.
     pass

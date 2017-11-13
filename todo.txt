@@ -1223,9 +1223,24 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 4) [Done] re-run the hedging simulator for LH. 
 
-5) testing required:
-	> granularize for intraday.
 
+
+
+###### As of 11/13/2017:
+1) over night market time step reconciliation:
+	1) change settlements to be inserted one minute after close. 
+	2) multiple products = standardize the timezone. 
+	3) overnight market data pulling caveat. pull one business day earlier. 
+
+2) Pending bug fixes:
+	1_ duplicate entries in soybeans run. 
+	2_ testing.
+
+
+
+
+
+------------- Notes -------------
 
 ##### Scenario-based implementations 
 - [Done] Three different scenarios:
@@ -1266,12 +1281,6 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 
 - volgraphix implementation for intraday hedging conditions. 
 
-
-
-##### Testing:
-- all the intraday shit
-- OHLC functions 
-
-===============================================================================
+--------------------------------------
 
 
