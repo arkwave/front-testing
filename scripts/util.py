@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-10 14:43:54
+# @Last Modified time: 2017-11-14 16:58:24
 
 
 from .portfolio import Portfolio
@@ -1157,87 +1157,6 @@ def volids_from_ci(date_range, product, ci):
         tarfin = tar + str(taryr)
         dates_to_volid[date] = product + '  ' + tarfin + '.' + tarfin
     return dates_to_volid
-
-
-def pnp_format(filepath, pdts):
-    """Helper method that takes the relevant product positions from PnP 
-    and outputs a table compatible with prep_data.prep_portfolio 
-
-    Args:
-        filepath (TYPE): Filepath to the PnP file. 
-        pdts (TYPE): Relevant products. 
-
-    Returns:
-        TYPE: Description
-    """
-    # final columns.
-    f_cols = ['Type', 'strike', 'vol_id', 'call_put_id',
-              'optiontype', 'shorted', 'hedgeorOTC', 'lots']
-
-    # handling options.
-    optdump = pd.read_excel(filepath, sheetname='OptDump', skiprows=11)
-    # filtering for MM-relevant results, getting relevant columns, dropping
-    # nans.
-
-    cols = list(optdump.columns)
-    # print('cols: ', cols)
-    cols = cols[12:-12]
-    optdump = optdump[cols].dropna()
-    optdump = optdump[optdump['Portfolio.1'].str.contains('MM-')]
-    # assign product.
-    optdump['pdt'] = optdump['Portfolio.1'].str.split('-').str[1].str.strip()
-    # renaming columns
-    optdump.columns = ['ind', 'buy/sell', 'vid_str', 'strike', 'cpi',
-                       'ctpty_label', 'sum_init_pre', 'sum_init_qty', 'lots', 'pdt']
-    # assign vol_id
-    optdump['vol_id'] = optdump.pdt + '  ' + optdump.vid_str
-    # assign strike
-    optdump.loc[(~optdump.pdt.isin(['SM', 'CA', 'DF', 'QC', 'CC'])),
-                'strike'] = optdump.strike * 100
-    optdump.strike = round(optdump.strike, 3)
-    # assign shorted
-    optdump.loc[(optdump['buy/sell'] == 'B'), 'shorted'] = False
-    optdump.loc[(optdump['buy/sell'] == 'S'), 'shorted'] = True
-    # assign call_put_id
-    optdump.loc[(optdump['cpi'] == 'C'), 'call_put_id'] = 'call'
-    optdump.loc[(optdump['cpi'] == 'P'), 'call_put_id'] = 'put'
-    # assign type, optiontype and hedgeorOTC. defaults to Option, 'amer' and
-    # OTC
-    optdump['Type'] = 'Option'
-    optdump['optiontype'] = 'amer'
-    optdump['hedgeorOTC'] = 'OTC'
-    ops = optdump[f_cols]
-    ops = ops[ops.lots != 0]
-
-    # handle the futures, performing the same steps.
-    df = pd.read_excel(filepath, sheetname='FutDump', skiprows=27)
-    df = df[df.Portfolio.str.contains('MM-')]
-    cols = ['Portfolio', 'Contract', 'Net Pos']
-    df = df[cols]
-    df['pdt'] = df.Portfolio.str.split('-').str[1].str.strip()
-    df['vol_id'] = df.pdt + '  ' + df.Contract.str.strip()
-    df['Type'] = 'Future'
-    df['strike'] = np.nan
-    df['call_put_id'] = np.nan
-    df['optiontype'] = np.nan
-    df.loc[(df['Net Pos'] < 0), 'shorted'] = True
-    df.loc[(df['Net Pos'] > 0), 'shorted'] = False
-    df['hedgeorOTC'] = 'hedge'
-    df['lots'] = abs(df['Net Pos'])
-    df = df[f_cols]
-    df = df[df.lots != 0]
-
-    # concatenate and instantiate dummy variables.
-    final = pd.concat([ops, df])
-    final['barriertype'] = np.nan
-    final['direction'] = np.nan
-    final['knockin'] = np.nan
-    final['knockout'] = np.nan
-    final['bullet'] = np.nan
-
-    final = final[final.vol_id.str[:2].str.strip().isin(pdts)]
-
-    return final
 
 
 def assign_hedge_objects(pf, vdf=None, pdf=None, book=False):

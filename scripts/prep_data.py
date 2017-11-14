@@ -1779,6 +1779,148 @@ def granularize(df, pf, interval=None, ohlc=False):
     return fin_df
 
 
+def pnp_format(filepath, pdts=None):
+    """Helper method that takes the relevant product positions from PnP 
+    and outputs a table compatible with prep_data.prep_portfolio 
+
+    Args:
+        filepath (TYPE): Filepath to the PnP file. 
+        pdts (TYPE): Relevant products. 
+
+    Returns:
+        TYPE: Description
+    """
+    # final columns.
+    f_cols = ['Type', 'strike', 'vol_id', 'call_put_id',
+              'optiontype', 'shorted', 'hedgeorOTC', 'lots', 'pdt', 'counterparty']
+
+    # handling options.
+    optdump = pd.read_excel(filepath, sheetname='OptDump')
+    # filtering for MM-relevant results, getting relevant columns, dropping
+    # nans.
+
+    cols = list(optdump.columns)
+    print('cols: ', cols)
+    # cols = cols[12:-12]
+    optdump = optdump[cols].dropna()
+    optdump = optdump[optdump['Portfolio'].str.contains('MM-')]
+    # assign product.
+    optdump['pdt'] = optdump['Portfolio'].str.split('-').str[1].str.strip()
+    # renaming columns; keep counterparty because we want to extract
+    # directionals after processing.
+    optdump.columns = ['label', 'Portfolio', 'buy/sell', 'vid_str', 'strike', 'cpi',
+                       'counterparty', 'sum_init_pre', 'lots', 'pdt']
+    # assign vol_id
+    optdump['vol_id'] = optdump.pdt + '  ' + optdump.vid_str
+    # assign strike
+    optdump.loc[(~optdump.pdt.isin(['SM', 'CA', 'DF', 'QC', 'CC'])),
+                'strike'] = optdump.strike * 100
+    optdump.strike = round(optdump.strike, 3)
+    # assign shorted
+    optdump.loc[(optdump['buy/sell'] == 'B'), 'shorted'] = False
+    optdump.loc[(optdump['buy/sell'] == 'S'), 'shorted'] = True
+    # assign call_put_id
+    optdump.loc[(optdump['cpi'] == 'C'), 'call_put_id'] = 'call'
+    optdump.loc[(optdump['cpi'] == 'P'), 'call_put_id'] = 'put'
+    # assign type, optiontype and hedgeorOTC. defaults to Option, 'amer' and
+    # OTC
+    optdump['Type'] = 'Option'
+    optdump['optiontype'] = 'amer'
+    optdump['hedgeorOTC'] = 'OTC'
+
+    ops = optdump[f_cols]
+    ops = ops[ops.lots != 0]
+
+    print('option columns: ', ops.columns)
+
+    directionals = ops[ops.counterparty.str.contains('-OID')]
+    ops.drop('counterparty', axis=1, inplace=True)
+
+    # handle the futures, performing the same steps.
+    df = pd.read_excel(filepath, sheetname='FutDump')
+    df['Net Pos'].replace('-', 0, inplace=True)
+    df = df[df['Net Pos'] != 0]
+
+    df = df.dropna()
+    df = df[df.Portfolio.str.contains('MM-')]
+    cols = ['Portfolio', 'Contract', 'Net Pos']
+    df = df[cols]
+    df['pdt'] = df.Portfolio.str.split('-').str[1].str.strip()
+    df['vol_id'] = df.pdt + '  ' + df.Contract.str.strip()
+    df['Type'] = 'Future'
+    df['strike'] = np.nan
+    df['call_put_id'] = np.nan
+    df['optiontype'] = np.nan
+    df['Net Pos'] = df['Net Pos'].astype(float)
+
+    df.loc[(df['Net Pos'] < 0), 'shorted'] = True
+    df.loc[(df['Net Pos'] > 0), 'shorted'] = False
+    df['hedgeorOTC'] = 'hedge'
+    df['lots'] = abs(df['Net Pos'])
+    # df = df[f_cols]
+    df = df[df.lots != 0]
+    df.drop(['Contract', 'Net Pos', 'Portfolio'], axis=1, inplace=True)
+
+    print('future columns: ', df.columns)
+
+    # concatenate and instantiate dummy variables.
+    final = pd.concat([ops, df])
+    final['barriertype'] = np.nan
+    final['direction'] = np.nan
+    final['knockin'] = np.nan
+    final['knockout'] = np.nan
+    final['bullet'] = np.nan
+
+    if pdts is not None:
+        final = final[final.vol_id.str[:2].str.strip().isin(pdts)]
+
+    return final, directionals
+
+
+def aggregate_pnp_positions(df):
+    """Helper function that iterates through the final DF obtained from pnp_format, and
+    aggregates option positions by vol_id, strike and lots to arrive at net positions. 
+
+    Args:
+        df (TYPE): Description
+    """
+    # handle the options
+    df['mult'] = (df.shorted == False).astype(int)
+    df['mult'] = df['mult'].replace(0, -1)
+    df['real_lots'] = df['mult'] * df.lots
+    lst = []
+    ops = df[df.Type == 'Option']
+    for (strike, vol_id, cpi), grp in ops.groupby(['strike', 'vol_id', 'call_put_id']):
+        # print(strike, vol_id, cpi)
+        pdt = vol_id[:2].strip()
+        net_pos = grp.real_lots.sum()
+        shorted = True if net_pos < 0 else False
+        dic = {'Type': 'Option', 'strike': strike, 'vol_id': vol_id, 'call_put_id': cpi,
+               'optiontype': 'amer', 'shorted': shorted, 'hedgeorOTC': 'OTC',
+               'lots': abs(net_pos), 'pdt': pdt, 'barriertype': np.nan, 'direction': np.nan,
+               'knockin': np.nan, 'knockout': np.nan, 'bullet': True}
+        lst.append(dic)
+    fts = df[df.Type == 'Future']
+    for uid, grp in fts.groupby('vol_id'):
+        dic = {}
+        net_pos = grp.real_lots.sum()
+        shorted = True if net_pos < 0 else False
+        dic = {'Type': 'Future', 'strike': np.nan, 'vol_id': uid, 'call_put_id': np.nan,
+               'optiontype': np.nan, 'shorted': shorted, 'hedgeorOTC': 'hedge',
+               'lots': abs(net_pos), 'pdt': pdt, 'barriertype': np.nan, 'direction': np.nan,
+               'knockin': np.nan, 'knockout': np.nan, 'bullet': np.nan}
+        lst.append(dic)
+
+    final = pd.DataFrame(lst)
+    final = final[final.lots != 0]
+
+    print('final.columns: ', final.columns)
+
+    # final.drop(['mult', 'real_lots'], axis=1, inplace=True)
+
+    return final
+
+
 ##########################################################################
 ##########################################################################
 ##########################################################################
