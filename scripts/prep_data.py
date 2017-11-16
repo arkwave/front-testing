@@ -1276,11 +1276,11 @@ def handle_intraday_conventions(df):
     df['datatype'] = 'intraday'
 
     cols = ['value_date', 'time', 'underlying_id',
-            'pdt', 'ftmth', 'price', 'datatype']
+            'pdt', 'ftmth', 'price', 'datatype', 'date_time']
     df = df[cols]
 
     df.columns = ['value_date', 'time', 'underlying_id',
-                  'pdt', 'ftmth', 'price', 'datatype']
+                  'pdt', 'ftmth', 'price', 'datatype', 'date_time']
 
     df = df[df.price > 0]
 
@@ -1515,6 +1515,10 @@ def clean_intraday_data(df, edf=None, filepath=None):
 
     # filter for exchange timings.
     df = sanitize_intraday_timings(df, edf=edf, filepath=filepath)
+    pdt = df.pdt.unique()[0]
+    df.to_csv(filepath + 'datasets/debug/' + pdt +
+              '_sanitized_data.csv', index=False)
+
     assert not df.empty
     lst = []
 
@@ -1537,7 +1541,6 @@ def clean_intraday_data(df, edf=None, filepath=None):
     return ret
 
 
-# TODO: need to update this to handle multiple products.
 def sanitize_intraday_timings(df, filepath=None, edf=None):
     """Helper function that ignores pre-exchange printed results and only keeps entries
     within the start/end of the exchange timings. 
@@ -1562,7 +1565,7 @@ def sanitize_intraday_timings(df, filepath=None, edf=None):
     edf.columns = ['pdt' if x == 'Product Id' else x for x in edf.columns]
 
     merged = pd.merge(
-        df, edf[['pdt', 'Exch Start Hours', 'Exch End Hours']], on=['pdt'])
+        df, edf[['pdt', 'Exch Start Hours', 'Exch End Hours', 'pytz_desc']], on=['pdt'])
 
     fin = pd.DataFrame()
 
@@ -1580,11 +1583,19 @@ def sanitize_intraday_timings(df, filepath=None, edf=None):
             t_merged.drop('unwanted', axis=1, inplace=True)
             print('t_merged.columns: ', t_merged.columns)
             assert not t_merged.empty
-
         else:
             t_merged = t_merged[(t_merged.time >= t_merged['Exch Start Hours']) &
                                 (t_merged.time <= t_merged['Exch End Hours'])]
             assert not t_merged.empty
+
+        # localize the datetime to the product's location.
+        print('timezone: ', t_merged.pytz_desc.unique()[0])
+
+        t_merged.date_time = t_merged.date_time.dt.tz_localize(
+            t_merged.pytz_desc.unique()[0])
+
+        # convert to the default timezone: Dubai.
+        t_merged.date_time = t_merged.date_time.dt.tz_convert('Asia/Dubai')
 
         fin = pd.concat([fin, t_merged])
 

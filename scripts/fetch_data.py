@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-11-13 14:47:33
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-11-16 16:29:26
 
 # import time
 import datetime as dt
@@ -486,7 +486,7 @@ def pull_expdata():
     return df
 
 
-def pull_intraday_data(pdts, start_date=None, end_date=None, filepath=None):
+def pull_intraday_data(pdts, start_date=None, end_date=None, filepath=''):
     """Helper method that pulls intraday data from the DB. 
 
     Args:
@@ -497,61 +497,44 @@ def pull_intraday_data(pdts, start_date=None, end_date=None, filepath=None):
     Returns:
         TYPE: Dataframe
     """
-
-    filename = 'datasets/debug/' + '_'.join([x for x in pdts])
-    filename += '_' + start_date + '_' + end_date + '_raw_intraday_data.csv'
-
-    print('pull_intraday_data - full path: ', filepath + filename)
+    df = pd.DataFrame()
     t = time.clock()
-    if os.path.exists(filepath + filename):
-        print('raw file exists, reading in.')
-        df = pd.read_csv(filepath + filename)
-        df.date_time = pd.to_datetime(df.date_time)
+    for pdt in pdts:
+        filename = 'datasets/debug/' + pdt + '_' + start_date + \
+            '_' + end_date + '_raw_intraday_data.csv'
+        fullpath = filepath + filename
+        print('fullpath: ', fullpath)
+        if os.path.exists(fullpath):
+            print('raw file for ' + pdt + ' exists, reading in.')
+            tdf = pd.read_csv(fullpath)
+            tdf.date_time = pd.to_datetime(tdf.date_time)
 
-    else:
-        print('raw file does not exists, pulling.')
-        user = 'sumit'
-        password = 'Olam1234'
-        engine = create_engine('postgresql://' + user + ':' + password +
-                               '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
-        connection = engine.connect()
-        print('constructing query...')
-        query = construct_intraday_query(
-            pdts, start_date=start_date, end_date=end_date)
-        print('query: ', query)
+        else:
+            print('raw file for ' + pdt + ' does not exist, pulling.')
+            user = 'sumit'
+            password = 'Olam1234'
+            engine = create_engine('postgresql://' + user + ':' + password +
+                                   '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+            connection = engine.connect()
+            print('constructing query...')
+            query = construct_intraday_query(
+                pdts, start_date=start_date, end_date=end_date)
+            print('query: ', query)
 
-        # fetch the dataframe from the db.
+            # fetch the dataframe from the db.
 
-        print('fetching intraday data...')
-        df = pd.read_sql_query(query, connection)
-        df.to_csv(filepath, index=False)
+            print('fetching intraday data...')
+            tdf = pd.read_sql_query(query, connection)
+            tdf.to_csv(fullpath, index=False)
 
+        df = pd.concat([df, tdf])
     print('fetch completed. elapsed: ', time.clock() - t)
-
     df = clean_intraday_data(df, filepath=filepath)
     print('aggregating complete. elapsed: ', time.clock() - t)
 
     df = handle_intraday_conventions(df)
 
-    # cleaning up the columns in preparation for clean_data call
-    # df.date_time = pd.to_datetime(df.date_time)
-    # df['time'] = df.date_time.dt.time
-    # df['value_date'] = df.date_time.dt.date
-    # df['pdt'] = df.commodity.str[:2].str.strip()
-    # df['ftmth'] = df.commodity.str[2:-6].str.strip()
-    # df['underlying_id'] = df.pdt + '  ' + df.ftmth
-
-    # # setting datatype: intraday vs settlements
-    # df['datatype'] = 'intraday'
-
-    # print('df.columns: ', df.columns)
-
-    cols = ['value_date', 'time', 'underlying_id',
-            'pdt', 'ftmth', 'price', 'datatype']
-    df = df[cols]
-
     df.value_date = pd.to_datetime(df.value_date)
-    # df.time = pd.to_datetime(df.time).dt.time
     df.sort_values(by=['value_date', 'time'], inplace=True)
     df.reset_index(drop=True, inplace=True)
     print('intraday data processing complete. elapsed: ', time.clock() - t)
@@ -642,7 +625,7 @@ def pull_ohlc_data(pdts, start_date, end_date, writepath='C:/Users/' + main_dire
     # check if the data has been saved.
     init_path = writepath + '/' + \
         '_'.join([x for x in pdts]) + '_' + \
-        start_date + '_' + end_date + '_intraday'
+        start_date + '_' + end_date + '_ohlc'
     pricepath = init_path + '_price.csv'
 
     if os.path.exists(pricepath):
@@ -687,7 +670,7 @@ def pull_ohlc_data(pdts, start_date, end_date, writepath='C:/Users/' + main_dire
 
         # df['px_open'] = df['px_settle'].shift()
 
-        df.to_csv('prevclose_debug.csv', index=False)
+        # df.to_csv('prevclose_debug.csv', index=False)
 
         # melt the dataframe to get identifier/price.
         df = pd.melt(df, id_vars=['underlying_id', 'pdt', 'ftmth', 'value_date'],

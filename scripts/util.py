@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-14 16:58:24
+# @Last Modified time: 2017-11-16 14:40:18
 
 
 from .portfolio import Portfolio
@@ -1272,3 +1272,25 @@ def compute_market_minus(pf, vdf):
     val = pf.compute_value() - newpf.compute_value()
     mm = abs(val)
     return mm, val
+
+
+def handle_date_by_pdt(pdt, date, edf):
+    """Helper method that decrements the date by 1 if a given product has an overnight market. 
+
+    Args:
+        pdt (TYPE): the product being handled
+        date (TYPE): the date in question
+        edf (dataframe): Dataframe of exchange timings
+
+    """
+    pass
+
+
+def handle_timezones(lst, edf):
+    """Helper function that reconciles timezones between the products specified. 
+
+    Args:
+        lst (TYPE): list of products we're interested in. 
+        edf (dataframe): Dataframe of exchange timings
+    """
+    pass
