@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-16 16:29:26
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-11-17 17:03:21
 
 # import time
 import datetime as dt
@@ -497,6 +497,8 @@ def pull_intraday_data(pdts, start_date=None, end_date=None, filepath=''):
     Returns:
         TYPE: Dataframe
     """
+    overnight_pdts = {'BO', 'C', 'KW', 'S', 'SM', 'W', 'CT', 'MW'}
+
     df = pd.DataFrame()
     t = time.clock()
     for pdt in pdts:
@@ -517,8 +519,9 @@ def pull_intraday_data(pdts, start_date=None, end_date=None, filepath=''):
                                    '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
             connection = engine.connect()
             print('constructing query...')
+            offset = 1 if pdt in overnight_pdts else 0
             query = construct_intraday_query(
-                pdts, start_date=start_date, end_date=end_date)
+                pdts, start_date=start_date, end_date=end_date, offset=offset)
             print('query: ', query)
 
             # fetch the dataframe from the db.
@@ -528,8 +531,10 @@ def pull_intraday_data(pdts, start_date=None, end_date=None, filepath=''):
             tdf.to_csv(fullpath, index=False)
 
         df = pd.concat([df, tdf])
+
     print('fetch completed. elapsed: ', time.clock() - t)
-    df = clean_intraday_data(df, filepath=filepath)
+    df = clean_intraday_data(df, pd.to_datetime(start_date),
+                             pd.to_datetime(end_date), filepath=filepath)
     print('aggregating complete. elapsed: ', time.clock() - t)
 
     df = handle_intraday_conventions(df)
@@ -542,7 +547,7 @@ def pull_intraday_data(pdts, start_date=None, end_date=None, filepath=''):
     return df
 
 
-def construct_intraday_query(pdts, start_date=None, end_date=None):
+def construct_intraday_query(pdts, start_date=None, end_date=None, offset=None):
     """Helper method that generates the SQL query for pulling from the intraday table. 
 
     Args:
@@ -568,6 +573,10 @@ def construct_intraday_query(pdts, start_date=None, end_date=None):
 
     # add in date conditions
     if start_date is not None or end_date is not None:
+        if offset is not None:
+            start_date = (pd.to_datetime(start_date) -
+                          BDay(offset)).strftime('%Y-%m-%d')
+
         date_str += ' and ('
         if start_date is not None:
             date_str += ' date(date_time) >= ' + "'" + start_date + "'"

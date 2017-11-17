@@ -1484,7 +1484,7 @@ def reorder_ohlc_data(df, pf):
     return init_df, df, data_order
 
 
-def clean_intraday_data(df, edf=None, filepath=None):
+def clean_intraday_data(df, start_date, end_date, edf=None, filepath=None):
     """Does the following: 
     1) For each product/time combo:
         filter out price points with 0 volume
@@ -1514,7 +1514,8 @@ def clean_intraday_data(df, edf=None, filepath=None):
     print('df.columns: ', df.columns)
 
     # filter for exchange timings.
-    df = sanitize_intraday_timings(df, edf=edf, filepath=filepath)
+    df = sanitize_intraday_timings(
+        df, start_date, end_date, edf=edf, filepath=filepath)
     pdt = df.pdt.unique()[0]
     df.to_csv(filepath + 'datasets/debug/' + pdt +
               '_sanitized_data.csv', index=False)
@@ -1525,6 +1526,7 @@ def clean_intraday_data(df, edf=None, filepath=None):
     print('beginning aggregation...')
 
     for (comm, date_time), grp in df.groupby(['underlying_id', 'date_time']):
+        print(comm, date_time)
         grp['block'] = (grp.price.shift(1) != grp.price).astype(int).cumsum()
         # print(grp)
         for (price, block), grp2 in grp.groupby(['price', 'block'], sort=False):
@@ -1541,7 +1543,7 @@ def clean_intraday_data(df, edf=None, filepath=None):
     return ret
 
 
-def sanitize_intraday_timings(df, filepath=None, edf=None):
+def sanitize_intraday_timings(df, start_date, end_date, filepath=None, edf=None):
     """Helper function that ignores pre-exchange printed results and only keeps entries
     within the start/end of the exchange timings. 
 
@@ -1573,21 +1575,17 @@ def sanitize_intraday_timings(df, filepath=None, edf=None):
         t_merged = merged[merged.pdt == pdt]
         pdt_start = t_merged['Exch Start Hours'].values[0]
         pdt_end = t_merged['Exch End Hours'].values[0]
-        # overnight market case.
+        # overnight market case. covert, filter, unconvert.
         if pdt_start > pdt_end:
-            t_merged.ix[(t_merged.time > t_merged['Exch Start Hours']) &
-                        (t_merged.time < t_merged['Exch End Hours']), 'unwanted'] = True
-
-            t_merged = t_merged[pd.isnull(t_merged.unwanted)]
-
-            t_merged.drop('unwanted', axis=1, inplace=True)
-            print('t_merged.columns: ', t_merged.columns)
-            assert not t_merged.empty
+            # localize.
+            print('overnight market case')
+            t_merged = handle_overnight_market_timings(
+                t_merged, start_date, end_date)
         else:
             t_merged = t_merged[(t_merged.time >= t_merged['Exch Start Hours']) &
                                 (t_merged.time <= t_merged['Exch End Hours'])]
-            assert not t_merged.empty
 
+        assert not t_merged.empty
         # localize the datetime to the product's location.
         print('timezone: ', t_merged.pytz_desc.unique()[0])
 
@@ -1596,11 +1594,53 @@ def sanitize_intraday_timings(df, filepath=None, edf=None):
 
         # convert to the default timezone: Dubai.
         t_merged.date_time = t_merged.date_time.dt.tz_convert('Asia/Dubai')
-
         fin = pd.concat([fin, t_merged])
-
     fin.drop(['Exch Start Hours', 'Exch End Hours'], inplace=True, axis=1)
     return fin
+
+
+def handle_overnight_market_timings(df, start_date, end_date):
+    """Helper function that handles timezone conversion and filtering by doing the following:
+    1) localize. 
+    2) convert to DXB. 
+    3) filter. 
+    4) convert back to local timezone. 
+
+    Args:
+        df (TYPE): dataframe of price data. 
+    """
+    timezone = df.pytz_desc.unique()[0]
+    default = 'Asia/Dubai'
+    # find the exchange timings in terms of dxb time.
+    pdt_start = pd.to_datetime(df['Exch Start Hours'].values[
+                               0].strftime('%H:%M:%S'))
+    pdt_end = pd.to_datetime(df['Exch End Hours'].values[
+                             0].strftime('%H:%M:%S'))
+
+    pdt_start = pdt_start.tz_localize(timezone).tz_convert(default).time()
+    pdt_end = pdt_end.tz_localize(timezone).tz_convert(default).time()
+
+    print('pdt_start: ', pdt_start)
+    print('pdt_end: ', pdt_end)
+
+    # 1) localize.
+    df.date_time = df.date_time.dt.tz_localize(timezone)
+    # 2) convert to dxb time.
+    df.date_time = df.date_time.dt.tz_convert(default)
+    # 3) filter according to the dxb-standardized time.
+    df = df[(df.date_time.dt.time >= pdt_start) &
+            (df.date_time.dt.time <= pdt_end) &
+            (pd.to_datetime(df.date_time.dt.date) >= start_date) &
+            (pd.to_datetime(df.date_time.dt.date) <= end_date)]
+    # 4) convert back to local timezone.
+    df.to_csv('sanitized_dxb_timezone.csv', index=False)
+    df.date_time = df.date_time.dt.tz_convert(timezone)
+    df.to_csv('sanitized_local_timezone.csv', index=False)
+    # 5) strip timezone awareness.
+    df.date_time = df.date_time.dt.tz_localize(None)
+    df.to_csv('sanitized_no_timezone.csv', index=False)
+
+    return df
 
 
 # TODO: handle rounding of strikes when necessary.
