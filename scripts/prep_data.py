@@ -1633,18 +1633,15 @@ def handle_overnight_market_timings(df, start_date, end_date):
             (pd.to_datetime(df.date_time.dt.date) >= start_date) &
             (pd.to_datetime(df.date_time.dt.date) <= end_date)]
     # 4) convert back to local timezone.
-    df.to_csv('sanitized_dxb_timezone.csv', index=False)
     df.date_time = df.date_time.dt.tz_convert(timezone)
-    df.to_csv('sanitized_local_timezone.csv', index=False)
     # 5) strip timezone awareness.
     df.date_time = df.date_time.dt.tz_localize(None)
-    df.to_csv('sanitized_no_timezone.csv', index=False)
 
     return df
 
 
 # TODO: handle rounding of strikes when necessary.
-def granularize(df, pf, interval=None, ohlc=False):
+def granularize(df, pf, interval=None, ohlc=False, intraday=False):
     """Helper function that takes in a dataframe filtered through reorder_ohlc_data, 
     and checks for consecutive price moves that exceed the breakeven/flat value hedging
     interval specified for that underlying id. If this condition is met, it splits up the move into hedge-interval level moves. Cases checked are as follows:
@@ -1672,7 +1669,7 @@ def granularize(df, pf, interval=None, ohlc=False):
 
     fin_df = df.copy()
 
-    print('pre-granularize df: ', df)
+    # print('pre-granularize df: ', df)
 
     # marking all relevant price moves as such.
     fin_df['relevant'] = ''
@@ -1824,7 +1821,17 @@ def granularize(df, pf, interval=None, ohlc=False):
     if ohlc:
         fin_df.sort_values(by='time', inplace=True)
         print('pdf after ohlc reorder: ', fin_df)
+
     fin_df = fin_df[fin_df.relevant == True]
+    # edge case: duplicate consecutive entries in results. want to filter by
+    # block of prices, keeping order intact.
+    if intraday:
+        fin_df['block'] = (fin_df.price.shift(
+            1) != fin_df.price).astype(int).cumsum()
+        fin_df = fin_df.drop_duplicates('block')
+        fin_df.sort_values(by='time', inplace=True)
+
+    print('fin_df: ', fin_df)
     fin_df.reset_index(drop=True, inplace=True)
 
     return fin_df

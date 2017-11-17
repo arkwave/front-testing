@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-11-13 15:32:44
+# @Last Modified time: 2017-11-17 21:49:48
 
 ################################ imports ###################################
 # general imports
@@ -104,7 +104,7 @@ np.random.seed(seed)
 def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                    end_date=None, brokerage=None, slippage=None, signals=None,
                    plot_results=True, drawdown_limit=None, mode='HSPS', mkt_minus=1e7,
-                   ohlc=False, remark_on_roll=False):
+                   ohlc=False, remark_on_roll=False, remark_at_end=False):
     """
     Each run of the simulation consists of 5 steps:
         1) Feed data into the portfolio.
@@ -322,7 +322,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         # has been determined
         if not ohlc:
             print('@@@@@@@@@@@@@@@@@ Granularizing: Intraday Case @@@@@@@@@@@@@@@@')
-            pdf_1 = granularize(pdf_1, pf)
+            pdf_1 = granularize(pdf_1, pf, intraday=True)
             print('pdf_1: ', pdf_1)
             try:
                 assert len(pdf_1.underlying_id.unique()) == 1
@@ -575,7 +575,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             print('next_date: ', next_date)
             print('end_sim: ', end_sim)
 
-            if end_sim or (mm >= mkt_minus):
+            if (end_sim and remark_at_end) or (mm >= mkt_minus):
                 tmp = pf.compute_value()
                 pf = mark_to_vols(pf, settle_vols)
                 newval = pf.compute_value()

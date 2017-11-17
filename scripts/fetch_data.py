@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-11-17 17:03:21
+# @Last Modified time: 2017-11-17 19:25:52
 
 # import time
 import datetime as dt
@@ -486,7 +486,7 @@ def pull_expdata():
     return df
 
 
-def pull_intraday_data(pdts, start_date=None, end_date=None, filepath=''):
+def pull_intraday_data(pdts, start_date=None, end_date=None, filepath='', contracts=None):
     """Helper method that pulls intraday data from the DB. 
 
     Args:
@@ -509,6 +509,10 @@ def pull_intraday_data(pdts, start_date=None, end_date=None, filepath=''):
         if os.path.exists(fullpath):
             print('raw file for ' + pdt + ' exists, reading in.')
             tdf = pd.read_csv(fullpath)
+            if contracts is not None:
+                tdf = tdf[tdf.underlying_id.str.contains(
+                    '|'.join([x for x in contracts]))]
+
             tdf.date_time = pd.to_datetime(tdf.date_time)
 
         else:
@@ -521,7 +525,7 @@ def pull_intraday_data(pdts, start_date=None, end_date=None, filepath=''):
             print('constructing query...')
             offset = 1 if pdt in overnight_pdts else 0
             query = construct_intraday_query(
-                pdts, start_date=start_date, end_date=end_date, offset=offset)
+                pdts, start_date=start_date, end_date=end_date, offset=offset, contracts=contracts)
             print('query: ', query)
 
             # fetch the dataframe from the db.
@@ -547,7 +551,7 @@ def pull_intraday_data(pdts, start_date=None, end_date=None, filepath=''):
     return df
 
 
-def construct_intraday_query(pdts, start_date=None, end_date=None, offset=None):
+def construct_intraday_query(pdts, start_date=None, end_date=None, offset=None, contracts=None):
     """Helper method that generates the SQL query for pulling from the intraday table. 
 
     Args:
@@ -561,7 +565,12 @@ def construct_intraday_query(pdts, start_date=None, end_date=None, offset=None):
     pdt_str = ''
     for pdt in pdts:
         space = 1 if len(pdt) == 1 else 0
-        pdt_str += ' commodity like ' + "'" + pdt + ' '*space + '%%' + "'"
+        pdt_str += ' commodity like '
+        if contracts is not None:
+            for i in contracts:
+                pdt_str += "'" + pdt + ' '*space + i + '%%' + "'"
+        else:
+            pdt_str += "'" + pdt + ' '*space + '%%' + "'"
         if pdt != pdts[-1]:
             pdt_str += ' or '
         else:
