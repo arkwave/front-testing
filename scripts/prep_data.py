@@ -537,10 +537,12 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
         print('cleaning voldata')
         # handling data types
         df['value_date'] = pd.to_datetime(df['value_date'])
+        df.expdate = pd.to_datetime(df.expdate)
         df = df.dropna()
         assert not df.empty
         # calculating time to expiry from vol_id
-        df = ttm(df, df['vol_id'], edf)
+        df['tau'] = (df.expdate - df.value_date).dt.days/365
+
         df = df[df.tau > 0].dropna()
         assert not df.empty
         # generating additional identifying fields.
@@ -572,105 +574,21 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
             df['pdt'] = df['underlying_id'].str.split().str[0]
         if 'ftmth' not in df.columns:
             df['ftmth'] = df['underlying_id'].str.split().str[1]
-        # transformative functions.
-        # df = get_expiry(df, edf)
-        # df = assign_ci(df, date)
-        # df['order'] = ''
-        # df = scale_prices(df)
         df = df.fillna(0)
         df.value_date = pd.to_datetime(df.value_date)
         df.price = pd.to_numeric(df.price)
-        # df.returns = pd.to_numeric(df.returns)
         if 'time' not in df.columns:
             df['time'] = dt.time.max
         if 'datatype' not in df.columns:
             df['datatype'] = 'settlement'
 
         df['time'] = df['time'].astype(pd.Timestamp)
-        # df.expdate = pd.to_datetime(df.expdate)
-        # df = df[df.value_date <= df.expdate]
-        # setting data types
-        # df.order = pd.to_numeric(df.order)
-        # df.expdate = pd.to_datetime(df.expdate)
 
     df.reset_index(drop=True, inplace=True)
     # df = df.dropna()
     assert not df.empty
 
     return df
-
-
-def ciprice(pricedata, rollover='opex'):
-    """Constructs the CI price series.
-
-    Args:
-        pricedata (TYPE): price data frame of same format as read_data
-        rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
-
-    Returns:
-        pandas dataframe : Dataframe with the following columns:
-            Product | date | underlying | order | price | returns | expiry date
-    """
-    t = time.time()
-    if rollover == 'opex':
-        ro_dates = get_rollover_dates(pricedata)
-        products = pricedata['pdt'].unique()
-        # iterate over produts
-        by_product = None
-        for product in products:
-            df = pricedata[pricedata.pdt == product]
-            # lst = contract_mths[product]
-            assert not df.empty
-            most_recent = []
-            by_date = None
-            try:
-                relevant_dates = ro_dates[product]
-            except KeyError:
-                df2 = df[
-                        ['pdt', 'value_date', 'underlying_id', 'order', 'price', 'returns', 'expdate']]
-                df2.columns = [
-                    'pdt', 'value_date', 'underlying_id', 'order', 'price', 'returns', 'expdate']
-                by_product = df2
-                continue
-            # iterate over rollover dates for this product.
-            for date in relevant_dates:
-                df = df[df.order > 0]
-                order_nums = sorted(df.order.unique())
-                breakpoint = max(most_recent) if most_recent else min(
-                    df['value_date'])
-                # print('breakpoint, date: ', breakpoint, date)
-                by_order_num = None
-                # iterate over all order_nums for this product. for each cont, grab
-                # entries until first breakpoint, and stack wide.
-                for ordering in order_nums:
-                    # print('breakpoint, end, cont: ', breakpoint, date, cont)
-                    df2 = df[df.order == ordering]
-                    tdf = df2[(df2['value_date'] < date) & (df2['value_date'] >= breakpoint)][
-                        ['pdt', 'value_date', 'underlying_id', 'order', 'price', 'returns', 'expdate']]
-                    # print(tdf.empty)
-                    tdf.columns = [
-                        'pdt', 'value_date', 'underlying_id', 'order', 'price', 'returns', 'expdate']
-                    tdf.reset_index(drop=True, inplace=True)
-                    by_order_num = tdf if by_order_num is None else pd.concat(
-                        [by_order_num, tdf])
-
-                # by_date contains entries from all order_nums until current
-                # rollover date. take and stack this long.
-                by_date = by_order_num if by_date is None else pd.concat(
-                    [by_date, by_order_num])
-                most_recent.append(date)
-                df.order -= 1
-
-            by_product = by_date if by_product is None else pd.concat(
-                [by_product, by_order_num])
-        final = by_product
-
-    else:
-        final = -1
-    elapsed = time.time() - t
-    # print('[CI-PRICE] elapsed: ', elapsed)
-    # final.to_csv('ci_price_final.csv', index=False)
-    return final
 
 
 def vol_by_delta(voldata, pricedata):
@@ -792,126 +710,6 @@ def vol_by_delta(voldata, pricedata):
 
     # resetting indices
     return vbd
-
-
-def civols(vdf, pdf, rollover='opex'):
-    """Constructs the CI vol series.
-    Args:
-        vdf (TYPE): price data frame of same format as read_data
-        rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
-
-    Returns:
-        pandas dataframe : dataframe with the following columns:
-        pdt|order|value_date|underlying_id|vol_id|op_id|call_put_id|tau|strike|vol
-
-    """
-    t = time.time()
-    if rollover == 'opex':
-        ro_dates = get_rollover_dates(pdf)
-        products = vdf['pdt'].unique()
-        # iterate over produts
-        by_product = None
-        for product in products:
-            df = vdf[vdf.pdt == product]
-            most_recent = []
-            by_date = None
-            try:
-                relevant_dates = ro_dates[product]
-            except KeyError:
-                # no rollover dates for this product
-                df2 = df[['pdt', 'order', 'value_date', 'underlying_id', 'vol_id',
-                          'op_id', 'call_put_id', 'tau', 'strike', 'vol']]
-                df2.columns = ['pdt', 'order', 'value_date', 'underlying_id',
-                               'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'vol']
-                by_product = df2
-                continue
-
-            # iterate over rollover dates for this product.
-            for date in relevant_dates:
-                # filter order > 0 to get rid of C_i that have been dealt with.
-                df = df[df.order > 0]
-                # sort orderings.
-                order_nums = sorted(df.order.unique())
-                breakpoint = max(most_recent) if most_recent else min(
-                    df['value_date'])
-                by_order_num = None
-                # iterate over all order_nums for this product. for each cont, grab
-                # entries until first breakpoint, and stack wide.
-                for ordering in order_nums:
-                    cols = ['pdt', 'order', 'value_date', 'underlying_id', 'vol_id',
-                            'op_id', 'call_put_id', 'tau', 'strike', 'vol']
-                    df2 = df[df.order == ordering]
-                    tdf = df2[(df2['value_date'] < date) &
-                              (df2['value_date'] >= breakpoint)][cols]
-                    # renaming columns
-                    tdf.columns = ['pdt', 'order', 'value_date', 'underlying_id',
-                                   'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'vol']
-                    # tdf.reset_index(drop=True, inplace=True)
-                    by_order_num = tdf if by_order_num is None else pd.concat(
-                        [by_order_num, tdf])
-
-                # by_date contains entries from all order_nums until current
-                # rollover date. take and stack this long.
-                by_date = by_order_num if by_date is None else pd.concat(
-                    [by_date, by_order_num])
-                most_recent.append(date)
-                df.order -= 1
-
-            by_product = by_date if by_product is None else pd.concat(
-                [by_product, by_date])
-
-        final = by_product
-    else:
-        final = -1
-    elapsed = time.time() - t
-    # print('[CI-VOLS] elapsed: ', elapsed)
-    return final
-
-
-#####################################################
-################ Helper Functions ###################
-#####################################################
-
-def ttm(df, s, edf):
-    """Takes in a vol_id (for example C Z7.Z7) and outputs the time to expiry for the option in years
-
-    Args:
-        df (dataframe): dataframe containing option description.
-        s (Series): Series of vol_ids
-        edf (dataframe): dataframe of expiries.
-    """
-    s = s.unique()
-    df['tau'] = ''
-    df['expdate'] = ''
-    for iden in s:
-        expdate = get_expiry_date(iden, edf)
-        try:
-            expdate = pd.to_datetime(expdate.values[0])
-        except IndexError:
-            print('expdate not found for Vol ID: ', iden)
-            expdate = pd.Timestamp('1990-01-01')
-        currdate = pd.to_datetime(df[(df['vol_id'] == iden)]['value_date'])
-        timedelta = (expdate - currdate).dt.days / 365
-        df.ix[df['vol_id'] == iden, 'tau'] = timedelta
-        df.ix[df['vol_id'] == iden, 'expdate'] = pd.to_datetime(expdate)
-    return df
-
-
-def get_expiry_date(volid, edf):
-    """Computes the expiry date of the option given a vol_id """
-    target = volid.split()
-    op_yr = target[1][1]  # + decade
-    # op_yr = op_yr.astype(str)
-    op_mth = target[1][0]
-    # un_yr = pd.to_numeric(target[1][-1]) + decade
-    # un_yr = un_yr.astype(str)
-    # un_mth = target[1][3]
-    prod = target[0]
-    overall = op_mth + op_yr  # + '.' + un_mth + un_yr
-    expdate = edf[(edf['opmth'] == overall) & (edf['product'] == prod)][
-        'expiry_date']
-    expdate = pd.to_datetime(expdate)
-    return expdate
 
 
 def assign_ci(df, date):
@@ -1039,41 +837,6 @@ def scale_prices(pricedata):
     # print(pricedata)
     pricedata = pricedata.fillna(0)
     # print(pricedata)
-    return pricedata
-
-
-def get_expiry(pricedata, edf, rollover=None):
-    """Appends expiry dates to price data.
-
-    Args:
-        pricedata (TYPE): Dataframe of prices.
-        edf (TYPE): Dataframe of expiries
-        rollover (None, optional): rollover criterion. defaults to None.
-
-    Returns:
-        TYPE: Description
-    """
-    products = pricedata['pdt'].unique()
-    pricedata['expdate'] = ''
-    pricedata['expdate'] = pd.to_datetime(pricedata['expdate'])
-    for prod in products:
-        # 1: isolate the rollover date.
-        df = pricedata[pricedata['pdt'] == prod]
-
-        uids = df['underlying_id'].unique()
-        for uid in uids:
-            # need to get same-month (i.e. Z7.Z7 expiries)
-            mth = uid.split()[1]
-            try:
-                roll_date = edf[(edf.opmth == mth) & (edf['product'] == prod)][
-                    'expiry_date'].values[0]
-                pricedata.ix[(pricedata['pdt'] == prod) &
-                             (pricedata['underlying_id'] == uid), 'expdate'] = roll_date
-            except IndexError:
-                print('mth: ', mth)
-                print('uid: ', uid)
-                print('prod: ', prod)
-
     return pricedata
 
 

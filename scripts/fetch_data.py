@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-11-17 19:25:52
+# @Last Modified time: 2017-11-20 18:04:50
 
 # import time
 import datetime as dt
@@ -126,11 +126,11 @@ def pull_settlement_data(pdt, start_date=None, end_date=None, write_dump=False,
 
     # selecting
     vdf = df[['settlement_date', 'vol_id',
-              'call_put_id', 'strike', 'implied_vol']]
+              'call_put_id', 'strike', 'implied_vol', 'option_expiry_date']]
     pdf = df[['settlement_date', 'underlying_id', 'future_settlement_value']]
 
     vdf.columns = ['value_date', 'vol_id',
-                   'call_put_id', 'strike', 'vol']
+                   'call_put_id', 'strike', 'vol', 'expdate']
     pdf.columns = ['value_date', 'underlying_id', 'price']
 
     # removing duplicates, resetting indices
@@ -221,7 +221,8 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
     print('vdf.columns: ', vdf.columns)
     print('pdf.columns: ', pdf.columns)
 
-    vdf.columns = ['value_date', 'vol_id', 'call_put_id', 'strike', 'vol']
+    vdf.columns = ['value_date', 'vol_id',
+                   'call_put_id', 'strike', 'vol', 'expdate']
     pdf.columns = ['value_date', 'underlying_id', 'price']
 
     # clean dataframes
@@ -265,7 +266,6 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
         # write datasets into the debug folder.
         final_vol.to_csv(desired_path + pdt.lower() +
                          '_final_vols_' + sd + '_' + ed + '.csv', index=False)
-
         final_price.to_csv(desired_path + pdt.lower() +
                            '_final_price_' + sd + '_' + ed + '.csv', index=False)
 
@@ -481,7 +481,12 @@ def pull_expdata():
 
     # convert datetime formats; N11.N11 -> N1.N1
     s = df['opmth'].copy()
+    s2 = df['ftmth'].copy()
     df.ix[:, 'opmth'] = s.str[0] + (pd.to_numeric(s.str[1:]) % 10).astype(str)
+    df.ix[:, 'ftmth'] = s2.str[0] + \
+        (pd.to_numeric(s2.str[1:]) % 10).astype(str)
+
+    df.vol_id = df['product'] + '  ' + df.opmth + '.' + df.ftmth
 
     return df
 
