@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-10 14:46:10
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-11-22 16:09:19
 
 import pandas as pd
 import pprint
@@ -643,7 +643,8 @@ class Hedge:
             return 0
 
         # adding the hedge structures.
-        ops = self.add_hedges(data, shorted, hedge_id, flag, reqd_val, loc)
+        ops = self.add_hedges(data, shorted, hedge_id, flag,
+                              reqd_val, loc, settlements=self.settlements)
 
         self.refresh()
 
@@ -863,7 +864,7 @@ class Hedge:
 
         return shorted
 
-    def add_hedges(self, data, shorted, hedge_id, flag, greekval, loc):
+    def add_hedges(self, data, shorted, hedge_id, flag, greekval, loc, settlements=None):
         """Helper method that checks the type of hedge structure specified, and creates/adds
         the requisite amount.
 
@@ -875,13 +876,16 @@ class Hedge:
             greekval (TYPE): Description
 
         """
+        # designate the dataframes to be used for hedging.
+        hedge_vols = settlements if self.book else self.vdf
         ops = None
         try:
+
             # print(data['kind'], data['spectype'], data['spec'])
             if data['kind'] == 'straddle':
                 if data['spectype'] == 'strike':
                     strike = data['spec']
-                ops = create_straddle(hedge_id, self.vdf, self.pdf, self.date,
+                ops = create_straddle(hedge_id, hedge_vols, self.pdf, self.date,
                                       shorted, strike=strike, greek=flag, greekval=greekval)
                 gv = greekval if not shorted else -greekval
                 # print('added straddle with ' + str(gv) + ' ' + str(flag))
@@ -900,7 +904,7 @@ class Hedge:
                 if c_delta is not None:
                     delta1, delta2 = c_delta, c_delta
 
-                ops = create_strangle(hedge_id, self.vdf, self.pdf, self.date,
+                ops = create_strangle(hedge_id, hedge_vols, self.pdf, self.date,
                                       shorted, chars=['call', 'put'],
                                       strike=[strike1, strike2],
                                       delta=[delta1, delta2], greek=flag, greekval=greekval)
@@ -915,7 +919,7 @@ class Hedge:
                     strike = data['spec']
                 print('inputs: ', hedge_id, shorted,
                       dval, strike, flag, greekval)
-                op = create_vanilla_option(self.vdf, self.pdf, hedge_id, 'call',
+                op = create_vanilla_option(hedge_vols, self.pdf, hedge_id, 'call',
                                            shorted, delta=dval, strike=strike,
                                            greek=flag, greekval=greekval)
                 ops = [op]
@@ -930,7 +934,7 @@ class Hedge:
                 if data['spectype'] == 'strike':
                     strike = data['spectype']
 
-                op = create_vanilla_option(self.vdf, self.pdf, hedge_id, 'put',
+                op = create_vanilla_option(hedge_vols, self.pdf, hedge_id, 'put',
                                            shorted, delta=dval, strike=strike,
                                            greek=flag, greekval=greekval)
                 ops = [op]

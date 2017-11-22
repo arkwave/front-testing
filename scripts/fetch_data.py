@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-11-20 18:04:50
+# @Last Modified time: 2017-11-21 16:47:37
 
 # import time
 import datetime as dt
@@ -12,7 +12,8 @@ from sqlalchemy import create_engine
 import time
 import os
 import numpy as np
-from .prep_data import match_to_signals, get_min_start_date, clean_data, vol_by_delta, sanity_check, handle_intraday_conventions, clean_intraday_data
+from .prep_data import match_to_signals, get_min_start_date, clean_data, vol_by_delta, \
+    sanity_check, handle_intraday_conventions, clean_intraday_data
 from .global_vars import main_direc
 
 contract_mths = {

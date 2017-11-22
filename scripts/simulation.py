@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-11-17 21:49:48
+# @Last Modified time: 2017-11-22 18:38:35
 
 ################################ imports ###################################
 # general imports
@@ -12,7 +12,7 @@ import copy
 import time
 import matplotlib.pyplot as plt
 from collections import OrderedDict
-import datetime as dt
+from pandas.tseries.offsets import BDay
 
 # user defined imports
 from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites, assign_hedge_objects, compute_market_minus, mark_to_vols
@@ -184,7 +184,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # get the init diff and timestep
     # init_val = pf.compute_value()
     init_diff = (pd.to_datetime(
-        date_range[1]) - pd.to_datetime(date_range[0])).days
+        date_range[1]) - pd.to_datetime(date_range[0])).days - 1
     print('init diff: ', init_diff)
     pf.timestep(init_diff * timestep)
     init_val = pf.compute_value()
@@ -200,6 +200,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
     ############ Other useful variables: #############
     loglist = []
+    thetas = []
 
     # highest cumulative pnl until this point
     highest_value = 0
@@ -323,12 +324,14 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         if not ohlc:
             print('@@@@@@@@@@@@@@@@@ Granularizing: Intraday Case @@@@@@@@@@@@@@@@')
             pdf_1 = granularize(pdf_1, pf, intraday=True)
+            if pdf_1.empty:
+                continue
             print('pdf_1: ', pdf_1)
             try:
                 assert len(pdf_1.underlying_id.unique()) == 1
             except AssertionError as e:
-                raise AssertionError(
-                    "dataset not filtered for UIDS: ", pdf_1.underlying_id.unique()) from e
+                raise AssertionError("dataset not filtered for UIDS on " + str(date) + " : ",
+                                     pdf_1.underlying_id.unique()) from e
         print('================ beginning intraday loop =====================')
         unique_ts = pdf_1.time.unique()
         for ts in unique_ts:
@@ -543,8 +546,12 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
     # Step 9: timestep before computing PnL. store and compute the theta
     # debit/credit. update dailypnl and dailygamma with theta debit.
-        num_days = 0 if next_date is None else\
-            (pd.Timestamp(next_date) - pd.Timestamp(date)).days
+        if next_date is None:
+            # step to the next business day.
+            num_days = ((pd.Timestamp(date) + BDay(1)) -
+                        pd.Timestamp(date)).days
+        else:
+            num_days = (pd.Timestamp(next_date) - pd.Timestamp(date)).days
 
         print('actual timestep of ' + str(num_days))
 
@@ -553,6 +560,13 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         pre_timestep_value = pf.compute_value()
         pf.timestep(num_days * timestep)
         theta_change = pf.compute_value() - pre_timestep_value
+
+        # standardize to big theta for hedging optimization purposes.
+        if num_days == 1:
+            thetas.append(theta_change * 1.4)
+        else:
+            # make sure this works for usual holidays as well.
+            thetas.append((theta_change/num_days) * 1.4)
 
         print('dailypnl before theta change: ', dailypnl)
         print('dailygamma before theta change: ', dailygamma)
@@ -781,6 +795,10 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     print('net pnl: ', netpnl)
     print('vega pnl: ', vegapnl)
     print('gamma pnl: ', gammapnl)
+    print('total theta paid: ', sum(thetas))
+    print('gamma money: ', grosspnl - sum(thetas))
+    print('vols remarked at end: ', remark_at_end)
+    print('vols remarked on contract roll: ', remark_on_roll)
     print('################# OTHER INFORMATION: ##################')
 
     gvar = np.percentile(gross_daily_values, 10)
@@ -843,8 +861,9 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         # plt.legend()
 
         # plt.show()
-
-    return log, net_cumul_values[-1], hedges_hit
+    theta_paid = sum(thetas)
+    gamma_money = grosspnl - theta_paid
+    return log, net_cumul_values[-1], hedges_hit, gamma_money, theta_paid
 
 
 ##########################################################################

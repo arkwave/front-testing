@@ -1027,12 +1027,12 @@ def handle_intraday_conventions(df):
     df['time'] = df.date_time.dt.time
     df['value_date'] = pd.to_datetime(df.date_time.dt.date)
 
-    # filter out weekends/bank holidays.
-    cal = calendar()
-    holidays = pd.to_datetime(cal.holidays(
-        start=df.value_date.min(), end=df.value_date.max())).tolist()
-    df = df[~df.value_date.isin(holidays)]
-    df = df[df.value_date.dt.dayofweek < 5]
+    # # filter out weekends/bank holidays.
+    # cal = calendar()
+    # holidays = pd.to_datetime(cal.holidays(
+    #     start=df.value_date.min(), end=df.value_date.max())).tolist()
+    # df = df[~df.value_date.isin(holidays)]
+    # df = df[df.value_date.dt.dayofweek < 5]
 
     # adding in flags used to isolate intraday vs settlement and intraday vs
     # settlement period
@@ -1259,10 +1259,11 @@ def clean_intraday_data(df, start_date, end_date, edf=None, filepath=None):
         df (TYPE): Description
     """
     print('cleaning intraday data')
+    t = time.clock()
 
     assert not df.empty
 
-    print('df.colums: ', df.columns)
+    # print('df.colums: ', df.columns)
 
     df = df[df.volume > 0]
     if 'pdt' not in df.columns:
@@ -1274,7 +1275,7 @@ def clean_intraday_data(df, start_date, end_date, edf=None, filepath=None):
     df.date_time = pd.to_datetime(df.date_time)
 
     assert not df.empty
-    print('df.columns: ', df.columns)
+    # print('df.columns: ', df.columns)
 
     # filter for exchange timings.
     df = sanitize_intraday_timings(
@@ -1286,10 +1287,10 @@ def clean_intraday_data(df, start_date, end_date, edf=None, filepath=None):
     assert not df.empty
     lst = []
 
-    print('beginning aggregation...')
+    print('beginning aggregation...', end="")
 
     for (comm, date_time), grp in df.groupby(['underlying_id', 'date_time']):
-        print(comm, date_time)
+        # print(comm, date_time)
         grp['block'] = (grp.price.shift(1) != grp.price).astype(int).cumsum()
         # print(grp)
         for (price, block), grp2 in grp.groupby(['price', 'block'], sort=False):
@@ -1301,8 +1302,9 @@ def clean_intraday_data(df, start_date, end_date, edf=None, filepath=None):
     ret = pd.DataFrame(lst)
 
     assert not ret.empty
+    print('done.')
 
-    print('cleaning done')
+    print('elapsed: ', time.clock() - t)
     return ret
 
 
