@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-11-22 18:38:35
+# @Last Modified time: 2017-11-22 20:55:53
 
 ################################ imports ###################################
 # general imports
@@ -863,7 +863,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         # plt.show()
     theta_paid = sum(thetas)
     gamma_money = grosspnl - theta_paid
-    return log, net_cumul_values[-1], hedges_hit, gamma_money, theta_paid
+    return log, net_cumul_values[-1], hedges_hit, gamma_money, theta_paid, sum(gamma_pnl_daily), gamma_pnl_daily
 
 
 ##########################################################################

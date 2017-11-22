@@ -1526,6 +1526,7 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
                     # not the first row. create new rows to simulate resting
                     # orders.
                     else:
+                        print('interval: ', interval)
                         print('curr_price: ', curr_price)
                         print('row price: ', row.price)
                         print('diff: ', diff)

@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-11-21 16:47:37
+# @Last Modified time: 2017-11-22 18:15:19
 
 # import time
 import datetime as dt
@@ -511,15 +511,17 @@ def pull_intraday_data(pdts, start_date=None, end_date=None, filepath='', contra
         filename = 'datasets/debug/' + pdt + '_' + start_date + \
             '_' + end_date + '_raw_intraday_data.csv'
         fullpath = filepath + filename
-        print('fullpath: ', fullpath)
-        if os.path.exists(fullpath):
-            print('raw file for ' + pdt + ' exists, reading in.')
-            tdf = pd.read_csv(fullpath)
-            if contracts is not None:
-                tdf = tdf[tdf.underlying_id.str.contains(
-                    '|'.join([x for x in contracts]))]
+        if False:
+            pass
+        # print('fullpath: ', fullpath)
+        # if os.path.exists(fullpath):
+        #     print('raw file for ' + pdt + ' exists, reading in.')
+        #     tdf = pd.read_csv(fullpath)
+        #     if contracts is not None:
+        #         tdf = tdf[tdf.commodity.str.contains(
+        #             '|'.join([x for x in contracts]))]
 
-            tdf.date_time = pd.to_datetime(tdf.date_time)
+        #     tdf.date_time = pd.to_datetime(tdf.date_time)
 
         else:
             print('raw file for ' + pdt + ' does not exist, pulling.')
