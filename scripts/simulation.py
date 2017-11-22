@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-11-22 20:55:53
+# @Last Modified time: 2017-11-22 22:36:41
 
 ################################ imports ###################################
 # general imports
@@ -219,7 +219,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # boolean flag indicating missing data
     # Note: [partially depreciated]
     broken = False
-    hedges_hit = {}
+    hedges_hit = []
     ##################################################
 
     ########### identifying simulation mode ###########
@@ -238,7 +238,6 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         # checks to make sure if there are still non-hedge securities in pf
         # isolate data relevant for this day.
         date = pd.to_datetime(date)
-        hedges_hit[date] = []
         print('########################### date: ',
               date, '############################')
 
@@ -334,6 +333,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                                      pdf_1.underlying_id.unique()) from e
         print('================ beginning intraday loop =====================')
         unique_ts = pdf_1.time.unique()
+        dailyhedges = []
         for ts in unique_ts:
             pdf = pdf_1[pdf_1.time == ts]
             print('ts: ', ts)
@@ -345,6 +345,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             # currently, vdf only exists for settlement anyway.
             vdf = vdf_1[vdf_1.time == ts]
             for index in pdf.index:
+
                 # get the current row and variables
                 pdf_ts = pdf[pdf.index == index]
                 datatype = pdf_ts.datatype.values[0]
@@ -352,6 +353,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 # OHLC case: if the UID is not in the portfolio, skip.
                 if uid not in pf.get_unique_uids():
                     continue
+
                 val = pdf_ts.price.values[0]
                 diff = 0
 
@@ -360,13 +362,15 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                     # this is required to select settlement vols only
                     # when handling settlement price.
                     vdf = vdf_1[vdf_1.time == pdf_ts.time.values[0]]
-
                 lp = pf.hedger.last_hedgepoints[uid]
-                hedges_hit[date].append((uid, val, lp))
                 print('===================== time: ' +
                       str(pdf_ts.time.values[0]) + ' =====================')
                 print('index: ', index)
+
                 if datatype == 'intraday':
+                    dailyhedges.append(
+                        {'date': date, 'time': ts, 'uid': uid, 'hedge point': val})
+
                     print('valid price move to ' + str(val) +
                           ' for uid last hedged at ' + str(lp))
                 elif datatype == 'settlement':
@@ -446,6 +450,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 print('============= end timestamp ' +
                       str(pdf_ts.time.values[0]) + '===================')
 
+        dailyhedges = pd.DataFrame(dailyhedges)
+        hedges_hit.append(dailyhedges)
         print('================ end intraday loop =====================')
         print('pf after intraday loop: ', pf)
 
@@ -673,7 +679,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             underlying_id = op.get_uid()
             ftprice = settlement_prices[underlying_id]
 
-            num_hedges = len(hedges_hit[date]) - 1
+            # num_hedges = len(hedges_hit[date][uid]) if uid in hedges_hit[
+            #     date] else 0
             dic = log_pf.get_net_greeks()
             d, g, t, v = dic[pdt][ftmth]
 
@@ -683,14 +690,14 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             lst = [date, vol_id, underlying_id, char, where, tau, op_value, oplots,
                    ftprice, strike, opvol, dailypnl, dailynet, grosspnl, netpnl,
                    dailygamma, gammapnl, dailyvega, vegapnl, roll_hedged, d, g, t, v,
-                   num_hedges, data_order, num_days, breakeven]
+                   data_order, num_days, breakeven]
 
             cols = ['value_date', 'vol_id', 'underlying_id', 'call/put', 'otc/hedge',
                     'ttm', 'option_value', 'option_lottage', 'px_settle',
                     'strike', 'vol', 'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross',
                     'cu_pnl_net', 'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl',
                     'cu_vega_pnl', 'delta_rolled', 'net_delta', 'net_gamma', 'net_theta',
-                    'net_vega', '# hedges hit', 'data order', 'timestep', 'breakeven']
+                    'net_vega', 'data order', 'timestep', 'breakeven']
 
             adcols = ['pdt', 'ft_month', 'op_month', 'delta', 'gamma', 'theta',
                       'vega', 'net_call_vega', 'net_put_vega', 'b/s']
@@ -861,6 +868,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         # plt.legend()
 
         # plt.show()
+    hedges_hit = pd.concat(hedges_hit)
     theta_paid = sum(thetas)
     gamma_money = grosspnl - theta_paid
     return log, net_cumul_values[-1], hedges_hit, gamma_money, theta_paid, sum(gamma_pnl_daily), gamma_pnl_daily
