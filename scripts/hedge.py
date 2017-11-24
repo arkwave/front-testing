@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-11-22 20:38:46
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-11-24 21:48:01
 
 import pandas as pd
 import pprint
@@ -27,7 +27,7 @@ multipliers = {
     'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
     'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
     'COM': [1.0604, 50, 0.25, 2.5, 53.02],
-    'OBM': [1.0604, 50, 0.25, 1, 53.02],
+    'CA': [1.0604, 50, 0.25, 1, 53.02],
     'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
 }
 

@@ -64,7 +64,7 @@ contract_mths = {
     'KW':  ['H', 'K', 'N', 'U', 'Z'],
     'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
     'COM': ['G', 'K', 'Q', 'X'],
-    'OBM': ['H', 'K', 'U', 'Z'],
+    'CA': ['H', 'K', 'U', 'Z'],
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
@@ -86,7 +86,7 @@ multipliers = {
     'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
     'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
     'COM': [1.0604, 50, 0.25, 2.5, 53.02],
-    'OBM': [1.0604, 50, 0.25, 1, 53.02],
+    'CA': [1.0604, 50, 0.25, 1, 53.02],
     'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
 }
 
@@ -1327,12 +1327,12 @@ def sanitize_intraday_timings(df, start_date, end_date, filepath=None, edf=None)
         Dataframe: With all timings outside of exchange timings removed. 
     """
     # read in the exchange timing dataframe.
-    print('sanitize_intraday_timings: filepath - ', filepath)
+    # print('sanitize_intraday_timings: filepath - ', filepath)
 
     filepath = filepath if filepath is not None else ''
     filepath += 'datasets/exchange_timings.csv'
 
-    print('final filepath: ', filepath)
+    # print('final filepath: ', filepath)
     edf = pd.read_csv(filepath) if edf is None else edf
     edf['Exch Start Hours'] = pd.to_datetime(edf['Exch Start Hours']).dt.time
     edf['Exch End Hours'] = pd.to_datetime(edf['Exch End Hours']).dt.time
@@ -1351,7 +1351,7 @@ def sanitize_intraday_timings(df, start_date, end_date, filepath=None, edf=None)
         # overnight market case. covert, filter, unconvert.
         if pdt_start > pdt_end:
             # localize.
-            print('overnight market case')
+            # print('overnight market case')
             t_merged = handle_overnight_market_timings(
                 t_merged, start_date, end_date)
         else:
@@ -1360,7 +1360,7 @@ def sanitize_intraday_timings(df, start_date, end_date, filepath=None, edf=None)
 
         assert not t_merged.empty
         # localize the datetime to the product's location.
-        print('timezone: ', t_merged.pytz_desc.unique()[0])
+        # print('timezone: ', t_merged.pytz_desc.unique()[0])
 
         t_merged.date_time = t_merged.date_time.dt.tz_localize(
             t_merged.pytz_desc.unique()[0])
@@ -1393,8 +1393,8 @@ def handle_overnight_market_timings(df, start_date, end_date):
     pdt_start = pdt_start.tz_localize(timezone).tz_convert(default).time()
     pdt_end = pdt_end.tz_localize(timezone).tz_convert(default).time()
 
-    print('pdt_start: ', pdt_start)
-    print('pdt_end: ', pdt_end)
+    # print('pdt_start: ', pdt_start)
+    # print('pdt_end: ', pdt_end)
 
     # 1) localize.
     df.date_time = df.date_time.dt.tz_localize(timezone)

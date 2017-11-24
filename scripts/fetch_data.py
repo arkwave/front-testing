@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-24 18:55:13
+# @Last Modified time: 2017-11-24 21:47:15
 
 # import time
 import datetime as dt
@@ -34,7 +34,7 @@ contract_mths = {
     'KW':  ['H', 'K', 'N', 'U', 'Z'],
     'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
     'COM': ['G', 'K', 'Q', 'X'],
-    'OBM': ['H', 'K', 'U', 'Z'],
+    'CA': ['H', 'K', 'U', 'Z'],
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 

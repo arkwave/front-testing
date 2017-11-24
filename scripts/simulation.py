@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-11-22 22:36:41
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-11-24 21:46:52
 
 ################################ imports ###################################
 # general imports
@@ -48,7 +48,7 @@ multipliers = {
     'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
     'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
     'COM': [1.0604, 50, 0.25, 2.5, 53.02],
-    'OBM': [1.0604, 50, 0.25, 1, 53.02],
+    'CA': [1.0604, 50, 0.25, 1, 53.02],
     'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
 }
 
@@ -70,7 +70,7 @@ contract_mths = {
     'KW':  ['H', 'K', 'N', 'U', 'Z'],
     'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
     'COM': ['G', 'K', 'Q', 'X'],
-    'OBM': ['H', 'K', 'U', 'Z'],
+    'CA': ['H', 'K', 'U', 'Z'],
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
@@ -871,7 +871,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     hedges_hit = pd.concat(hedges_hit)
     theta_paid = sum(thetas)
     gamma_money = grosspnl - theta_paid
-    return log, net_cumul_values[-1], hedges_hit, gamma_money, theta_paid, sum(gamma_pnl_daily), gamma_pnl_daily
+    return log, net_cumul_values[-1], hedges_hit, gamma_money, theta_paid, thetas, sum(gamma_pnl_daily), gamma_pnl_daily
 
 
 ##########################################################################
