@@ -468,7 +468,7 @@ class Future:
     7) get_product    : returns the name of this contract (i.e. the commodity)
     '''
 
-    def __init__(self, month, price, product, shorted=None, lots=1000, ordering=None):
+    def __init__(self, month, price, product, shorted=None, lots=1000, ordering=None, instructions={}):
         self.product = product
         self.ordering = ordering
         self.lots = lots
@@ -482,6 +482,7 @@ class Future:
         self.expired = self.check_expired()
         mult = -1 if shorted else 1
         self.delta = 1 * lots * mult
+        self.instructions = instructions
 
     def __str__(self):
         string = self.product + ' ' + self.month + ' '
@@ -534,3 +535,9 @@ class Future:
 
     def get_uid(self):
         return self.product + '  ' + self.month
+
+    def set_instructions(self, instructions):
+        self.instructions = instructions
+
+    def get_instructions(self):
+        return self.instructions

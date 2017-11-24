@@ -1248,15 +1248,23 @@ def reorder_ohlc_data(df, pf):
 
 
 def clean_intraday_data(df, start_date, end_date, edf=None, filepath=None):
-    """Does the following: 
-    1) For each product/time combo:
-        filter out price points with 0 volume
-        aggregates volumes by price. 
-        removes duplicate price entries. 
+    """
+    Does the following:
+        1) For each product/time combo:
+            filter out price points with 0 volume
+            aggregates volumes by price. 
+            removes duplicate price entries. 
 
 
     Args:
-        df (TYPE): Description
+        df (dataframe): Dataframe of raw intraday prices.
+        start_date (string): simulation start date, passed into sanitize_intraday_timings
+        end_date (string): simulation end date, passed into sanitize_intraday_timings
+        edf (dataframe, optional): dataframe of exchange timings
+        filepath (string, optional): filepath to dataframe of exchange timings 
+
+    Returns:
+        TYPE: Description
     """
     print('cleaning intraday data')
     t = time.clock()
