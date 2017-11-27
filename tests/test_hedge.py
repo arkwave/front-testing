@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-08-11 19:24:36
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-27 19:11:04
+# @Last Modified time: 2017-11-27 21:46:20
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -419,7 +419,8 @@ def test_intraday_hedge_processing_static():
     print('engine: ', engine)
 
     assert 'intraday' in engine.params['delta']
-    assert len(engine.params['delta']['intraday']) == 4
+    assert len(engine.params['delta']['intraday']) == 5
+    assert not engine.params['delta']['intraday']['conditions']
     assert engine.params['delta']['intraday']['kind'] == 'static'
     assert engine.params['delta']['intraday']['modifier'] == vals
     assert engine.params['delta']['intraday']['ratio'] == 0.7
@@ -553,8 +554,13 @@ def test_intraday_hedging_static_ratio():
 def test_intraday_hedge_processing_be():
     be = {'CC': {'U7': 1, 'Z7': 1.3},
           'QC': {'U7': 1.5, 'Z7': 2}}
+    intraday_params = {'tstop': {'type': 'breakeven',
+                                 'value': {'QC': 1, 'CC': 1.5}}}
+
     gen_hedges = OrderedDict({'delta': [['static', 0, 1],
-                                        ['intraday', 'breakeven', be, 0.7]]})
+                                        ['intraday', 'breakeven', be, 0.7,
+                                         intraday_params]]})
+
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
     pf_comp.hedge_params = gen_hedges
     # assign hedge objects and create copy
@@ -564,13 +570,13 @@ def test_intraday_hedge_processing_be():
     # print('pf_be: ', pf.breakeven())
 
     engine = pf.get_hedger()
-
+    print('engine: ', engine)
     assert 'intraday' in engine.params['delta']
-    assert len(engine.params['delta']['intraday']) == 4
+    assert len(engine.params['delta']['intraday']) == 5
     assert engine.params['delta']['intraday']['kind'] == 'breakeven'
     assert engine.params['delta']['intraday']['modifier'] == be
     assert engine.params['delta']['intraday']['ratio'] == 0.7
-    # print('engine: ', engine)
+    assert engine.params['delta']['intraday']['conditions'] == intraday_params
 
 
 def test_intraday_hedging_be():
@@ -722,6 +728,51 @@ def test_breakeven():
         op.update_greeks(vol=(op.vol + 0.2))
     pf.refresh()
     assert hedge_engine.breakeven == init_be
+
+
+# TODO: fix this.
+def test_trailing_stop_hit():
+    pass
+
+
+# TODO: fix this.
+def test_is_relevant_price_move_tstop_price():
+    be = {'CC': {'U7': 1, 'Z7': 1},
+          'QC': {'U7': 1, 'Z7': 1}}
+    intraday_params = {'tstop': {'type': 'price',
+                                 'trigger': 30,
+                                 'value': {'QC': 1, 'CC': 1.5}}}
+
+    gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+                                        ['intraday', 'breakeven', be,
+                                         intraday_params]]})
+    # intraday_params =
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    pf_comp.hedge_params = gen_hedges
+    # assign hedge objects and create copy
+    pf = copy.deepcopy(pf_comp)
+    pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf)
+    print('pf: ', pf)
+
+    ccfts = [x for x in pf.get_all_futures() if x.get_uid() == 'CC  Z7']
+    qcfts = [x for x in pf.get_all_futures() if x.get_uid() == 'QC  Z7']
+
+    ccprice = ccfts[0].get_price()
+    qcprice = qcfts[0].get_price()
+
+    assert not pf.hedger.is_relevant_price_move('CC  Z7', ccprice + 30)[0]
+
+    for x in ccfts:
+        x.update_price(2000)
+
+    assert pf.hedger.is_relevant_price_move('CC  Z7', ccprice + 38)[0]
+    assert not pf.hedger.is_relevant_price_move('QC  Z7', qcprice + 20)[0]
+    assert pf.hedger.is_relevant_price_move('QC  Z7', qcprice + 28)[0]
+
+
+# TODO: fix this.
+def test_is_relevant_price_move_tstop_be_mult():
+    pass
 
 
 def test_is_relevant_price_move_be():

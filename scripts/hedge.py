@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-27 18:38:35
+# @Last Modified time: 2017-11-27 21:56:53
 
 import pandas as pd
 import pprint
@@ -74,6 +74,8 @@ class Hedge:
         self.date = None
         self.breakeven = self.pf.breakeven().copy()
         self.last_hedgepoints = {}
+        self.entry_levels = self.pf.uid_price_dict().copy()
+        self.tracking_stops = set()
 
         # check if vdf/pdf have been populated. if not, update.
         if (self.vdf is not None and self.pdf is not None):
@@ -88,8 +90,7 @@ class Hedge:
         r_dict = {'desc': self.desc,
                   'params': self.params,
                   'mappings': self.mappings,
-                  'date': self.date,
-                  'hedges': self.hedges}
+                  'date': self.date}
 
         return str(pprint.pformat(r_dict))
 
@@ -201,18 +202,49 @@ class Hedge:
 
             # intraday hedging conditions
             if it_conds:
+                processed_conds = {}
                 # currently defaults to 0.
                 it_conds = it_conds[0]
-                ratio = 1 if len(it_conds) == 3 else it_conds[-1]
-                # print('it_conds: ', it_conds)
+                # case: no additional parameters are passed in.
+                if len(it_conds) == 3:
+                    ratio = 1
+                    processed_conds = {}
+
+                # case: additional intraday parameters were passed in.
+                else:
+                    # delta running specifications passed in.
+                    if isinstance(it_conds[-1], dict):
+                        processed_conds = self.process_intraday_conds(
+                            it_conds[-1])
+                    # ratio passed in.
+                    ratio = it_conds[3] if isinstance(
+                        it_conds[3], (int, float)) else 1
+
                 params[flag]['intraday'] = {'kind': it_conds[1],
                                             'modifier': it_conds[2],
                                             'target': 0,
-                                            'ratio': ratio}
+                                            'ratio': ratio,
+                                            'conditions': processed_conds}
             if desc is None:
                 desc = 'uid'
 
         return desc, params
+
+    # TODO: update this if more intraday conditions come into play later. for now, this just
+    # handles trailing stops.
+    def process_intraday_conds(self, dic):
+        """Helper function that processes intraday hedging parameters. 
+
+        Args:
+            dic (TYPE): Dictionary containing additional constraints that intraday hedging is subject to. Examples would include conditions for letting delta run (i.e. trailing stop losses, returning to a fixed value, etc.)
+
+        Returns:
+            dictionary: parsed dictionary containing the intraday hedging constraints. 
+        """
+        params = {}
+        if 'tstop' in dic:
+            params['tstop'] = dic['tstop']
+        return params
 
     def calibrate_all(self):
         """Calibrates hedge object to all non-delta hedges. calibrate does one of the following things:
@@ -689,6 +721,7 @@ class Hedge:
 
         return cost
 
+    # TODO: need to handle trailing stops if they exist.
     def is_relevant_price_move(self, uid, val, comparison=None):
         """Helper method that checks to see if a price-uid combo fed in is a valid price move. Three cases are handled: 
         1) price move > breakeven * mult
@@ -707,28 +740,91 @@ class Hedge:
         if not self.params or 'intraday' not in self.params['delta']:
             return True, 0
         else:
+            delta_params = self.params['delta']['intraday']
+            # case 1: trailing stop hit.
+            if self.trailing_stop_hit(delta_params, uid, val):
+                return True, 0
+
+            # get price move.
             actual_value = abs(last_val - val)
-            if self.params['delta']['intraday']['kind'] == 'static':
-                # print('static value intraday case')
-                comp_val = self.params['delta']['intraday']['modifier']
+
+            # case 2: flat value-based hedging.
+            if delta_params['kind'] == 'static':
+                comp_val = delta_params['modifier']
                 if actual_value >= comp_val[uid] or np.isclose(actual_value, comp_val[uid]):
                     return True, np.floor(actual_value/comp_val[uid])
-                return False, 0
-            elif self.params['delta']['intraday']['kind'] == 'breakeven':
-                # print('breakeven intraday case')
-                mults = self.params['delta']['intraday']['modifier']
-                # print('mults: ', mults)
+
+            # case 3: breakeven-based hedging.
+            elif delta_params['kind'] == 'breakeven':
+                mults = delta_params['modifier']
                 pdt, mth = uid.split()
                 if pdt in mults and mth in mults[pdt]:
                     be_mult = mults[pdt][mth]
-                    # print('pdt, mth, mult: ', pdt, mth, be_mult)
                 else:
                     be_mult = 1
                 be = self.breakeven[pdt][mth] * be_mult
                 # print('be: ', be)
                 if actual_value >= be or np.isclose(actual_value, be):
                     return True, np.floor(actual_value/be)
-                return False, 0
+
+            return False, 0
+
+    # TODO: figure out trailing stops.
+    def trailing_stop_hit(self, delta_params, uid, val):
+        """
+        Helper function that does the following:
+            1) checks if trailing stop instructions are in place. if not, return false. 
+            2) checks how trailing stop is specified (i.e. breakeven or flat move), converts accordingly. 
+            3) checks to see if the trailing stop has been hit. if so, return true. 
+
+        Args:
+            delta_params (TYPE): Description
+            uid (TYPE): Description
+            val (TYPE): Description
+
+        Returns:
+            TYPE: Description
+        """
+        # get the entry level for this UID.
+        entry_level = self.entry_levels[uid]
+
+        # determine if stop loss monitoring has been triggered yet or not.
+        stop_loss_active = self.check_stop_loss_status(uid)
+
+        if stop_loss_active:
+
+        if delta_params['conditions'] and 'run' in delta_params['conditions']:
+            # first case: check if trailing stop is satisfied, if it exists.
+            trigger, pricemove = self.convert_trigger(
+                delta_params, uid, entry_level)
+            run_conds = delta_params['conditions']['run']
+            pdt = uid.split()[0]
+
+            if (run_conds['type'] == 'price'):
+                if current_price - val >= run_conds['value'][pdt]:
+                    return True
+            elif run_conds['type'] == 'price':
+                raise NotImplementedError
+
+    def check_stop_loss_status(self, uid, delta_params):
+        """Checks if stop loss threshold has been breached by the price of this
+         uid. Returns True iff the current price of the security is beyond the
+         threshold specified. 
+
+        Args:
+            uid (string): underlying ID we're interested in
+        """
+        curr_price = self.pf.uid_price_dict()[uid]
+        entry_level = self.entry_levels[uid]
+        # check to see if curr_price exceeds entry_level by _threshold_ amount.
+        if 'trigger_type' in delta_params:
+            if delta_params['trigger_type'] == 'breakeven':
+                dist = delta_params['trigger'] * self.breakeven[uid]
+            elif delta_params['trigger_type'] == 'price':
+                dist = delta_params['trigger']
+            if abs(curr_price - entry_level) > dist:
+                return True
+        return False
 
     def get_hedge_interval(self, uid):
         """Helper function that gets the hedging interval.
