@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-24 21:47:15
+# @Last Modified time: 2017-11-27 14:55:56
 
 # import time
 import datetime as dt
@@ -390,7 +390,7 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
 
             # check if dataset can be extended.
             if last_pulled != '':
-                print('data last pulled at %s. extending datasets.' %
+                print(pdt + ' data last pulled at %s. extending datasets.' %
                       last_pulled)
                 # construct the paths
                 vdf, pdf, edf = extend_data(

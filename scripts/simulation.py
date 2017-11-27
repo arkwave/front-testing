@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-24 21:46:52
+# @Last Modified time: 2017-11-27 14:12:41
 
 ################################ imports ###################################
 # general imports
@@ -104,7 +104,7 @@ np.random.seed(seed)
 def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                    end_date=None, brokerage=None, slippage=None, signals=None,
                    plot_results=True, drawdown_limit=None, mode='HSPS', mkt_minus=1e7,
-                   ohlc=False, remark_on_roll=False, remark_at_end=False):
+                   ohlc=False, remark_on_roll=False, remark_at_end=False, hinge=False):
     """
     Each run of the simulation consists of 5 steps:
         1) Feed data into the portfolio.
@@ -145,9 +145,19 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         signals (pandas dataframe): dataframe of signals if they are applicable.
         plot_results (bool, optional): boolean flag indicating if results are to be plotted.
         drawdown_limit (float, optional): surpassing this limit causes the simulation to terminate.
+        mode (str, optional): Determines what mode the simulation is run in. 
+        mkt_minus (float, optional): Market minuses if hedging is done basis book vols. 
+        ohlc (bool, optional): flag indicating if data is open-high-low-close. 
+        remark_on_roll (bool, optional): flag indicating if book vols are remarked to settlements on contract rolls. 
+        remark_at_end (bool, optional): flag indicating if book vols are remarked to settlement vols on end of simulation. 
+        hinge (bool, optional): flag indicating if hinge analysis is in place (i.e. 1 intrady hedge and 1 settlement hedge. )
 
     Returns:
         dataframe: dataframe consisting of the logs on each day of the simulation.
+
+
+    Raises:
+        AssertionError: Description
 
 
     """
@@ -829,14 +839,6 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     if plot_results:
         yrs = log.value_date.dt.year.unique()
         yr_str = '-'.join([str(x) for x in yrs])
-        # plt.figure()
-        # plt.hist(gross_daily_values, bins=20,
-        #          alpha=0.6, label='gross pnl distribution')
-        # plt.hist(net_daily_values, bins=20,
-        #          alpha=0.6, label='net pnl distribution')
-        # plt.title('PnL Distribution: Gross/Net ' + yr_str)
-        # plt.legend()
-        # plt.show()
 
         # plotting gross pnl values
         plt.figure()
@@ -855,19 +857,6 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         plt.legend()
         plt.show()
 
-        # cumulative gamma/vega/cumulpnl values
-        # plt.figure()
-        # # colors = ['c' if x >= 0 else 'r' for x in gamma_pnl_daily]
-        # plt.plot(log.value_date, log.cu_gamma_pnl, color='c',
-        #          alpha=0.6, label='cu. gamma pnl')
-        # plt.plot(log.value_date, log.cu_vega_pnl,
-        #          color='m', alpha=0.6, label='cu. vega pnl')
-        # plt.plot(log.value_date, log.cu_pnl_gross, color='k',
-        #          alpha=0.8, label='gross pnl')
-        # plt.title('gamma/vega/cumulative pnls ' + yr_str)
-        # plt.legend()
-
-        # plt.show()
     hedges_hit = pd.concat(hedges_hit)
     theta_paid = sum(thetas)
     gamma_money = grosspnl - theta_paid
