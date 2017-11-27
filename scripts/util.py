@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-24 21:47:02
+# @Last Modified time: 2017-11-27 18:38:10
 
 
 from .portfolio import Portfolio
@@ -886,9 +886,9 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
 
     assert len(ops) == 2
 
-    for op in ops:
-        print('util.create_straddle - strike, char, short: ',
-              op.K, op.char, op.shorted)
+    # for op in ops:
+    #     print('util.create_straddle - strike, char, short: ',
+    #           op.K, op.char, op.shorted)
 
     return ops
 

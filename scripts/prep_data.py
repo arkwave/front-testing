@@ -759,7 +759,7 @@ def find_cdist(x1, x2, lst):
     x2mth = x2[0]
     x2yr = int(x2[1:])
 
-    print('find_cdist inputs: ', x1, x2, lst)
+    # print('find_cdist inputs: ', x1, x2, lst)
 
     # print(x1yr >)
     # case 1: month is a contract month.

@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-24 21:48:01
+# @Last Modified time: 2017-11-27 18:38:35
 
 import pandas as pd
 import pprint
@@ -153,11 +153,13 @@ class Hedge:
             r_conds = [x for x in all_conds if x[0] == 'bound']
             s_conds = [x for x in all_conds if x[0] == 'static']
             it_conds = [x for x in all_conds if x[0] == 'intraday']
+            # static EOD delta hedging conditions.
             if s_conds:
                 s_conds = s_conds[0]
                 val = 0 if s_conds[1] == 'zero' else int(s_conds[1])
                 params[flag]['eod'] = {'target': val}
 
+            # bound conditions.
             if r_conds:
                 r_conds = r_conds[0]
                 # print('r_conds: ', r_conds)
@@ -196,14 +198,17 @@ class Hedge:
                         elif r_conds[4] == 'ratio':
                             params[flag]['tau_val'] = r_conds[3]
                             params[flag]['tau_desc'] = 'ratio'
+
+            # intraday hedging conditions
             if it_conds:
                 # currently defaults to 0.
                 it_conds = it_conds[0]
-                print('it_conds: ', it_conds)
+                ratio = 1 if len(it_conds) == 3 else it_conds[-1]
+                # print('it_conds: ', it_conds)
                 params[flag]['intraday'] = {'kind': it_conds[1],
                                             'modifier': it_conds[2],
-                                            'target': 0}
-
+                                            'target': 0,
+                                            'ratio': ratio}
             if desc is None:
                 desc = 'uid'
 
@@ -794,11 +799,16 @@ class Hedge:
         for product in tobehedged:
             for month in tobehedged[product]:
                 print('delta hedging ' + product + '  ' + month)
+                if 'ratio' in self.params['delta'][target_flag]:
+                    ratio = self.params['delta'][target_flag]['ratio']
+                else:
+                    ratio = 1
                 target = self.params['delta'][target_flag]['target']
-                delta = net_greeks[product][month][0]
+                delta = net_greeks[product][month][0] * ratio
                 delta_diff = delta - target
                 shorted = True if delta_diff > 0 else False
                 num_lots_needed = abs(round(delta_diff))
+                print('num_lots_needed: ', num_lots_needed)
                 ft = None
                 if num_lots_needed == 0:
                     print('no hedging required for ' + product +

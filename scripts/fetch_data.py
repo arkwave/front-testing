@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-27 14:55:56
+# @Last Modified time: 2017-11-27 18:27:57
 
 # import time
 import datetime as dt
@@ -265,8 +265,8 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
         sd, ed = start_date.strftime('%Y%m%d'), end_date.strftime('%Y%m%d')
         # write datasets into the debug folder.
         # volids = final_vol.vol_id.unique()
-        vid_str = '_'.join([x for x in volids]) if volids is not None else None
-        if vid_str is not None:
+        vid_str = '_'.join([x for x in volids]) if volids is not None else ''
+        if vid_str != '':
             vid_str = '_' + vid_str
         final_vol.to_csv(desired_path + pdt.lower() +
                          '_final_vols_' + sd + '_' + ed + vid_str + '.csv', index=False)
