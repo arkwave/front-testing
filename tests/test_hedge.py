@@ -555,7 +555,7 @@ def test_intraday_hedge_processing_be():
     be = {'CC': {'U7': 1, 'Z7': 1.3},
           'QC': {'U7': 1.5, 'Z7': 2}}
     intraday_params = {'tstop': {'type': 'breakeven',
-                                 'value': {'QC': 1, 'CC': 1.5}}}
+                                 'value': {'QC  Z7': 1, 'CC  Z7': 1.5}}}
 
     gen_hedges = OrderedDict({'delta': [['static', 0, 1],
                                         ['intraday', 'breakeven', be, 0.7,
@@ -741,18 +741,19 @@ def test_is_relevant_price_move_tstop_price():
           'QC': {'U7': 1, 'Z7': 1}}
     intraday_params = {'tstop': {'type': 'price',
                                  'trigger': 30,
-                                 'value': {'QC': 1, 'CC': 1.5}}}
+                                 'value': {'QC  Z7': 1, 'CC  Z7': 1.5}}}
 
     gen_hedges = OrderedDict({'delta': [['static', 0, 1],
                                         ['intraday', 'breakeven', be,
                                          intraday_params]]})
-    # intraday_params =
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
     pf_comp.hedge_params = gen_hedges
     # assign hedge objects and create copy
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf)
-    print('pf: ', pf)
+    # print('pf: ', pf)
+
+    print('engine: ', pf.get_hedger())
 
     ccfts = [x for x in pf.get_all_futures() if x.get_uid() == 'CC  Z7']
     qcfts = [x for x in pf.get_all_futures() if x.get_uid() == 'QC  Z7']
@@ -768,11 +769,6 @@ def test_is_relevant_price_move_tstop_price():
     assert pf.hedger.is_relevant_price_move('CC  Z7', ccprice + 38)[0]
     assert not pf.hedger.is_relevant_price_move('QC  Z7', qcprice + 20)[0]
     assert pf.hedger.is_relevant_price_move('QC  Z7', qcprice + 28)[0]
-
-
-# TODO: fix this.
-def test_is_relevant_price_move_tstop_be_mult():
-    pass
 
 
 def test_is_relevant_price_move_be():
@@ -827,3 +823,8 @@ def test_is_relevant_price_move_static():
     assert engine.is_relevant_price_move('CC  Z7', ccprice + 10)[0]
     assert not engine.is_relevant_price_move('QC  Z7', qcprice + 5)[0]
     assert engine.is_relevant_price_move('QC  Z7', qcprice + 10)[0]
+
+
+
+def test_trailingstop():
+    pass 

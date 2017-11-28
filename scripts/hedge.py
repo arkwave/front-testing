@@ -75,7 +75,7 @@ class Hedge:
         self.breakeven = self.pf.breakeven().copy()
         self.last_hedgepoints = {}
         self.entry_levels = self.pf.uid_price_dict().copy()
-        self.tracking_stops = set()
+        self.intraday_conds = None 
 
         # check if vdf/pdf have been populated. if not, update.
         if (self.vdf is not None and self.pdf is not None):
@@ -202,29 +202,25 @@ class Hedge:
 
             # intraday hedging conditions
             if it_conds:
-                processed_conds = {}
                 # currently defaults to 0.
                 it_conds = it_conds[0]
                 # case: no additional parameters are passed in.
                 if len(it_conds) == 3:
                     ratio = 1
-                    processed_conds = {}
 
                 # case: additional intraday parameters were passed in.
                 else:
                     # delta running specifications passed in.
                     if isinstance(it_conds[-1], dict):
-                        processed_conds = self.process_intraday_conds(
-                            it_conds[-1])
+                        self.intraday_conds = self.process_intraday_conds(it_conds[-1])
+
                     # ratio passed in.
-                    ratio = it_conds[3] if isinstance(
-                        it_conds[3], (int, float)) else 1
+                    ratio = it_conds[3] if isinstance(it_conds[3], (int, float)) else 1
 
                 params[flag]['intraday'] = {'kind': it_conds[1],
                                             'modifier': it_conds[2],
                                             'target': 0,
-                                            'ratio': ratio,
-                                            'conditions': processed_conds}
+                                            'ratio': ratio}
             if desc is None:
                 desc = 'uid'
 
@@ -236,15 +232,18 @@ class Hedge:
         """Helper function that processes intraday hedging parameters. 
 
         Args:
-            dic (TYPE): Dictionary containing additional constraints that intraday hedging is subject to. Examples would include conditions for letting delta run (i.e. trailing stop losses, returning to a fixed value, etc.)
+            dic (TYPE): Dictionary containing additional constraints that intraday hedging is subject to. 
+            Examples would include conditions for letting delta run (i.e. trailing stop losses, 
+            returning to a fixed value, etc.)
 
         Returns:
-            dictionary: parsed dictionary containing the intraday hedging constraints. 
+            object: TrailingStop instance 
         """
-        params = {}
         if 'tstop' in dic:
-            params['tstop'] = dic['tstop']
-        return params
+            print('-------- Creating TrailingStop Object ---------')
+            tstop_obj = TrailingStop(self.entry_levels, dic, self.pf)
+            print('------------ TrailingStop Created -------------')
+        return tstop_obj
 
     def calibrate_all(self):
         """Calibrates hedge object to all non-delta hedges. calibrate does one of the following things:
@@ -723,7 +722,8 @@ class Hedge:
 
     # TODO: need to handle trailing stops if they exist.
     def is_relevant_price_move(self, uid, val, comparison=None):
-        """Helper method that checks to see if a price-uid combo fed in is a valid price move. Three cases are handled: 
+        """Helper method that checks to see if a price-uid combo fed in is a valid price move. 
+        Three cases are handled: 
         1) price move > breakeven * mult
         2) price move > flat value
         3) price type is settlement. 
@@ -742,8 +742,9 @@ class Hedge:
         else:
             delta_params = self.params['delta']['intraday']
             # case 1: trailing stop hit.
-            if self.trailing_stop_hit(delta_params, uid, val):
-                return True, 0
+            if self.intraday_conds is not None:
+                if self.intraday_conds.trailing_stop_hit(uid, val=val):
+                    return True, 0 
 
             # get price move.
             actual_value = abs(last_val - val)
@@ -768,63 +769,6 @@ class Hedge:
                     return True, np.floor(actual_value/be)
 
             return False, 0
-
-    # TODO: figure out trailing stops.
-    def trailing_stop_hit(self, delta_params, uid, val):
-        """
-        Helper function that does the following:
-            1) checks if trailing stop instructions are in place. if not, return false. 
-            2) checks how trailing stop is specified (i.e. breakeven or flat move), converts accordingly. 
-            3) checks to see if the trailing stop has been hit. if so, return true. 
-
-        Args:
-            delta_params (TYPE): Description
-            uid (TYPE): Description
-            val (TYPE): Description
-
-        Returns:
-            TYPE: Description
-        """
-        # get the entry level for this UID.
-        entry_level = self.entry_levels[uid]
-
-        # determine if stop loss monitoring has been triggered yet or not.
-        stop_loss_active = self.check_stop_loss_status(uid)
-
-        if stop_loss_active:
-
-        if delta_params['conditions'] and 'run' in delta_params['conditions']:
-            # first case: check if trailing stop is satisfied, if it exists.
-            trigger, pricemove = self.convert_trigger(
-                delta_params, uid, entry_level)
-            run_conds = delta_params['conditions']['run']
-            pdt = uid.split()[0]
-
-            if (run_conds['type'] == 'price'):
-                if current_price - val >= run_conds['value'][pdt]:
-                    return True
-            elif run_conds['type'] == 'price':
-                raise NotImplementedError
-
-    def check_stop_loss_status(self, uid, delta_params):
-        """Checks if stop loss threshold has been breached by the price of this
-         uid. Returns True iff the current price of the security is beyond the
-         threshold specified. 
-
-        Args:
-            uid (string): underlying ID we're interested in
-        """
-        curr_price = self.pf.uid_price_dict()[uid]
-        entry_level = self.entry_levels[uid]
-        # check to see if curr_price exceeds entry_level by _threshold_ amount.
-        if 'trigger_type' in delta_params:
-            if delta_params['trigger_type'] == 'breakeven':
-                dist = delta_params['trigger'] * self.breakeven[uid]
-            elif delta_params['trigger_type'] == 'price':
-                dist = delta_params['trigger']
-            if abs(curr_price - entry_level) > dist:
-                return True
-        return False
 
     def get_hedge_interval(self, uid):
         """Helper function that gets the hedging interval.
@@ -881,7 +825,11 @@ class Hedge:
                 pdt, mth = uid.split()
                 relevant_move, move_mult = self.is_relevant_price_move(
                     uid, curr_prices[uid])
-                if relevant_move:
+                # check to see if hedging condition has been imposed. 
+                if self.intraday_conds is not None:
+                    price_dict = self.pf.uid_price_dict()
+                    run_deltas = self.intraday_conds.run_deltas(uid, price_dict)
+                if relevant_move and not run_deltas:
                     if pdt not in tobehedged:
                         tobehedged[pdt] = set()
                     tobehedged[pdt].add(mth)
@@ -1062,3 +1010,177 @@ class Hedge:
                   ' price and/or vol data does not exist. skipping...')
 
         return ops
+
+
+class TrailingStop:
+    """
+    Class that handles all the details required for trailing stops. 
+
+    Attributes:
+        current_level (TYPE): UID -> current price level dictionary. 
+        current_levels (TYPE): Description
+        entry_level (TYPE): a dictionary mappng UID to the price level the tradewas entered at.
+        thresholds (dict): dictionary mapping uid to the price level at which 
+                           trailing stop monitoring is 'turned on' 
+        active (dict): UID -> true or false. Determines whether or not stop loss 
+                              monitoring has been triggered. 
+        pf (portfolio object): the portfolio this trailing stop object is monitoring.
+        stop_values: uid -> price point upon which we stop out.  
+        stop_levels: copy of params['value']. used to re-compute the stop values
+
+    """
+
+    def __init__(self, entry_level, params, pf):
+        self.entry_level = entry_level
+        self.current_level = entry_level.copy()
+        self.pf = pf  
+        self.maximals = entry_level.copy()
+        self.stop_values, self.thresholds, self.active = {}, {}, None
+        self.stop_levels = None
+        self.process_params(params)
+
+    def process_params(self, dic):
+        """Helper method that processes the intraday params specified
+        in dic. 
+
+        Args:
+            dic (TYPE): dictionary of intraday parameters, of the following form:
+                {'trigger': {uid1: (30, price), uid2: (50, price)}, 'value': 
+                {uid1: (-31.5, price), uid2: (-1, price}}
+        Returns:
+            tuple: trigger levels: price points at which to trigger a stop. 
+                   active: dictionary mapping UIDS to True/False. Determines
+                   whether stop loss monitoring has been triggered or not. 
+        """
+        # first: sanity check the inputs. 
+        try:
+            assert 'type' in dic 
+            assert 'trigger' in dic 
+            assert 'value' in dic 
+            assert isinstance(dic['value'], dict)
+        except AssertionError as e:
+            raise ValueError("Something is wrong with the intraday input params passed in. ", dic)
+
+        # divide up the input parameters into stop values, thresholds and actives respectively. 
+        trigger_values = dic['trigger']
+        breakevens = self.pf.breakeven()
+
+        for uid in trigger_values:
+            if trigger_values[uid][1] == 'price':
+                # case: stop loss monitoring is active upon a certain flat price move. 
+                self.thresholds[uid] = self.current_level[uid] + trigger_values[uid][0] 
+            elif trigger_values[uid][1] == 'breakeven':
+                # case: stop loss monitoring is active upon a certain BE move. 
+                val = breakevens[uid] * trigger_values[uid][0]
+                self.thresholds[uid] = self.current_level[uid] + val 
+
+        self.check_active() 
+
+        stops = dic['value']
+
+        self.stop_levels = stops
+
+        for uid in self.thresholds:
+            if stops[uid][1] == 'price':
+                self.stop_values[uid] = self.thresholds[uid] + stops[uid][0]
+            else:
+                val = breakevens[uid] * stops[0]
+                self.stop_values[uid] = self.thresholds[uid] + val 
+
+    def get_entry_level(self):
+        return self.entry_levels
+
+    def get_current_level(self, uid=None):
+        return self.current_level if uid is None else self.current_level[uid]
+
+    def set_current_level(self, dic):
+        self.current_level = dic 
+        self.check_active() 
+        self.update_highest() 
+
+    def update_highest(self):
+        for uid in self.current_level:
+            if self.current_level[uid] > self.maximals[uid] and self.stop_values[uid] < 0:
+                self.maximals[uid] = self.current_level[uid]
+
+        self.update_stop_values() 
+
+    def update_stop_values(self):
+        assert self.stop_levels is not None
+        for uid in self.stop_levels:
+            data = self.stop_levels[uid]
+            if data[1] == 'price':
+                self.stop_values[uid] = self.maximals[uid] + data[0]
+
+            elif data[1] == 'breakeven':
+                breakevens = self.pf.breakeven()
+                val = breakevens[uid] * data[0]
+                self.stop_values[uid] = self.maximals[uid] + val 
+
+    def is_active(self, uid=None):
+        if uid is None:
+            return self.active 
+        else:
+            if uid in self.active:
+                return self.active[uid]
+            else:
+                raise ValueError("%s is not in the portfolio passed into the TrailingStop object" % uid)
+
+    def check_active(self):
+        if self.active is not None:
+            for uid in self.active:   
+                try:
+                    self.active[uid] = abs(self.current_level[uid]) > abs(self.threshold[uid])
+                except KeyError as e:
+                    print('current_level: ', self.current_level)
+                    print('thresholds: ', self.threshold)
+                    raise KeyError('Key %s not in current_level and/or threshold dictionaries' % uid)
+        else:
+            self.active = {uid: abs(self.current_level[uid]) > abs(self.threshold[uid]) 
+                           for uid in self.current_level}
+
+    def trailing_stop_hit(self, uid, val=None):
+        """
+        Helper function that checks to see if the trailing stop has been hit. if so, return true. 
+        
+        Args:
+            uid (string): the underlying ID we are interested in 
+            val (float, optional): an explicit value to compare. 
+        
+        Returns:
+            TYPE: Description
+    
+        """
+        # base case: stop monitoring not active. 
+        if not self.active[uid]:
+            return False 
+
+        # get the current price and the direction of the stop. 
+        current_price = self.get_current_level(uid=uid) if val is None else val 
+        stop_direction = np.sign(self.stop_levels[uid][0])
+
+        # case 1: sell-stop and current price <= stop value. 
+        if (current_price <= self.stop_values[uid]) and stop_direction == -1:
+            return True 
+
+        # case 2: buy-stop and current price >= stop value. 
+        elif current_price >= self.stop_values[uid] and stop_direction == 1:
+            return True 
+
+        return False  
+
+    def run_deltas(self, uid, price_dict):
+        """The only function that should be called outside of the 
+        Args:
+            uid (string): The underlying ID we're interested in 
+            price_dict (dic): dictionary of prices. 
+        """
+        # first: update the prices. 
+        self.set_current_level(price_dict)
+
+        # second: check to see if a trailing stop got hit. 
+        if self.trailing_stop_hit(uid):
+            return False 
+
+        else:
+            return True 
