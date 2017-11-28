@@ -419,8 +419,7 @@ def test_intraday_hedge_processing_static():
     print('engine: ', engine)
 
     assert 'intraday' in engine.params['delta']
-    assert len(engine.params['delta']['intraday']) == 5
-    assert not engine.params['delta']['intraday']['conditions']
+    assert len(engine.params['delta']['intraday']) == 4
     assert engine.params['delta']['intraday']['kind'] == 'static'
     assert engine.params['delta']['intraday']['modifier'] == vals
     assert engine.params['delta']['intraday']['ratio'] == 0.7
@@ -554,8 +553,10 @@ def test_intraday_hedging_static_ratio():
 def test_intraday_hedge_processing_be():
     be = {'CC': {'U7': 1, 'Z7': 1.3},
           'QC': {'U7': 1.5, 'Z7': 2}}
-    intraday_params = {'tstop': {'type': 'breakeven',
-                                 'value': {'QC  Z7': 1, 'CC  Z7': 1.5}}}
+    intraday_params = {'tstop': {'trigger': {'QC  Z7': (1500, 'price'), 
+                                             'CC  Z7': (2000, 'price')},
+                                 'value': {'QC  Z7': (5, 'price'), 
+                                           'CC  Z7': (10, 'price')}}}
 
     gen_hedges = OrderedDict({'delta': [['static', 0, 1],
                                         ['intraday', 'breakeven', be, 0.7,
@@ -571,12 +572,19 @@ def test_intraday_hedge_processing_be():
 
     engine = pf.get_hedger()
     print('engine: ', engine)
+
+    assert engine.intraday_conds is not None
+
     assert 'intraday' in engine.params['delta']
-    assert len(engine.params['delta']['intraday']) == 5
+    assert len(engine.params['delta']['intraday']) == 4
     assert engine.params['delta']['intraday']['kind'] == 'breakeven'
     assert engine.params['delta']['intraday']['modifier'] == be
     assert engine.params['delta']['intraday']['ratio'] == 0.7
-    assert engine.params['delta']['intraday']['conditions'] == intraday_params
+    assert engine.intraday_conds.entry_level == pf.uid_price_dict() 
+    assert engine.intraday_conds.maximals == pf.uid_price_dict() 
+
+    print('pf: ', pf)
+    print('Tstop monitoring: ', engine.intraday_conds.active)
 
 
 def test_intraday_hedging_be():
@@ -731,11 +739,6 @@ def test_breakeven():
 
 
 # TODO: fix this.
-def test_trailing_stop_hit():
-    pass
-
-
-# TODO: fix this.
 def test_is_relevant_price_move_tstop_price():
     be = {'CC': {'U7': 1, 'Z7': 1},
           'QC': {'U7': 1, 'Z7': 1}}
@@ -825,6 +828,34 @@ def test_is_relevant_price_move_static():
     assert engine.is_relevant_price_move('QC  Z7', qcprice + 10)[0]
 
 
-
+# FIXME 
 def test_trailingstop():
+    pass 
+
+
+def test_trailingstop_processing():
+    pass
+
+
+def test_trailingstop_hit():
+    pass
+
+
+def test_trailingstop_active():
+    pass
+
+
+def test_trailingstop_update():
+    pass 
+
+
+def test_trailingstop_update_highest():
+    pass 
+
+
+def test_trailingstop_update_stopvals():
+    pass
+
+
+def test_trailingstop_getters():
     pass 

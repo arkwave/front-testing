@@ -68,14 +68,15 @@ class Hedge:
         self.vdf = vdf
         self.pdf = pdf
         self.pf = portfolio
+        self.entry_levels = self.pf.uid_price_dict().copy()
         self.buckets = buckets if buckets is not None else [0, 30, 60, 90, 120]
         self.hedges = hedges
+        self.intraday_conds = None 
         self.desc, self.params = self.process_hedges()
         self.date = None
         self.breakeven = self.pf.breakeven().copy()
         self.last_hedgepoints = {}
-        self.entry_levels = self.pf.uid_price_dict().copy()
-        self.intraday_conds = None 
+        
 
         # check if vdf/pdf have been populated. if not, update.
         if (self.vdf is not None and self.pdf is not None):
@@ -212,7 +213,7 @@ class Hedge:
                 else:
                     # delta running specifications passed in.
                     if isinstance(it_conds[-1], dict):
-                        self.intraday_conds = self.process_intraday_conds(it_conds[-1])
+                        self.process_intraday_conds(it_conds[-1])
 
                     # ratio passed in.
                     ratio = it_conds[3] if isinstance(it_conds[3], (int, float)) else 1
@@ -239,11 +240,13 @@ class Hedge:
         Returns:
             object: TrailingStop instance 
         """
+        print('intraday conds: dic - ', dic)
         if 'tstop' in dic:
             print('-------- Creating TrailingStop Object ---------')
-            tstop_obj = TrailingStop(self.entry_levels, dic, self.pf)
+            tstop_obj = TrailingStop(self.entry_levels, dic['tstop'], self.pf)
+            self.intraday_conds = tstop_obj
+            assert self.intraday_conds is not None 
             print('------------ TrailingStop Created -------------')
-        return tstop_obj
 
     def calibrate_all(self):
         """Calibrates hedge object to all non-delta hedges. calibrate does one of the following things:
@@ -1054,7 +1057,7 @@ class TrailingStop:
         """
         # first: sanity check the inputs. 
         try:
-            assert 'type' in dic 
+            # assert 'type' in dic 
             assert 'trigger' in dic 
             assert 'value' in dic 
             assert isinstance(dic['value'], dict)
@@ -1130,13 +1133,13 @@ class TrailingStop:
         if self.active is not None:
             for uid in self.active:   
                 try:
-                    self.active[uid] = abs(self.current_level[uid]) > abs(self.threshold[uid])
+                    self.active[uid] = abs(self.current_level[uid]) > abs(self.thresholds[uid])
                 except KeyError as e:
                     print('current_level: ', self.current_level)
-                    print('thresholds: ', self.threshold)
+                    print('thresholds: ', self.thresholds)
                     raise KeyError('Key %s not in current_level and/or threshold dictionaries' % uid)
         else:
-            self.active = {uid: abs(self.current_level[uid]) > abs(self.threshold[uid]) 
+            self.active = {uid: abs(self.current_level[uid]) > abs(self.thresholds[uid]) 
                            for uid in self.current_level}
 
     def trailing_stop_hit(self, uid, val=None):
