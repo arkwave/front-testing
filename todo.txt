@@ -1229,12 +1229,38 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 ###### As of 11/13/2017:
 1) over night market time step reconciliation:
 	1) change settlements to be inserted one minute after close. 
-	2) multiple products = standardize the timezone. 
-	3) overnight market data pulling caveat. pull one business day earlier. 
+	2) [Done] multiple products = standardize the timezone. 
+	3) [Done] overnight market data pulling caveat. pull one business day earlier. 
 
 2) Pending bug fixes:
-	1_ duplicate entries in soybeans run. 
 	2_ testing.
+
+
+
+##### As of 11/29/2017:
+
+1) TrailingStop implementation:
+	
+	> Finish implementing/testing trailingstop object. 
+		- issue: active updated whenever new prices are passed in --> gap moves beyond the stop limit don't trigger stop hits because active is set to False. 
+			solution_: implemented a lock that is activated when trailing stop monitoring is on, and deactivated only when the stop is hit. 
+
+	> How the hell are TrailingStop and Hedge going to communicate?
+		- 3 cases to consider:
+			> trigger bounds > breakeven multiple.
+				- while within range, hedge as per normal. when outside, trailing stop logic kicks in. run deltas until stop loss is hit,
+				upon which we zero out deltas completely. 
+			> trigger bounds < breakeven multiple:
+				- going to run deltas anyway. do nothing. this is equivalent to just hedging according to breakeven multiple. 
+			> trigger bound == breakeven multiple.
+				- want to preferentially follow the trailing stop until the stops are hit.
+				= solution: stop loss monitoring should be active as soon as breakeven is hit --> run_deltas will return true. 
+						    in the case where ratio is specified 
+
+		- full flow between trailingstop and hedge object:
+			hedge_delta(intraday=True) -> passes price dictionary into trailingstop object --> checks monitoring status --> run_delta returns TRUE if trailing stop is being monitored, FALSE otherwise --> should also return a FRACTION that will determine how much of the delta to hedge. 
+
+	> Incorporating TrailingStop into is_relevant_price_move. 
 
 
 
@@ -1282,5 +1308,3 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 - volgraphix implementation for intraday hedging conditions. 
 
 --------------------------------------
-
-
