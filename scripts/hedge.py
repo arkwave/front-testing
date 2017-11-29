@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-29 19:57:28
+# @Last Modified time: 2017-11-29 20:56:25
 
 import pandas as pd
 import pprint
@@ -76,8 +76,11 @@ class Hedge:
         self.hedges = hedges
         self.intraday_conds = None
         self.desc, self.params = self.process_hedges()
-        self.hedgeparser = HedgeParser(
-            self.params, self, self.intraday_conds)
+        self.hedgeparser = None
+        if ('delta' in self.params) and \
+           ('intraday' in self.params['delta']):
+            self.hedgeparser = HedgeParser(self.params['delta']['intraday'],
+                                           self, self.intraday_conds)
         self.date = None
         self.breakeven = self.pf.breakeven().copy()
 
@@ -114,6 +117,8 @@ class Hedge:
             dic (TYPE): dictionary of breakevens, organized by product/month
         """
         self.breakeven = dic
+        if self.intraday_conds is not None:
+            self.intraday_conds.update_thresholds(self.breakeven)
 
     def update_hedgepoints(self):
         """Helper method that constructs the self.hedge_points dictionary, which maps 
@@ -781,7 +786,7 @@ class Hedge:
 
             return False, 0
 
-    def get_hedge_interval(self, uid):
+    def get_hedge_interval(self, uid=None):
         """Helper function that gets the hedging interval.
 
         Args:
@@ -790,23 +795,39 @@ class Hedge:
         Returns:
             TYPE: the move level at which this uid should be hedged. 
         """
-        if self.params['delta']['intraday']['kind'] == 'static':
-            # print('static value intraday case')
-            comp_val = self.params['delta']['intraday']['modifier'][uid]
+        if uid is not None:
+            if self.params['delta']['intraday']['kind'] == 'static':
+                # print('static value intraday case')
+                comp_val = self.params['delta']['intraday']['modifier'][uid]
 
-        elif self.params['delta']['intraday']['kind'] == 'breakeven':
-            # print('breakeven intraday case')
-            mults = self.params['delta']['intraday']['modifier']
-            # print('mults: ', mults)
-            pdt, mth = uid.split()
-            if pdt in mults and mth in mults[pdt]:
-                be_mult = mults[pdt][mth]
-                print('pdt, mth, mult: ', pdt, mth, be_mult)
-            else:
-                be_mult = 1
-            comp_val = self.breakeven[pdt][mth] * be_mult
+            elif self.params['delta']['intraday']['kind'] == 'breakeven':
+                # print('breakeven intraday case')
+                mults = self.params['delta']['intraday']['modifier']
+                # print('mults: ', mults)
+                pdt, mth = uid.split()
+                if pdt in mults and mth in mults[pdt]:
+                    be_mult = mults[pdt][mth]
+                    print('pdt, mth, mult: ', pdt, mth, be_mult)
+                else:
+                    be_mult = 1
+                comp_val = self.breakeven[pdt][mth] * be_mult
 
-        return comp_val
+            return comp_val
+        else:
+
+            if self.params['delta']['intraday']['kind'] == 'static':
+                return self.params['delta']['intraday']['modifier']
+            elif self.params['delta']['intraday']['kind'] == 'breakeven':
+                ret = {}
+                mults = self.params['delta']['intraday']['modifier']
+                for pdt in self.breakeven:
+                    for mth in self.breakeven[pdt]:
+                        uid = pdt + '  ' + mth
+                        # get the mult.
+                        mult = mults[pdt][mth]
+                        fin = mult * self.breakeven[pdt][mth]
+                        ret[uid] = fin
+                return ret
 
     def hedge_delta(self, intraday=False, ohlc=False):
         """Helper method that hedges delta basis net greeks, irrespective of the

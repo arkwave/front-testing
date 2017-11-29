@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-29 19:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-29 20:11:39
+# @Last Modified time: 2017-11-29 21:48:02
 import pprint
 from abc import ABC, abstractmethod
 
@@ -52,6 +52,7 @@ class TrailingStop(HedgeModifier):
         self.stop_levels = None
         self.anchor_points = last_hedged
         self.locked = {uid: False for uid in self.current_level}
+        self.trigger_bounds_numeric = None
         self.process_params(params)
 
     def __str__(self):
@@ -100,6 +101,9 @@ class TrailingStop(HedgeModifier):
         self.stop_levels = stops
         self.update_stop_values()
 
+    def get_trigger_bounds(self):
+        return self.trigger_bounds
+
     def get_locks(self):
         return self.locked
 
@@ -143,6 +147,18 @@ class TrailingStop(HedgeModifier):
             self.anchor_points = dic
         self.update_thresholds(self.pf.breakeven())
         self.update_active()
+
+    def get_trigger_bounds_numeric(self, breakevens):
+        dic = self.trigger_bounds
+        new = {}
+        for uid in dic:
+            bound = dic[uid][0]
+            if dic[uid][1] == 'price':
+                new[uid] = bound
+            elif dic[uid][1] == 'breakeven':
+                val = breakevens[uid] * bound
+                new[uid] = val
+        return new
 
     def update_thresholds(self, breakevens):
         """Summary
@@ -317,6 +333,38 @@ class HedgeParser:
     """
 
     def __init__(self, dic, parent, mod_obj):
-        self.dic = dic
+        self.params = dic
         self.parent = parent
         self.mod_obj = mod_obj
+
+    def get_hedge_ratio(self):
+        """
+        3 cases handled:
+            1) trigger bounds are wider than breakeven --> run deltas outside, neutralize all inside. 
+            2) trigger bounds are smaller than breakeven --> do nothing. 
+            3) trigger bounds are equal to breakeven --> return 1-hedge_ratio.
+        Returns:
+            TYPE: Description
+        """
+        ret = {}
+        # check to see if ratio parameter exists in the params dict.
+        if 'ratio' in self.params:
+            hedger_ratio = self.params['ratio']
+            # now check to see which case the trailingstop object falls under.
+            if isinstance(self.mod_obj, TrailingStop):
+                # get the parent Hedge object's breakeven dictionary.
+                hedger_interval_dict = self.parent.get_hedge_interval()
+                # get the trigger bounds.
+                trigger_bounds = self.mod_obj.get_trigger_bounds_numeric()
+                assert trigger_bounds.keys() == hedger_interval_dict.keys()
+                for uid in trigger_bounds:
+                    run_trigger, hedge_interval = trigger_bounds[
+                        uid], hedger_interval_dict[uid]
+                    # case: run_delta + modification trigger is > hedge
+                    # interval stipulated.
+                    if run_trigger > hedge_interval or run_trigger < hedge_interval:
+                        ret[uid] = 1
+                    elif run_trigger == hedge_interval:
+                        ret[uid] = 1-hedger_ratio
+        else:
+            return {uid: 1 for uid in self.parent.pf.uid_price_dict()}
