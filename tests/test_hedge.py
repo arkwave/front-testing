@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-08-11 19:24:36
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-27 21:46:20
+# @Last Modified time: 2017-11-29 20:04:17
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -553,10 +553,10 @@ def test_intraday_hedging_static_ratio():
 def test_intraday_hedge_processing_be():
     be = {'CC': {'U7': 1, 'Z7': 1.3},
           'QC': {'U7': 1.5, 'Z7': 2}}
-    intraday_params = {'tstop': {'trigger': {'QC  Z7': (1500, 'price'), 
+    intraday_params = {'tstop': {'trigger': {'QC  Z7': (1500, 'price'),
                                              'CC  Z7': (2000, 'price')},
-                                 'value': {'QC  Z7': (5, 'price'), 
-                                           'CC  Z7': (10, 'price')}}}
+                                 'value': {'QC  Z7': (-5, 'price'),
+                                           'CC  Z7': (-10, 'price')}}}
 
     gen_hedges = OrderedDict({'delta': [['static', 0, 1],
                                         ['intraday', 'breakeven', be, 0.7,
@@ -580,11 +580,12 @@ def test_intraday_hedge_processing_be():
     assert engine.params['delta']['intraday']['kind'] == 'breakeven'
     assert engine.params['delta']['intraday']['modifier'] == be
     assert engine.params['delta']['intraday']['ratio'] == 0.7
-    assert engine.intraday_conds.entry_level == pf.uid_price_dict() 
-    assert engine.intraday_conds.maximals == pf.uid_price_dict() 
+    assert engine.intraday_conds.entry_level == pf.uid_price_dict()
+    assert engine.intraday_conds.maximals == pf.uid_price_dict()
 
-    print('pf: ', pf)
-    print('Tstop monitoring: ', engine.intraday_conds.active)
+    # print('pf: ', pf)
+    print('TrailingStop: ', engine.intraday_conds)
+    # print('Tstop monitoring: ', engine.intraday_conds.active)
 
 
 def test_intraday_hedging_be():
@@ -739,39 +740,39 @@ def test_breakeven():
 
 
 # TODO: fix this.
-def test_is_relevant_price_move_tstop_price():
-    be = {'CC': {'U7': 1, 'Z7': 1},
-          'QC': {'U7': 1, 'Z7': 1}}
-    intraday_params = {'tstop': {'type': 'price',
-                                 'trigger': 30,
-                                 'value': {'QC  Z7': 1, 'CC  Z7': 1.5}}}
+# def test_is_relevant_price_move_tstop_price():
+#     be = {'CC': {'U7': 1, 'Z7': 1},
+#           'QC': {'U7': 1, 'Z7': 1}}
+#     intraday_params = {'tstop': {'type': 'price',
+#                                  'trigger': 30,
+#                                  'value': {'QC  Z7': 1, 'CC  Z7': 1.5}}}
 
-    gen_hedges = OrderedDict({'delta': [['static', 0, 1],
-                                        ['intraday', 'breakeven', be,
-                                         intraday_params]]})
-    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
-    pf_comp.hedge_params = gen_hedges
-    # assign hedge objects and create copy
-    pf = copy.deepcopy(pf_comp)
-    pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf)
-    # print('pf: ', pf)
+#     gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+#                                         ['intraday', 'breakeven', be,
+#                                          intraday_params]]})
+#     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+#     pf_comp.hedge_params = gen_hedges
+#     # assign hedge objects and create copy
+#     pf = copy.deepcopy(pf_comp)
+#     pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf)
+#     # print('pf: ', pf)
 
-    print('engine: ', pf.get_hedger())
+#     print('engine: ', pf.get_hedger())
 
-    ccfts = [x for x in pf.get_all_futures() if x.get_uid() == 'CC  Z7']
-    qcfts = [x for x in pf.get_all_futures() if x.get_uid() == 'QC  Z7']
+#     ccfts = [x for x in pf.get_all_futures() if x.get_uid() == 'CC  Z7']
+#     qcfts = [x for x in pf.get_all_futures() if x.get_uid() == 'QC  Z7']
 
-    ccprice = ccfts[0].get_price()
-    qcprice = qcfts[0].get_price()
+#     ccprice = ccfts[0].get_price()
+#     qcprice = qcfts[0].get_price()
 
-    assert not pf.hedger.is_relevant_price_move('CC  Z7', ccprice + 30)[0]
+#     assert not pf.hedger.is_relevant_price_move('CC  Z7', ccprice + 30)[0]
 
-    for x in ccfts:
-        x.update_price(2000)
+#     for x in ccfts:
+#         x.update_price(2000)
 
-    assert pf.hedger.is_relevant_price_move('CC  Z7', ccprice + 38)[0]
-    assert not pf.hedger.is_relevant_price_move('QC  Z7', qcprice + 20)[0]
-    assert pf.hedger.is_relevant_price_move('QC  Z7', qcprice + 28)[0]
+#     assert pf.hedger.is_relevant_price_move('CC  Z7', ccprice + 38)[0]
+#     assert not pf.hedger.is_relevant_price_move('QC  Z7', qcprice + 20)[0]
+#     assert pf.hedger.is_relevant_price_move('QC  Z7', qcprice + 28)[0]
 
 
 def test_is_relevant_price_move_be():
@@ -826,36 +827,3 @@ def test_is_relevant_price_move_static():
     assert engine.is_relevant_price_move('CC  Z7', ccprice + 10)[0]
     assert not engine.is_relevant_price_move('QC  Z7', qcprice + 5)[0]
     assert engine.is_relevant_price_move('QC  Z7', qcprice + 10)[0]
-
-
-# FIXME 
-def test_trailingstop():
-    pass 
-
-
-def test_trailingstop_processing():
-    pass
-
-
-def test_trailingstop_hit():
-    pass
-
-
-def test_trailingstop_active():
-    pass
-
-
-def test_trailingstop_update():
-    pass 
-
-
-def test_trailingstop_update_highest():
-    pass 
-
-
-def test_trailingstop_update_stopvals():
-    pass
-
-
-def test_trailingstop_getters():
-    pass 

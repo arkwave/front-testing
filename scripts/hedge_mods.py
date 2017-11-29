@@ -2,10 +2,22 @@
 # @Author: arkwave
 # @Date:   2017-11-29 19:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-29 19:56:52
+# @Last Modified time: 2017-11-29 20:11:39
+import pprint
+from abc import ABC, abstractmethod
 
 
-class TrailingStop:
+# TODO: Add on to this as necessary.
+class HedgeModifier(ABC):
+
+    """Abstract class that serves as a template for all Hedge modification objects. 
+    """
+    @abstractmethod
+    def run_deltas(self):
+        pass
+
+
+class TrailingStop(HedgeModifier):
     """
     Class that handles all the details required for trailing stops. 
 
@@ -284,9 +296,8 @@ class TrailingStop:
                 self.reset_extrema(uid)
                 return False
             return True
-
         else:
-            return False, 1
+            return False
 
 
 class HedgeParser:
