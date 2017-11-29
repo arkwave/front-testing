@@ -2,13 +2,14 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-27 21:56:53
+# @Last Modified time: 2017-11-29 19:57:28
 
 import pandas as pd
 import pprint
 import numpy as np
 from .util import create_straddle, create_underlying, create_strangle, create_vanilla_option
 from .calc import _compute_value
+from .hedge_mods import TrailingStop, HedgeParser
 
 multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 1, 400],
@@ -68,15 +69,17 @@ class Hedge:
         self.vdf = vdf
         self.pdf = pdf
         self.pf = portfolio
+        self.last_hedgepoints = None
+        self.update_hedgepoints()
         self.entry_levels = self.pf.uid_price_dict().copy()
         self.buckets = buckets if buckets is not None else [0, 30, 60, 90, 120]
         self.hedges = hedges
-        self.intraday_conds = None 
+        self.intraday_conds = None
         self.desc, self.params = self.process_hedges()
+        self.hedgeparser = HedgeParser(
+            self.params, self, self.intraday_conds)
         self.date = None
         self.breakeven = self.pf.breakeven().copy()
-        self.last_hedgepoints = {}
-        
 
         # check if vdf/pdf have been populated. if not, update.
         if (self.vdf is not None and self.pdf is not None):
@@ -94,6 +97,9 @@ class Hedge:
                   'date': self.date}
 
         return str(pprint.pformat(r_dict))
+
+    def get_intraday_conds(self):
+        return self.intraday_conds
 
     def get_hedgepoints(self):
         return self.last_hedgepoints
@@ -216,7 +222,8 @@ class Hedge:
                         self.process_intraday_conds(it_conds[-1])
 
                     # ratio passed in.
-                    ratio = it_conds[3] if isinstance(it_conds[3], (int, float)) else 1
+                    ratio = it_conds[3] if isinstance(
+                        it_conds[3], (int, float)) else 1
 
                 params[flag]['intraday'] = {'kind': it_conds[1],
                                             'modifier': it_conds[2],
@@ -240,12 +247,13 @@ class Hedge:
         Returns:
             object: TrailingStop instance 
         """
-        print('intraday conds: dic - ', dic)
+        # print('intraday conds: dic - ', dic)
         if 'tstop' in dic:
             print('-------- Creating TrailingStop Object ---------')
-            tstop_obj = TrailingStop(self.entry_levels, dic['tstop'], self.pf)
+            tstop_obj = TrailingStop(self.entry_levels, dic[
+                                     'tstop'], self.pf, self.last_hedgepoints, self)
             self.intraday_conds = tstop_obj
-            assert self.intraday_conds is not None 
+            assert self.intraday_conds is not None
             print('------------ TrailingStop Created -------------')
 
     def calibrate_all(self):
@@ -747,7 +755,7 @@ class Hedge:
             # case 1: trailing stop hit.
             if self.intraday_conds is not None:
                 if self.intraday_conds.trailing_stop_hit(uid, val=val):
-                    return True, 0 
+                    return True, 0
 
             # get price move.
             actual_value = abs(last_val - val)
@@ -822,16 +830,18 @@ class Hedge:
         print('last hedgepoints: ', self.last_hedgepoints)
         # case: intraday data
         if intraday:
+            run_deltas = False
             print('intraday hedging case')
             curr_prices = self.pf.uid_price_dict()
             for uid in self.pf.get_unique_uids():
                 pdt, mth = uid.split()
                 relevant_move, move_mult = self.is_relevant_price_move(
                     uid, curr_prices[uid])
-                # check to see if hedging condition has been imposed. 
+                # check to see if hedging condition has been imposed.
                 if self.intraday_conds is not None:
                     price_dict = self.pf.uid_price_dict()
-                    run_deltas = self.intraday_conds.run_deltas(uid, price_dict)
+                    run_deltas = self.intraday_conds.run_deltas(
+                        uid, price_dict)
                 if relevant_move and not run_deltas:
                     if pdt not in tobehedged:
                         tobehedged[pdt] = set()
@@ -1013,177 +1023,3 @@ class Hedge:
                   ' price and/or vol data does not exist. skipping...')
 
         return ops
-
-
-class TrailingStop:
-    """
-    Class that handles all the details required for trailing stops. 
-
-    Attributes:
-        current_level (TYPE): UID -> current price level dictionary. 
-        current_levels (TYPE): Description
-        entry_level (TYPE): a dictionary mappng UID to the price level the tradewas entered at.
-        thresholds (dict): dictionary mapping uid to the price level at which 
-                           trailing stop monitoring is 'turned on' 
-        active (dict): UID -> true or false. Determines whether or not stop loss 
-                              monitoring has been triggered. 
-        pf (portfolio object): the portfolio this trailing stop object is monitoring.
-        stop_values: uid -> price point upon which we stop out.  
-        stop_levels: copy of params['value']. used to re-compute the stop values
-
-    """
-
-    def __init__(self, entry_level, params, pf):
-        self.entry_level = entry_level
-        self.current_level = entry_level.copy()
-        self.pf = pf  
-        self.maximals = entry_level.copy()
-        self.stop_values, self.thresholds, self.active = {}, {}, None
-        self.stop_levels = None
-        self.process_params(params)
-
-    def process_params(self, dic):
-        """Helper method that processes the intraday params specified
-        in dic. 
-
-        Args:
-            dic (TYPE): dictionary of intraday parameters, of the following form:
-                {'trigger': {uid1: (30, price), uid2: (50, price)}, 'value': 
-                {uid1: (-31.5, price), uid2: (-1, price}}
-        Returns:
-            tuple: trigger levels: price points at which to trigger a stop. 
-                   active: dictionary mapping UIDS to True/False. Determines
-                   whether stop loss monitoring has been triggered or not. 
-        """
-        # first: sanity check the inputs. 
-        try:
-            # assert 'type' in dic 
-            assert 'trigger' in dic 
-            assert 'value' in dic 
-            assert isinstance(dic['value'], dict)
-        except AssertionError as e:
-            raise ValueError("Something is wrong with the intraday input params passed in. ", dic)
-
-        # divide up the input parameters into stop values, thresholds and actives respectively. 
-        trigger_values = dic['trigger']
-        breakevens = self.pf.breakeven()
-
-        for uid in trigger_values:
-            if trigger_values[uid][1] == 'price':
-                # case: stop loss monitoring is active upon a certain flat price move. 
-                self.thresholds[uid] = self.current_level[uid] + trigger_values[uid][0] 
-            elif trigger_values[uid][1] == 'breakeven':
-                # case: stop loss monitoring is active upon a certain BE move. 
-                val = breakevens[uid] * trigger_values[uid][0]
-                self.thresholds[uid] = self.current_level[uid] + val 
-
-        self.check_active() 
-
-        stops = dic['value']
-
-        self.stop_levels = stops
-
-        for uid in self.thresholds:
-            if stops[uid][1] == 'price':
-                self.stop_values[uid] = self.thresholds[uid] + stops[uid][0]
-            else:
-                val = breakevens[uid] * stops[0]
-                self.stop_values[uid] = self.thresholds[uid] + val 
-
-    def get_entry_level(self):
-        return self.entry_levels
-
-    def get_current_level(self, uid=None):
-        return self.current_level if uid is None else self.current_level[uid]
-
-    def set_current_level(self, dic):
-        self.current_level = dic 
-        self.check_active() 
-        self.update_highest() 
-
-    def update_highest(self):
-        for uid in self.current_level:
-            if self.current_level[uid] > self.maximals[uid] and self.stop_values[uid] < 0:
-                self.maximals[uid] = self.current_level[uid]
-
-        self.update_stop_values() 
-
-    def update_stop_values(self):
-        assert self.stop_levels is not None
-        for uid in self.stop_levels:
-            data = self.stop_levels[uid]
-            if data[1] == 'price':
-                self.stop_values[uid] = self.maximals[uid] + data[0]
-
-            elif data[1] == 'breakeven':
-                breakevens = self.pf.breakeven()
-                val = breakevens[uid] * data[0]
-                self.stop_values[uid] = self.maximals[uid] + val 
-
-    def is_active(self, uid=None):
-        if uid is None:
-            return self.active 
-        else:
-            if uid in self.active:
-                return self.active[uid]
-            else:
-                raise ValueError("%s is not in the portfolio passed into the TrailingStop object" % uid)
-
-    def check_active(self):
-        if self.active is not None:
-            for uid in self.active:   
-                try:
-                    self.active[uid] = abs(self.current_level[uid]) > abs(self.thresholds[uid])
-                except KeyError as e:
-                    print('current_level: ', self.current_level)
-                    print('thresholds: ', self.thresholds)
-                    raise KeyError('Key %s not in current_level and/or threshold dictionaries' % uid)
-        else:
-            self.active = {uid: abs(self.current_level[uid]) > abs(self.thresholds[uid]) 
-                           for uid in self.current_level}
-
-    def trailing_stop_hit(self, uid, val=None):
-        """
-        Helper function that checks to see if the trailing stop has been hit. if so, return true. 
-        
-        Args:
-            uid (string): the underlying ID we are interested in 
-            val (float, optional): an explicit value to compare. 
-        
-        Returns:
-            TYPE: Description
-    
-        """
-        # base case: stop monitoring not active. 
-        if not self.active[uid]:
-            return False 
-
-        # get the current price and the direction of the stop. 
-        current_price = self.get_current_level(uid=uid) if val is None else val 
-        stop_direction = np.sign(self.stop_levels[uid][0])
-
-        # case 1: sell-stop and current price <= stop value. 
-        if (current_price <= self.stop_values[uid]) and stop_direction == -1:
-            return True 
-
-        # case 2: buy-stop and current price >= stop value. 
-        elif current_price >= self.stop_values[uid] and stop_direction == 1:
-            return True 
-
-        return False  
-
-    def run_deltas(self, uid, price_dict):
-        """The only function that should be called outside of the 
-        Args:
-            uid (string): The underlying ID we're interested in 
-            price_dict (dic): dictionary of prices. 
-        """
-        # first: update the prices. 
-        self.set_current_level(price_dict)
-
-        # second: check to see if a trailing stop got hit. 
-        if self.trailing_stop_hit(uid):
-            return False 
-
-        else:
-            return True 
