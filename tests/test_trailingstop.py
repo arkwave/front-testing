@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-29 20:02:36
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-29 20:06:59
+# @Last Modified time: 2017-11-30 21:18:29
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -68,7 +68,6 @@ def comp_portfolio(refresh=True):
     return pf_simple, pf_comp, ccops, qcops, pfcc, pfqc
 
 
-# FIXME
 def test_trailingstop_processing():
     be = {'CC': {'U7': 1, 'Z7': 1.3},
           'QC': {'U7': 1.5, 'Z7': 2}}
@@ -361,7 +360,7 @@ def test_trailingstop_hit_buystop():
     print('tstop after hit: ', tstop)
 
 
-def test_trailingstop_run_deltas_sellstop():
+def test_trailingstop_run_deltas_buystop():
     be = {'CC': {'U7': 1, 'Z7': 1.3},
           'QC': {'U7': 1.5, 'Z7': 2}}
     intraday_params = {'tstop': {'trigger': {'QC  Z7': (30, 'price'),
@@ -398,19 +397,19 @@ def test_trailingstop_run_deltas_sellstop():
     # update the prices.
     newprices = {'QC  Z7': 1520, 'CC  Z7': 1990}
     # QC Z7 should be active, CC Z7 inactive.
-    assert tstop.run_deltas('QC  Z7', newprices)
+    assert tstop.run_deltas('QC  Z7', newprices)[0]
 
     print('-'*50)
     print('first update: ', tstop)
     print('-'*50)
-    assert not tstop.run_deltas('CC  Z7', newprices)
+    assert not tstop.run_deltas('CC  Z7', newprices)[0]
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
     assert tstop.get_stop_values() == {'QC  Z7': 1525, 'CC  Z7': None}
 
     # both should now be active.
     newprices = {'QC  Z7': 1510, 'CC  Z7': 1930}
-    assert tstop.run_deltas('QC  Z7', newprices)
-    assert tstop.run_deltas('CC  Z7', newprices)
+    assert tstop.run_deltas('QC  Z7', newprices)[0]
+    assert tstop.run_deltas('CC  Z7', newprices)[0]
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': True}
     assert tstop.get_stop_values() == {'QC  Z7': 1515, 'CC  Z7': 1940}
     print('-'*50)
@@ -419,8 +418,8 @@ def test_trailingstop_run_deltas_sellstop():
 
     # check if updates are passed.
     newprices = {'QC  Z7': 1514, 'CC  Z7': 1935}
-    assert tstop.run_deltas('QC  Z7', newprices)
-    assert tstop.run_deltas('CC  Z7', newprices)
+    assert tstop.run_deltas('QC  Z7', newprices)[0]
+    assert tstop.run_deltas('CC  Z7', newprices)[0]
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': True}
     assert tstop.get_stop_values() == {'QC  Z7': 1515, 'CC  Z7': 1940}
     print('-'*50)
@@ -429,7 +428,7 @@ def test_trailingstop_run_deltas_sellstop():
 
     # QC hits trailing stop.
     newprices = {'QC  Z7': 1515, 'CC  Z7': 1935}
-    assert not tstop.run_deltas('QC  Z7', newprices)
+    assert not tstop.run_deltas('QC  Z7', newprices)[0]
     # after run_deltas call, anchor point should be reset.
     assert not tstop.trailing_stop_hit('QC  Z7')
     print('-'*50)
@@ -438,7 +437,7 @@ def test_trailingstop_run_deltas_sellstop():
 
     # CC hits trailing stop.
     newprices = {'QC  Z7': 1515, 'CC  Z7': 1940}
-    assert not tstop.run_deltas('CC  Z7', newprices)
+    assert not tstop.run_deltas('CC  Z7', newprices)[0]
     print('-'*50)
     print('fifth update: ', tstop)
     print('-'*50)
@@ -446,13 +445,217 @@ def test_trailingstop_run_deltas_sellstop():
     print('tstop after hit: ', tstop)
 
 
-def test_trailingstop_run_deltas_buystop():
-    pass
+def test_trailingstop_run_deltas_sellstop():
+
+    be = {'CC': {'U7': 1, 'Z7': 1.3},
+          'QC': {'U7': 1.5, 'Z7': 2}}
+    intraday_params = {'tstop': {'trigger': {'QC  Z7': (30, 'price'),
+                                             'CC  Z7': (50, 'price')},
+                                 'value': {'QC  Z7': (5, 'price'),
+                                           'CC  Z7': (10, 'price')}}}
+
+    gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+                                        ['intraday', 'breakeven', be, 0.7,
+                                         intraday_params]]})
+
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    pf_comp.hedge_params = gen_hedges
+    # assign hedge objects and create copy
+    pf = copy.deepcopy(pf_comp)
+    pf = assign_hedge_objects(pf)
+    # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
+    # print('pf_be: ', pf.breakeven())
+
+    print('='*50)
+    print('pf: ', pf)
+    print('='*50)
+
+    tstop = pf.get_hedger().get_intraday_conds()
+    print('='*50)
+    print('tstop: ', tstop)
+    print('='*50)
+
+    assert tstop is not None
+    assert isinstance(tstop, TrailingStop)
+    assert tstop.get_current_level() == pf.uid_price_dict()
+    assert tstop.get_active() == {'CC  Z7': False, 'QC  Z7': False}
+
+    # update the prices.
+    newprices = {'QC  Z7': 1600, 'CC  Z7': 1990}
+    # QC Z7 should be active, CC Z7 inactive.
+    assert tstop.run_deltas('QC  Z7', newprices)[0]
+
+    print('-'*50)
+    print('first update: ', tstop)
+    print('-'*50)
+    assert not tstop.run_deltas('CC  Z7', newprices)[0]
+    assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
+    assert tstop.get_stop_values() == {'QC  Z7': 1595, 'CC  Z7': None}
+
+    # both should now be active.
+    newprices = {'QC  Z7': 1610, 'CC  Z7': 2040}
+    assert tstop.run_deltas('QC  Z7', newprices)[0]
+    assert tstop.run_deltas('CC  Z7', newprices)[0]
+    assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': True}
+    assert tstop.get_stop_values() == {'QC  Z7': 1605, 'CC  Z7': 2030}
+    print('-'*50)
+    print('second update: ', tstop)
+    print('-'*50)
+
+    # check if updates are passed.
+    newprices = {'QC  Z7': 1615, 'CC  Z7': 2045}
+    assert tstop.run_deltas('QC  Z7', newprices)[0]
+    assert tstop.run_deltas('CC  Z7', newprices)[0]
+    assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': True}
+    assert tstop.get_stop_values() == {'QC  Z7': 1610, 'CC  Z7': 2035}
+    print('-'*50)
+    print('third update: ', tstop)
+    print('-'*50)
+
+    # QC hits trailing stop.
+    newprices = {'QC  Z7': 1609, 'CC  Z7': 2036}
+    assert not tstop.run_deltas('QC  Z7', newprices)[0]
+    # after run_deltas call, anchor point should be reset.
+    assert not tstop.trailing_stop_hit('QC  Z7')
+    print('-'*50)
+    print('fourth update: ', tstop)
+    print('-'*50)
+
+    # CC hits trailing stop.
+    newprices = {'QC  Z7': 1610, 'CC  Z7': 2035}
+    assert not tstop.run_deltas('CC  Z7', newprices)[0]
+    print('-'*50)
+    print('fifth update: ', tstop)
+    print('-'*50)
+    assert not tstop.trailing_stop_hit('CC  Z7')
+    print('tstop after hit: ', tstop)
 
 
-def test_trailingstop_gapped_moves_buystop():
-    pass
+def test_trailingstop_locks_sellstops():
+    """Tests all cases involving uid locks """
+    vals = {'CC  Z7': 30, 'QC  Z7': 30}
+    intraday_params = {'tstop': {'trigger': {'QC  Z7': (30, 'price'),
+                                             'CC  Z7': (30, 'price')},
+                                 'value': {'QC  Z7': (5, 'price'),
+                                           'CC  Z7': (5, 'price')}}}
+    gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+                                        ['intraday', 'static', vals, 0.7,
+                                         intraday_params]]})
+
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    pf_comp.hedge_params = gen_hedges
+    # assign hedge objects and create copy
+    pf = copy.deepcopy(pf_comp)
+    pf = assign_hedge_objects(pf)
+    # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
+    # print('pf_be: ', pf.breakeven())
+
+    print('='*50)
+    print('pf: ', pf)
+    print('='*50)
+
+    tstop = pf.get_hedger().get_intraday_conds()
+    print('='*50)
+    print('tstop: ', tstop)
+    print('='*50)
+
+    # initial: tstop locks should both be false.
+    assert tstop.get_locks() == {'CC  Z7': False, 'QC  Z7': False}
+    assert tstop.get_active() == {'CC  Z7': False, 'QC  Z7': False}
+    assert tstop.get_thresholds() == {'CC  Z7': (
+        1956, 2016), 'QC  Z7': (1530, 1590)}
+    assert tstop.get_anchor_points() == {'CC  Z7': 1986, 'QC  Z7': 1560}
+
+    # update prices such that monitoring is now active. locks should be active.
+    newprices = {'QC  Z7': 1591, 'CC  Z7': 2017}
+    assert tstop.run_deltas('QC  Z7', newprices)[0]
+    assert tstop.run_deltas('CC  Z7', newprices)[0]
+    assert tstop.get_locks() == {'CC  Z7': True, 'QC  Z7': True}
+    assert tstop.get_active() == {'CC  Z7': True, 'QC  Z7': True}
+    assert tstop.get_stop_values() == {'CC  Z7': 2012, 'QC  Z7': 1586}
+
+    # prices fall but not enough to change status. everything should remain
+    # active.
+    newprices = {'QC  Z7': 1587, 'CC  Z7': 2013}
+    assert tstop.run_deltas('QC  Z7', newprices)[0]
+    assert tstop.run_deltas('CC  Z7', newprices)[0]
+    assert tstop.get_locks() == {'CC  Z7': True, 'QC  Z7': True}
+    assert tstop.get_active() == {'CC  Z7': True, 'QC  Z7': True}
+    assert tstop.get_stop_values() == {'CC  Z7': 2012, 'QC  Z7': 1586}
+
+    # fall below the threshold. this should trigger a stop, updating
+    # anchor points, locks, active and thresholds.
+    newprices = {'QC  Z7': 1580, 'CC  Z7': 2000}
+    assert tstop.run_deltas('QC  Z7', newprices) == (False, 'hit')
+    assert tstop.run_deltas('CC  Z7', newprices) == (False, 'hit')
+    assert tstop.get_locks() == {'CC  Z7': False, 'QC  Z7': False}
+    assert tstop.get_active() == {'CC  Z7': False, 'QC  Z7': False}
+    assert tstop.get_stop_values() == {'CC  Z7': None, 'QC  Z7': None}
+    assert tstop.get_anchor_points() == newprices
+    assert tstop.get_thresholds() == {'CC  Z7': (
+        1970, 2030), 'QC  Z7': (1550, 1610)}
 
 
-def test_trailingstop_gapped_moves_sellstop():
-    pass
+def test_trailingstop_locks_buystops():
+    """Tests all cases involving uid locks """
+    vals = {'CC  Z7': 30, 'QC  Z7': 30}
+    intraday_params = {'tstop': {'trigger': {'QC  Z7': (30, 'price'),
+                                             'CC  Z7': (30, 'price')},
+                                 'value': {'QC  Z7': (5, 'price'),
+                                           'CC  Z7': (5, 'price')}}}
+    gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+                                        ['intraday', 'static', vals, 0.7,
+                                         intraday_params]]})
+
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    pf_comp.hedge_params = gen_hedges
+    # assign hedge objects and create copy
+    pf = copy.deepcopy(pf_comp)
+    pf = assign_hedge_objects(pf)
+    # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
+    # print('pf_be: ', pf.breakeven())
+
+    print('='*50)
+    print('pf: ', pf)
+    print('='*50)
+
+    tstop = pf.get_hedger().get_intraday_conds()
+    print('='*50)
+    print('tstop: ', tstop)
+    print('='*50)
+
+    # initial: tstop locks should both be false.
+    assert tstop.get_locks() == {'CC  Z7': False, 'QC  Z7': False}
+    assert tstop.get_active() == {'CC  Z7': False, 'QC  Z7': False}
+    assert tstop.get_thresholds() == {'CC  Z7': (
+        1956, 2016), 'QC  Z7': (1530, 1590)}
+    assert tstop.get_anchor_points() == {'CC  Z7': 1986, 'QC  Z7': 1560}
+
+    # update prices such that monitoring is now active. locks should be active.
+    newprices = {'QC  Z7': 1529, 'CC  Z7': 1955}
+    assert tstop.run_deltas('QC  Z7', newprices)[0]
+    assert tstop.run_deltas('CC  Z7', newprices)[0]
+    assert tstop.get_locks() == {'CC  Z7': True, 'QC  Z7': True}
+    assert tstop.get_active() == {'CC  Z7': True, 'QC  Z7': True}
+    assert tstop.get_stop_values() == {'CC  Z7': 1960, 'QC  Z7': 1534}
+
+    # prices rise but not enough to change status. everything should remain
+    # active.
+    newprices = {'QC  Z7': 1533, 'CC  Z7': 1958}
+    assert tstop.run_deltas('QC  Z7', newprices)[0]
+    assert tstop.run_deltas('CC  Z7', newprices)[0]
+    assert tstop.get_locks() == {'CC  Z7': True, 'QC  Z7': True}
+    assert tstop.get_active() == {'CC  Z7': True, 'QC  Z7': True}
+    assert tstop.get_stop_values() == {'CC  Z7': 1960, 'QC  Z7': 1534}
+
+    # fall below the threshold. this should trigger a stop, updating
+    # anchor points, locks, active and thresholds.
+    newprices = {'QC  Z7': 1535, 'CC  Z7': 1961}
+    assert tstop.run_deltas('QC  Z7', newprices) == (False, 'hit')
+    assert tstop.run_deltas('CC  Z7', newprices) == (False, 'hit')
+    assert tstop.get_locks() == {'CC  Z7': False, 'QC  Z7': False}
+    assert tstop.get_active() == {'CC  Z7': False, 'QC  Z7': False}
+    assert tstop.get_stop_values() == {'CC  Z7': None, 'QC  Z7': None}
+    assert tstop.get_anchor_points() == newprices
+    assert tstop.get_thresholds() == {'CC  Z7': (
+        1931, 1991), 'QC  Z7': (1505, 1565)}
