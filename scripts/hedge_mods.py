@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-29 19:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-30 21:49:35
+# @Last Modified time: 2017-11-30 22:44:57
 import pprint
 from abc import ABC, abstractmethod
 
@@ -14,6 +14,10 @@ class HedgeModifier(ABC):
     """
     @abstractmethod
     def run_deltas(self):
+        pass
+
+    @abstractmethod
+    def relevant_price_move(self):
         pass
 
 
@@ -331,6 +335,9 @@ class TrailingStop(HedgeModifier):
         else:
             # case: inactive. default to portfolio default.
             return False, 'default'
+
+    def relevant_price_move(self):
+        raise NotImplementedError
 
 
 class HedgeParser:
