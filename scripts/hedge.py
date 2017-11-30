@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-29 20:56:25
+# @Last Modified time: 2017-11-30 21:37:39
 
 import pandas as pd
 import pprint
@@ -79,8 +79,8 @@ class Hedge:
         self.hedgeparser = None
         if ('delta' in self.params) and \
            ('intraday' in self.params['delta']):
-            self.hedgeparser = HedgeParser(self.params['delta']['intraday'],
-                                           self, self.intraday_conds)
+            self.hedgeparser = HedgeParser(self, self.params['delta']['intraday'],
+                                           self.intraday_conds, self.pf)
         self.date = None
         self.breakeven = self.pf.breakeven().copy()
 
@@ -101,6 +101,9 @@ class Hedge:
 
         return str(pprint.pformat(r_dict))
 
+    def get_hedgeparser(self):
+        return self.hedgeparser
+
     def get_intraday_conds(self):
         return self.intraday_conds
 
@@ -109,6 +112,21 @@ class Hedge:
 
     def set_book(self, val):
         self.book = val
+
+    def get_breakeven(self):
+        return self.breakeven
+
+    def get_hedge_ratios(self, flag):
+        """Helper method that queries the HedgeParser object for the run_ratio dictionary, and returns 
+        1- each entry. 
+        """
+        if self.hedgeparser is None:
+            return {uid: 1 for uid in self.pf.get_unique_uids()}
+
+        dic = self.hedgeparser.parse_hedges(flag)
+        dic = {uid: 1 - dic[uid] for uid in dic}
+
+        return dic
 
     def set_breakeven(self, dic):
         """Setter method that sets self.breakeven = dic
@@ -851,19 +869,13 @@ class Hedge:
         print('last hedgepoints: ', self.last_hedgepoints)
         # case: intraday data
         if intraday:
-            run_deltas = False
             print('intraday hedging case')
             curr_prices = self.pf.uid_price_dict()
             for uid in self.pf.get_unique_uids():
                 pdt, mth = uid.split()
                 relevant_move, move_mult = self.is_relevant_price_move(
                     uid, curr_prices[uid])
-                # check to see if hedging condition has been imposed.
-                if self.intraday_conds is not None:
-                    price_dict = self.pf.uid_price_dict()
-                    run_deltas = self.intraday_conds.run_deltas(
-                        uid, price_dict)
-                if relevant_move and not run_deltas:
+                if relevant_move:
                     if pdt not in tobehedged:
                         tobehedged[pdt] = set()
                     tobehedged[pdt].add(mth)
@@ -873,16 +885,19 @@ class Hedge:
             tobehedged = net_greeks
 
         print('tobehedged: ', tobehedged)
+        print('-------- Entering HedgeParser Logic ---------')
         target_flag = 'intraday' if intraday else 'eod'
+
+        hedge_ratios = self.get_hedge_ratios(target_flag)
+
+        print('run_ratios: ', hedge_ratios)
+        print('--------- End HedgeParser Logic -------------')
         for product in tobehedged:
             for month in tobehedged[product]:
-                print('delta hedging ' + product + '  ' + month)
-                if 'ratio' in self.params['delta'][target_flag]:
-                    ratio = self.params['delta'][target_flag]['ratio']
-                else:
-                    ratio = 1
+                uid = product + '  ' + month
+                print('delta hedging ' + uid)
                 target = self.params['delta'][target_flag]['target']
-                delta = net_greeks[product][month][0] * ratio
+                delta = net_greeks[product][month][0] * hedge_ratios[uid]
                 delta_diff = delta - target
                 shorted = True if delta_diff > 0 else False
                 num_lots_needed = abs(round(delta_diff))
@@ -905,10 +920,8 @@ class Hedge:
                         # update the last hedgepoint dictionary
                         self.last_hedgepoints[
                             ft.get_uid()] = ft.get_price()
-                        print('hedge point for ' + ft.get_uid() +
-                              ' updated to ' + str(ft.get_price()))
                         self.pf.add_security([ft], 'hedge')
-                        print('adding ' + str(ft))
+
         if self.s:
             pass
         if self.b:

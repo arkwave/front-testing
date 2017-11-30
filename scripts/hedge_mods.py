@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-29 19:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-29 21:48:02
+# @Last Modified time: 2017-11-30 21:49:35
 import pprint
 from abc import ABC, abstractmethod
 
@@ -56,14 +56,12 @@ class TrailingStop(HedgeModifier):
         self.process_params(params)
 
     def __str__(self):
-        r_dict = {'maximals': self.maximals,
+        r_dict = {'locked': self.locked,
                   'stop_values': self.stop_values,
-                  'stop_levels': self.stop_levels,
                   'current levels': self.current_level,
                   'thresholds': self.thresholds,
-                  'last hedged': self.anchor_points,
-                  'active': self.active,
-                  'trigger bounds': self.trigger_bounds}
+                  'anchor_points': self.anchor_points,
+                  'active': self.active}
 
         return pprint.pformat(r_dict)
 
@@ -101,6 +99,9 @@ class TrailingStop(HedgeModifier):
         self.stop_levels = stops
         self.update_stop_values()
 
+    def get_thresholds(self):
+        return self.thresholds
+
     def get_trigger_bounds(self):
         return self.trigger_bounds
 
@@ -132,6 +133,9 @@ class TrailingStop(HedgeModifier):
             else:
                 raise ValueError(
                     "%s is not in the portfolio passed into the TrailingStop object" % uid)
+
+    def get_anchor_points(self):
+        return self.anchor_points
 
     # Setter/Update methods.
     def update_anchor_points(self, dic, uid=None):
@@ -215,8 +219,8 @@ class TrailingStop(HedgeModifier):
         assert self.stop_levels is not None
         for uid in self.stop_levels:
             if not self.get_active(uid=uid):
-                print('%s trailing stop monitor is inactive.' % uid +
-                      ' setting stop_value to None.')
+                # print('%s trailing stop monitor is inactive.' % uid +
+                #       ' setting stop_value to None.')
                 self.stop_values[uid] = None
             else:
                 lower, upper = self.thresholds[uid]
@@ -250,7 +254,9 @@ class TrailingStop(HedgeModifier):
                     newlock = True if new else False
                     if not self.locked[uid]:
                         self.active[uid] = new
-                    self.locked[uid] = newlock
+                    # ensures that is set only if it is true.
+                    if newlock:
+                        self.locked[uid] = newlock
 
                 except KeyError as e:
                     print('current_level: ', self.current_level)
@@ -299,21 +305,32 @@ class TrailingStop(HedgeModifier):
             price_dict (dic): dictionary of prices. 
 
         Returns:
-            TYPE: Description
+            tuple: (bool, str). str argument is used to distinguish between the cases where
+            run_deltas returns false because trailing stops are hit, where monitoring is inactive. 
         """
         # first: update the prices.
+        print('price dict: ', price_dict)
+        print('>>>> TrailingStop: old params pre-update <<<<')
+        print(self.__str__())
+        print('>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<')
         self.update_current_level(price_dict)
 
+        print('>>>> TrailingStop: New Params post-update <<<<')
+        print(self.__str__())
+        print('>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<')
+
         if self.get_active(uid=uid):
-            # second: check to see if a trailing stop got hit.
+            # case: trailingstop got hit. neutralize all.
             if self.trailing_stop_hit(uid):
                 self.unlock(uid)
-                self.update_anchor_points(price_dict)
+                self.update_anchor_points(price_dict, uid=uid)
                 self.reset_extrema(uid)
-                return False
-            return True
+                return False, 'hit'
+            # case: active but TS not hit. run deltas.
+            return True, ''
         else:
-            return False
+            # case: inactive. default to portfolio default.
+            return False, 'default'
 
 
 class HedgeParser:
@@ -329,42 +346,93 @@ class HedgeParser:
         dic (dict): Dictionary of the hedging paramters passed into the parent hedge object. 
         mod_obj (object): a hedge modification object. currently, the only implemented example is a TrailingStop. Abstract as and when necessary. 
         parent (TYPE): the Hedge object associated with this hedgeparser instance. 
-
     """
 
-    def __init__(self, dic, parent, mod_obj):
+    def __init__(self, parent, dic, mod_obj, pf):
         self.params = dic
+        print('HedgeParser.params: ', self.params)
+
         self.parent = parent
         self.mod_obj = mod_obj
+        self.pf = pf
+        if 'ratio' in self.params:
+            print('ratio in params: ', 'ratio' in self.params)
+            print('ratio: ', self.params['ratio'])
+            self.hedger_ratio = self.params['ratio']
+        else:
+            print('else case: ratio not specified')
+            print('params: ', self.params)
+            self.hedger_ratio = 1
 
-    def get_hedge_ratio(self):
+        if self.mod_obj is not None:
+            assert isinstance(self.mod_obj, HedgeModifier)
+
+    def get_hedger_ratio(self):
+        return self.hedger_ratio
+
+    def parse_hedges(self, flag):
         """
         3 cases handled:
-            1) trigger bounds are wider than breakeven --> run deltas outside, neutralize all inside. 
+            1) trigger bounds are wider than breakeven --> run deltas outside, neutralize default ratio inside. 
             2) trigger bounds are smaller than breakeven --> do nothing. 
             3) trigger bounds are equal to breakeven --> return 1-hedge_ratio.
+
         Returns:
-            TYPE: Description
+            TYPE: dictionary mapping UIDs to proportion (0 to 1) of deltas to run. 
         """
         ret = {}
-        # check to see if ratio parameter exists in the params dict.
-        if 'ratio' in self.params:
-            hedger_ratio = self.params['ratio']
-            # now check to see which case the trailingstop object falls under.
-            if isinstance(self.mod_obj, TrailingStop):
-                # get the parent Hedge object's breakeven dictionary.
-                hedger_interval_dict = self.parent.get_hedge_interval()
-                # get the trigger bounds.
-                trigger_bounds = self.mod_obj.get_trigger_bounds_numeric()
-                assert trigger_bounds.keys() == hedger_interval_dict.keys()
-                for uid in trigger_bounds:
+        uids = self.pf.get_unique_uids()
+        hedger_ratio = self.hedger_ratio
+
+        if flag == 'eod':
+            print('HedgeParser - EOD case.')
+            return {uid: 0 for uid in uids}
+
+        if self.mod_obj is None:
+            print('HedgeParser - No HedgeModifier detected.')
+            ret = {uid: 1-hedger_ratio for uid in uids}
+
+        elif isinstance(self.mod_obj, TrailingStop):
+            print('HedgeParser - TrailingStop HedgeModifier detected.')
+            # get the parent Hedge object's breakeven dictionary.
+            hedger_interval_dict = self.parent.get_hedge_interval()
+            # get the trigger bounds.
+            trigger_bounds = self.mod_obj.get_trigger_bounds_numeric(
+                self.parent.get_breakeven())
+
+            # sanity check the inputs.
+            assert trigger_bounds.keys() == hedger_interval_dict.keys()
+            assert set(trigger_bounds.keys()) == uids
+
+            for uid in uids:
+
+                run_deltas, type_str = \
+                    self.mod_obj.run_deltas(uid, self.pf.uid_price_dict())
+
+                if run_deltas:
+                    # case: we want to run the deltas of this uid.
+                    print('Case (1): run %s deltas' % uid)
                     run_trigger, hedge_interval = trigger_bounds[
                         uid], hedger_interval_dict[uid]
-                    # case: run_delta + modification trigger is > hedge
+
+                    print('%s run_trigger: ' % uid, run_trigger)
+                    print('%s hedge interval: ' % uid, hedge_interval)
+
+                    # case: run_delta + modification trigger != hedge
                     # interval stipulated.
                     if run_trigger > hedge_interval or run_trigger < hedge_interval:
+                        print('Case (1.1): hedge interval != run trigger bounds')
                         ret[uid] = 1
+
                     elif run_trigger == hedge_interval:
+                        print('Case (1.2): hedge interval == run trigger bounds')
                         ret[uid] = 1-hedger_ratio
-        else:
-            return {uid: 1 for uid in self.parent.pf.uid_price_dict()}
+
+                else:
+                    print('Case (2): Do not run deltas for %s' % uid)
+                    print('trailing stop %s' %
+                          ('hit' if type_str == 'hit' else 'not hit'))
+                    ret[uid] = 0 if type_str == 'hit' else 1 - \
+                        hedger_ratio
+
+        return ret
