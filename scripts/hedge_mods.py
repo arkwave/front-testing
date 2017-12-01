@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-11-29 19:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-30 22:44:57
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-12-01 22:15:05
 import pprint
 from abc import ABC, abstractmethod
+import numpy as np
 
 
 # TODO: Add on to this as necessary.
@@ -14,10 +15,6 @@ class HedgeModifier(ABC):
     """
     @abstractmethod
     def run_deltas(self):
-        pass
-
-    @abstractmethod
-    def relevant_price_move(self):
         pass
 
 
@@ -188,8 +185,12 @@ class TrailingStop(HedgeModifier):
                 val = breakevens[uid] * bound
                 self.thresholds[uid] = (lastpt - val, lastpt + val)
 
-    def update_current_level(self, dic):
-        self.current_level = dic
+    def update_current_level(self, dic, uid=None):
+        if uid is None:
+            self.current_level = dic
+        else:
+            self.current_level[uid] = dic[uid]
+
         self.update_active()
         self.update_extrema()
 
@@ -317,7 +318,7 @@ class TrailingStop(HedgeModifier):
         print('>>>> TrailingStop: old params pre-update <<<<')
         print(self.__str__())
         print('>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<')
-        self.update_current_level(price_dict)
+        self.update_current_level(price_dict, uid=uid)
 
         print('>>>> TrailingStop: New Params post-update <<<<')
         print(self.__str__())
@@ -336,8 +337,15 @@ class TrailingStop(HedgeModifier):
             # case: inactive. default to portfolio default.
             return False, 'default'
 
-    def relevant_price_move(self):
-        raise NotImplementedError
+    def run_delta_iterative(self, uid, lst):
+        fin = []
+        for price in lst:
+            print('price being run: ', price)
+            run, typestr = self.run_deltas(uid, {uid: price})
+            if not run:
+                fin.append(price)
+
+        return fin
 
 
 class HedgeParser:
@@ -357,14 +365,10 @@ class HedgeParser:
 
     def __init__(self, parent, dic, mod_obj, pf):
         self.params = dic
-        print('HedgeParser.params: ', self.params)
-
         self.parent = parent
         self.mod_obj = mod_obj
         self.pf = pf
         if 'ratio' in self.params:
-            print('ratio in params: ', 'ratio' in self.params)
-            print('ratio: ', self.params['ratio'])
             self.hedger_ratio = self.params['ratio']
         else:
             print('else case: ratio not specified')
@@ -376,6 +380,12 @@ class HedgeParser:
 
     def get_hedger_ratio(self):
         return self.hedger_ratio
+
+    def get_mod_obj(self):
+        return self.mod_obj
+
+    def get_parent(self):
+        return self.parent
 
     def parse_hedges(self, flag):
         """
@@ -443,3 +453,51 @@ class HedgeParser:
                         hedger_ratio
 
         return ret
+
+    def relevant_price_move(self, uid, val, comparison=None):
+        """Method that asserts whether or not a price move is relevant. A few cases are taken into account:
+        1) price move > hedge interval, stop monitoring inactive -> True. 
+        2) price move > hedge interval, stop monitoring active -> if stop hit, True else False
+        3) price move < hedge interval, stop monitoring inactive -> False. 
+        4) price move < hedge interval, stop monitoring active -> if stop hit, True else False. 
+
+
+        Args:
+            uid (str): the uid being handled, e.g. C  Z7
+            val (float): the price point we're interested in. 
+            comparison (float, optional): the value to be compared against. used when the HedgeParser is called in granularize. 
+
+
+
+        Returns:
+            tuple: (bool, float, dict), representing the following:
+            1) bool - indicates if the move should be considered valid or not. 
+            2) float - the move multiple (e.g. how many times of hedge interval)
+            3) list - intermediate price points. returns nonempty list in the 
+                      following cases:
+                    1_ Portfolio has no associated HedgeModifier object and price 
+                       move multiple > 1 
+                    2_  
+
+        """
+
+        # TODO: figure out how exactly the hegemod object is going to be
+        # updated. Temporary solution: just use run_deltas?
+
+        mod = self.get_mod_obj()
+        hedger = self.get_parent()
+
+        interval = hedger.get_hedge_interval(uid)
+        int_mult = -1 if comparison > val else 1
+
+        prices = list(np.arange(comparison, val, interval*int_mult))
+
+        # base case: No HedgeModifier object is found.
+        if self.get_mod_obj() is None:
+            relevant, mult = self.parent.is_relevant_price_move(
+                uid, val, comparison=comparison)
+            return (relevant, mult, prices)
+
+        else:
+            hedger_relevant, mult = hedger.is_relevant_price_move(
+                uid, val, comparison=comparison)

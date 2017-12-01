@@ -1414,6 +1414,7 @@ def handle_overnight_market_timings(df, start_date, end_date):
 
 
 # TODO: handle rounding of strikes when necessary.
+# TODO: handle HedgeParser implementation to account for trailing stops etc.
 def granularize(df, pf, interval=None, ohlc=False, intraday=False):
     """Helper function that takes in a dataframe filtered through reorder_ohlc_data, 
     and checks for consecutive price moves that exceed the breakeven/flat value hedging
@@ -1441,6 +1442,7 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
         return df
 
     fin_df = df.copy()
+    hedgeparser = pf.get_hedgeparser(dup=True)
 
     # print('pre-granularize df: ', df)
 

@@ -15,6 +15,7 @@ from operator import add
 import pprint
 import numpy as np
 from collections import deque
+import copy
 
 
 # Dictionary of multipliers for greeks/pnl calculation.
@@ -1010,6 +1011,10 @@ class Portfolio:
 
     def get_hedger(self):
         return self.hedger
+
+    def get_hedgeparser(self, dup=False):
+        return self.hedger.get_hedgeparser() if dup is False \
+            else copy.deepcopy(self.hedger.get_hedgeparser())
 
     def get_unique_uids(self):
         """Helper method that returns a set of the unique underlyings currently in the portfolio. 
