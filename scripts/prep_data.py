@@ -18,15 +18,14 @@ from .classes import Option, Future
 from .calc import get_barrier_vol
 import pandas as pd
 import numpy as np
-from scipy.interpolate import PchipInterpolator, interp1d
+from scipy.interpolate import interp1d
 from scipy.stats import norm
-from math import log, sqrt, ceil
+from math import log, sqrt
 import time
 from ast import literal_eval
 from collections import OrderedDict
 import copy
 import datetime as dt
-import pprint
 
 seed = 7
 np.random.seed(seed)
@@ -1005,12 +1004,13 @@ def sanity_check(vdates, pdates, start_date, end_date, signals=None,):
 
 
 def handle_intraday_conventions(df):
-    """Helper method that deals with product/ftmth/uid construction from BBG ticker symbols, checks/amends data types and filters out weekends/bank holidays from the data. 
+    """Helper method that deals with product/ftmth/uid construction from BBG ticker symbols, 
+    checks/amends data types and filters out weekends/bank holidays from the data. 
 
     Args:
         df (TYPE): Description
     """
-    from pandas.tseries.holiday import USFederalHolidayCalendar as calendar
+    # from pandas.tseries.holiday import USFederalHolidayCalendar as calendar
     ## Step 1 ##
     # first: Convert S H8 Comdty -> S  H8
 
@@ -1053,7 +1053,8 @@ def handle_intraday_conventions(df):
 
 
 def timestep_recon(df):
-    """Helper method that reconciles timesteps for multi-product or multi-contract intraday simulations. Does the following:
+    """Helper method that reconciles timesteps for multi-product or multi-contract intraday simulations. 
+    Does the following:
     > for each day:
         get unique dataframes for each product/contract. 
         isolate dataset with minimum values.
@@ -1181,7 +1182,7 @@ def reorder_ohlc_data(df, pf):
         tuple: the initial dataframe and the modified dataframe. 
     """
     unique_uids = pf.get_unique_uids()
-    breakevens = pf.breakeven()
+    # breakevens = pf.breakeven()
     init_df = copy.deepcopy(df)
 
     # filter out all unnecessary uids.
@@ -1418,7 +1419,8 @@ def handle_overnight_market_timings(df, start_date, end_date):
 def granularize(df, pf, interval=None, ohlc=False, intraday=False):
     """Helper function that takes in a dataframe filtered through reorder_ohlc_data, 
     and checks for consecutive price moves that exceed the breakeven/flat value hedging
-    interval specified for that underlying id. If this condition is met, it splits up the move into hedge-interval level moves. Cases checked are as follows:
+    interval specified for that underlying id. If this condition is met, 
+    it splits up the move into hedge-interval level moves. Cases checked are as follows:
 
     1) case where the move is less than interval. 
         > ignores data, continues to next value. 
@@ -1434,7 +1436,8 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
 
 
     Returns:
-        dataframe: dataframe with the price moves granularized according to the flat value/breakeven value. irrelevant datapoints are filtered out. 
+        dataframe: dataframe with the price moves granularized according to the 
+        flat value/breakeven value. irrelevant datapoints are filtered out. 
     """
 
     # initial sanity check to see if only settlement data is present.
