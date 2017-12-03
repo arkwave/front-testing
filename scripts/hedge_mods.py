@@ -33,8 +33,8 @@ class TrailingStop(HedgeModifier):
         parent (TYPE): the Hedge object that created this trailingstop. 
         pf (portfolio object): the portfolio this trailing stop object is monitoring.
         stop_levels: copy of params['value']. used to re-compute the stop values
-        trigger_bounds (TYPE): dictionary mapping UID to trigger bounds around last hedged point, exceeding which
-                               monitoring is turned on. 
+        trigger_bounds (TYPE): dictionary mapping UID to trigger bounds around last hedged point, 
+                               exceeding which monitoring is turned on. 
         thresholds (dict): dictionary mapping uid to the price level at which 
             trailing stop monitoring is 'turned on' 
         stop_values: uid -> price point upon which we stop out.  
@@ -350,7 +350,8 @@ class TrailingStop(HedgeModifier):
 
 class HedgeParser:
 
-    """Simple class that determines the ratio of delta to be hedged during any particular call to Hedge.hedge_delta. 
+    """Simple class that determines the ratio of delta to be hedged during any 
+        particular call to Hedge.hedge_delta. 
 
     Figures out the ratio by taking two parameters into account:
         1) the presence of a TrailingStop object 
@@ -359,7 +360,8 @@ class HedgeParser:
 
     Attributes:
         dic (dict): Dictionary of the hedging paramters passed into the parent hedge object. 
-        mod_obj (object): a hedge modification object. currently, the only implemented example is a TrailingStop. Abstract as and when necessary. 
+        mod_obj (object): a hedge modification object. currently, the only implemented example
+                         is a TrailingStop. Abstract as and when necessary. 
         parent (TYPE): the Hedge object associated with this hedgeparser instance. 
     """
 
@@ -390,7 +392,8 @@ class HedgeParser:
     def parse_hedges(self, flag):
         """
         3 cases handled:
-            1) trigger bounds are wider than breakeven --> run deltas outside, neutralize default ratio inside. 
+            1) trigger bounds are wider than breakeven --> run deltas outside, 
+                                                           neutralize default ratio inside. 
             2) trigger bounds are smaller than breakeven --> do nothing. 
             3) trigger bounds are equal to breakeven --> return 1-hedge_ratio.
 
@@ -465,7 +468,8 @@ class HedgeParser:
         Args:
             uid (str): the uid being handled, e.g. C  Z7
             val (float): the price point we're interested in. 
-            comparison (float, optional): the value to be compared against. used when the HedgeParser is called in granularize. 
+            comparison (float, optional): the value to be compared against. 
+                                          used when the HedgeParser is called in granularize. 
 
 
 
