@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-11-29 19:56:16
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-12-01 22:15:05
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-12-04 13:58:29
 import pprint
 from abc import ABC, abstractmethod
 import numpy as np
@@ -472,16 +472,19 @@ class HedgeParser:
                                           used when the HedgeParser is called in granularize. 
 
 
-
         Returns:
             tuple: (bool, float, dict), representing the following:
             1) bool - indicates if the move should be considered valid or not. 
             2) float - the move multiple (e.g. how many times of hedge interval)
-            3) list - intermediate price points. returns nonempty list in the 
-                      following cases:
-                    1_ Portfolio has no associated HedgeModifier object and price 
-                       move multiple > 1 
-                    2_  
+            3) list - intermediate price points. returns empty list in the following cases:
+                      1_ price point is a relevant move but not hedged. 
+                      2_ price point is irrelevant and:
+                        > HedgeModifier monitoring is inactive (i.e. run_type == 'default')
+                        > HedgeModifier monitoring is active (i.e. run_type == '')
+
+            Aim: return a list of intermediate price points to be used in the create_intermediate_rows
+            function in scripts/prep_data. 
+
 
         """
 
@@ -503,5 +506,34 @@ class HedgeParser:
             return (relevant, mult, prices)
 
         else:
-            hedger_relevant, mult = hedger.is_relevant_price_move(
-                uid, val, comparison=comparison)
+            for price in prices:
+                hedger_relevant, mult = hedger.is_relevant_price_move(
+                    uid, price, comparison=comparison)
+                # cases to consider:
+                if hedger_relevant:
+                    run_deltas, run_type = mod.run_deltas(uid, {uid: val})
+                    # case: mod returns that deltas should be run.
+                    if run_deltas:
+                        return False
+                    # case: no monitoring is active.
+                    elif run_type == 'default':
+                        return True
+                    # case: stop is hit.
+                elif run_type == 'hit':
+                    # need to granularize the actual hit value
+                    # reset hedges there.
+                    pass
+
+                else:
+                    # sanity checking case where it's an irrelevant move.
+                    assert len(prices) == 1
+                    assert prices[0] == val
+                    run_deltas, run_type = mod.run_deltas(uid, {uid: val})
+                    # case 4: run_deltas returns true.
+                    if run_deltas:
+                        return False
+                    # case: no monitoring + irrelevant move.
+                    elif run_type == 'default':
+                        return False
+                    elif run_type == 'hit':
+                        return True

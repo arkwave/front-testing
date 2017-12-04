@@ -1616,6 +1616,17 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
     return fin_df
 
 
+def create_intermediate_rows(lst, lastrow):
+    """Helper function that constructs intermediate rows as specified by
+    the granularize function. 
+
+    Args:
+        lst (TYPE): Description
+        lastrow (TYPE): Description
+    """
+    pass
+
+
 def pnp_format(filepath, pdts=None):
     """Helper method that takes the relevant product positions from PnP 
     and outputs a table compatible with prep_data.prep_portfolio 
