@@ -1486,12 +1486,13 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
             row = uid_df.iloc[index]
             diff = row.price - curr_price
 
-            relevant, move_mult = pf.hedger.is_relevant_price_move(
-                uid, row.price, comparison=curr_price)
-
             # skip settlements since they are valid by default.
             if row.datatype == 'settlement':
                 continue
+
+            relevant, move_mult, intermediate_prices = \
+                hedgeparser.relevant_price_move(
+                    uid, row.price, comparison=curr_price)
 
             # if it's less than interval and intraday, nothing needs to be
             # done. set to false.
@@ -1507,7 +1508,8 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
             else:
                 # if it's close to interval, then is_relevant_price_move will pick it up.
                 # just reset comparative price , and mark as relevant
-                if np.isclose(abs(diff), interval) or abs(diff) == interval:
+
+                if relevant and not intermediate_prices:
                     print('--------------- handling row ' +
                           str(index) + ' --------------')
                     print('diff, interval: ', diff, interval)
@@ -1539,8 +1541,10 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
                     # not the first row. create new rows to simulate resting
                     # orders.
                     else:
+
                         print('interval: ', interval)
                         print('curr_price: ', curr_price)
+                        print('intermediate prices: ', intermediate_prices)
                         print('row price: ', row.price)
                         print('diff: ', diff)
                         print('datatype: ', row.datatype)
@@ -1549,52 +1553,11 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
                         curr_time = uid_df.iloc[index-1].time
                         print('curr_time: ', curr_time)
 
-                        print('move mult: ', move_mult)
-
-                        for x in range(int(move_mult)):
-                            # multiplier to ascertain if the price rose or fell from
-                            # last hedgepoint
-                            mult = -1 if diff < 0 else 1
-
-                            newprice = curr_price + (interval*mult)
-                            # round newprice to closest future tick that is larger
-                            # than newprice.
-                            # newprice = ceil(newprice/ticksize)*ticksize
-                            print('intermediate price: ', newprice)
-
-                            if lastrow is not None:
-                                # case: new row added in previous loop has a time greater than
-                                # the previous index row in the dataframe; use this
-                                # time.
-                                if lastrow['time'] > curr_time:
-                                    prev_time = lastrow['time']
-                                    print('using lastrow time: ', prev_time)
-                                    newtime = dt.time(prev_time.hour, prev_time.minute,
-                                                      prev_time.second, prev_time.microsecond + 1)
-                                else:
-                                    newtime = dt.time(curr_time.hour, curr_time.minute,
-                                                      curr_time.second, curr_time.microsecond + 1)
-                                    print('newtime, currtime: ',
-                                          newtime, curr_time)
-
-                            else:
-                                newtime = dt.time(curr_time.hour, curr_time.minute,
-                                                  curr_time.second, curr_time.microsecond + 1)
-                                print('newtime, currtime: ',
-                                      newtime, curr_time)
-
-                            newrow = {'value_date': row.value_date, 'time': newtime, 'pdt': row.pdt,
-                                      'ftmth': row.ftmth, 'price': newprice, 'datatype': 'intraday',
-                                      'underlying_id': uid, 'relevant': True}
-
-                            lastrow = newrow
-                            if ohlc:
-                                newrow['price_id'] = 'midpt'
-
-                            print('newrow added: ', newrow)
-                            fin_df = fin_df.append(newrow, ignore_index=True)
-                            print('curr_price updated to ' + str(newprice))
-                            curr_price = newprice
+                        # print('move mult: ', move_mult)
+                        intermediates = create_intermediate_rows(
+                            intermediate_prices, lastrow, ohlc)
+                        fin_df = pd.concat([fin_df, intermediates])
+                        curr_price = intermediate_prices[-1]
 
     # sort values by time, filter relevant entries and reset indexes.
     if ohlc:
@@ -1616,15 +1579,61 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
     return fin_df
 
 
-def create_intermediate_rows(lst, lastrow):
+def create_intermediate_rows(lst, lastrow, ohlc, curr_time, row):
     """Helper function that constructs intermediate rows as specified by
     the granularize function. 
 
     Args:
         lst (TYPE): Description
         lastrow (TYPE): Description
+        ohlc (TYPE): Description
     """
-    pass
+    fin = []
+    for price in lst:
+        # multiplier to ascertain if the price rose or fell from
+        # last hedgepoint
+
+        newprice = price
+        # round newprice to closest future tick that is larger
+        # than newprice.
+        # newprice = ceil(newprice/ticksize)*ticksize
+
+        print('intermediate price: ', newprice)
+
+        if lastrow is not None:
+            # case: new row added in previous loop has a time greater than
+            # the previous index row in the dataframe; use this
+            # time.
+            if lastrow['time'] > curr_time:
+                prev_time = lastrow['time']
+                print('using lastrow time: ', prev_time)
+                newtime = dt.time(prev_time.hour, prev_time.minute,
+                                  prev_time.second, prev_time.microsecond + 1)
+            else:
+                newtime = dt.time(curr_time.hour, curr_time.minute,
+                                  curr_time.second, curr_time.microsecond + 1)
+                print('newtime, currtime: ',
+                      newtime, curr_time)
+
+        else:
+            newtime = dt.time(curr_time.hour, curr_time.minute,
+                              curr_time.second, curr_time.microsecond + 1)
+            print('newtime, currtime: ',
+                  newtime, curr_time)
+
+        newrow = {'value_date': row.value_date, 'time': newtime, 'pdt': row.pdt,
+                  'ftmth': row.ftmth, 'price': newprice, 'datatype': 'intraday',
+                  'underlying_id': row.uid, 'relevant': True}
+
+        lastrow = newrow
+        if ohlc:
+            newrow['price_id'] = 'midpt'
+
+        fin.append(newrow)
+        print('newrow added: ', newrow)
+
+    fin = pd.DataFrame(fin)
+    return fin
 
 
 def pnp_format(filepath, pdts=None):
@@ -1772,4 +1781,5 @@ def aggregate_pnp_positions(df):
 ##########################################################################
 ##########################################################################
 ##########################################################################
+####
 ####

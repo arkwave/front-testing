@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-29 19:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-04 13:58:29
+# @Last Modified time: 2017-12-04 15:01:08
 import pprint
 from abc import ABC, abstractmethod
 import numpy as np
@@ -497,7 +497,8 @@ class HedgeParser:
         interval = hedger.get_hedge_interval(uid)
         int_mult = -1 if comparison > val else 1
 
-        prices = list(np.arange(comparison, val, interval*int_mult))
+        prices = list(np.arange(comparison+int_mult *
+                                val, val, interval*int_mult))
 
         # base case: No HedgeModifier object is found.
         if self.get_mod_obj() is None:
