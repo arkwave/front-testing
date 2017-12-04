@@ -1447,18 +1447,11 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
     fin_df = df.copy()
     hedgeparser = pf.get_hedgeparser(dup=True)
 
-    # print('pre-granularize df: ', df)
-
     # marking all relevant price moves as such.
     fin_df['relevant'] = ''
 
     # mark all settlements as relevant
     fin_df.ix[(fin_df.datatype == 'settlement'), 'relevant'] = True
-
-    # edge case: OHLC data is handled a little differently. All default to true,
-    # and irrelevant prices are explicitly set to false.
-    # if ohlc:
-    #     fin_df['relevant'] = True
 
     # get the UIDS that need to be handled.
     uids = df.underlying_id.unique()
@@ -1490,13 +1483,13 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
             if row.datatype == 'settlement':
                 continue
 
-            relevant, move_mult, intermediate_prices = \
+            intermediate_prices = \
                 hedgeparser.relevant_price_move(
                     uid, row.price, comparison=curr_price)
 
             # if it's less than interval and intraday, nothing needs to be
             # done. set to false.
-            if not relevant and row.datatype == 'intraday':
+            if not intermediate_prices and row.datatype == 'intraday':
                 # set it to false.
                 if ohlc:
                     fin_df.ix[(fin_df.underlying_id == uid) &
@@ -1508,8 +1501,7 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
             else:
                 # if it's close to interval, then is_relevant_price_move will pick it up.
                 # just reset comparative price , and mark as relevant
-
-                if relevant and not intermediate_prices:
+                if len(intermediate_prices) == 1 and intermediate_prices[0] == row.price:
                     print('--------------- handling row ' +
                           str(index) + ' --------------')
                     print('diff, interval: ', diff, interval)
@@ -1541,7 +1533,6 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
                     # not the first row. create new rows to simulate resting
                     # orders.
                     else:
-
                         print('interval: ', interval)
                         print('curr_price: ', curr_price)
                         print('intermediate prices: ', intermediate_prices)
@@ -1553,7 +1544,6 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
                         curr_time = uid_df.iloc[index-1].time
                         print('curr_time: ', curr_time)
 
-                        # print('move mult: ', move_mult)
                         intermediates = create_intermediate_rows(
                             intermediate_prices, lastrow, ohlc)
                         fin_df = pd.concat([fin_df, intermediates])
@@ -1590,15 +1580,13 @@ def create_intermediate_rows(lst, lastrow, ohlc, curr_time, row):
     """
     fin = []
     for price in lst:
-        # multiplier to ascertain if the price rose or fell from
-        # last hedgepoint
-
         newprice = price
+
         # round newprice to closest future tick that is larger
         # than newprice.
         # newprice = ceil(newprice/ticksize)*ticksize
 
-        print('intermediate price: ', newprice)
+        # print('intermediate price: ', newprice)
 
         if lastrow is not None:
             # case: new row added in previous loop has a time greater than
@@ -1630,7 +1618,7 @@ def create_intermediate_rows(lst, lastrow, ohlc, curr_time, row):
             newrow['price_id'] = 'midpt'
 
         fin.append(newrow)
-        print('newrow added: ', newrow)
+        # print('newrow added: ', newrow)
 
     fin = pd.DataFrame(fin)
     return fin

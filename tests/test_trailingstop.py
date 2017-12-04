@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-29 20:02:36
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-30 21:18:29
+# @Last Modified time: 2017-12-04 15:44:41
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -586,8 +586,8 @@ def test_trailingstop_locks_sellstops():
     # fall below the threshold. this should trigger a stop, updating
     # anchor points, locks, active and thresholds.
     newprices = {'QC  Z7': 1580, 'CC  Z7': 2000}
-    assert tstop.run_deltas('QC  Z7', newprices) == (False, 'hit')
-    assert tstop.run_deltas('CC  Z7', newprices) == (False, 'hit')
+    assert tstop.run_deltas('QC  Z7', newprices) == (False, 'hit', 1586)
+    assert tstop.run_deltas('CC  Z7', newprices) == (False, 'hit', 2012)
     assert tstop.get_locks() == {'CC  Z7': False, 'QC  Z7': False}
     assert tstop.get_active() == {'CC  Z7': False, 'QC  Z7': False}
     assert tstop.get_stop_values() == {'CC  Z7': None, 'QC  Z7': None}
@@ -651,8 +651,8 @@ def test_trailingstop_locks_buystops():
     # fall below the threshold. this should trigger a stop, updating
     # anchor points, locks, active and thresholds.
     newprices = {'QC  Z7': 1535, 'CC  Z7': 1961}
-    assert tstop.run_deltas('QC  Z7', newprices) == (False, 'hit')
-    assert tstop.run_deltas('CC  Z7', newprices) == (False, 'hit')
+    assert tstop.run_deltas('QC  Z7', newprices) == (False, 'hit', 1534)
+    assert tstop.run_deltas('CC  Z7', newprices) == (False, 'hit', 1960)
     assert tstop.get_locks() == {'CC  Z7': False, 'QC  Z7': False}
     assert tstop.get_active() == {'CC  Z7': False, 'QC  Z7': False}
     assert tstop.get_stop_values() == {'CC  Z7': None, 'QC  Z7': None}

@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-29 19:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-04 15:01:08
+# @Last Modified time: 2017-12-04 22:26:24
 import pprint
 from abc import ABC, abstractmethod
 import numpy as np
@@ -11,7 +11,7 @@ import numpy as np
 # TODO: Add on to this as necessary.
 class HedgeModifier(ABC):
 
-    """Abstract class that serves as a template for all Hedge modification objects. 
+    """Abstract class that serves as a template for all Hedge modification objects.
     """
     @abstractmethod
     def run_deltas(self):
@@ -20,24 +20,24 @@ class HedgeModifier(ABC):
 
 class TrailingStop(HedgeModifier):
     """
-    Class that handles all the details required for trailing stops. 
+    Class that handles all the details required for trailing stops.
 
     Attributes:
-        active (dict): UID -> true or false. Determines whether or not stop loss 
-                              monitoring has been triggered. 
-        current_level (TYPE): UID -> current price level dictionary. 
-        last_hedgepoints (TYPE): last values these UIDS were hedged at. 
+        active (dict): UID -> true or false. Determines whether or not stop loss
+                              monitoring has been triggered.
+        current_level (TYPE): UID -> current price level dictionary.
+        last_hedgepoints (TYPE): last values these UIDS were hedged at.
         entry_level (TYPE): a dictionary mappng UID to the price level the tradewas entered at.
-        maximals (TYPE): highest UID price values seen so far. 
-        minimals (dict): the lowest UID price values seen so far. 
-        parent (TYPE): the Hedge object that created this trailingstop. 
+        maximals (TYPE): highest UID price values seen so far.
+        minimals (dict): the lowest UID price values seen so far.
+        parent (TYPE): the Hedge object that created this trailingstop.
         pf (portfolio object): the portfolio this trailing stop object is monitoring.
         stop_levels: copy of params['value']. used to re-compute the stop values
-        trigger_bounds (TYPE): dictionary mapping UID to trigger bounds around last hedged point, 
-                               exceeding which monitoring is turned on. 
-        thresholds (dict): dictionary mapping uid to the price level at which 
-            trailing stop monitoring is 'turned on' 
-        stop_values: uid -> price point upon which we stop out.  
+        trigger_bounds (TYPE): dictionary mapping UID to trigger bounds around last hedged point,
+                               exceeding which monitoring is turned on.
+        thresholds (dict): dictionary mapping uid to the price level at which
+            trailing stop monitoring is 'turned on'
+        stop_values: uid -> price point upon which we stop out.
 
     """
 
@@ -67,17 +67,17 @@ class TrailingStop(HedgeModifier):
         return pprint.pformat(r_dict)
 
     def process_params(self, dic):
-        """Helper method that processes the 
-           intraday params specified in dic. 
+        """Helper method that processes the
+           intraday params specified in dic.
 
         Args:
             dic (TYPE): dictionary of intraday parameters, of the following form:
-                {'trigger': {uid1: (30, price), uid2: (50, price)}, 'value': 
+                {'trigger': {uid1: (30, price), uid2: (50, price)}, 'value':
                 {uid1: (-31.5, price), uid2: (-1, price}}
         Returns:
-            tuple: trigger levels: price points at which to trigger a stop. 
+            tuple: trigger levels: price points at which to trigger a stop.
                    active: dictionary mapping UIDS to True/False. Determines
-                   whether stop loss monitoring has been triggered or not. 
+                   whether stop loss monitoring has been triggered or not.
         """
         # first: sanity check the inputs.
         try:
@@ -100,8 +100,11 @@ class TrailingStop(HedgeModifier):
         self.stop_levels = stops
         self.update_stop_values()
 
-    def get_thresholds(self):
-        return self.thresholds
+    def get_thresholds(self, uid=None):
+        if uid is None:
+            return self.thresholds
+        else:
+            return self.thresholds[uid]
 
     def get_trigger_bounds(self):
         return self.trigger_bounds
@@ -210,10 +213,10 @@ class TrailingStop(HedgeModifier):
     # need to figure out pathological cases.
     def update_stop_values(self, maximals=None, minimals=None):
         """
-        Updates the values at which a given underlying will stop out by comparing current value to bounds 
+        Updates the values at which a given underlying will stop out by comparing current value to bounds
         specified in self.threshold. Two cases handled:
-            1) if current < lower bound: it's a buy stop. stop value = min + stop_level. 
-            2) if current > upper bound: it's a sell stop. stop_value = max - stop_level 
+            1) if current < lower bound: it's a buy stop. stop value = min + stop_level.
+            2) if current > upper bound: it's a sell stop. stop_value = max - stop_level
 
         Args:
             maximals (None, optional): Description
@@ -224,7 +227,7 @@ class TrailingStop(HedgeModifier):
         assert self.stop_levels is not None
         for uid in self.stop_levels:
             if not self.get_active(uid=uid):
-                # print('%s trailing stop monitor is inactive.' % uid +
+                # # print('%s trailing stop monitor is inactive.' % uid +
                 #       ' setting stop_value to None.')
                 self.stop_values[uid] = None
             else:
@@ -264,8 +267,8 @@ class TrailingStop(HedgeModifier):
                         self.locked[uid] = newlock
 
                 except KeyError as e:
-                    print('current_level: ', self.current_level)
-                    print('thresholds: ', self.thresholds)
+                    # print('current_level: ', self.current_level)
+                    # print('thresholds: ', self.thresholds)
                     raise KeyError(
                         'Key %s not in current_level and/or threshold dictionaries' % uid)
         else:
@@ -276,11 +279,11 @@ class TrailingStop(HedgeModifier):
 
     def trailing_stop_hit(self, uid, val=None):
         """
-        Helper function that checks to see if the trailing stop has been hit. if so, return true. 
+        Helper function that checks to see if the trailing stop has been hit. if so, return true.
 
         Args:
-            uid (string): the underlying ID we are interested in 
-            val (float, optional): an explicit value to compare. 
+            uid (string): the underlying ID we are interested in
+            val (float, optional): an explicit value to compare.
 
         Returns:
             TYPE: Description
@@ -290,79 +293,74 @@ class TrailingStop(HedgeModifier):
             return False
         # get the current price and the direction of the stop.
         current_price = self.get_current_level(uid=uid) if val is None else val
-        stop_direction = 1 if current_price < self.anchor_points[uid] else -1
 
+        stop_direction = 1 if current_price <= self.anchor_points[uid] else -1
+        stopval = self.stop_values[uid]
         # case 1: sell-stop and current price <= stop value.
-        if (current_price <= self.stop_values[uid]) and stop_direction == -1:
-            return True
+        if ((current_price <= stopval) or np.isclose(current_price, stopval)) and stop_direction == -1:
+            return True, stopval
 
         # case 2: buy-stop and current price >= stop value.
-        elif current_price >= self.stop_values[uid] and stop_direction == 1:
-            return True
+        elif ((current_price >= stopval) or np.isclose(current_price, stopval)) and stop_direction == 1:
+            return True, stopval
 
-        return False
+        return False, None
 
-    def run_deltas(self, uid, price_dict):
-        """The only function that should be called outside of the 
+    def run_deltas(self, uid, price_dict, reset=False):
+        """The only function that should be called outside of the
 
         Args:
-            uid (string): The underlying ID we're interested in 
-            price_dict (dic): dictionary of prices. 
+            uid (string): The underlying ID we're interested in
+            price_dict (dic): dictionary of prices.
 
         Returns:
             tuple: (bool, str). str argument is used to distinguish between the cases where
-            run_deltas returns false because trailing stops are hit, where monitoring is inactive. 
+            run_deltas returns false because trailing stops are hit, where monitoring is inactive.
         """
         # first: update the prices.
-        print('price dict: ', price_dict)
-        print('>>>> TrailingStop: old params pre-update <<<<')
-        print(self.__str__())
-        print('>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<')
-        self.update_current_level(price_dict, uid=uid)
+        # # print('price dict: ', price_dict)
+        # # print('>>>> TrailingStop: old params pre-update <<<<')
+        # # print(self.__str__())
+        # # print('>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<')
 
-        print('>>>> TrailingStop: New Params post-update <<<<')
-        print(self.__str__())
-        print('>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<')
+        self.update_current_level(price_dict, uid=uid)
+        stopval = self.get_stop_values(uid=uid)
+        # # print('>>>> TrailingStop: New Params post-update <<<<')
+        # # print(self.__str__())
+        # # print('>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<')
 
         if self.get_active(uid=uid):
             # case: trailingstop got hit. neutralize all.
-            if self.trailing_stop_hit(uid):
+            hit, val = self.trailing_stop_hit(uid)
+            print('hit, val: ', hit, val)
+            if hit:
                 self.unlock(uid)
-                self.update_anchor_points(price_dict, uid=uid)
+                self.update_anchor_points({uid: val}, uid=uid)
+                print('updated anchor points: ', self.get_anchor_points())
                 self.reset_extrema(uid)
-                return False, 'hit'
+                return False, 'hit', stopval
             # case: active but TS not hit. run deltas.
-            return True, ''
+            return True, '', stopval
         else:
             # case: inactive. default to portfolio default.
-            return False, 'default'
-
-    def run_delta_iterative(self, uid, lst):
-        fin = []
-        for price in lst:
-            print('price being run: ', price)
-            run, typestr = self.run_deltas(uid, {uid: price})
-            if not run:
-                fin.append(price)
-
-        return fin
+            return False, 'default', stopval
 
 
 class HedgeParser:
 
-    """Simple class that determines the ratio of delta to be hedged during any 
-        particular call to Hedge.hedge_delta. 
+    """Simple class that determines the ratio of delta to be hedged during any
+        particular call to Hedge.hedge_delta.
 
     Figures out the ratio by taking two parameters into account:
-        1) the presence of a TrailingStop object 
+        1) the presence of a TrailingStop object
         2) the specification of a ratio under Hedge.params['delta']['intraday']
         3) relationship between trailingstop trigger bounds and breakeven
 
     Attributes:
-        dic (dict): Dictionary of the hedging paramters passed into the parent hedge object. 
+        dic (dict): Dictionary of the hedging paramters passed into the parent hedge object.
         mod_obj (object): a hedge modification object. currently, the only implemented example
-                         is a TrailingStop. Abstract as and when necessary. 
-        parent (TYPE): the Hedge object associated with this hedgeparser instance. 
+                         is a TrailingStop. Abstract as and when necessary.
+        parent (TYPE): the Hedge object associated with this hedgeparser instance.
     """
 
     def __init__(self, parent, dic, mod_obj, pf):
@@ -373,8 +371,8 @@ class HedgeParser:
         if 'ratio' in self.params:
             self.hedger_ratio = self.params['ratio']
         else:
-            print('else case: ratio not specified')
-            print('params: ', self.params)
+            # print('else case: ratio not specified')
+            # print('params: ', self.params)
             self.hedger_ratio = 1
 
         if self.mod_obj is not None:
@@ -392,28 +390,28 @@ class HedgeParser:
     def parse_hedges(self, flag):
         """
         3 cases handled:
-            1) trigger bounds are wider than breakeven --> run deltas outside, 
-                                                           neutralize default ratio inside. 
-            2) trigger bounds are smaller than breakeven --> do nothing. 
+            1) trigger bounds are wider than breakeven --> run deltas outside,
+                                                           neutralize default ratio inside.
+            2) trigger bounds are smaller than breakeven --> do nothing.
             3) trigger bounds are equal to breakeven --> return 1-hedge_ratio.
 
         Returns:
-            TYPE: dictionary mapping UIDs to proportion (0 to 1) of deltas to run. 
+            TYPE: dictionary mapping UIDs to proportion (0 to 1) of deltas to run.
         """
         ret = {}
         uids = self.pf.get_unique_uids()
         hedger_ratio = self.hedger_ratio
 
         if flag == 'eod':
-            print('HedgeParser - EOD case.')
+            # print('HedgeParser - EOD case.')
             return {uid: 0 for uid in uids}
 
         if self.mod_obj is None:
-            print('HedgeParser - No HedgeModifier detected.')
+            # print('HedgeParser - No HedgeModifier detected.')
             ret = {uid: 1-hedger_ratio for uid in uids}
 
         elif isinstance(self.mod_obj, TrailingStop):
-            print('HedgeParser - TrailingStop HedgeModifier detected.')
+            # print('HedgeParser - TrailingStop HedgeModifier detected.')
             # get the parent Hedge object's breakeven dictionary.
             hedger_interval_dict = self.parent.get_hedge_interval()
             # get the trigger bounds.
@@ -426,115 +424,198 @@ class HedgeParser:
 
             for uid in uids:
 
-                run_deltas, type_str = \
+                run_deltas, type_str, stopval = \
                     self.mod_obj.run_deltas(uid, self.pf.uid_price_dict())
 
                 if run_deltas:
                     # case: we want to run the deltas of this uid.
-                    print('Case (1): run %s deltas' % uid)
+                    # print('Case (1): run %s deltas' % uid)
                     run_trigger, hedge_interval = trigger_bounds[
                         uid], hedger_interval_dict[uid]
 
-                    print('%s run_trigger: ' % uid, run_trigger)
-                    print('%s hedge interval: ' % uid, hedge_interval)
+                    # print('%s run_trigger: ' % uid, run_trigger)
+                    # print('%s hedge interval: ' % uid, hedge_interval)
 
                     # case: run_delta + modification trigger != hedge
                     # interval stipulated.
                     if run_trigger > hedge_interval or run_trigger < hedge_interval:
-                        print('Case (1.1): hedge interval != run trigger bounds')
+                        # print('Case (1.1): hedge interval != run trigger
+                        # bounds')
                         ret[uid] = 1
 
                     elif run_trigger == hedge_interval:
-                        print('Case (1.2): hedge interval == run trigger bounds')
+                        # print('Case (1.2): hedge interval == run trigger
+                        # bounds')
                         ret[uid] = 1-hedger_ratio
 
                 else:
-                    print('Case (2): Do not run deltas for %s' % uid)
-                    print('trailing stop %s' %
-                          ('hit' if type_str == 'hit' else 'not hit'))
-                    ret[uid] = 0 if type_str == 'hit' else 1 - \
-                        hedger_ratio
+                    # print('Case (2): Do not run deltas for %s' % uid)
+                    # print('trailing stop %s' % ('hit' if type_str == 'hit' else 'not hit'))
+                    ret[uid] = 0 if type_str == 'hit' else 1 - hedger_ratio
 
         return ret
 
     def relevant_price_move(self, uid, val, comparison=None):
-        """Method that asserts whether or not a price move is relevant. A few cases are taken into account:
-        1) price move > hedge interval, stop monitoring inactive -> True. 
-        2) price move > hedge interval, stop monitoring active -> if stop hit, True else False
-        3) price move < hedge interval, stop monitoring inactive -> False. 
-        4) price move < hedge interval, stop monitoring active -> if stop hit, True else False. 
-
+        """ Helper function that takes in a uid, price value and an optional comparison
+        price point returns a list of valid price moves between these two points, taking
+        hedgemod constraints and hedging intervals into account. s
 
         Args:
             uid (str): the uid being handled, e.g. C  Z7
-            val (float): the price point we're interested in. 
-            comparison (float, optional): the value to be compared against. 
-                                          used when the HedgeParser is called in granularize. 
+            val (float): the price point we're interested in.
+            comparison (float, optional): the value to be compared against.
+                                          used when the HedgeParser is called in granularize.
 
 
         Returns:
-            tuple: (bool, float, dict), representing the following:
-            1) bool - indicates if the move should be considered valid or not. 
-            2) float - the move multiple (e.g. how many times of hedge interval)
-            3) list - intermediate price points. returns empty list in the following cases:
-                      1_ price point is a relevant move but not hedged. 
-                      2_ price point is irrelevant and:
-                        > HedgeModifier monitoring is inactive (i.e. run_type == 'default')
-                        > HedgeModifier monitoring is active (i.e. run_type == '')
-
-            Aim: return a list of intermediate price points to be used in the create_intermediate_rows
-            function in scripts/prep_data. 
+            list of valid price points between comparison and val.
+            > empty list returned in the following scenarios:
+                1) hedge mod is None and invalid price move.
+                2) hedge mod is not None:
+                    - no monitoring active and invalid price move.
+                    - uid is active and val is further away from stop value than comparison.
 
 
         """
-
-        # TODO: figure out how exactly the hegemod object is going to be
-        # updated. Temporary solution: just use run_deltas?
-
-        mod = self.get_mod_obj()
         hedger = self.get_parent()
 
         interval = hedger.get_hedge_interval(uid)
         int_mult = -1 if comparison > val else 1
 
-        prices = list(np.arange(comparison+int_mult *
-                                val, val, interval*int_mult))
+        # generate a sequence of prices between comparison and val.
+        # this is uni-directional by definition --> only need to care
+        # about a single interval rather than caring about +- interval.
+        prices = self.gen_prices(comparison, val, int_mult*interval, uid)
 
-        # base case: No HedgeModifier object is found.
-        if self.get_mod_obj() is None:
-            relevant, mult = self.parent.is_relevant_price_move(
-                uid, val, comparison=comparison)
-            return (relevant, mult, prices)
+        return prices
 
-        else:
-            for price in prices:
-                hedger_relevant, mult = hedger.is_relevant_price_move(
-                    uid, price, comparison=comparison)
-                # cases to consider:
-                if hedger_relevant:
-                    run_deltas, run_type = mod.run_deltas(uid, {uid: val})
-                    # case: mod returns that deltas should be run.
-                    if run_deltas:
-                        return False
-                    # case: no monitoring is active.
-                    elif run_type == 'default':
-                        return True
-                    # case: stop is hit.
-                elif run_type == 'hit':
-                    # need to granularize the actual hit value
-                    # reset hedges there.
-                    pass
+    def gen_prices(self, start, end, interval, uid, hedgemod=None):
+        """Generates a price series between start and end, subject to
+        hedgemod and
 
-                else:
-                    # sanity checking case where it's an irrelevant move.
-                    assert len(prices) == 1
-                    assert prices[0] == val
-                    run_deltas, run_type = mod.run_deltas(uid, {uid: val})
-                    # case 4: run_deltas returns true.
-                    if run_deltas:
-                        return False
-                    # case: no monitoring + irrelevant move.
-                    elif run_type == 'default':
-                        return False
-                    elif run_type == 'hit':
-                        return True
+        Args:
+            start (float): start point.
+            end (float): end point.
+            interval (float): the hedging interval considered.
+            hedgemod (HedgeModifier): HedgeModifier object.
+
+        Returns:
+            list -> list of valid prices between start and end, subject to hedgemod constraints.
+
+        """
+        print('-------------------------------------------------------------------')
+        print('START: ', start)
+        print('END: ', end)
+        print('INTERVAL: ', interval)
+
+        def f(start, end, interval):
+            if start > end and interval > 0:
+                return True
+            elif start > end and interval < 0:
+                return False
+            elif start < end and interval > 0:
+                return False
+            elif start < end and interval < 0:
+                return True
+
+        hedgemod = self.get_mod_obj() if hedgemod is None else hedgemod
+
+        # edge case 1: No hedgemod present.
+        if hedgemod is None:
+            mult = np.sign(interval)
+            return list(np.arange(start+interval,
+                                  end+(mult*1e-9), interval))
+
+        # isolate the boolean condition to be tested.
+
+        active = hedgemod.get_active(uid=uid)
+        print('ACTIVE: ', active)
+
+        lst = []
+
+        prev = start
+        curr = start + interval
+        done = f(curr, end, interval)
+
+        # edge case 2: uid is already active.
+        if active:
+            # # print('active case.')
+            # # print('tstop initial: ', hedgemod)
+            run, runtype, stopval = hedgemod.run_deltas(uid, {uid: end})
+            # # print('tstop final: ', hedgemod)
+            # # print('run, str, stopval: ', run, runtype, stopval)
+            if runtype == 'hit':
+                # print('active - hit case')
+                lst.append(stopval)
+                prev = curr
+                curr = stopval
+            else:
+                # if direction to stop value from curr != direction of interval,
+                # we will never hit stop --> might as well return
+                # print('active - fail case')
+                if np.sign(stopval - end) != np.sign(interval):
+                    return lst
+
+        # edge case 3: one interval move surpasses end
+        if (curr > end and interval > 0) or (curr < end and interval < 0):
+            # print('edge case 3')
+            run, runtype, stopval = hedgemod.run_deltas(uid, {uid: curr})
+            if runtype == 'hit':
+                return [stopval]
+            else:
+                return []
+
+        # main loop
+        while not done:
+            print('main loop. curr -  ', curr)
+            run, runtype, stopval = hedgemod.run_deltas(uid, {uid: curr})
+            print('run, runtype, stopval: ', run, runtype, stopval)
+            # case: price move activates monitoring.
+            if run:
+                print('HedgeParser.gen_prices: running deltas at ' + str(curr))
+                # case: need to check for threshold between start and curr.
+                lower, upper = hedgemod.get_thresholds(uid=uid)
+                print('lower, upper: ', lower, upper)
+                print('prev, curr: ', prev, curr)
+                # if curr == upper or curr == lower:
+                #     print('curr is equal to threshold')
+                #     lst.append(curr)
+
+                if curr > upper and prev < upper:
+                    lst.append(upper)
+                elif curr < lower and prev > lower:
+                    lst.append(lower)
+
+                # break
+                prev = curr
+                curr += interval
+
+            else:
+                # case: no breaches. price move is relevant.
+                if (runtype == 'default') and not active:
+                    lst.append(curr)
+                    prev = curr
+                    curr += interval
+
+                # case: stops are hit.
+                elif runtype == 'hit':
+                    try:
+                        assert active
+                    except AssertionError as e:
+                        raise AssertionError('tstop : ', hedgemod.__str__())
+                    # case 1: stop val is in between start and curr.
+                    if (stopval < curr and interval > 0) or (stopval > curr and interval < 0):
+                        lst.append(stopval)
+                        prev = curr
+                        curr = stopval
+
+                    # case 2: stop val == curr.
+                    elif stopval == curr:
+                        lst.append(curr)
+                        prev = curr
+                        curr += interval
+                    active = False
+
+            done = f(curr, end, interval)
+
+        return lst

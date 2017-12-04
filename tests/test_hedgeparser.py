@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-11-30 21:19:46
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-12-01 22:01:27
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-12-04 22:11:12
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -128,6 +128,170 @@ def test_basic():
         assert np.isclose(actual[uid], 0.3)
 
 
+def test_gen_prices_basic():
+    vals = {'CC  Z7': 10, 'QC  Z7': 10}
+    intraday_params = {'tstop': {'trigger': {'QC  Z7': (30, 'price'),
+                                             'CC  Z7': (30, 'price')},
+                                 'value': {'QC  Z7': (5, 'price'),
+                                           'CC  Z7': (5, 'price')}}}
+    gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+                                        ['intraday', 'static', vals, 1,
+                                         intraday_params]]})
+
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    pf_comp.hedge_params = gen_hedges
+    pf = copy.deepcopy(pf_comp)
+    pf = assign_hedge_objects(pf)
+
+    hp = pf.get_hedgeparser(dup=True)
+    tstop = hp.get_mod_obj()
+    assert tstop is not None
+    hedger = pf.get_hedger()
+    # basic checks.
+    assert isinstance(hp.get_mod_obj(), TrailingStop)
+    assert hp.get_hedger_ratio() == 1
+
+    print('hedge intervals: ', {uid:  hedger.get_hedge_interval(uid)
+                                for uid in pf.get_unique_uids()})
+
+    print('stop values: ', tstop.get_stop_values())
+
+    assert hp.gen_prices(1560, 1565, 10, 'QC  Z7', copy.deepcopy(tstop)) == []
+
+    assert hp.gen_prices(1560, 1580, 10, 'QC  Z7',
+                         copy.deepcopy(tstop)) == [1570, 1580]
+    assert hp.gen_prices(1560, 1570, 10, 'QC  Z7',
+                         copy.deepcopy(tstop)) == [1570]
+
+    assert hp.gen_prices(1560, 1550, -10, 'QC  Z7',
+                         copy.deepcopy(tstop)) == [1550]
+    try:
+        val = hp.gen_prices(1560, 1630, 10, 'QC  Z7', copy.deepcopy(tstop))
+        assert val == [1570, 1580, 1590]
+    except AssertionError as e:
+        raise AssertionError(val) from e
+
+    assert hp.gen_prices(1560, 1540, -10, 'QC  Z7',
+                         copy.deepcopy(tstop)) == [1550, 1540]
+
+    try:
+        val = hp.gen_prices(1560, 1520, -10, 'QC  Z7',
+                            copy.deepcopy(tstop))
+        assert val == [1550, 1540, 1530]
+    except AssertionError as e:
+        raise AssertionError(val) from e
+
+
+def test_gen_prices_seq_sellstop():
+    vals = {'CC  Z7': 10, 'QC  Z7': 10}
+    intraday_params = {'tstop': {'trigger': {'QC  Z7': (30, 'price'),
+                                             'CC  Z7': (30, 'price')},
+                                 'value': {'QC  Z7': (5, 'price'),
+                                           'CC  Z7': (5, 'price')}}}
+    gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+                                        ['intraday', 'static', vals, 1,
+                                         intraday_params]]})
+
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    pf_comp.hedge_params = gen_hedges
+    pf = copy.deepcopy(pf_comp)
+    pf = assign_hedge_objects(pf)
+
+    hp = pf.get_hedgeparser(dup=True)
+    tstop = hp.get_mod_obj()
+    assert tstop is not None
+    hedger = pf.get_hedger()
+    # basic checks.
+    assert isinstance(hp.get_mod_obj(), TrailingStop)
+    assert hp.get_hedger_ratio() == 1
+
+    print('hedge intervals: ', {uid:  hedger.get_hedge_interval(uid)
+                                for uid in pf.get_unique_uids()})
+    print('stop values: ', tstop.get_stop_values())
+
+    assert hp.gen_prices(1560, 1565, 10, 'QC  Z7', tstop) == []
+    assert hp.gen_prices(1560, 1570, 10, 'QC  Z7', tstop) == [1570]
+    assert hp.gen_prices(1570, 1580, 10, 'QC  Z7', tstop) == [1580]
+    assert tstop.get_thresholds() == {'QC  Z7': (
+        1530, 1590), 'CC  Z7': (1956, 2016)}
+    try:
+        val = hp.gen_prices(1580, 1610, 10, 'QC  Z7', tstop)
+        assert val == [1590]
+    except AssertionError as e:
+        raise AssertionError(val)
+
+    assert hp.gen_prices(1610, 1620, 10, 'QC  Z7', tstop) == []
+    assert hp.gen_prices(1620, 1630, 10, 'QC  Z7', tstop) == []
+
+    # dip below to hit trailing stop.
+    try:
+        val = hp.gen_prices(1630, 1625, 10, 'QC  Z7', tstop)
+        assert val == [1625]
+    except AssertionError as e:
+        raise AssertionError(val)
+
+    # check to ensure that the trailngstop is updated appropriately.
+    assert tstop.get_stop_values() == {'CC  Z7': None, 'QC  Z7': None}
+    assert tstop.get_active() == {'CC  Z7': False, 'QC  Z7': False}
+    assert tstop.get_anchor_points() == {'CC  Z7': 1986, 'QC  Z7': 1625}
+    assert tstop.get_locks() == {'CC  Z7': False, 'QC  Z7': False}
+
+
+def test_gen_prices_seq_buystop():
+    vals = {'CC  Z7': 10, 'QC  Z7': 10}
+    intraday_params = {'tstop': {'trigger': {'QC  Z7': (30, 'price'),
+                                             'CC  Z7': (30, 'price')},
+                                 'value': {'QC  Z7': (5, 'price'),
+                                           'CC  Z7': (5, 'price')}}}
+    gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+                                        ['intraday', 'static', vals, 1,
+                                         intraday_params]]})
+
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    pf_comp.hedge_params = gen_hedges
+    pf = copy.deepcopy(pf_comp)
+    pf = assign_hedge_objects(pf)
+
+    hp = pf.get_hedgeparser(dup=True)
+    tstop = hp.get_mod_obj()
+    assert tstop is not None
+    hedger = pf.get_hedger()
+    # basic checks.
+    assert isinstance(hp.get_mod_obj(), TrailingStop)
+    assert hp.get_hedger_ratio() == 1
+
+    print('hedge intervals: ', {uid:  hedger.get_hedge_interval(uid)
+                                for uid in pf.get_unique_uids()})
+    print('stop values: ', tstop.get_stop_values())
+
+    assert tstop.get_thresholds() == {'CC  Z7': (
+        1956, 2016), 'QC  Z7': (1530, 1590)}
+    assert hp.gen_prices(1560, 1555, -10, 'QC  Z7', tstop) == []
+    assert hp.gen_prices(1560, 1550, -10, 'QC  Z7', tstop) == [1550]
+    assert hp.gen_prices(1550, 1540, -10, 'QC  Z7', tstop) == [1540]
+    try:
+        val = hp.gen_prices(1540, 1520, -10, 'QC  Z7', tstop)
+        assert val == [1530]
+    except AssertionError as e:
+        raise AssertionError(val)
+
+    assert hp.gen_prices(1510, 1500, -10, 'QC  Z7', tstop) == []
+    assert hp.gen_prices(1500, 1490, -10, 'QC  Z7', tstop) == []
+
+    # jump up to hit trailing stop.
+    try:
+        val = hp.gen_prices(1490, 1495, -10, 'QC  Z7', tstop)
+        assert val == [1495]
+    except AssertionError as e:
+        raise AssertionError(val)
+
+    # check to ensure that the trailngstop is updated appropriately.
+    assert tstop.get_stop_values() == {'CC  Z7': None, 'QC  Z7': None}
+    assert tstop.get_active() == {'CC  Z7': False, 'QC  Z7': False}
+    assert tstop.get_anchor_points() == {'CC  Z7': 1986, 'QC  Z7': 1495}
+    assert tstop.get_locks() == {'CC  Z7': False, 'QC  Z7': False}
+
+
 def test_relevant_price_move():
     be = {'CC': {'U7': 1, 'Z7': 1},
           'QC': {'U7': 1.5, 'Z7': 1}}
@@ -163,13 +327,12 @@ def test_relevant_price_move():
     # the trigger multiple. So this test really just tests handling of QC.
 
     # case 2, single breakeven move
-    r1, m1, p1 = hp.relevant_price_move('QC  Z7', 1587, comparison=1560)
-    assert r1
-    assert m1 == 1
+    qc_interval = hedger.get_hedge_interval(uid='QC  Z7')
+    prices = hp.relevant_price_move('QC  Z7', 1587, comparison=1560)
     try:
-        assert p1 == [1560, 1560+hedger.get_hedge_interval('QC  Z7')]
+        assert prices == [1560 + qc_interval]
     except AssertionError as e:
-        raise AssertionError('p1: ', p1)
+        raise AssertionError(prices) from e
 
     # check trailngstop properties.
     try:
@@ -181,12 +344,44 @@ def test_relevant_price_move():
     except AssertionError as e:
         print(tstop)
         raise AssertionError from e
-    # case 2, multiple breakeven move
+
+    # case 2, multiple breakeven move that blows through threshold.
     print('************** Second Move ***************')
-    r2, m2, p2 = hp.relevant_price_move(
-        'QC  Z7', 1640.9944395970483, comparison=1586.9944395970483)
-    assert r2
-    assert m2 == 2
-    assert p2 == [1586.9944395970483, 1586.9944395970483+hedger.get_hedge_interval(
-        'QC  Z7'), 1586.9944395970483 + 2*hedger.get_hedge_interval('QC  Z7')]
+    comp = 1586.9944395970483
+    final = 1640.9944395970483
+    assert tstop.get_thresholds() == {'QC  Z7': (
+        1530, 1590), 'CC  Z7': (1956, 2016)}
+    prices = hp.relevant_price_move(
+        'QC  Z7', final, comparison=comp)
+    try:
+        assert prices == [1590]
+    except AssertionError as e:
+        raise AssertionError(prices) from e
+
+    # check trailingstop properties.
+    assert tstop.get_active() == {"CC  Z7": False, 'QC  Z7': True}
+    assert tstop.get_locks() == {"CC  Z7": False, 'QC  Z7': True}
+    assert tstop.get_anchor_points() == {"CC  Z7": 1986, 'QC  Z7': 1560}
+    try:
+        assert np.isclose(tstop.get_stop_values(
+            'QC  Z7'), 1640.9833187870001 - 5)
+    except AssertionError as e:
+        raise AssertionError(tstop.get_stop_values(
+            'QC  Z7') - 1640.9833187870001 + 5) from e
+    try:
+        assert np.isclose(tstop.get_current_level(
+            'QC  Z7'), 1640.9833187870001)
+    except AssertionError as e:
+        raise AssertionError(tstop.get_current_level(
+            'QC  Z7') - 1640.9833187870001) from e
     print('==========================================')
+
+    print('tstop: ', tstop)
+
+    # case 3: similar move on the downside.
+    comp = tstop.get_current_level('QC  Z7')
+    new = 1600
+    stopval = tstop.get_stop_values('QC  Z7')
+    print('stopval: ', stopval)
+    prices = hp.relevant_price_move('QC  Z7', new, comparison=comp)
+    print('prices: ', prices)
