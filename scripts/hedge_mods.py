@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-29 19:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-05 13:47:30
+# @Last Modified time: 2017-12-05 19:59:49
 import pprint
 from abc import ABC, abstractmethod
 import numpy as np
@@ -15,6 +15,11 @@ class HedgeModifier(ABC):
     """
     @abstractmethod
     def run_deltas(self):
+        """Returns a tuple consisting of run, run_str and stopval
+        run = True/False
+        run_str = 'hit' if stops hit, '' if active, 'default' otherwise
+        stopval = stop loss value.  
+        """
         pass
 
 
@@ -188,14 +193,18 @@ class TrailingStop(HedgeModifier):
                 val = breakevens[uid] * bound
                 self.thresholds[uid] = (lastpt - val, lastpt + val)
 
-    def update_current_level(self, dic, uid=None):
+    def update_current_level(self, dic, uid=None, update=True):
         if uid is None:
             self.current_level = dic
         else:
             self.current_level[uid] = dic[uid]
 
-        self.update_active()
-        self.update_extrema()
+        if update:
+            self.update_active()
+            self.update_extrema()
+
+    def reset_current_level(self, dic, uid=None):
+        self.update_current_level(dic, uid=uid, update=False)
 
     def reset_extrema(self, uid):
         self.maximals[uid] = self.current_level[uid]
@@ -267,8 +276,6 @@ class TrailingStop(HedgeModifier):
                         self.locked[uid] = newlock
 
                 except KeyError as e:
-                    # print('current_level: ', self.current_level)
-                    # print('thresholds: ', self.thresholds)
                     raise KeyError(
                         'Key %s not in current_level and/or threshold dictionaries' % uid)
         else:
@@ -296,51 +303,71 @@ class TrailingStop(HedgeModifier):
 
         stop_direction = 1 if current_price <= self.anchor_points[uid] else -1
         stopval = self.stop_values[uid]
+
+        print('val, current_price, stopval: ', val, current_price, stopval)
+        print('stop direction: ', stop_direction)
+
+        if np.isclose(current_price, stopval):
+            return True, stopval
+
         # case 1: sell-stop and current price <= stop value.
-        if ((current_price <= stopval) or np.isclose(current_price, stopval)) and stop_direction == -1:
+        elif (current_price <= stopval) and stop_direction == -1:
             return True, stopval
 
         # case 2: buy-stop and current price >= stop value.
-        elif ((current_price >= stopval) or np.isclose(current_price, stopval)) and stop_direction == 1:
+        elif (current_price >= stopval) and stop_direction == 1:
             return True, stopval
 
         return False, None
 
-    def run_deltas(self, uid, price_dict, reset=False):
+    def run_deltas(self, uid, price_dict, update=True):
         """The only function that should be called outside of the
 
         Args:
             uid (string): The underlying ID we're interested in
             price_dict (dic): dictionary of prices.
+            update (bool, optional): Description
 
         Returns:
             tuple: (bool, str). str argument is used to distinguish between the cases where
             run_deltas returns false because trailing stops are hit, where monitoring is inactive.
         """
         # first: update the prices.
-        # # print('price dict: ', price_dict)
-        # # print('>>>> TrailingStop: old params pre-update <<<<')
-        # # print(self.__str__())
-        # # print('>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<')
 
-        self.update_current_level(price_dict, uid=uid)
+        initial_current_vals = self.get_current_level()
+
+        self.update_current_level(price_dict, uid=uid, update=update)
+
         stopval = self.get_stop_values(uid=uid)
-        # # print('>>>> TrailingStop: New Params post-update <<<<')
-        # # print(self.__str__())
-        # # print('>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<')
+
+        print('current levels: ', self.current_level)
+        print('price dict: ', price_dict)
+        print('stop values: ', self.stop_values)
+        print('active: ', self.active)
 
         if self.get_active(uid=uid):
             # case: trailingstop got hit. neutralize all.
             hit, val = self.trailing_stop_hit(uid)
             print('hit, val: ', hit, val)
             if hit:
-                self.unlock(uid)
-                self.update_anchor_points({uid: val}, uid=uid)
-                print('updated anchor points: ', self.get_anchor_points())
-                self.reset_extrema(uid)
-                return False, 'hit', stopval
+                print('Update is %s' % update)
+                if update:
+                    self.unlock(uid)
+                    self.update_anchor_points({uid: val}, uid=uid)
+                    print('updated anchor points: ', self.get_anchor_points())
+                    self.reset_extrema(uid)
+
+                ret = (False, 'hit', stopval)
+
             # case: active but TS not hit. run deltas.
-            return True, '', stopval
+            else:
+                ret = (True, '', stopval)
+
         else:
             # case: inactive. default to portfolio default.
-            return False, 'default', stopval
+            ret = (False, 'default', stopval)
+
+        if not update:
+            self.reset_current_level(initial_current_vals)
+
+        return ret

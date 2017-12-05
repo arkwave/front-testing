@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-29 20:02:36
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-04 15:44:41
+# @Last Modified time: 2017-12-05 15:12:23
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -591,9 +591,9 @@ def test_trailingstop_locks_sellstops():
     assert tstop.get_locks() == {'CC  Z7': False, 'QC  Z7': False}
     assert tstop.get_active() == {'CC  Z7': False, 'QC  Z7': False}
     assert tstop.get_stop_values() == {'CC  Z7': None, 'QC  Z7': None}
-    assert tstop.get_anchor_points() == newprices
+    assert tstop.get_anchor_points() == {'QC  Z7': 1586, 'CC  Z7': 2012}
     assert tstop.get_thresholds() == {'CC  Z7': (
-        1970, 2030), 'QC  Z7': (1550, 1610)}
+        1982, 2042), 'QC  Z7': (1556, 1616)}
 
 
 def test_trailingstop_locks_buystops():
@@ -656,6 +656,9 @@ def test_trailingstop_locks_buystops():
     assert tstop.get_locks() == {'CC  Z7': False, 'QC  Z7': False}
     assert tstop.get_active() == {'CC  Z7': False, 'QC  Z7': False}
     assert tstop.get_stop_values() == {'CC  Z7': None, 'QC  Z7': None}
-    assert tstop.get_anchor_points() == newprices
+    try:
+        assert tstop.get_anchor_points() == {'QC  Z7': 1534, 'CC  Z7': 1960}
+    except AssertionError as e:
+        raise AssertionError(tstop.get_anchor_points())
     assert tstop.get_thresholds() == {'CC  Z7': (
-        1931, 1991), 'QC  Z7': (1505, 1565)}
+        1930, 1990), 'QC  Z7': (1504, 1564)}

@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-12-05 13:48:47
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-05 13:49:26
+# @Last Modified time: 2017-12-05 19:11:35
 
 import numpy as np
 from .hedge_mods import HedgeModifier, TrailingStop
@@ -142,12 +142,21 @@ class HedgeParser:
         hedger = self.get_parent()
 
         interval = hedger.get_hedge_interval(uid)
-        int_mult = -1 if comparison > val else 1
+
+        mod = self.get_mod_obj()
+
+        if mod is None:
+            if comparison is None:
+                raise ValueError(
+                    "Comparison value is not explicitly specified, and HedgeMod object does not exist while trying to find relevant price moves for %s" % uid)
+
+        comparison = mod.get_current_level(
+            uid=uid) if comparison is None else comparison
 
         # generate a sequence of prices between comparison and val.
         # this is uni-directional by definition --> only need to care
         # about a single interval rather than caring about +- interval.
-        prices = self.gen_prices(comparison, val, int_mult*interval, uid)
+        prices = self.gen_prices(comparison, val, interval, uid)
 
         return prices
 
@@ -159,16 +168,24 @@ class HedgeParser:
             start (float): start point.
             end (float): end point.
             interval (float): the hedging interval considered.
+            uid (str): the UID for which prices are being assessed. 
             hedgemod (HedgeModifier): HedgeModifier object.
 
         Returns:
             list -> list of valid prices between start and end, subject to hedgemod constraints.
 
+
+        Handles the following edge cases:
+        1) start == end. return empty list. 
+        2) HedgeModifier is None: returns list of interval-spaced prices between start and end.
+        3) UID is active, and price move is irrelevant. Returns empty list 
+        4) UID is active and moving one interval hits stop. Appends stop to list and continues. 
+        5) UID is active and interval sign is opposite from direction to stop. returns empty list.
+
         """
         print('-------------------------------------------------------------------')
         print('START: ', start)
         print('END: ', end)
-        print('INTERVAL: ', interval)
 
         def f(start, end, interval):
             if start > end and interval > 0:
@@ -182,6 +199,13 @@ class HedgeParser:
 
         hedgemod = self.get_mod_obj() if hedgemod is None else hedgemod
 
+        # edge case 0: start and end are the same.
+        if start == end:
+            return []
+
+        interval = -interval if end < start else interval
+        print('INTERVAL: ', interval)
+
         # edge case 1: No hedgemod present.
         if hedgemod is None:
             mult = np.sign(interval)
@@ -189,7 +213,6 @@ class HedgeParser:
                                   end+(mult*1e-9), interval))
 
         # isolate the boolean condition to be tested.
-
         active = hedgemod.get_active(uid=uid)
         print('ACTIVE: ', active)
 
@@ -197,63 +220,59 @@ class HedgeParser:
 
         prev = start
         curr = start + interval
-        done = f(curr, end, interval)
+        done = None
 
-        # edge case 2: uid is already active.
+        print('CURR: ', curr)
+        # edge case 2: uid is already active. one of two cases:
+        # if hit --> deactivate and continue.
+        # if not hit and interval is in opposite direction from stop -> return
+        # lst.
         if active:
             print('active case.')
-            # # print('tstop initial: ', hedgemod)
-            run, runtype, stopval = hedgemod.run_deltas(uid, {uid: end})
-            # print('tstop final: ', hedgemod)
-            # # print('run, str, stopval: ', run, runtype, stopval)
-            if runtype == 'hit':
-                # print('active - hit case')
-                lst.append(stopval)
-                prev = curr
-                curr = stopval
-            else:
-                # if direction to stop value from curr != direction of interval,
-                # we will never hit stop --> might as well return
-                # print('active - fail case')
-                if np.sign(stopval - end) != np.sign(interval):
-                    return lst
+            # # case: edge case where the UID is active but the price move
+            # # is irrelevant.
+            erun, eruntype, estopval = hedgemod.run_deltas(
+                uid, {uid: end}, update=False)
+            print('edge case: run, runtype, stop:', erun, eruntype, estopval)
 
-        # edge case 3: one interval move surpasses end
-        if (curr > end and interval > 0) or (curr < end and interval < 0):
-            print('edge case 3')
-            run, runtype, stopval = hedgemod.run_deltas(uid, {uid: curr})
-            if runtype == 'hit':
-                return [stopval]
+            if (eruntype != 'hit') and abs(start - end) < abs(interval):
+                done = True
+                print('DONE AFTER EDGE CASE: ', done)
+
             else:
-                return []
+                run, runtype, stopval = hedgemod.run_deltas(uid, {uid: curr})
+                print('run, str, stopval: ', run, runtype, stopval)
+                if runtype == 'hit':
+                    lst.append(stopval)
+                    prev = stopval
+                    curr = stopval + interval
+                    active = run
+                else:
+                    print('active else case')
+                    # if direction to stop value from curr != direction of interval,
+                    # we will never hit stop --> might as well return
+                    if np.sign(stopval - end) != np.sign(interval):
+                        done = True
 
         # main loop
-
         print('tstop before main loop: ', hedgemod)
         print('current: ', curr)
+        done = f(curr, end, interval) if done is None else done
 
-        count = 0
-        while (not done and count < 10):
-            print('main loop. curr, interval, active -  ', curr, interval, active)
+        while (not done):
+            # print('main loop. curr, interval, active -  ', curr, interval, active)
             run, runtype, stopval = hedgemod.run_deltas(uid, {uid: curr})
-            print('run, runtype, stopval: ', run, runtype, stopval)
+            # print('run, runtype, stopval: ', run, runtype, stopval)
             # case: price move activates monitoring.
             if run:
                 print('HedgeParser.gen_prices: running deltas at ' + str(curr))
-                # case: need to check for threshold between start and curr.
                 lower, upper = hedgemod.get_thresholds(uid=uid)
-                print('lower, upper: ', lower, upper)
-                print('prev, curr: ', prev, curr)
-                # if curr == upper or curr == lower:
-                #     print('curr is equal to threshold')
-                #     lst.append(curr)
-
+                # case: need to check for threshold between start and curr.
                 if curr > upper and prev < upper:
                     lst.append(upper)
                 elif curr < lower and prev > lower:
                     lst.append(lower)
 
-                # break
                 prev = curr
                 curr += interval
 
@@ -266,10 +285,6 @@ class HedgeParser:
 
                 # case: stops are hit.
                 elif runtype == 'hit':
-                    try:
-                        assert active
-                    except AssertionError as e:
-                        raise AssertionError('tstop : ', hedgemod.__str__())
                     # case 1: stop val is in between start and curr.
                     if (stopval < curr and interval > 0) or (stopval > curr and interval < 0):
                         lst.append(stopval)
@@ -283,7 +298,12 @@ class HedgeParser:
                         curr += interval
                     active = False
 
+            print('EOL inputs to Done: ', curr, end, interval)
             done = f(curr, end, interval)
-            count += 1
+            print('done: ', done)
+            print('EOL List: ', lst)
+        print('-------------------------------------------------------------------')
+        # at the very end, update the HedgeMod object to the latest value.
+        hedgemod.update_current_level({uid: end}, uid=uid)
 
         return lst

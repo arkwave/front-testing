@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-30 21:19:46
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-04 22:11:12
+# @Last Modified time: 2017-12-05 19:54:20
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -163,7 +163,7 @@ def test_gen_prices_basic():
     assert hp.gen_prices(1560, 1570, 10, 'QC  Z7',
                          copy.deepcopy(tstop)) == [1570]
 
-    assert hp.gen_prices(1560, 1550, -10, 'QC  Z7',
+    assert hp.gen_prices(1560, 1550, 10, 'QC  Z7',
                          copy.deepcopy(tstop)) == [1550]
     try:
         val = hp.gen_prices(1560, 1630, 10, 'QC  Z7', copy.deepcopy(tstop))
@@ -171,11 +171,11 @@ def test_gen_prices_basic():
     except AssertionError as e:
         raise AssertionError(val) from e
 
-    assert hp.gen_prices(1560, 1540, -10, 'QC  Z7',
+    assert hp.gen_prices(1560, 1540, 10, 'QC  Z7',
                          copy.deepcopy(tstop)) == [1550, 1540]
 
     try:
-        val = hp.gen_prices(1560, 1520, -10, 'QC  Z7',
+        val = hp.gen_prices(1560, 1520, 10, 'QC  Z7',
                             copy.deepcopy(tstop))
         assert val == [1550, 1540, 1530]
     except AssertionError as e:
@@ -266,21 +266,21 @@ def test_gen_prices_seq_buystop():
 
     assert tstop.get_thresholds() == {'CC  Z7': (
         1956, 2016), 'QC  Z7': (1530, 1590)}
-    assert hp.gen_prices(1560, 1555, -10, 'QC  Z7', tstop) == []
-    assert hp.gen_prices(1560, 1550, -10, 'QC  Z7', tstop) == [1550]
-    assert hp.gen_prices(1550, 1540, -10, 'QC  Z7', tstop) == [1540]
+    assert hp.gen_prices(1560, 1555, 10, 'QC  Z7', tstop) == []
+    assert hp.gen_prices(1560, 1550, 10, 'QC  Z7', tstop) == [1550]
+    assert hp.gen_prices(1550, 1540, 10, 'QC  Z7', tstop) == [1540]
     try:
-        val = hp.gen_prices(1540, 1520, -10, 'QC  Z7', tstop)
+        val = hp.gen_prices(1540, 1520, 10, 'QC  Z7', tstop)
         assert val == [1530]
     except AssertionError as e:
         raise AssertionError(val)
 
-    assert hp.gen_prices(1510, 1500, -10, 'QC  Z7', tstop) == []
-    assert hp.gen_prices(1500, 1490, -10, 'QC  Z7', tstop) == []
+    assert hp.gen_prices(1510, 1500, 10, 'QC  Z7', tstop) == []
+    assert hp.gen_prices(1500, 1490, 10, 'QC  Z7', tstop) == []
 
     # jump up to hit trailing stop.
     try:
-        val = hp.gen_prices(1490, 1495, -10, 'QC  Z7', tstop)
+        val = hp.gen_prices(1490, 1495, 10, 'QC  Z7', tstop)
         assert val == [1495]
     except AssertionError as e:
         raise AssertionError(val)
@@ -337,7 +337,7 @@ def test_relevant_price_move():
     # check trailngstop properties.
     try:
         assert tstop.get_current_level() == {
-            'QC  Z7': 1560+hedger.get_hedge_interval('QC  Z7'), 'CC  Z7': 1986}
+            'QC  Z7': 1587, 'CC  Z7': 1986}
         assert tstop.get_locks() == {'QC  Z7': False, 'CC  Z7': False}
         assert tstop.get_thresholds() == {'QC  Z7': (
             1530, 1590), 'CC  Z7': (1956, 2016)}
@@ -383,5 +383,209 @@ def test_relevant_price_move():
     new = 1600
     stopval = tstop.get_stop_values('QC  Z7')
     print('stopval: ', stopval)
-    prices = hp.relevant_price_move('QC  Z7', new, comparison=comp)
-    print('prices: ', prices)
+    prices_1 = hp.relevant_price_move(
+        'QC  Z7', new, comparison=tstop.get_current_level('QC  Z7'))
+
+    # should be exactly 2 points: the stop value on the way down, and 1 be
+    # from there.
+    try:
+        assert len(prices_1) == 2
+    except AssertionError as e:
+        raise AssertionError(prices_1) from e
+    assert np.isclose(prices_1[0], stopval)
+    assert np.isclose(prices_1[1], stopval-qc_interval)
+
+    # sanity check: running the same query twice more should not matter.
+    prices_2 = hp.relevant_price_move(
+        'QC  Z7', new)
+    prices_3 = hp.relevant_price_move(
+        'QC  Z7', new)
+    try:
+        assert not prices_2
+        assert not prices_3
+    except AssertionError as e:
+        raise AssertionError(prices_2, prices_3)
+
+    # check trailingstop parameters.
+    curr = tstop.get_current_level('QC  Z7')
+    assert np.isclose(curr, 1600)
+    print('curr: ', curr)
+    print('thresholds: ', tstop.get_thresholds()['QC  Z7'])
+    assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
+
+
+def test_relevant_price_move_pathological():
+    vals = {'CC  Z7': 10, 'QC  Z7': 10}
+    intraday_params = {'tstop': {'trigger': {'QC  Z7': (30, 'price'),
+                                             'CC  Z7': (30, 'price')},
+                                 'value': {'QC  Z7': (5, 'price'),
+                                           'CC  Z7': (5, 'price')}}}
+    gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+                                        ['intraday', 'static', vals, 1,
+                                         intraday_params]]})
+
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    pf_comp.hedge_params = gen_hedges
+    pf = copy.deepcopy(pf_comp)
+    pf = assign_hedge_objects(pf)
+
+    hp = pf.get_hedgeparser(dup=True)
+    tstop = hp.get_mod_obj()
+    assert tstop is not None
+    hedger = pf.get_hedger()
+    # basic checks.
+    assert isinstance(hp.get_mod_obj(), TrailingStop)
+    assert hp.get_hedger_ratio() == 1
+
+    print('hedge intervals: ', {uid:  hedger.get_hedge_interval(uid)
+                                for uid in pf.get_unique_uids()})
+    print('stop values: ', tstop.get_stop_values())
+
+    # first things first: activate by breaching upside barrier.
+    prices = hp.relevant_price_move('QC  Z7', 1595, comparison=None)
+    assert prices == [1570, 1580, 1590]
+    print('tstop: ', tstop)
+    assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
+    assert tstop.get_stop_values() == {'QC  Z7': 1590, 'CC  Z7': None}
+    assert tstop.get_current_level() == {'QC  Z7': 1595, 'CC  Z7': 1986}
+
+    # now, move from 1595 --> 1510. prices should be 1590, 1580, 1570, 1560.
+    prices = hp.relevant_price_move('QC  Z7', 1510)
+
+    assert tstop.get_current_level() == {'CC  Z7': 1986, 'QC  Z7': 1510}
+    try:
+        assert tstop.get_thresholds(uid='QC  Z7') == (1560, 1620)
+    except AssertionError as e:
+        print(tstop.get_thresholds(uid='QC  Z7'))
+    assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
+    assert tstop.get_stop_values() == {'QC  Z7': 1515, 'CC  Z7': None}
+    assert prices == [1590, 1580, 1570, 1560]
+
+
+def test_irrelevant_price_moves():
+    vals = {'CC  Z7': 10, 'QC  Z7': 10}
+    intraday_params = {'tstop': {'trigger': {'QC  Z7': (30, 'price'),
+                                             'CC  Z7': (30, 'price')},
+                                 'value': {'QC  Z7': (5, 'price'),
+                                           'CC  Z7': (5, 'price')}}}
+    gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+                                        ['intraday', 'static', vals, 1,
+                                         intraday_params]]})
+
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    pf_comp.hedge_params = gen_hedges
+    pf = copy.deepcopy(pf_comp)
+    pf = assign_hedge_objects(pf)
+
+    hp = pf.get_hedgeparser(dup=True)
+    tstop = hp.get_mod_obj()
+    assert tstop is not None
+    hedger = pf.get_hedger()
+    # basic checks.
+    assert isinstance(hp.get_mod_obj(), TrailingStop)
+    assert hp.get_hedger_ratio() == 1
+
+    print('hedge intervals: ', {uid:  hedger.get_hedge_interval(uid)
+                                for uid in pf.get_unique_uids()})
+    print('stop values: ', tstop.get_stop_values())
+
+    # first things first: activate by breaching upside barrier.
+    prices = hp.relevant_price_move('QC  Z7', 1565, comparison=None)
+    assert not prices
+    print('tstop: ', tstop)
+    assert tstop.get_active() == {'QC  Z7': False, 'CC  Z7': False}
+    assert tstop.get_stop_values() == {'QC  Z7': None, 'CC  Z7': None}
+    assert tstop.get_current_level() == {'QC  Z7': 1565, 'CC  Z7': 1986}
+
+    # sequence of multiple irrelevant moves. all of these should return empty.
+    p1 = hp.relevant_price_move('QC  Z7', 1564)
+    assert not p1
+    p2 = hp.relevant_price_move('QC  Z7', 1565)
+    assert not p2
+    p3 = hp.relevant_price_move('QC  Z7', 1563)
+    assert not p3
+    p4 = hp.relevant_price_move('QC  Z7', 1565)
+    assert not p4
+    p5 = hp.relevant_price_move('QC  Z7', 1563)
+    assert not p5
+    p6 = hp.relevant_price_move('QC  Z7', 1561)
+    assert not p6
+
+    assert tstop.get_active() == {'QC  Z7': False, 'CC  Z7': False}
+    assert tstop.get_stop_values() == {'QC  Z7': None, 'CC  Z7': None}
+    assert tstop.get_current_level() == {'QC  Z7': 1561, 'CC  Z7': 1986}
+    assert tstop.get_thresholds() == {'QC  Z7': (
+        1530, 1590), 'CC  Z7': (1956, 2016)}
+
+    # break through upside barrier and then apply irrelevant moves.
+    prices = hp.relevant_price_move('QC  Z7', 1591)
+    assert prices == [1571, 1581, 1590]
+    assert tstop.get_active('QC  Z7')
+    assert tstop.get_stop_values(uid='QC  Z7') == 1586
+
+    p1 = hp.relevant_price_move('QC  Z7', 1592)
+    p2 = hp.relevant_price_move('QC  Z7', 1593)
+    p3 = hp.relevant_price_move('QC  Z7', 1592)
+    p4 = hp.relevant_price_move('QC  Z7', 1589)
+    p5 = hp.relevant_price_move('QC  Z7', 1589)
+    p6 = hp.relevant_price_move('QC  Z7', 1590)
+
+    try:
+        assert not p1
+        assert not p2
+        assert not p3
+        assert not p4
+        assert not p5
+        assert not p6
+    except AssertionError as e:
+        print('p1: ', p1)
+        print('p2: ', p2)
+        print('p3: ', p3)
+        print('p4: ', p4)
+        print('p5: ', p5)
+        print('p6: ', p6)
+        raise AssertionError from e
+
+    assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
+    assert tstop.get_stop_values() == {'QC  Z7': 1588, 'CC  Z7': None}
+    assert tstop.get_current_level() == {'QC  Z7': 1590, 'CC  Z7': 1986}
+    assert tstop.get_thresholds() == {'QC  Z7': (
+        1530, 1590), 'CC  Z7': (1956, 2016)}
+
+    # return to inactive by hitting trailing stop.
+    prices = hp.relevant_price_move('QC  Z7', 1588)
+    assert prices == [1588]
+    assert tstop.get_active() == {'QC  Z7': False, 'CC  Z7': False}
+    assert tstop.get_stop_values() == {'QC  Z7': None, 'CC  Z7': None}
+    assert tstop.get_current_level() == {'QC  Z7': 1588, 'CC  Z7': 1986}
+    assert tstop.get_anchor_points() == {'QC  Z7': 1588, 'CC  Z7': 1986}
+
+    # break through the downside barrier and then apply irrelevant moves.
+    prices = hp.relevant_price_move('QC  Z7', 1528)
+    assert prices == [1578, 1568, 1558]
+    assert tstop.get_stop_values(uid='QC  Z7') == 1533
+
+    p1 = hp.relevant_price_move('QC  Z7', 1529)
+    p2 = hp.relevant_price_move('QC  Z7', 1530)
+    p3 = hp.relevant_price_move('QC  Z7', 1531)
+    p4 = hp.relevant_price_move('QC  Z7', 1529)
+    p5 = hp.relevant_price_move('QC  Z7', 1528)
+    p6 = hp.relevant_price_move('QC  Z7', 1527)
+
+    assert tstop.get_stop_values(uid='QC  Z7') == 1532
+
+    try:
+        assert not p1
+        assert not p2
+        assert not p3
+        assert not p4
+        assert not p5
+        assert not p6
+    except AssertionError as e:
+        print('p1: ', p1)
+        print('p2: ', p2)
+        print('p3: ', p3)
+        print('p4: ', p4)
+        print('p5: ', p5)
+        print('p6: ', p6)
+        raise AssertionError from e

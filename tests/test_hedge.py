@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-08-11 19:24:36
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-30 20:50:05
+# @Last Modified time: 2017-12-05 16:23:49
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -989,7 +989,10 @@ def test_intraday_hedging_static_ratio_hedgemod():
     assert tstop.get_stop_values() == {'CC  Z7': 2064, 'QC  Z7': None}
     assert tstop.get_active() == {'CC  Z7': True, 'QC  Z7': False}
     assert tstop.get_locks() == {'CC  Z7': True, 'QC  Z7': False}
-    assert tstop.get_anchor_points() == {'CC  Z7': 1986, 'QC  Z7': 1590}
+    try:
+        assert tstop.get_anchor_points() == {'CC  Z7': 1986, 'QC  Z7': 1591}
+    except AssertionError as e:
+        raise AssertionError(tstop.get_anchor_points())
 
     # case 5: CC hits trailing stop. CC and QC should both be thoroughly
     # hedged.
@@ -1018,7 +1021,10 @@ def test_intraday_hedging_static_ratio_hedgemod():
     assert tstop.get_stop_values() == {'CC  Z7': None, 'QC  Z7': None}
     assert tstop.get_active() == {'CC  Z7': False, 'QC  Z7': False}
     assert tstop.get_locks() == {'CC  Z7': False, 'QC  Z7': False}
-    assert tstop.get_anchor_points() == {'CC  Z7': 2063, 'QC  Z7': 1590}
+    try:
+        assert tstop.get_anchor_points() == {'CC  Z7': 2064, 'QC  Z7': 1591}
+    except AssertionError as e:
+        raise AssertionError(tstop.get_anchor_points())
 
 
 def test_breakeven():

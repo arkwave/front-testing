@@ -2,14 +2,15 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-30 21:37:39
+# @Last Modified time: 2017-12-05 13:53:26
 
 import pandas as pd
 import pprint
 import numpy as np
 from .util import create_straddle, create_underlying, create_strangle, create_vanilla_option
 from .calc import _compute_value
-from .hedge_mods import TrailingStop, HedgeParser
+from .hedge_mods import TrailingStop
+from .hedgeparser import HedgeParser
 
 multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 1, 400],
