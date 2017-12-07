@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-27 18:38:10
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-12-07 18:33:28
 
 
 from .portfolio import Portfolio
@@ -298,8 +298,14 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
         raise IndexError(
             'util.create_vanilla_option - cannot find ttm in dataset. Inputs are: ', date, volid) from e
 
+    # case: want to create an option with a specific breakeven. given price,
+    # compute the vol
+    if 'breakeven' in kwargs and kwargs['breakeven'] is not None:
+        pnl_mult = multipliers[pdt][-1]
+        vol = (16 * kwargs['breakeven'] * pnl_mult)/(ftprice * 100)
+
     # Case 1 : Vol is None, but strike is specified.
-    if vol is None and strike is not None:
+    elif vol is None and strike is not None:
         # get vol
         try:
             # print("Inputs: ", date.strftime('%Y-%m-%d'), volid, cpi, strike)

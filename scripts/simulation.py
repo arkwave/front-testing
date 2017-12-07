@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-27 14:12:41
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-12-07 16:02:33
 
 ################################ imports ###################################
 # general imports
@@ -211,6 +211,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     ############ Other useful variables: #############
     loglist = []
     thetas = []
+    breakevens = []
 
     # highest cumulative pnl until this point
     highest_value = 0
@@ -695,6 +696,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             d, g, t, v = dic[pdt][ftmth]
 
             breakeven = log_pf.hedger.breakeven[pdt][ftmth]
+            breakevens.append(breakeven)
 
             # fix logging to take into account BOD to BOD convention.
             lst = [date, vol_id, underlying_id, char, where, tau, op_value, oplots,
@@ -860,7 +862,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     hedges_hit = pd.concat(hedges_hit)
     theta_paid = sum(thetas)
     gamma_money = grosspnl - theta_paid
-    return log, net_cumul_values[-1], hedges_hit, gamma_money, theta_paid, thetas, sum(gamma_pnl_daily), gamma_pnl_daily
+    return log, net_cumul_values[-1], hedges_hit, gamma_money, theta_paid, thetas, \
+        sum(gamma_pnl_daily), gamma_pnl_daily, breakevens
 
 
 ##########################################################################
