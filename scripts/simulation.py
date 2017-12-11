@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-12-11 15:31:24
+# @Last Modified time: 2017-12-11 20:13:45
 
 ################################ imports ###################################
 # general imports
@@ -835,7 +835,9 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         # plotting gross pnl values
         plt.figure()
         colors = ['c' if x >= 0 else 'r' for x in gross_daily_values]
-        xvals = list(range(1, len(gross_daily_values) + 1))
+        # xvals = list(range(1, len(gross_daily_values) + 1))
+        xvals = list(pd.to_datetime(log.value_date.unique()))
+
         plt.bar(xvals, net_daily_values, align='center',
                 color=colors, alpha=0.6, label='net daily values')
         plt.plot(xvals, gross_cumul_values, c='b',
@@ -849,11 +851,14 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         plt.legend()
         plt.show()
 
+    days = list(pd.to_datetime(log.value_date.unique()))
     hedges_hit = pd.concat(hedges_hit)
     theta_paid = sum(thetas)
     gamma_money = grosspnl - theta_paid
-    return log, net_cumul_values[-1], hedges_hit, gamma_money, theta_paid, thetas, \
-        sum(gamma_pnl_daily), gamma_pnl_daily, breakevens
+    return log, net_cumul_values[-1], hedges_hit, gamma_money,\
+        theta_paid, thetas, sum(gamma_pnl_daily), gamma_pnl_daily, breakevens, \
+        (days, net_daily_values, gross_cumul_values,
+         net_cumul_values, gamma_pnl_cumul, vega_pnl_cumul)
 
 
 ##########################################################################
