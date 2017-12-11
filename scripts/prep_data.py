@@ -7,6 +7,7 @@ Python version : 3.5
 Description    : Script contains methods to read-in and format data. These methods are used in simulation.py.
 
 """
+# TODO: Update documentation.
 
 ###########################################################
 ############### Imports/Global Variables ##################
@@ -17,16 +18,14 @@ from .classes import Option, Future
 from .calc import get_barrier_vol
 import pandas as pd
 import numpy as np
-from scipy.interpolate import PchipInterpolator, interp1d
+from scipy.interpolate import interp1d
 from scipy.stats import norm
 from math import log, sqrt
 import time
 from ast import literal_eval
 from collections import OrderedDict
-import os as osf
-from .global_vars import pdt as gvpdt
 import copy
-# from .fetch_data import pull_relevant_data
+import datetime as dt
 
 seed = 7
 np.random.seed(seed)
@@ -59,18 +58,18 @@ contract_mths = {
     'S':   ['F', 'H', 'K', 'N', 'Q', 'U', 'X'],
     'C':   ['H', 'K', 'N', 'U', 'Z'],
     'BO':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
-    'LC':  ['G', 'J', 'M', 'Q', 'V' 'Z'],
+    'LC':  ['G', 'J', 'M', 'Q', 'V', 'Z'],
     'LRC': ['F', 'H', 'K', 'N', 'U', 'X'],
     'KW':  ['H', 'K', 'N', 'U', 'Z'],
     'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
     'COM': ['G', 'K', 'Q', 'X'],
-    'OBM': ['H', 'K', 'U', 'Z'],
+    'CA': ['H', 'K', 'U', 'Z'],
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
 
 multipliers = {
-    'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
+    'LH':  [22.046, 18.143881, 0.025, 1, 400],
     'LSU': [1, 50, 0.1, 10, 50],
     'QC': [1.2153, 10, 1, 25, 12.153],
     'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
@@ -86,7 +85,7 @@ multipliers = {
     'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
     'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
     'COM': [1.0604, 50, 0.25, 2.5, 53.02],
-    'OBM': [1.0604, 50, 0.25, 1, 53.02],
+    'CA': [1.0604, 50, 0.25, 1, 53.02],
     'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
 }
 
@@ -311,10 +310,10 @@ def prep_portfolio(voldata, pricedata, filepath=None, spec=None):
             lst = contract_mths[product]
             ordering = find_cdist(curr_sym, mth, lst)
             # price = pricedata[(pricedata.order == ordering) &
-            #                   (pricedata.value_date == sim_start)]['settle_value'].values[0]
+            #                   (pricedata.value_date == sim_start)]['price'].values[0]
             print('volid: ', data.vol_id)
             price = pricedata[(pricedata['underlying_id'] == data.vol_id) &
-                              (pricedata['value_date'] == sim_start)]['settle_value'].values[0]
+                              (pricedata['value_date'] == sim_start)]['price'].values[0]
             flag = data.hedgeorOTC
             lots = 1000 if data.lots == 'None' else int(data.lots)
             shorted = True if data.shorted else False
@@ -339,7 +338,7 @@ def prep_portfolio(voldata, pricedata, filepath=None, spec=None):
 
             try:
                 f_price = pricedata[(pricedata['value_date'] == sim_start) &
-                                    (pricedata['underlying_id'] == u_name)]['settle_value'].values[0]
+                                    (pricedata['underlying_id'] == u_name)]['price'].values[0]
             except IndexError:
                 print('vol_id: ', volid)
                 print('f_name: ', f_name)
@@ -372,7 +371,7 @@ def prep_portfolio(voldata, pricedata, filepath=None, spec=None):
                 vol = voldata[(voldata['vol_id'] == volid) &
                               (voldata['call_put_id'] == volflag) &
                               (voldata['value_date'] == sim_start) &
-                              (voldata['strike'] == strike)]['settle_vol'].values[0]
+                              (voldata['strike'] == strike)]['vol'].values[0]
             except IndexError:
                 print('vol_id: ', volid)
                 print('call_put_id: ', volflag)
@@ -383,7 +382,7 @@ def prep_portfolio(voldata, pricedata, filepath=None, spec=None):
                              (voldata['call_put_id'] == volflag) &
                              (voldata['value_date'] == sim_start)]
                 df.sort_values(by='strike', inplace=True)
-                f1 = interp1d(df.strike, df.settle_vol,
+                f1 = interp1d(df.strike, df.vol,
                               fill_value='extrapolate')
                 vol = f1(strike)
                 # raise ValueError('vol cannot be located!',
@@ -537,10 +536,12 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
         print('cleaning voldata')
         # handling data types
         df['value_date'] = pd.to_datetime(df['value_date'])
+        df.expdate = pd.to_datetime(df.expdate)
         df = df.dropna()
         assert not df.empty
         # calculating time to expiry from vol_id
-        df = ttm(df, df['vol_id'], edf)
+        df['tau'] = (df.expdate - df.value_date).dt.days/365
+
         df = df[df.tau > 0].dropna()
         assert not df.empty
         # generating additional identifying fields.
@@ -553,112 +554,39 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
 
         # setting data types
         # df.order = pd.to_numeric(df.order)
+        print('df.columns: ', df.columns)
         df.tau = pd.to_numeric(df.tau)
         df.strike = pd.to_numeric(df.strike)
-        df.settle_vol = pd.to_numeric(df.settle_vol)
+        df.vol = pd.to_numeric(df.vol)
         df.value_date = pd.to_datetime(df.value_date)
+
+        df['time'] = dt.time.max
+        df['time'] = df['time'].astype(pd.Timestamp)
+        df['datatype'] = 'settlement'
 
     # cleaning price data
     elif flag == 'price':
         print('cleaning pricedata')
         # dealing with datatypes and generating new fields from existing ones.
         df['value_date'] = pd.to_datetime(df['value_date'])
-        df['pdt'] = df['underlying_id'].str.split().str[0]
-        df['ftmth'] = df['underlying_id'].str.split().str[1]
-        # transformative functions.
-        # df = get_expiry(df, edf)
-        # df = assign_ci(df, date)
-        df['order'] = ''
-        df = scale_prices(df)
+        if 'pdt' not in df.columns:
+            df['pdt'] = df['underlying_id'].str.split().str[0]
+        if 'ftmth' not in df.columns:
+            df['ftmth'] = df['underlying_id'].str.split().str[1]
         df = df.fillna(0)
         df.value_date = pd.to_datetime(df.value_date)
-        df.settle_value = pd.to_numeric(df.settle_value)
-        df.returns = pd.to_numeric(df.returns)
+        df.price = pd.to_numeric(df.price)
+        if 'time' not in df.columns:
+            df['time'] = dt.time.max
+        if 'datatype' not in df.columns:
+            df['datatype'] = 'settlement'
 
-        # df.expdate = pd.to_datetime(df.expdate)
-        # df = df[df.value_date <= df.expdate]
-        # setting data types
-        # df.order = pd.to_numeric(df.order)
-        # df.expdate = pd.to_datetime(df.expdate)
-
+        df['time'] = df['time'].astype(pd.Timestamp)
     df.reset_index(drop=True, inplace=True)
-    df = df.dropna()
+    # df = df.dropna()
     assert not df.empty
 
     return df
-
-
-def ciprice(pricedata, rollover='opex'):
-    """Constructs the CI price series.
-
-    Args:
-        pricedata (TYPE): price data frame of same format as read_data
-        rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
-
-    Returns:
-        pandas dataframe : Dataframe with the following columns:
-            Product | date | underlying | order | settle_value | returns | expiry date
-    """
-    t = time.time()
-    if rollover == 'opex':
-        ro_dates = get_rollover_dates(pricedata)
-        products = pricedata['pdt'].unique()
-        # iterate over produts
-        by_product = None
-        for product in products:
-            df = pricedata[pricedata.pdt == product]
-            # lst = contract_mths[product]
-            assert not df.empty
-            most_recent = []
-            by_date = None
-            try:
-                relevant_dates = ro_dates[product]
-            except KeyError:
-                df2 = df[
-                        ['pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']]
-                df2.columns = [
-                    'pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']
-                by_product = df2
-                continue
-            # iterate over rollover dates for this product.
-            for date in relevant_dates:
-                df = df[df.order > 0]
-                order_nums = sorted(df.order.unique())
-                breakpoint = max(most_recent) if most_recent else min(
-                    df['value_date'])
-                # print('breakpoint, date: ', breakpoint, date)
-                by_order_num = None
-                # iterate over all order_nums for this product. for each cont, grab
-                # entries until first breakpoint, and stack wide.
-                for ordering in order_nums:
-                    # print('breakpoint, end, cont: ', breakpoint, date, cont)
-                    df2 = df[df.order == ordering]
-                    tdf = df2[(df2['value_date'] < date) & (df2['value_date'] >= breakpoint)][
-                        ['pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']]
-                    # print(tdf.empty)
-                    tdf.columns = [
-                        'pdt', 'value_date', 'underlying_id', 'order', 'settle_value', 'returns', 'expdate']
-                    tdf.reset_index(drop=True, inplace=True)
-                    by_order_num = tdf if by_order_num is None else pd.concat(
-                        [by_order_num, tdf])
-
-                # by_date contains entries from all order_nums until current
-                # rollover date. take and stack this long.
-                by_date = by_order_num if by_date is None else pd.concat(
-                    [by_date, by_order_num])
-                most_recent.append(date)
-                df.order -= 1
-
-            by_product = by_date if by_product is None else pd.concat(
-                [by_product, by_order_num])
-        final = by_product
-
-    else:
-        final = -1
-    elapsed = time.time() - t
-    # print('[CI-PRICE] elapsed: ', elapsed)
-    # final.to_csv('ci_price_final.csv', index=False)
-    return final
 
 
 def vol_by_delta(voldata, pricedata):
@@ -675,9 +603,9 @@ def vol_by_delta(voldata, pricedata):
     # print('voldata: ', voldata)
     # print('pricedata: ', pricedata)
     relevant_price = pricedata[
-        ['pdt', 'underlying_id', 'value_date', 'settle_value']]
+        ['pdt', 'underlying_id', 'value_date', 'price']]
     relevant_vol = voldata[['pdt', 'value_date', 'vol_id', 'strike',
-                            'call_put_id', 'tau', 'settle_vol', 'underlying_id']]
+                            'call_put_id', 'tau', 'vol', 'underlying_id']]
 
     # handle discrepancies in underlying_id format
     relevant_price.underlying_id = relevant_price.underlying_id.str.split().str[0]\
@@ -690,7 +618,7 @@ def vol_by_delta(voldata, pricedata):
     merged = pd.merge(relevant_vol, relevant_price,
                       on=['pdt', 'value_date', 'underlying_id'])
     # filtering out negative tau values.
-    merged = merged[(merged['tau'] > 0) & (merged['settle_vol'] > 0)]
+    merged = merged[(merged['tau'] > 0) & (merged['vol'] > 0)]
 
     print('computing deltas')
 
@@ -739,7 +667,7 @@ def vol_by_delta(voldata, pricedata):
                     # reshaping data for interpolation.
                     drange = np.arange(0.05, 0.96, 0.01)
                     deltas = df.delta.values
-                    vols = df.settle_vol.values
+                    vols = df.vol.values
                     # interpolating delta using Piecewise Cubic Hermite
                     # Interpolation (Pchip)
 
@@ -780,126 +708,6 @@ def vol_by_delta(voldata, pricedata):
 
     # resetting indices
     return vbd
-
-
-def civols(vdf, pdf, rollover='opex'):
-    """Constructs the CI vol series.
-    Args:
-        vdf (TYPE): price data frame of same format as read_data
-        rollover (str, optional): the rollover strategy to be used. defaults to opex, i.e. option expiry.
-
-    Returns:
-        pandas dataframe : dataframe with the following columns:
-        pdt|order|value_date|underlying_id|vol_id|op_id|call_put_id|tau|strike|settle_vol
-
-    """
-    t = time.time()
-    if rollover == 'opex':
-        ro_dates = get_rollover_dates(pdf)
-        products = vdf['pdt'].unique()
-        # iterate over produts
-        by_product = None
-        for product in products:
-            df = vdf[vdf.pdt == product]
-            most_recent = []
-            by_date = None
-            try:
-                relevant_dates = ro_dates[product]
-            except KeyError:
-                # no rollover dates for this product
-                df2 = df[['pdt', 'order', 'value_date', 'underlying_id', 'vol_id',
-                          'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']]
-                df2.columns = ['pdt', 'order', 'value_date', 'underlying_id',
-                               'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
-                by_product = df2
-                continue
-
-            # iterate over rollover dates for this product.
-            for date in relevant_dates:
-                # filter order > 0 to get rid of C_i that have been dealt with.
-                df = df[df.order > 0]
-                # sort orderings.
-                order_nums = sorted(df.order.unique())
-                breakpoint = max(most_recent) if most_recent else min(
-                    df['value_date'])
-                by_order_num = None
-                # iterate over all order_nums for this product. for each cont, grab
-                # entries until first breakpoint, and stack wide.
-                for ordering in order_nums:
-                    cols = ['pdt', 'order', 'value_date', 'underlying_id', 'vol_id',
-                            'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
-                    df2 = df[df.order == ordering]
-                    tdf = df2[(df2['value_date'] < date) &
-                              (df2['value_date'] >= breakpoint)][cols]
-                    # renaming columns
-                    tdf.columns = ['pdt', 'order', 'value_date', 'underlying_id',
-                                   'vol_id', 'op_id', 'call_put_id', 'tau', 'strike', 'settle_vol']
-                    # tdf.reset_index(drop=True, inplace=True)
-                    by_order_num = tdf if by_order_num is None else pd.concat(
-                        [by_order_num, tdf])
-
-                # by_date contains entries from all order_nums until current
-                # rollover date. take and stack this long.
-                by_date = by_order_num if by_date is None else pd.concat(
-                    [by_date, by_order_num])
-                most_recent.append(date)
-                df.order -= 1
-
-            by_product = by_date if by_product is None else pd.concat(
-                [by_product, by_date])
-
-        final = by_product
-    else:
-        final = -1
-    elapsed = time.time() - t
-    # print('[CI-VOLS] elapsed: ', elapsed)
-    return final
-
-
-#####################################################
-################ Helper Functions ###################
-#####################################################
-
-def ttm(df, s, edf):
-    """Takes in a vol_id (for example C Z7.Z7) and outputs the time to expiry for the option in years
-
-    Args:
-        df (dataframe): dataframe containing option description.
-        s (Series): Series of vol_ids
-        edf (dataframe): dataframe of expiries.
-    """
-    s = s.unique()
-    df['tau'] = ''
-    df['expdate'] = ''
-    for iden in s:
-        expdate = get_expiry_date(iden, edf)
-        try:
-            expdate = pd.to_datetime(expdate.values[0])
-        except IndexError:
-            print('expdate not found for Vol ID: ', iden)
-            expdate = pd.Timestamp('1990-01-01')
-        currdate = pd.to_datetime(df[(df['vol_id'] == iden)]['value_date'])
-        timedelta = (expdate - currdate).dt.days / 365
-        df.ix[df['vol_id'] == iden, 'tau'] = timedelta
-        df.ix[df['vol_id'] == iden, 'expdate'] = pd.to_datetime(expdate)
-    return df
-
-
-def get_expiry_date(volid, edf):
-    """Computes the expiry date of the option given a vol_id """
-    target = volid.split()
-    op_yr = target[1][1]  # + decade
-    # op_yr = op_yr.astype(str)
-    op_mth = target[1][0]
-    # un_yr = pd.to_numeric(target[1][-1]) + decade
-    # un_yr = un_yr.astype(str)
-    # un_mth = target[1][3]
-    prod = target[0]
-    overall = op_mth + op_yr  # + '.' + un_mth + un_yr
-    expdate = edf[(edf['opmth'] == overall) & (edf['product'] == prod)][
-        'expiry_date']
-    expdate = pd.to_datetime(expdate)
-    return expdate
 
 
 def assign_ci(df, date):
@@ -948,6 +756,8 @@ def find_cdist(x1, x2, lst):
     x1yr = int(x1[1:])
     x2mth = x2[0]
     x2yr = int(x2[1:])
+
+    # print('find_cdist inputs: ', x1, x2, lst)
 
     # print(x1yr >)
     # case 1: month is a contract month.
@@ -1013,7 +823,7 @@ def scale_prices(pricedata):
     for x in ids:
         # scale each price independently
         df = pricedata[(pricedata['underlying_id'] == x)]
-        s = df['settle_value']
+        s = df['price']
         s1 = s.shift(-1)
         if len(s1) == 1 and np.isnan(s1.values[0]):
             ret = 0
@@ -1025,41 +835,6 @@ def scale_prices(pricedata):
     # print(pricedata)
     pricedata = pricedata.fillna(0)
     # print(pricedata)
-    return pricedata
-
-
-def get_expiry(pricedata, edf, rollover=None):
-    """Appends expiry dates to price data.
-
-    Args:
-        pricedata (TYPE): Dataframe of prices.
-        edf (TYPE): Dataframe of expiries
-        rollover (None, optional): rollover criterion. defaults to None.
-
-    Returns:
-        TYPE: Description
-    """
-    products = pricedata['pdt'].unique()
-    pricedata['expdate'] = ''
-    pricedata['expdate'] = pd.to_datetime(pricedata['expdate'])
-    for prod in products:
-        # 1: isolate the rollover date.
-        df = pricedata[pricedata['pdt'] == prod]
-
-        uids = df['underlying_id'].unique()
-        for uid in uids:
-            # need to get same-month (i.e. Z7.Z7 expiries)
-            mth = uid.split()[1]
-            try:
-                roll_date = edf[(edf.opmth == mth) & (edf['product'] == prod)][
-                    'expiry_date'].values[0]
-                pricedata.ix[(pricedata['pdt'] == prod) &
-                             (pricedata['underlying_id'] == uid), 'expdate'] = roll_date
-            except IndexError:
-                print('mth: ', mth)
-                print('uid: ', uid)
-                print('prod: ', prod)
-
     return pricedata
 
 
@@ -1107,11 +882,11 @@ def compute_delta(x):
     Returns:
         double: value of delta
     """
-    s = x.settle_value
+    s = x.price
     K = x.strike
     tau = x.tau
     char = x.call_put_id
-    vol = x.settle_vol
+    vol = x.vol
     r = 0
     try:
         d1 = (log(s/K) + (r + 0.5 * vol ** 2)*tau) / \
@@ -1161,11 +936,11 @@ def get_min_start_date(vdf, pdf, lst, signals=None):
             df = vdf[vdf.vol_id == vid]
             v_dates.append(min(df.value_date))
         for uid in p_lst:
-            print('uid, date: ', uid, df.value_date.min())
+            # print('uid, date: ', uid, df.value_date.min())
             df = pdf[pdf.underlying_id == uid]
             p_dates.append(df.value_date.min())
-        print('get_min_start_date - vdates: ', v_dates)
-        print('get_min_start_date - pdates: ', p_dates)
+        # print('get_min_start_date - vdates: ', v_dates)
+        # print('get_min_start_date - pdates: ', p_dates)
         return max(max(v_dates), max(p_dates))
 
     else:
@@ -1224,6 +999,769 @@ def sanity_check(vdates, pdates, start_date, end_date, signals=None,):
     return
 
 
+############### Intraday Data Processing Functions ####################
+
+
+def handle_intraday_conventions(df):
+    """Helper method that deals with product/ftmth/uid construction from BBG ticker symbols, 
+    checks/amends data types and filters out weekends/bank holidays from the data. 
+
+    Args:
+        df (TYPE): Description
+    """
+    # from pandas.tseries.holiday import USFederalHolidayCalendar as calendar
+    ## Step 1 ##
+    # first: Convert S H8 Comdty -> S  H8
+
+    df['pdt'] = df.underlying_id.str[:2].str.strip()
+    df['ftmth'] = df.underlying_id.str[2:].str.strip()
+
+    df['underlying_id'] = df.pdt + '  ' + df.ftmth
+    # datetime -> date and time columns.
+    df.date_time = pd.to_datetime(df.date_time)
+    df['time'] = df.date_time.dt.time
+    df['value_date'] = pd.to_datetime(df.date_time.dt.date)
+
+    # # filter out weekends/bank holidays.
+    # cal = calendar()
+    # holidays = pd.to_datetime(cal.holidays(
+    #     start=df.value_date.min(), end=df.value_date.max())).tolist()
+    # df = df[~df.value_date.isin(holidays)]
+    # df = df[df.value_date.dt.dayofweek < 5]
+
+    # adding in flags used to isolate intraday vs settlement and intraday vs
+    # settlement period
+    df['datatype'] = 'intraday'
+
+    cols = ['value_date', 'time', 'underlying_id',
+            'pdt', 'ftmth', 'price', 'datatype', 'date_time']
+    df = df[cols]
+
+    df.columns = ['value_date', 'time', 'underlying_id',
+                  'pdt', 'ftmth', 'price', 'datatype', 'date_time']
+
+    df = df[df.price > 0]
+
+    df.reset_index(drop=True, inplace=True)
+
+    return df
+
+
+def timestep_recon(df):
+    """Helper method that reconciles timesteps for multi-product or multi-contract intraday simulations. 
+    Does the following:
+    > for each day:
+        get unique dataframes for each product/contract. 
+        isolate dataset with minimum values.
+        > for each timestamp in minimum:
+            get closest timestamp in others that are <= timestamp. 
+            bundle together under timestamp. 
+
+    Base case: if df only contains 1 product and 1 contract, returns the dataframe with no modifications.   
+
+    Args:
+        df (pandas dataframe): dataframe of intraday price data. 
+    """
+    cols = df.columns
+    uids = df.underlying_id.unique()
+    dic_lst = []
+    # base case: 1 uid.
+    if len(uids) == 1:
+        return df
+    else:
+        date_range = pd.to_datetime(df.value_date.unique())
+        for date in date_range:
+            t = time.clock()
+            tdf = df[df.value_date == date]
+            grps = tdf.groupby('underlying_id')
+            # isolate the group with the least data
+            ords = sorted([(x[0], len(x[1]), x[1])
+                           for x in grps], key=lambda t: t[1])
+            target_uid, target_len, target_data = ords.pop(0)
+            dfs = list(zip(*ords))[2]
+            target_data.reset_index(drop=True, inplace=True)
+            print('----- date: %s ------' % (date.strftime('%Y-%m-%d')))
+            print('target_length: ', target_len)
+            for index in target_data.index:
+                data = target_data.iloc[index]
+                ts = data.time
+
+                # helper to get all the other individuals.
+                other_data = get_closest_ts_data(ts, dfs)
+                # case: others have no data earlier than ts.
+                if not other_data:
+                    continue
+                # isolate data for this day.
+                # append data
+                dic_lst.append(dict(zip(cols, data.values)))
+                # extend other data
+                dic_lst.extend(other_data)
+            print('datalen: ', list(zip(*ords))[1])
+            print('%s completed' % (date.strftime('%Y-%m-%d')))
+            print('elapsed: ', time.clock() - t)
+            print('--------------------------------------')
+
+    fdf = pd.DataFrame.from_records(dic_lst)
+    # removing all (time, price) duplicate entries.
+    fdf['tup'] = fdf.price.astype(str) + ' ' + fdf.time.astype(str)
+    fdf = fdf.drop_duplicates('tup')
+    fdf = fdf[fdf.columns[:-1]]
+
+    fdf = fdf[['pdt', 'ftmth', 'underlying_id', 'value_date',
+               'time', 'price', 'datatype']]
+
+    return fdf
+
+
+def get_closest_ts_data(ts, others):
+    """Helper function that takes in a timestamp, and a list of dataframes. 
+    returns price associated with timestamp from each df in others that is closest to yet lesser than ts. 
+
+    Args:
+        ts (TYPE): target timestamp
+        others (TYPE): list of dataframes. 
+    """
+    ret = []
+    for df in others:
+        cols = df.columns
+        ts_list = [x for x in df.time if x <= ts]
+        if not ts_list:
+            continue
+        valid_ts = max(ts_list)
+        # filter data corresponding to closest timestep.
+        data = df[df.time == valid_ts]
+        # reassign timestep.
+        data.time = ts
+        data = dict(zip(cols, data.values[0]))
+        ret.append(data)
+    return ret
+
+
+def insert_settlements(df, pdf):
+    """Appends the settlement data to the intraday data. 
+
+    Args:
+        df (TYPE): Dataframe of intraday prices
+        sdf (TYPE): Dataframe of settlement prices. 
+    """
+    assert not df.empty
+    assert not pdf.empty
+    pdf['time'] = dt.time.max
+    pdf['datatype'] = 'settlement'
+    pdf = pdf[['value_date', 'time', 'pdt', 'ftmth',
+               'underlying_id', 'price', 'datatype']]
+    df = df[['value_date', 'time', 'pdt', 'ftmth',
+             'underlying_id', 'price', 'datatype']]
+    x = pd.concat([df, pdf])
+
+    # handle data types
+    x.value_date = pd.to_datetime(x.value_date)
+    x.time = x.time.astype(pd.Timestamp)
+
+    # some sanity checks.
+    assert not x.empty
+    assert 'settlement' in x.datatype.unique()
+    assert 'intraday' in x.datatype.unique()
+    return x
+
+
+def reorder_ohlc_data(df, pf):
+    """Processes the OHLC data based on the breakeven of the 
+    portfolio at on the simulation date.  
+
+    Args:
+        df (TYPE): dataframe of prices that 
+        pf (TYPE): portfolio being handled 
+
+    Returns:
+        tuple: the initial dataframe and the modified dataframe. 
+    """
+    unique_uids = pf.get_unique_uids()
+    # breakevens = pf.breakeven()
+    init_df = copy.deepcopy(df)
+
+    # filter out all unnecessary uids.
+    # print('df: ', df)
+
+    print('unique uids: ', unique_uids)
+    df = df[df.underlying_id.isin(unique_uids)]
+
+    # print('reorder_ohlc_data - df: ', df)
+
+    # assign the time for opens, leaving settlements the same.
+    df.ix[df.price_id == 'px_open', 'time'] = dt.time(20, 59, 59, 0)
+
+    for uid in unique_uids:
+        pdt, mth = uid.split()
+        # first: filter the dataframe to just consider this uid.
+        tdf = df[df.underlying_id == uid]
+        # second: get the breakeven for this uid.
+        comp_val = pf.hedger.get_hedge_interval(uid)
+        # sanity check: there should be exactly 4 entries.
+        try:
+            assert len(tdf) == 4
+        except AssertionError as e:
+            raise AssertionError("faulty tdf: ", tdf) from e
+        px_open = tdf[tdf.price_id == 'px_open'].price.values[0]
+        px_high = tdf[tdf.price_id == 'px_high'].price.values[0]
+        px_low = tdf[tdf.price_id == 'px_low'].price.values[0]
+        px_close = tdf[tdf.price_id == 'px_settle'].price.values[0]
+
+        # case 1: open -> high -> low -> close.
+        ord1 = (abs(px_high-px_open) + abs(px_low-px_high) +
+                abs(px_close-px_low)) / comp_val
+        # case 2: open -> low -> high -> close.
+        ord2 = (abs(px_open-px_low) + abs(px_high-px_low) +
+                abs(px_high-px_close)) / comp_val
+        print('uid, ord1, ord2: ', uid, ord1, ord2)
+
+        # if OHLC provides more breakevens than OLHC, go with OLHC and vice
+        # versa
+        if ord1 > ord2:
+            # case: order as open-low-high-close.
+            df.ix[df.price_id == 'px_low', 'time'] = dt.time(
+                21, 59, 58, 0)
+            df.ix[df.price_id == 'px_high', 'time'] = dt.time(
+                22, 59, 58, 0)
+            data_order = 'olhc'
+
+        else:
+            # case: order as open-high-low-close
+            df.ix[df.price_id == 'px_high', 'time'] = dt.time(
+                21, 59, 58, 0)
+            df.ix[df.price_id == 'px_low', 'time'] = dt.time(
+                22, 59, 58, 0)
+            data_order = 'ohlc'
+
+    df.sort_values(by=['time'])
+    df.reset_index(drop=True, inplace=True)
+
+    df = granularize(df, pf, ohlc=True)
+
+    # print('df after reorder: ', df)
+
+    return init_df, df, data_order
+
+
+def clean_intraday_data(df, start_date, end_date, edf=None, filepath=None):
+    """
+    Does the following:
+        1) For each product/time combo:
+            filter out price points with 0 volume
+            aggregates volumes by price. 
+            removes duplicate price entries. 
+
+
+    Args:
+        df (dataframe): Dataframe of raw intraday prices.
+        start_date (string): simulation start date, passed into sanitize_intraday_timings
+        end_date (string): simulation end date, passed into sanitize_intraday_timings
+        edf (dataframe, optional): dataframe of exchange timings
+        filepath (string, optional): filepath to dataframe of exchange timings 
+
+    Returns:
+        TYPE: Description
+    """
+    t = time.clock()
+
+    assert not df.empty
+
+    # print('df.colums: ', df.columns)
+
+    df = df[df.volume > 0]
+    if 'pdt' not in df.columns:
+        df['pdt'] = df.commodity.str[:2].str.strip()
+    if 'time' not in df.columns:
+        df['time'] = df.date_time.dt.time
+    df['ftmth'] = df.commodity.str[2:5].str.strip()
+    df['underlying_id'] = df.pdt + '  ' + df.ftmth
+    df.date_time = pd.to_datetime(df.date_time)
+
+    assert not df.empty
+    # print('df.columns: ', df.columns)
+
+    # filter for exchange timings.
+    df = sanitize_intraday_timings(
+        df, start_date, end_date, edf=edf, filepath=filepath)
+    # df.to_csv(filepath + 'datasets/debug/' + pdt +
+    #           '_sanitized_data.csv', index=False)
+
+    assert not df.empty
+    lst = []
+
+    print('clean_intraday_data: beginning aggregation...', end="")
+
+    for (comm, date_time), grp in df.groupby(['underlying_id', 'date_time']):
+        # print(comm, date_time)
+        grp['block'] = (grp.price.shift(1) != grp.price).astype(int).cumsum()
+        # print(grp)
+        for (price, block), grp2 in grp.groupby(['price', 'block'], sort=False):
+            dic = {'underlying_id': comm,
+                   'date_time': date_time,
+                   'price': price,
+                   'volume': grp2.volume.sum()}
+            lst.append(dic)
+    ret = pd.DataFrame(lst)
+
+    assert not ret.empty
+    print('done. elapsed: ', time.clock() - t)
+
+    return ret
+
+
+def sanitize_intraday_timings(df, start_date, end_date, filepath=None, edf=None):
+    """Helper function that ignores pre-exchange printed results and only keeps entries
+    within the start/end of the exchange timings. 
+
+    Args:
+        df (Dataframe): Dataframe of intraday prices. 
+
+    Returns:
+        Dataframe: With all timings outside of exchange timings removed. 
+    """
+    # read in the exchange timing dataframe.
+    # print('sanitize_intraday_timings: filepath - ', filepath)
+
+    filepath = filepath if filepath is not None else ''
+    filepath += 'datasets/exchange_timings.csv'
+
+    # print('final filepath: ', filepath)
+    edf = pd.read_csv(filepath) if edf is None else edf
+    edf['Exch Start Hours'] = pd.to_datetime(edf['Exch Start Hours']).dt.time
+    edf['Exch End Hours'] = pd.to_datetime(edf['Exch End Hours']).dt.time
+
+    edf.columns = ['pdt' if x == 'Product Id' else x for x in edf.columns]
+
+    merged = pd.merge(
+        df, edf[['pdt', 'Exch Start Hours', 'Exch End Hours', 'pytz_desc']], on=['pdt'])
+
+    fin = pd.DataFrame()
+
+    for pdt in merged.pdt.unique():
+        t_merged = merged[merged.pdt == pdt]
+        pdt_start = t_merged['Exch Start Hours'].values[0]
+        pdt_end = t_merged['Exch End Hours'].values[0]
+        # overnight market case. covert, filter, unconvert.
+        if pdt_start > pdt_end:
+            # localize.
+            # print('overnight market case')
+            t_merged = handle_overnight_market_timings(
+                t_merged, start_date, end_date)
+        else:
+            t_merged = t_merged[(t_merged.time >= t_merged['Exch Start Hours']) &
+                                (t_merged.time <= t_merged['Exch End Hours'])]
+
+        assert not t_merged.empty
+        # localize the datetime to the product's location.
+        # print('timezone: ', t_merged.pytz_desc.unique()[0])
+
+        t_merged.date_time = t_merged.date_time.dt.tz_localize(
+            t_merged.pytz_desc.unique()[0])
+
+        # convert to the default timezone: Dubai.
+        t_merged.date_time = t_merged.date_time.dt.tz_convert('Asia/Dubai')
+        fin = pd.concat([fin, t_merged])
+    fin.drop(['Exch Start Hours', 'Exch End Hours'], inplace=True, axis=1)
+    return fin
+
+
+def handle_overnight_market_timings(df, start_date, end_date):
+    """Helper function that handles timezone conversion and filtering by doing the following:
+    1) localize. 
+    2) convert to DXB. 
+    3) filter. 
+    4) convert back to local timezone. 
+
+    Args:
+        df (TYPE): dataframe of price data. 
+    """
+    timezone = df.pytz_desc.unique()[0]
+    default = 'Asia/Dubai'
+    # find the exchange timings in terms of dxb time.
+    pdt_start = pd.to_datetime(df['Exch Start Hours'].values[
+                               0].strftime('%H:%M:%S'))
+    pdt_end = pd.to_datetime(df['Exch End Hours'].values[
+                             0].strftime('%H:%M:%S'))
+
+    pdt_start = pdt_start.tz_localize(timezone).tz_convert(default).time()
+    pdt_end = pdt_end.tz_localize(timezone).tz_convert(default).time()
+
+    # print('pdt_start: ', pdt_start)
+    # print('pdt_end: ', pdt_end)
+
+    # 1) localize.
+    df.date_time = df.date_time.dt.tz_localize(timezone)
+    # 2) convert to dxb time.
+    df.date_time = df.date_time.dt.tz_convert(default)
+    # 3) filter according to the dxb-standardized time.
+    df = df[(df.date_time.dt.time >= pdt_start) &
+            (df.date_time.dt.time <= pdt_end) &
+            (pd.to_datetime(df.date_time.dt.date) >= start_date) &
+            (pd.to_datetime(df.date_time.dt.date) <= end_date)]
+    # 4) convert back to local timezone.
+    df.date_time = df.date_time.dt.tz_convert(timezone)
+    # 5) strip timezone awareness.
+    df.date_time = df.date_time.dt.tz_localize(None)
+
+    return df
+
+
+# TODO: handle rounding of strikes when necessary.
+# TODO: handle HedgeParser implementation to account for trailing stops etc.
+def granularize(df, pf, interval=None, ohlc=False, intraday=False):
+    """Helper function that takes in a dataframe filtered through reorder_ohlc_data, 
+    and checks for consecutive price moves that exceed the breakeven/flat value hedging
+    interval specified for that underlying id. If this condition is met, 
+    it splits up the move into hedge-interval level moves. Cases checked are as follows:
+
+    1) case where the move is less than interval. 
+        > ignores data, continues to next value. 
+    2) case where move is exactly equal to interval. 
+        > marks price point as relevant, updates comparative value to this value. 
+    3) case where move is larger than interval. 
+        > creates move_mult rows with intermediate values, where move_mult = floor(move/interval)
+
+
+    Args:
+        df (dataframe): dataframe of prices
+        pf (portfolio object): portfolio being handled. 
+
+
+    Returns:
+        dataframe: dataframe with the price moves granularized according to the 
+        flat value/breakeven value. irrelevant datapoints are filtered out. 
+    """
+
+    # initial sanity check to see if only settlement data is present.
+    if 'intraday' not in df.datatype.unique():
+        return df
+
+    fin_df = df.copy()
+    hedgeparser = pf.get_hedgeparser(dup=True)
+
+    # print('pre-granularize df: ', df)
+
+    # marking all relevant price moves as such.
+    fin_df['relevant'] = ''
+
+    # mark all settlements as relevant
+    fin_df.ix[(fin_df.datatype == 'settlement'), 'relevant'] = True
+
+    # edge case: OHLC data is handled a little differently. All default to true,
+    # and irrelevant prices are explicitly set to false.
+    # if ohlc:
+    #     fin_df['relevant'] = True
+
+    # get the UIDS that need to be handled.
+    uids = df.underlying_id.unique()
+
+    # get the last hedge points to ascertain the base
+    # value against which we need to base interval-level moves.
+    curr_prices = pf.hedger.get_hedgepoints().copy()
+
+    for uid in uids:
+        pdt = uid.split()[0]
+        ticksize = multipliers[pdt][2]
+        uid_df = df[df.underlying_id == uid].sort_values('time')
+        uid_df.reset_index(drop=True, inplace=True)
+        # get the hedging value.
+        interval = pf.hedger.get_hedge_interval(
+            uid) if interval is None else interval
+        print('interval: ', interval)
+        curr_price = curr_prices[uid]
+        print('curr_price: ', curr_price)
+        print('uid, last hedgepoint: ', uid, curr_price)
+
+        # iterate over the rows of the uid_df
+        lastrow = None
+        for index in uid_df.index:
+            row = uid_df.iloc[index]
+            diff = row.price - curr_price
+
+            relevant, move_mult = pf.hedger.is_relevant_price_move(
+                uid, row.price, comparison=curr_price)
+
+            # skip settlements since they are valid by default.
+            if row.datatype == 'settlement':
+                continue
+
+            # if it's less than interval and intraday, nothing needs to be
+            # done. set to false.
+            if not relevant and row.datatype == 'intraday':
+                # set it to false.
+                if ohlc:
+                    fin_df.ix[(fin_df.underlying_id == uid) &
+                              (fin_df.time == row.time) &
+                              (fin_df.price == row.price), 'relevant'] = False
+                continue
+
+            # case: price move is relevant.
+            else:
+                # if it's close to interval, then is_relevant_price_move will pick it up.
+                # just reset comparative price , and mark as relevant
+                if np.isclose(abs(diff), interval) or abs(diff) == interval:
+                    print('--------------- handling row ' +
+                          str(index) + ' --------------')
+                    print('diff, interval: ', diff, interval)
+                    print(
+                        'found move close to interval. resetting curr_price to ' + str(row.price))
+
+                    fin_df.ix[(fin_df.underlying_id == uid) &
+                              (fin_df.time == row.time) &
+                              (fin_df.price == row.price), 'relevant'] = True
+
+                    curr_price = row.price
+
+                # case: difference is greater than the hedge level. need to
+                # create new row.
+                else:
+                    print('--------------- handling row ' +
+                          str(index) + ' --------------')
+                    if index == 0:
+                        # edge case: if open is > 1 be move, take hedge there, but set
+                        # it as last hedge point
+                        curr_price = row.price
+                        print(
+                            'open is > 1 be move; curr_price updated to ' + str(row.price))
+                        # mark this point as relevant.
+                        fin_df.ix[(fin_df.underlying_id == uid) &
+                                  (fin_df.time == row.time) &
+                                  (fin_df.price == row.price), 'relevant'] = True
+
+                    # not the first row. create new rows to simulate resting
+                    # orders.
+                    else:
+                        print('interval: ', interval)
+                        print('curr_price: ', curr_price)
+                        print('row price: ', row.price)
+                        print('diff: ', diff)
+                        print('datatype: ', row.datatype)
+                        # number of breakevens/value moved = number of new rows that
+                        # need to be created, and is given by move_mult
+                        curr_time = uid_df.iloc[index-1].time
+                        print('curr_time: ', curr_time)
+
+                        print('move mult: ', move_mult)
+
+                        for x in range(int(move_mult)):
+                            # multiplier to ascertain if the price rose or fell from
+                            # last hedgepoint
+                            mult = -1 if diff < 0 else 1
+
+                            newprice = curr_price + (interval*mult)
+                            # round newprice to closest future tick that is larger
+                            # than newprice.
+                            # newprice = ceil(newprice/ticksize)*ticksize
+                            print('intermediate price: ', newprice)
+
+                            if lastrow is not None:
+                                # case: new row added in previous loop has a time greater than
+                                # the previous index row in the dataframe; use this
+                                # time.
+                                if lastrow['time'] > curr_time:
+                                    prev_time = lastrow['time']
+                                    print('using lastrow time: ', prev_time)
+                                    newtime = dt.time(prev_time.hour, prev_time.minute,
+                                                      prev_time.second, prev_time.microsecond + 1)
+                                else:
+                                    newtime = dt.time(curr_time.hour, curr_time.minute,
+                                                      curr_time.second, curr_time.microsecond + 1)
+                                    print('newtime, currtime: ',
+                                          newtime, curr_time)
+
+                            else:
+                                newtime = dt.time(curr_time.hour, curr_time.minute,
+                                                  curr_time.second, curr_time.microsecond + 1)
+                                print('newtime, currtime: ',
+                                      newtime, curr_time)
+
+                            newrow = {'value_date': row.value_date, 'time': newtime, 'pdt': row.pdt,
+                                      'ftmth': row.ftmth, 'price': newprice, 'datatype': 'intraday',
+                                      'underlying_id': uid, 'relevant': True}
+
+                            lastrow = newrow
+                            if ohlc:
+                                newrow['price_id'] = 'midpt'
+
+                            print('newrow added: ', newrow)
+                            fin_df = fin_df.append(newrow, ignore_index=True)
+                            print('curr_price updated to ' + str(newprice))
+                            curr_price = newprice
+
+    # sort values by time, filter relevant entries and reset indexes.
+    if ohlc:
+        fin_df.sort_values(by='time', inplace=True)
+        print('pdf after ohlc reorder: ', fin_df)
+
+    fin_df = fin_df[fin_df.relevant == True]
+    # edge case: duplicate consecutive entries in results. want to filter by
+    # block of prices, keeping order intact.
+    if intraday:
+        fin_df['block'] = (fin_df.price.shift(
+            1) != fin_df.price).astype(int).cumsum()
+        fin_df = fin_df.drop_duplicates('block')
+        fin_df.sort_values(by='time', inplace=True)
+
+    print('fin_df: ', fin_df)
+    fin_df.reset_index(drop=True, inplace=True)
+
+    return fin_df
+
+
+def create_intermediate_rows(lst, lastrow):
+    """Helper function that constructs intermediate rows as specified by
+    the granularize function. 
+
+    Args:
+        lst (TYPE): Description
+        lastrow (TYPE): Description
+    """
+    pass
+
+
+def pnp_format(filepath, pdts=None):
+    """Helper method that takes the relevant product positions from PnP 
+    and outputs a table compatible with prep_data.prep_portfolio 
+
+    Args:
+        filepath (TYPE): Filepath to the PnP file. 
+        pdts (TYPE): Relevant products. 
+
+    Returns:
+        TYPE: Description
+    """
+    # final columns.
+    f_cols = ['Type', 'strike', 'vol_id', 'call_put_id',
+              'optiontype', 'shorted', 'hedgeorOTC', 'lots', 'pdt', 'counterparty']
+
+    # handling options.
+    optdump = pd.read_excel(filepath, sheetname='OptDump')
+    # filtering for MM-relevant results, getting relevant columns, dropping
+    # nans.
+
+    cols = list(optdump.columns)
+    print('cols: ', cols)
+    # cols = cols[12:-12]
+    optdump = optdump[cols].dropna()
+    optdump = optdump[optdump['Portfolio'].str.contains('MM-')]
+    # assign product.
+    optdump['pdt'] = optdump['Portfolio'].str.split('-').str[1].str.strip()
+    # renaming columns; keep counterparty because we want to extract
+    # directionals after processing.
+    optdump.columns = ['label', 'Portfolio', 'buy/sell', 'vid_str', 'strike', 'cpi',
+                       'counterparty', 'sum_init_pre', 'lots', 'pdt']
+    # assign vol_id
+    optdump['vol_id'] = optdump.pdt + '  ' + optdump.vid_str
+    # assign strike
+    optdump.loc[(~optdump.pdt.isin(['SM', 'CA', 'DF', 'QC', 'CC'])),
+                'strike'] = optdump.strike * 100
+    optdump.strike = round(optdump.strike, 3)
+    # assign shorted
+    optdump.loc[(optdump['buy/sell'] == 'B'), 'shorted'] = False
+    optdump.loc[(optdump['buy/sell'] == 'S'), 'shorted'] = True
+    # assign call_put_id
+    optdump.loc[(optdump['cpi'] == 'C'), 'call_put_id'] = 'call'
+    optdump.loc[(optdump['cpi'] == 'P'), 'call_put_id'] = 'put'
+    # assign type, optiontype and hedgeorOTC. defaults to Option, 'amer' and
+    # OTC
+    optdump['Type'] = 'Option'
+    optdump['optiontype'] = 'amer'
+    optdump['hedgeorOTC'] = 'OTC'
+
+    ops = optdump[f_cols]
+    ops = ops[ops.lots != 0]
+
+    print('option columns: ', ops.columns)
+
+    directionals = ops[ops.counterparty.str.contains('-OID')]
+    ops.drop('counterparty', axis=1, inplace=True)
+
+    # handle the futures, performing the same steps.
+    df = pd.read_excel(filepath, sheetname='FutDump')
+    df['Net Pos'].replace('-', 0, inplace=True)
+    df = df[df['Net Pos'] != 0]
+
+    df = df.dropna()
+    df = df[df.Portfolio.str.contains('MM-')]
+    cols = ['Portfolio', 'Contract', 'Net Pos']
+    df = df[cols]
+    df['pdt'] = df.Portfolio.str.split('-').str[1].str.strip()
+    df['vol_id'] = df.pdt + '  ' + df.Contract.str.strip()
+    df['Type'] = 'Future'
+    df['strike'] = np.nan
+    df['call_put_id'] = np.nan
+    df['optiontype'] = np.nan
+    df['Net Pos'] = df['Net Pos'].astype(float)
+
+    df.loc[(df['Net Pos'] < 0), 'shorted'] = True
+    df.loc[(df['Net Pos'] > 0), 'shorted'] = False
+    df['hedgeorOTC'] = 'hedge'
+    df['lots'] = abs(df['Net Pos'])
+    # df = df[f_cols]
+    df = df[df.lots != 0]
+    df.drop(['Contract', 'Net Pos', 'Portfolio'], axis=1, inplace=True)
+
+    print('future columns: ', df.columns)
+
+    # concatenate and instantiate dummy variables.
+    final = pd.concat([ops, df])
+    final['barriertype'] = np.nan
+    final['direction'] = np.nan
+    final['knockin'] = np.nan
+    final['knockout'] = np.nan
+    final['bullet'] = np.nan
+
+    if pdts is not None:
+        final = final[final.vol_id.str[:2].str.strip().isin(pdts)]
+
+    return final, directionals
+
+
+def aggregate_pnp_positions(df):
+    """Helper function that iterates through the final DF obtained from pnp_format, and
+    aggregates option positions by vol_id, strike and lots to arrive at net positions. 
+
+    Args:
+        df (TYPE): Description
+    """
+    # handle the options
+    df['mult'] = (df.shorted == False).astype(int)
+    df['mult'] = df['mult'].replace(0, -1)
+    df['real_lots'] = df['mult'] * df.lots
+    lst = []
+    ops = df[df.Type == 'Option']
+    for (strike, vol_id, cpi), grp in ops.groupby(['strike', 'vol_id', 'call_put_id']):
+        # print(strike, vol_id, cpi)
+        pdt = vol_id[:2].strip()
+        net_pos = grp.real_lots.sum()
+        shorted = True if net_pos < 0 else False
+        dic = {'Type': 'Option', 'strike': strike, 'vol_id': vol_id, 'call_put_id': cpi,
+               'optiontype': 'amer', 'shorted': shorted, 'hedgeorOTC': 'OTC',
+               'lots': abs(net_pos), 'pdt': pdt, 'barriertype': np.nan, 'direction': np.nan,
+               'knockin': np.nan, 'knockout': np.nan, 'bullet': True}
+        lst.append(dic)
+    fts = df[df.Type == 'Future']
+    for uid, grp in fts.groupby('vol_id'):
+        dic = {}
+        net_pos = grp.real_lots.sum()
+        shorted = True if net_pos < 0 else False
+        dic = {'Type': 'Future', 'strike': np.nan, 'vol_id': uid, 'call_put_id': np.nan,
+               'optiontype': np.nan, 'shorted': shorted, 'hedgeorOTC': 'hedge',
+               'lots': abs(net_pos), 'pdt': pdt, 'barriertype': np.nan, 'direction': np.nan,
+               'knockin': np.nan, 'knockout': np.nan, 'bullet': np.nan}
+        lst.append(dic)
+
+    final = pd.DataFrame(lst)
+    final = final[final.lots != 0]
+
+    print('final.columns: ', final.columns)
+
+    # final.drop(['mult', 'real_lots'], axis=1, inplace=True)
+
+    return final
+
+
 ##########################################################################
 ##########################################################################
 ##########################################################################
+####

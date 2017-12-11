@@ -2,8 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-09-19 19:59:07
-
+# @Last Modified time: 2017-12-11 15:36:40
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -16,7 +15,7 @@ from .calc import compute_strike_from_delta, get_vol_from_delta
 import sys
 
 multipliers = {
-    'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
+    'LH':  [22.046, 18.143881, 0.025, 1, 400],
     'LSU': [1, 50, 0.1, 10, 50],
     'QC': [1.2153, 10, 1, 25, 12.153],
     'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
@@ -24,7 +23,7 @@ multipliers = {
     'CT':  [22.046, 22.679851, 0.01, 1, 500],
     'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
     'W':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'S':   [0.3674333, 136.07911, 0.25, 20, 50],
+    'S':   [0.3674333, 136.07911, 0.25, 10, 50],
     'C':   [0.393678571428571, 127.007166832986, 0.25, 10, 50],
     'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
     'LC':  [22.046, 18.143881, 0.025, 1, 400],
@@ -32,7 +31,7 @@ multipliers = {
     'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
     'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
     'COM': [1.0604, 50, 0.25, 2.5, 53.02],
-    'OBM': [1.0604, 50, 0.25, 1, 53.02],
+    'CA': [1.0604, 50, 0.25, 1, 53.02],
     'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
 }
 
@@ -63,12 +62,12 @@ contract_mths = {
     'S':   ['F', 'H', 'K', 'N', 'Q', 'U', 'X'],
     'C':   ['H', 'K', 'N', 'U', 'Z'],
     'BO':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
-    'LC':  ['G', 'J', 'M', 'Q', 'V' 'Z'],
+    'LC':  ['G', 'J', 'M', 'Q', 'V', 'Z'],
     'LRC': ['F', 'H', 'K', 'N', 'U', 'X'],
     'KW':  ['H', 'K', 'N', 'U', 'Z'],
     'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
     'COM': ['G', 'K', 'Q', 'X'],
-    'OBM': ['H', 'K', 'U', 'Z'],
+    'CA': ['H', 'K', 'U', 'Z'],
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
@@ -169,7 +168,7 @@ contract_mths = {
 #     return pf
 
 
-def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=None):
+def create_underlying(pdt, ftmth, pdf, date, flag='settlement', ftprice=None, shorted=False, lots=None):
     """Utility method that creates the underlying future object 
         given a product, month, price data and date. 
 
@@ -184,15 +183,24 @@ def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=N
     Returns:
         tuple: future object, and price. 
     """
+    # print('pdf: ', pdf)
+    # datatype = 'settlement' if settlement else 'intraday'
+    flag = 'settlement' if flag == 'eod' else flag
     uid = pdt + '  ' + ftmth
     if ftprice is None:
         try:
             ftprice = pdf[(pdf.underlying_id == uid) &
-                          (pdf.value_date == date)].settle_value.values[0]
+                          (pdf.value_date == date)]
+            if flag == 'settlement':
+                ftprice = ftprice[(ftprice.datatype == flag)].price.values[0]
+            else:
+                ftprice = ftprice.price.values[0]
+
         except IndexError:
             print('util.create_underlying: cannot find price. printing outputs: ')
             print('uid: ', uid)
             print('date: ', date)
+            print('flag: ', flag)
             return None, 0
 
     curr_mth = date.month
@@ -202,6 +210,8 @@ def create_underlying(pdt, ftmth, pdf, date, ftprice=None, shorted=False, lots=N
     order = find_cdist(curr_sym, ftmth, contract_mths[pdt])
     ft = Future(ftmth, ftprice, pdt, shorted=shorted, ordering=order)
     if lots is not None:
+        if lots == 0:
+            return None, ftprice
         ft.update_lots(lots)
 
     return ft, ftprice
@@ -257,7 +267,7 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     cpi = 'C' if char == 'call' else 'P'
 
     # get min start date for debugging
-    min_start_date = min(pdf[pdf.pdt == pdt].value_date)
+    min_start_date = min(vdf[vdf.pdt == pdt].value_date)
 
     date = min_start_date if (date is None or min_start_date > date) else date
 
@@ -282,18 +292,27 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
             tau = vdf[(vdf.value_date == date) &
                       (vdf.vol_id == volid)].tau.values[0]
     except IndexError as e:
+        print('debug_1: ', vdf[vdf.value_date == date])
+        print('debug_2: ', vdf[vdf.vol_id == volid])
         raise IndexError(
             'util.create_vanilla_option - cannot find ttm in dataset. Inputs are: ', date, volid) from e
 
+    # case: want to create an option with a specific breakeven. given price,
+    # compute the vol
+    if 'breakeven' in kwargs and kwargs['breakeven'] is not None:
+        pnl_mult = multipliers[pdt][-1]
+        vol = (16 * kwargs['breakeven'] * pnl_mult)/(ftprice * 100)
+
     # Case 1 : Vol is None, but strike is specified.
-    if vol is None and strike is not None:
+    elif vol is None and strike is not None:
         # get vol
         try:
             # print("Inputs: ", date.strftime('%Y-%m-%d'), volid, cpi, strike)
             vol = vdf[(vdf.value_date == date) &
                       (vdf.vol_id == volid) &
                       (vdf.call_put_id == cpi) &
-                      (vdf.strike == strike)].settle_vol.values[0]
+                      (vdf.strike == strike) &
+                      (vdf.datatype == 'settlement')].vol.values[0]
         except IndexError as e:
             raise IndexError(
                 'util.create_vanilla_option - vol not found in the dataset. inputs are: ', date, volid, cpi, strike) from e
@@ -317,7 +336,6 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
         # delta = delta/100
         strike = compute_strike_from_delta(
             None, delta1=delta, vol=vol, s=ft.get_price(), char=char, pdt=ft.get_product(), tau=tau)
-        print('util.create_vanilla_option - strike: ', strike)
 
     # specifying option with information gathered thus far.
     newop = Option(strike, tau, char, vol, ft, payoff, shorted,
@@ -435,7 +453,7 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
             vol = vdf[(vdf.value_date == date) &
                       (vdf.vol_id == volid) &
                       (vdf.call_put_id == cpi) &
-                      (vdf.strike == strike)].settle_vol.values[0]
+                      (vdf.strike == strike)].vol.values[0]
         except IndexError as e:
             raise IndexError(
                 'util.create_barrier_option - strike not found, input: ', date, volid, cpi, strike)
@@ -447,7 +465,7 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
             bvol = vdf[(vdf.value_date == date) &
                        (vdf.vol_id == volid) &
                        (vdf.call_put_id == cpi) &
-                       (vdf.strike == barlevel)].settle_vol.values[0]
+                       (vdf.strike == barlevel)].vol.values[0]
         except IndexError as e:
             raise IndexError(
                 'util.create_barrier_option - bvol not found. inputs are: ', date, volid, cpi, barlevel) from e
@@ -729,11 +747,13 @@ def create_skew(volid, vdf, pdf, date, shorted, delta, **kwargs):
         else:
             clot, plot = kwargs['lots'][0], kwargs['lots'][1]
 
+    print('clot: ', clot)
+    print('plot: ', plot)
     # creating the options
     op1 = create_vanilla_option(
         vdf, pdf, volid, 'call', shorted, date, delta=delta, lots=clot)
     op2 = create_vanilla_option(
-        vdf, pdf, volid, 'put', not shorted, date, delta=delta, puts=plot)
+        vdf, pdf, volid, 'put', not shorted, date, delta=delta, lots=plot)
 
     if 'greek' in kwargs:
         if kwargs['greek'] == 'vega':
@@ -773,6 +793,10 @@ def create_skew(volid, vdf, pdf, date, shorted, delta, **kwargs):
     ops = [op1, op2]
     if ('composites' in kwargs and kwargs['composites']) or ('composites' not in kwargs):
         ops = create_composites(ops)
+
+    for op in ops:
+        print('util.create_skew - strike, char, short: ',
+              op.K, op.char, op.shorted)
 
     return ops
 
@@ -866,7 +890,6 @@ def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
         ops = create_composites(ops)
 
     assert len(ops) == 2
-
     return ops
 
 
@@ -880,7 +903,6 @@ def enablePrint():
     sys.stdout = sys.__stdout__
 
 
-# TODO: close out OTC futures as well
 def close_out_deltas(pf, dtc):
     """Checks to see if the portfolio is emtpty but with residual deltas. 
     Closes out all remaining future positions, resulting in an empty portfolio.
@@ -894,25 +916,28 @@ def close_out_deltas(pf, dtc):
     """
     # print('simulation.closing out deltas')
     cost = 0
-    toberemoved = []
+    toberemoved = {}
     print('simulation.close_out_deltas - dtc: ', dtc)
     for pdt, mth, price in dtc:
         # print(pdt, mth, price)
         all_fts = pf.get_pos_futures()
         futures = [x for x in all_fts if (x.get_product() == pdt and
                                           x.get_month() == mth)]
-
-        # print([str(ft) for ft in futures])
-        # toberemoved = []
         for ft in futures:
+            flag = 'hedge' if ft in pf.hedge_futures else 'OTC'
+            if flag not in toberemoved:
+                toberemoved[flag] = []
+
             # need to spend to buy back
             val = price if ft.shorted else -price
             cost += val
-            toberemoved.append(ft)
+            # cost += val * ft.lots * multipliers[pdt][-1]
+            toberemoved[flag].append(ft)
 
     # print('close_out_deltas - toberemoved: ',
     #       [str(sec) for sec in toberemoved])
-    pf.remove_security(toberemoved, 'hedge')
+    for flag in toberemoved:
+        pf.remove_security(toberemoved[flag], flag)
     print('cost of closing out deltas: ', cost)
 
     # print('pf after closing out deltas: ', pf)
@@ -1134,82 +1159,138 @@ def volids_from_ci(date_range, product, ci):
     return dates_to_volid
 
 
-def pnp_format(filepath, pdts):
-    """Helper method that takes the relevant product positions from PnP 
-    and outputs a table compatible with prep_data.prep_portfolio 
+def assign_hedge_objects(pf, vdf=None, pdf=None, book=False):
+    """Helper method that generates and relates a portfolio object 
+    with the the Hedger object calibrated to pf.hedge_params. 
 
     Args:
-        filepath (TYPE): Filepath to the PnP file. 
-        pdts (TYPE): Relevant products. 
+        pf (TYPE): Portfolio object.
+        vdf (dataframe, optional): dataframe of volatilities. 
+        pdf (dataframe, optional): dataframe of prices 
 
     Returns:
         TYPE: Description
+
     """
-    # final columns.
-    f_cols = ['Type', 'strike', 'vol_id', 'call_put_id',
-              'optiontype', 'shorted', 'hedgeorOTC', 'lots']
+    # case: simple portfolio.
+    from .hedge import Hedge
+    # print('assign_hedge_objects - init pf: ', pf)
+    hedger = Hedge(pf, pf.hedge_params, vdf=vdf, pdf=pdf, book=book)
+    # print('assign_hedge_objects - after creating hedge object: ', pf)
+    pf.hedger = hedger
+    # print('assign_hedge_objects - after assigning hedger: ', pf)
+    pf.hedger.update_hedgepoints()
+    # print('assign_hedge_objects - pf after updating hedgepoints: ', pf)
 
-    # handling options.
-    optdump = pd.read_excel(filepath, sheetname='OptDump', skiprows=11)
-    # filtering for MM-relevant results, getting relevant columns, dropping
-    # nans.
+    # case: composite portfolio
+    if pf.families:
+        for fa in pf.families:
+            hedger = Hedge(fa, fa.hedge_params, vdf=vdf, pdf=pdf, book=book)
+            fa.hedger = hedger
+            fa.hedger.update_hedgepoints()
 
-    cols = list(optdump.columns)
-    # print('cols: ', cols)
-    cols = cols[12:-12]
-    optdump = optdump[cols].dropna()
-    optdump = optdump[optdump['Portfolio.1'].str.contains('MM-')]
-    # assign product.
-    optdump['pdt'] = optdump['Portfolio.1'].str.split('-').str[1].str.strip()
-    # renaming columns
-    optdump.columns = ['ind', 'buy/sell', 'vid_str', 'strike', 'cpi',
-                       'ctpty_label', 'sum_init_pre', 'sum_init_qty', 'lots', 'pdt']
-    # assign vol_id
-    optdump['vol_id'] = optdump.pdt + '  ' + optdump.vid_str
-    # assign strike
-    optdump.loc[(~optdump.pdt.isin(['SM', 'CA', 'DF', 'QC', 'CC'])),
-                'strike'] = optdump.strike * 100
-    optdump.strike = round(optdump.strike, 3)
-    # assign shorted
-    optdump.loc[(optdump['buy/sell'] == 'B'), 'shorted'] = False
-    optdump.loc[(optdump['buy/sell'] == 'S'), 'shorted'] = True
-    # assign call_put_id
-    optdump.loc[(optdump['cpi'] == 'C'), 'call_put_id'] = 'call'
-    optdump.loc[(optdump['cpi'] == 'P'), 'call_put_id'] = 'put'
-    # assign type, optiontype and hedgeorOTC. defaults to Option, 'amer' and
-    # OTC
-    optdump['Type'] = 'Option'
-    optdump['optiontype'] = 'amer'
-    optdump['hedgeorOTC'] = 'OTC'
-    ops = optdump[f_cols]
-    ops = ops[ops.lots != 0]
+    if vdf is not None and pdf is not None:
+        pf.assign_hedger_dataframes(vdf, pdf)
 
-    # handle the futures, performing the same steps.
-    df = pd.read_excel(filepath, sheetname='FutDump', skiprows=27)
-    df = df[df.Portfolio.str.contains('MM-')]
-    cols = ['Portfolio', 'Contract', 'Net Pos']
-    df = df[cols]
-    df['pdt'] = df.Portfolio.str.split('-').str[1].str.strip()
-    df['vol_id'] = df.pdt + '  ' + df.Contract.str.strip()
-    df['Type'] = 'Future'
-    df['strike'] = np.nan
-    df['call_put_id'] = np.nan
-    df['optiontype'] = np.nan
-    df.loc[(df['Net Pos'] < 0), 'shorted'] = True
-    df.loc[(df['Net Pos'] > 0), 'shorted'] = False
-    df['hedgeorOTC'] = 'hedge'
-    df['lots'] = abs(df['Net Pos'])
-    df = df[f_cols]
-    df = df[df.lots != 0]
+    # print('assign_hedge_objects - pf after hedger dataframes: ', pf)
+    return pf
 
-    # concatenate and instantiate dummy variables.
-    final = pd.concat([ops, df])
-    final['barriertype'] = np.nan
-    final['direction'] = np.nan
-    final['knockin'] = np.nan
-    final['knockout'] = np.nan
-    final['bullet'] = np.nan
 
-    final = final[final.vol_id.str[:2].str.strip().isin(pdts)]
+def mark_to_vols(pfx, vdf, dup=False, pdt=None):
+    """Helper method that computes the value of a portfolio marked to the 
+    specified vols
 
-    return final
+    Args:
+        pfx (Portfolio): the portfolio being marked. 
+        vdf (TYPE): volatility surface the portfolio is being marked to. 
+        dup (bool, optional): flag that indicates whether or not this method 
+        should modify the portfolio passed in (if marking is desired) or 
+        return a duplicate. 
+
+    Returns:
+        TYPE: Portfolio object with the updated vols. 
+    """
+    assert not vdf.empty
+    pf = copy.deepcopy(pfx) if dup else pfx
+
+    if pdt is None:
+        ops = pf.get_all_options()
+    else:
+        ops = [op for op in pf.get_all_options() if op.get_product() == pdt]
+    # print('vdf: ', vdf)
+
+    for op in ops:
+        ticksize = multipliers[op.get_product()][-2]
+        vid = op.get_vol_id()
+        cpi = 'C' if op.char == 'call' else 'P'
+        strike = round(round(op.K / ticksize) * ticksize, 2)
+        try:
+            vol = vdf[(vdf.vol_id == vid) &
+                      (vdf.call_put_id == cpi) &
+                      (vdf.strike == strike)].vol.values[0]
+        except IndexError as e:
+            print("scripts.util.mark_to_vols: cannot find vol with inputs ",
+                  vid, cpi, op.K, strike)
+            print('scripts.mark_to_vols: debug1 = ', vdf[(vdf.vol_id == vid)])
+            print('scripts.mark_to_vols: debug2 = ', vdf[(vdf.vol_id == vid) &
+                                                         (vdf.call_put_id == cpi)])
+            print('scripts.mark_to_vols: debug3 = ', vdf[(vdf.vol_id == vid) &
+                                                         (vdf.strike == strike)])
+            vol = op.vol
+        op.update_greeks(vol=vol)
+
+    pf.refresh()
+    return pf
+
+
+def compute_market_minus(pf, vdf):
+    """Helper method that takes the difference of the portfolio's 
+    current value and the value as per vols specified in vdf. 
+
+    Args:
+        pf (TYPE): The portfolio (assumed to be basis book vols)
+        vdf (TYPE): The settlement vols of that particular day. 
+    """
+    # update the vols
+
+    newpf = copy.deepcopy(pf)
+    for op in newpf.get_all_options():
+        ticksize = multipliers[op.get_product()][-2]
+        vid = op.get_vol_id()
+        cpi = 'C' if op.char == 'call' else 'P'
+        strike = round(round(op.K / ticksize) * ticksize, 2)
+        try:
+            vol = vdf[(vdf.vol_id == vid) &
+                      (vdf.call_put_id == cpi) &
+                      (vdf.strike == strike)].vol.values[0]
+            op.update_greeks(vol=vol)
+
+        except IndexError:
+            print('scripts.calc.market_minus - data not found. ',
+                  vid, cpi, op.K, strike)
+            print('date: ', vdf.value_date.unique())
+    val = pf.compute_value() - newpf.compute_value()
+    mm = abs(val)
+    return mm, val
+
+
+def handle_date_by_pdt(pdt, date, edf):
+    """Helper method that decrements the date by 1 if a given product has an overnight market. 
+
+    Args:
+        pdt (TYPE): the product being handled
+        date (TYPE): the date in question
+        edf (dataframe): Dataframe of exchange timings
+
+    """
+    pass
+
+
+def handle_timezones(lst, edf):
+    """Helper function that reconciles timezones between the products specified. 
+
+    Args:
+        lst (TYPE): list of products we're interested in. 
+        edf (dataframe): Dataframe of exchange timings
+    """
+    pass

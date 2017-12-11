@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-09-13 16:28:33
+# @Last Modified by:   Ananth
+# @Last Modified time: 2017-12-11 15:49:17
 
+# import time
+import datetime as dt
 import pandas as pd
+from pandas.tseries.offsets import BDay
 from sqlalchemy import create_engine
 import time
 import os
 import numpy as np
-from .prep_data import match_to_signals, get_min_start_date, clean_data, vol_by_delta, sanity_check
+from .prep_data import match_to_signals, get_min_start_date, clean_data, vol_by_delta, \
+    sanity_check, handle_intraday_conventions, clean_intraday_data
 from .global_vars import main_direc
 
 contract_mths = {
@@ -30,13 +34,13 @@ contract_mths = {
     'KW':  ['H', 'K', 'N', 'U', 'Z'],
     'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
     'COM': ['G', 'K', 'Q', 'X'],
-    'OBM': ['H', 'K', 'U', 'Z'],
+    'CA': ['H', 'K', 'U', 'Z'],
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
 
-def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False,
-                  direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/'):
+def pull_settlement_data(pdt, start_date=None, end_date=None, write_dump=False,
+                         direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/'):
     """Utility function that draws/cleans data from the alternate data table.
 
     Args:
@@ -123,12 +127,12 @@ def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False,
 
     # selecting
     vdf = df[['settlement_date', 'vol_id',
-              'call_put_id', 'strike', 'implied_vol']]
+              'call_put_id', 'strike', 'implied_vol', 'option_expiry_date']]
     pdf = df[['settlement_date', 'underlying_id', 'future_settlement_value']]
 
     vdf.columns = ['value_date', 'vol_id',
-                   'call_put_id', 'strike', 'settle_vol']
-    pdf.columns = ['value_date', 'underlying_id', 'settle_value']
+                   'call_put_id', 'strike', 'vol', 'expdate']
+    pdf.columns = ['value_date', 'underlying_id', 'price']
 
     # removing duplicates, resetting indices
     pdf = pdf.drop_duplicates()
@@ -150,7 +154,7 @@ def pull_alt_data(pdt, start_date=None, end_date=None, write_dump=False,
 
 def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
                   signals=None, test=False, write=False, writepath=None,
-                  direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/'):
+                  direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/', volids=None):
     """Utility function that does everything prep_data does, but to full 
         datasets rather than things drawn from the database.
 
@@ -203,19 +207,24 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
     # get effective start date, pick whichever is max
 
     # case 2: drawing based on pdt, ft and opmth
-    # dataset_start_date = get_min_start_date(
-    #     vdf, pdf, vid_list, signals=signals)
+    dataset_start_date = get_min_start_date(
+        vdf, pdf, vid_list, signals=signals)
     # print('datasets start date: ', dataset_start_date)
-
-    print('prep_data start_date: ', start_date)
+    # print('prep_data start_date: ', start_date)
 
     # catch errors
     if (vdf.empty or pdf.empty):
         raise ValueError(
             '[scripts/prep_data.read_data] : ' +
             'Improper start date entered; resultant dataframes are empty')
-    # print('pdf: ', pdf)
-    # print('vdf: ', vdf)
+
+    # print('vdf.columns: ', vdf.columns)
+    # print('pdf.columns: ', pdf.columns)
+
+    vdf.columns = ['value_date', 'vol_id',
+                   'call_put_id', 'strike', 'vol', 'expdate']
+    pdf.columns = ['value_date', 'underlying_id', 'price']
+
     # clean dataframes
     print('==== cleaning dataframes ====')
     edf = clean_data(edf, 'exp')
@@ -246,24 +255,6 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
         final_vol = final_vol[~vmask]
         final_price = final_price[~pmask]
 
-    # if not test:
-    #     vbd = vol_by_delta(final_vol, final_price)
-
-    #     # merging vol_by_delta and price dataframes on product, underlying_id,
-    #     # value_date and order
-    #     vbd.underlying_id = vbd.underlying_id.str.split().str[0]\
-    #         + '  ' + vbd.underlying_id.str.split().str[1]
-    #     final_price.underlying_id = final_price.underlying_id.str.split().str[0]\
-    #         + '  ' + final_price.underlying_id.str.split().str[1]
-    #     merged = pd.merge(vbd, final_price, on=[
-    #                       'pdt', 'value_date', 'underlying_id'])
-    #     final_price = merged
-
-    #     # handle conventions for vol_id in price/vol data.
-    #     final_vol.vol_id = final_vol.vol_id.str.split().str[0]\
-    #         + '  ' + final_vol.vol_id.str.split().str[1]
-    #     final_price.vol_id = final_price.vol_id.str.split().str[0]\
-    #         + '  ' + final_price.vol_id.str.split().str[1]
     assert not vdf.empty
     assert not pdf.empty
 
@@ -275,24 +266,52 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
 
         sd, ed = start_date.strftime('%Y%m%d'), end_date.strftime('%Y%m%d')
         # write datasets into the debug folder.
+        # volids = final_vol.vol_id.unique()
+        vid_str = '_'.join([x for x in volids]) if volids is not None else ''
+        if vid_str != '':
+            vid_str = '_' + vid_str
         final_vol.to_csv(desired_path + pdt.lower() +
-                         '_final_vols_' + sd + '_' + ed + '.csv', index=False)
-
+                         '_final_vols_' + sd + '_' + ed + vid_str + '.csv', index=False)
         final_price.to_csv(desired_path + pdt.lower() +
-                           '_final_price_' + sd + '_' + ed + '.csv', index=False)
+                           '_final_price_' + sd + '_' + ed + vid_str + '.csv', index=False)
 
         pdf.to_csv(desired_path + pdt.lower() +
-                   '_roll_df_' + sd + '_' + ed + '.csv', index=False)
+                   '_roll_df_' + sd + '_' + ed + vid_str + '.csv', index=False)
 
         edf.to_csv(desired_path + 'final_option_expiry.csv', index=False)
 
     return final_vol, final_price, edf, pdf, start_date
 
 
+def construct_data_paths(pdt, sd, ed, desired_path, volid_str=None):
+    """Helper method that constructs the paths to the datasets. 
+
+    Args:
+        pdt (TYPE): product we're interested in 
+        start_date (TYPE): dataset start
+        end_date (TYPE): dataset end 
+        desired_path (TYPE): dataset write-to location
+        volid_str (None, optional): str describing the volids contained. 
+
+    Returns:
+        tuple: paths to vol data, price data and expiry data respectively. 
+    """
+    volid_str = '_' + volid_str if volid_str != '' else volid_str
+    final_volpath = desired_path + pdt.lower() + '_final_vols_' + \
+        sd + '_' + ed + volid_str + '.csv'
+
+    final_pricepath = desired_path + pdt.lower() + '_final_price_' + \
+        sd + '_' + ed + volid_str + '.csv'
+
+    final_exppath = desired_path + 'final_option_expiry.csv'
+
+    return final_volpath, final_pricepath, final_exppath
+
+
 def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
               writepath=None,
               direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/',
-              write=True, test=False, volids=None, write_dump=False):
+              write=True, test=False, volids=None, write_dump=False, last_pulled=''):
     """
     Utility function that allows the user to easily grab a dataset by specifying just the product,
     start_date and end_date.
@@ -334,15 +353,18 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
     pdts = set(pdts)
 
     for pdt in pdts:
-        final_volpath = desired_path + pdt.lower() + '_final_vols_' + \
-            sd + '_' + ed + '.csv'
-        final_pricepath = desired_path + pdt.lower() + '_final_price_' + \
-            sd + '_' + ed + '.csv'
-        final_exppath = desired_path + 'final_option_expiry.csv'
+        pdt_volids = [x for x in volids if x[
+            :2].strip() == pdt] if volids is not None else None
+        volid_str = '_'.join([x for x in pdt_volids]
+                             ) if pdt_volids is not None else ''
 
-        # print('final_volpath: ', final_volpath)
-        # print('final_pricepath: ', final_pricepath)
-        # print('final exppath: ', final_exppath)
+        final_volpath, final_pricepath, final_exppath = \
+            construct_data_paths(pdt.lower(), sd, ed,
+                                 desired_path, volid_str=volid_str)
+
+        # print('volpath: ', final_volpath)
+        # print('pricepath: ', final_pricepath)
+        # print('exppath: ', final_exppath)
 
         if (os.path.exists(final_volpath) and
                 os.path.exists(final_pricepath) and
@@ -355,6 +377,8 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
             vdf.value_date = pd.to_datetime(vdf.value_date)
             pdf.value_date = pd.to_datetime(pdf.value_date)
             edf.expiry_date = pd.to_datetime(edf.expiry_date)
+            vdf.time = dt.time.max
+            pdf.time = pdf.time.astype(pd.Timestamp)
 
             final_pdf = pd.concat([final_pdf, pdf])
             final_vols = pd.concat([final_vols, vdf])
@@ -363,90 +387,100 @@ def grab_data(pdts, start_date, end_date, ftmth=None, opmth=None, sigpath=None,
             print('cleaned data not found; preparing from dumps')
             volpath = direc + 'datasets/data_dump/' + pdt.lower() + '_vol_dump.csv'
             price_path = direc + 'datasets/data_dump/' + pdt.lower() + '_price_dump.csv'
-            print('volpath: ', volpath)
-            print('pricepath: ', price_path)
+            # print('volpath: ', volpath)
+            # print('pricepath: ', price_path)
+
+            # check if dataset can be extended.
+            if last_pulled != '':
+                print(pdt + ' data last pulled at %s. extending datasets.' %
+                      last_pulled)
+                # construct the paths
+                vdf, pdf, edf = extend_data(
+                    pdt, start_date, end_date, last_pulled)
+                if write:
+                    vdf.to_csv(final_volpath, index=False)
+                    pdf.to_csv(final_pricepath, index=False)
+                    edf.to_csv(final_exppath, index=False)
 
             # handling signals
-            signals = pd.read_csv(sigpath) if sigpath is not None else None
-            if signals is not None:
-                signals.value_date = pd.to_datetime(signals.value_date)
-
-            # handling prices and vos
-            if not os.path.exists(volpath) or not os.path.exists(price_path):
-                print('dumps dont exist, pulling raw data')
-                s = pd.Timestamp(start_date)
-                e = pd.Timestamp(end_date)
-                diff = (e-s).days
-                if diff > 300:
-                    print('Pulling data might take a few minutes.')
-
-                if write_dump:
-                    print('pulling and saving dumps')
-                    vdf, pdf, raw_df = pull_alt_data(
-                        pdt, write_dump=True, direc=direc)
-                else:
-                    print('pulling relevant data; not saving dumps')
-                    vdf, pdf, raw_df = pull_alt_data(
-                        pdt, start_date, end_date, write_dump=False, direc=direc)
             else:
-                print('dumps exist, reading in')
-                vdf = pd.read_csv(volpath)
-                pdf = pd.read_csv(price_path)
+                signals = pd.read_csv(sigpath) if sigpath is not None else None
+                if signals is not None:
+                    signals.value_date = pd.to_datetime(signals.value_date)
 
-            # handling datetime formats.
-            edf = pull_expdata() if edf.empty else edf
-            vdf.value_date = pd.to_datetime(vdf.value_date)
-            pdf.value_date = pd.to_datetime(pdf.value_date)
-            edf.expiry_date = pd.to_datetime(edf.expiry_date)
+                # handling prices and vos
+                if not os.path.exists(volpath) or not os.path.exists(price_path):
+                    print('dumps dont exist, pulling raw data')
+                    s = pd.Timestamp(start_date)
+                    e = pd.Timestamp(end_date)
+                    diff = (e-s).days
+                    if diff > 300:
+                        print('Pulling data might take a few minutes.')
 
-            start_date = pd.Timestamp(start_date)
-            end_date = pd.Timestamp(end_date)
+                    if write_dump:
+                        print('pulling and saving dumps')
+                        vdf, pdf, raw_df = pull_settlement_data(
+                            pdt, write_dump=True, direc=direc)
+                    else:
+                        print('pulling relevant data; not saving dumps')
+                        vdf, pdf, raw_df = pull_settlement_data(
+                            pdt, start_date, end_date, write_dump=False, direc=direc)
+                else:
+                    print('dumps exist, reading in')
+                    vdf = pd.read_csv(volpath)
+                    pdf = pd.read_csv(price_path)
 
-            # filter according to start/end dates
-            vdf = vdf[(vdf.value_date >= start_date) &
-                      (vdf.value_date <= end_date)]
+                # handling datetime formats.
+                edf = pull_expdata() if edf.empty else edf
+                vdf.value_date = pd.to_datetime(vdf.value_date)
+                pdf.value_date = pd.to_datetime(pdf.value_date)
+                edf.expiry_date = pd.to_datetime(edf.expiry_date)
 
-            pdf = pdf[(pdf.value_date >= start_date) &
-                      (pdf.value_date <= end_date)]
+                start_date = pd.Timestamp(start_date)
+                end_date = pd.Timestamp(end_date)
 
-            print('pdf columns: ', pdf.columns)
-            print('vdf columns: ', vdf.columns)
+                # filter according to start/end dates
+                vdf = vdf[(vdf.value_date >= start_date) &
+                          (vdf.value_date <= end_date)]
 
-            if volids is not None:
-                relevant_volids = [x for x in volids if x[:2].strip() == pdt]
-                uids = [x.split()[0] + '  ' + x.split('.')[1]
-                        for x in relevant_volids]
-                print('relevant volids: ', relevant_volids)
-                print('relevant uids: ', uids)
-                pdf = pdf[pdf.underlying_id.isin(uids)]
-                vdf = vdf[vdf.vol_id.isin(relevant_volids)]
+                pdf = pdf[(pdf.value_date >= start_date) &
+                          (pdf.value_date <= end_date)]
 
-            # try filtering just by uid and vol_id
-            if ftmth is not None and opmth is not None:
-                u_id = pdt + '  ' + ftmth
-                print('uid: ', u_id)
-                vol_id = pdt + '  ' + opmth + '.' + ftmth
-                print('vid: ', vol_id)
+                # print('pdf columns: ', pdf.columns)
+                # print('vdf columns: ', vdf.columns)
 
-                vdf = vdf[(vdf.vol_id == vol_id)]
-                pdf = pdf[(pdf.underlying_id == u_id)]
-            print('==== moving to data prep step ====')
-            vdf, pdf, edf, roll_df, start_date = prep_datasets(vdf, pdf, edf, start_date,
-                                                               end_date, pdt, signals=signals,
-                                                               test=test, write=write,
-                                                               writepath=writepath,
-                                                               direc=direc)
-            print('==== data prep completed ====')
+                if volids is not None:
+                    relevant_volids = [
+                        x for x in volids if x[:2].strip() == pdt]
+                    uids = [x.split()[0] + '  ' + x.split('.')[1]
+                            for x in relevant_volids]
+                    # print('relevant volids: ', relevant_volids)
+                    # print('relevant uids: ', uids)
+                    pdf = pdf[pdf.underlying_id.isin(uids)]
+                    vdf = vdf[vdf.vol_id.isin(relevant_volids)]
+
+                # try filtering just by uid and vol_id
+                if ftmth is not None and opmth is not None:
+                    u_id = pdt + '  ' + ftmth
+                    vol_id = pdt + '  ' + opmth + '.' + ftmth
+                    vdf = vdf[(vdf.vol_id == vol_id)]
+                    pdf = pdf[(pdf.underlying_id == u_id)]
+
+                vdf, pdf, edf, roll_df, start_date = prep_datasets(vdf, pdf, edf, start_date,
+                                                                   end_date, pdt, signals=signals,
+                                                                   test=test, write=write,
+                                                                   writepath=writepath,
+                                                                   direc=direc, volids=volids)
             final_pdf = pd.concat([final_pdf, pdf])
             final_vols = pd.concat([final_vols, vdf])
 
     if volids is not None:
-        print('volids: ', volids)
+        # print('volids: ', volids)
         relevant_volids = volids
         uids = [x.split()[0] + '  ' + x.split('.')[1]
                 for x in relevant_volids]
-        print('relevant volids: ', relevant_volids)
-        print('relevant uids: ', uids)
+        # print('relevant volids: ', relevant_volids)
+        # print('relevant uids: ', uids)
         final_pdf = final_pdf[final_pdf.underlying_id.isin(uids)]
         final_vols = final_vols[final_vols.vol_id.isin(relevant_volids)]
 
@@ -495,6 +529,292 @@ def pull_expdata():
 
     # convert datetime formats; N11.N11 -> N1.N1
     s = df['opmth'].copy()
+    s2 = df['ftmth'].copy()
     df.ix[:, 'opmth'] = s.str[0] + (pd.to_numeric(s.str[1:]) % 10).astype(str)
+    df.ix[:, 'ftmth'] = s2.str[0] + \
+        (pd.to_numeric(s2.str[1:]) % 10).astype(str)
+
+    df.vol_id = df['product'] + '  ' + df.opmth + '.' + df.ftmth
 
     return df
+
+
+def pull_intraday_data(pdts, start_date=None, end_date=None, filepath='', contracts=None):
+    """Helper method that pulls intraday data from the DB. 
+
+    Args:
+        pdts (TYPE): Products for which intraday data is required
+        start_date (None, optional): start date
+        end_date (None, optional): end date
+
+    Returns:
+        TYPE: Dataframe
+    """
+    overnight_pdts = {'BO', 'C', 'KW', 'S', 'SM', 'W', 'CT', 'MW'}
+
+    df = pd.DataFrame()
+    t = time.clock()
+    for pdt in pdts:
+        filename = 'datasets/debug/' + pdt + '_' + start_date + \
+            '_' + end_date + '_raw_intraday_data.csv'
+        fullpath = filepath + filename
+        if False:
+            pass
+        # print('fullpath: ', fullpath)
+        # if os.path.exists(fullpath):
+        #     print('raw file for ' + pdt + ' exists, reading in.')
+        #     tdf = pd.read_csv(fullpath)
+        #     if contracts is not None:
+        #         tdf = tdf[tdf.commodity.str.contains(
+        #             '|'.join([x for x in contracts]))]
+
+        #     tdf.date_time = pd.to_datetime(tdf.date_time)
+
+        else:
+            print('raw file for ' + pdt + ' does not exist, pulling.')
+            user = 'sumit'
+            password = 'Olam1234'
+            engine = create_engine('postgresql://' + user + ':' + password +
+                                   '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+            connection = engine.connect()
+            print('constructing query...')
+            offset = 1 if pdt in overnight_pdts else 0
+            query = construct_intraday_query(
+                pdts, start_date=start_date, end_date=end_date, offset=offset, contracts=contracts)
+            print('query: ', query)
+
+            # fetch the dataframe from the db.
+
+            print('fetching intraday data...')
+            tdf = pd.read_sql_query(query, connection)
+            tdf.to_csv(fullpath, index=False)
+
+        df = pd.concat([df, tdf])
+
+    print('fetch completed. elapsed: ', time.clock() - t)
+    df = clean_intraday_data(df, pd.to_datetime(start_date),
+                             pd.to_datetime(end_date), filepath=filepath)
+    print('aggregating complete. elapsed: ', time.clock() - t)
+
+    df = handle_intraday_conventions(df)
+
+    df.value_date = pd.to_datetime(df.value_date)
+    df.sort_values(by=['value_date', 'time'], inplace=True)
+    df.reset_index(drop=True, inplace=True)
+    print('intraday data processing complete. elapsed: ', time.clock() - t)
+
+    return df
+
+
+def construct_intraday_query(pdts, start_date=None, end_date=None, offset=None, contracts=None):
+    """Helper method that generates the SQL query for pulling from the intraday table. 
+
+    Args:
+        pdts (TYPE): Description
+        start_date (None, optional): Description
+        end_date (None, optional): Description
+    """
+    init_query = 'select * from public.table_intra_day_trade where ('
+
+    # generate product query
+    pdt_str = ''
+    for pdt in pdts:
+        space = 1 if len(pdt) == 1 else 0
+        pdt_str += ' commodity like '
+        if contracts is not None:
+            for i in contracts:
+                pdt_str += "'" + pdt + ' '*space + i + '%%' + "'"
+        else:
+            pdt_str += "'" + pdt + ' '*space + '%%' + "'"
+        if pdt != pdts[-1]:
+            pdt_str += ' or '
+        else:
+            pdt_str += ' ) '
+
+    init_query += pdt_str
+
+    date_str = ''
+
+    # add in date conditions
+    if start_date is not None or end_date is not None:
+        if offset is not None:
+            start_date = (pd.to_datetime(start_date) -
+                          BDay(offset)).strftime('%Y-%m-%d')
+
+        date_str += ' and ('
+        if start_date is not None:
+            date_str += ' date(date_time) >= ' + "'" + start_date + "'"
+            if end_date is None:
+                date_str += ' )'
+            else:
+                date_str += ' and '
+
+        if end_date is not None:
+            date_str += ' date(date_time) <= ' + "'" + end_date + "'" + ')'
+
+    init_query += ' ' + date_str
+
+    # print('init_query: ', init_query)
+    return init_query
+
+
+def construct_ohlc_query(pdts, start_date, end_date):
+    """Helper function that constructs the sql query used to pull OHLC data
+    from the database.
+
+    Args:
+        pdts (TYPE): the products being pulled. 
+        start_date (TYPE): simulation start date
+        end_date (TYPE): simulation end date
+    """
+    start_date = pd.to_datetime(start_date)
+
+    # change start date to one business day earlier.
+    real_start = (start_date - BDay(1)).strftime('%Y-%m-%d')
+
+    init_query = "select * from view_future_data_for_ananth where valuedate >= " + \
+        "'" + real_start + "'" + " and valuedate <= " + "'" + end_date + "'" + ' and '
+
+    for pdt in pdts:
+        space = 1 if len(pdt) == 1 else 0
+        if pdts.index(pdt) > 0:
+            init_query += ' or'
+        init_query += "  ticker like " + "'" + pdt + ' '*space + '%%' + "'"
+
+    print('OHLC query: ', init_query)
+    return init_query
+
+
+def pull_ohlc_data(pdts, start_date, end_date, writepath='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/datasets/debug'):
+    """Helper function that pulls/cleans open-high-low-close data from the
+    relevant table. 
+
+    Args:
+        pdts (TYPE): products being pulled
+        start_date (TYPE): startimulation start_date
+        end_date (TYPE): simulation end date 
+    """
+
+    # check if the data has been saved.
+    init_path = writepath + '/' + \
+        '_'.join([x for x in pdts]) + '_' + \
+        start_date + '_' + end_date + '_ohlc'
+    pricepath = init_path + '_price.csv'
+
+    if os.path.exists(pricepath):
+        df = pd.read_csv(pricepath)
+        df.value_date = pd.to_datetime(df.value_date)
+        df.time = pd.to_datetime(df.time).dt.time
+
+    else:
+        user = 'sumit'
+        password = 'Olam1234'
+        engine = create_engine('postgresql://' + user + ':' + password +
+                               '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+        connection = engine.connect()
+        print('constructing query...')
+        query = construct_ohlc_query(
+            pdts, start_date=start_date, end_date=end_date)
+        # print('query: ', query)
+        df = pd.read_sql_query(query, connection)
+
+        # rename the columns
+        df.columns = ['ticker', 'value_date', 'px_open',
+                      'px_high', 'px_low', 'px_settle', 'agg_vol', 'agg_oi']
+        df['underlying_id'] = df.ticker.str[:5].str.strip()
+
+        # more tidying up
+        df['pdt'] = df.underlying_id.str[:2].str.strip()
+
+        df['ftmth'] = df.underlying_id.str[2:5].str.strip()
+
+        df['underlying_id'] = df.pdt + '  ' + df.ftmth
+
+        cols = ['underlying_id',  'pdt', 'ftmth', 'value_date',
+                'px_high', 'px_low', 'px_settle']
+
+        df = df[cols]
+
+        df.sort_values(by='value_date', inplace=True)
+        df.reset_index(drop=True, inplace=True)
+
+        df = handle_open_to_prev_close(df)
+        # df = df.groupby('underlying_id').transform(handle_open_to_prev_close)
+
+        # df['px_open'] = df['px_settle'].shift()
+
+        # df.to_csv('prevclose_debug.csv', index=False)
+
+        # melt the dataframe to get identifier/price.
+        df = pd.melt(df, id_vars=['underlying_id', 'pdt', 'ftmth', 'value_date'],
+                     value_vars=['px_open', 'px_high', 'px_low', 'px_settle'])
+
+        # assign the datatype
+        df.ix[df.variable.isin(['px_open', 'px_high', 'px_low']),
+              'datatype'] = 'intraday'
+        df.ix[df.variable == 'px_settle', 'datatype'] = 'settlement'
+
+        # assign times. the order of the high and low have yet to be determined, so
+        # do nothing yet.
+        # df.ix[df.variable == 'px_open', 'time'] = dt.time(20, 59, 59, 999999)
+        # df.ix[df.variable == 'px_settle', 'time'] = dt.time.max
+
+        # replace open with prev close.
+
+        df['time'] = dt.time(23, 59, 59, 999999)
+
+        df.columns = ['underlying_id', 'pdt', 'ftmth', 'value_date',
+                      'price_id', 'price', 'datatype', 'time']
+
+        df.sort_values(by=['value_date', 'time'], inplace=True)
+        df.reset_index(drop=True, inplace=True)
+        # df = df.dropna()
+
+        # handle H13 -> H3
+        df.underlying_id = df.pdt + '  ' + \
+            df.ftmth.str[0] + (df.ftmth.str[1:].astype(int) % 10).astype(str)
+
+        df = clean_data(df, 'price')
+        df.to_csv(pricepath, index=False)
+
+    return df
+
+
+def handle_open_to_prev_close(df):
+    """iterates through the underlying_ids and replaces 
+    open with previous day's close price. 
+
+    Args:
+        df (TYPE): Dataframe of prices. 
+    """
+    for uid in df.underlying_id.unique():
+        tdf = df[df.underlying_id == uid]
+        df.ix[df.underlying_id == uid, 'px_open'] = tdf[
+            'px_settle'].shift().fillna(0)
+
+    return df
+
+
+def extend_data(pdt, start_date, end_date, last_pulled):
+    """Utility function that extends settlement datasets from last_pulled to end_date
+
+    Args:
+        pdt (TYPE): list of products. 
+        start_date (TYPE): start date
+        end_date (TYPE): end date desired.
+        last_pulled (TYPE): latest date for which data exists. 
+    """
+
+    # get the initially existing data.
+    # print('fetch_data.extend_data - start, end, last: ',
+    #       start_date, end_date, last_pulled)
+
+    ivdf, ipdf, iedf = grab_data([pdt], start_date, last_pulled)
+
+    # pull the new data.
+    nvdf, npdf, nedf = grab_data([pdt], last_pulled, end_date, write=False)
+
+    vdf = pd.concat([ivdf, nvdf])
+    pdf = pd.concat([ipdf, npdf])
+
+    return vdf, pdf, iedf

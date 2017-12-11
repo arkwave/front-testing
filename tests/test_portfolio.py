@@ -735,10 +735,6 @@ def test_adding_to_composites():
     print('============================== end =============================')
 
 
-def test_removing_from_composite_2():
-    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
-
-
 def test_degenerate_case():
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
     init_net_greeks = pf_comp.get_net_greeks().copy()
@@ -1264,3 +1260,156 @@ def test_rollovers_OTC_representation_comp_fts():
     assert 'H8' in cc_pf.net_greeks['CC']
     assert 'H8' in cc_pf.OTC['CC']
     assert 'H8' in cc_pf.hedges['CC']
+
+
+def test_get_all_options_comp():
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
+    assert set(pf_comp.get_all_options()) == set(
+        pfcc.OTC_options + pfqc.OTC_options)
+    ccops = [x for x in pf_comp.get_all_options() if x.get_product() == 'CC']
+
+    for op in ccops:
+        op.underlying.update_price(50)
+        op.update_greeks(vol=0.25)
+
+    for op in pfcc.OTC_options:
+        assert op.underlying.get_price() == 50
+        assert op.vol == 0.25
+
+
+def test_refresh_vol_price_updates():
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
+
+    for ft in pf_comp.get_all_futures():
+        ft.update_price(50)
+
+    print('pf after price pre refresh: ', pf_comp)
+    pf_comp.refresh()
+    print('pf after price post refresh: ', pf_comp)
+
+    for op in pf_comp.get_all_options():
+        op.update_greeks(vol=0.25)
+
+    print('pf after vol pre refresh: ', pf_comp)
+    pf_comp.refresh()
+    print('pf after vol post refresh: ', pf_comp)
+
+
+def test_hedges_pf_updates():
+    from scripts.util import assign_hedge_objects
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
+    pf = copy.deepcopy(pf_comp)
+    # first: assign hedges to all.
+    pf = assign_hedge_objects(pf)
+
+    cc_pf = [fam for fam in pf.families if fam.name == 'cc_comp'][0]
+    qc_pf = [fam for fam in pf.families if fam.name == 'qc_comp'][0]
+
+    # assert hedger objects associated with each portfolio are not none
+    cc_hedger, qc_hedger, pf_hedger = cc_pf.get_hedger(
+    ), qc_pf.get_hedger(), pf.get_hedger()
+    assert cc_hedger is not None
+    assert qc_hedger is not None
+    assert pf_hedger is not None
+
+    # update step.
+    for ft in pf.get_all_futures():
+        if ft.get_product() == 'CC':
+            ft.update_price(50)
+        elif ft.get_product() == 'QC':
+            ft.update_price(75)
+
+    # ensure that price updates are passed into the relevant hedger's copy.
+    for ft in cc_hedger.pf.get_all_futures():
+        assert ft.get_price() == 50
+
+    for ft in qc_hedger.pf.get_all_futures():
+        assert ft.get_price() == 75
+
+    for op in pf.get_all_options():
+        if op.get_product() == 'CC':
+            op.update_greeks(vol=0.75)
+        elif op.get_product() == 'QC':
+            op.update_greeks(vol=0.65)
+
+    for op in cc_hedger.pf.get_all_options():
+        assert op.underlying.get_price() == 50
+        assert op.vol == 0.75
+
+    for op in qc_hedger.pf.get_all_options():
+        assert op.underlying.get_price() == 75
+        assert op.vol == 0.65
+
+
+def test_pf_assign_hedge_dataframes():
+    from scripts.util import assign_hedge_objects
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
+    pf = copy.deepcopy(pf_comp)
+    # get initialization parameters
+    date = pdf.value_date.min()
+    maxdate = pdf.value_date.max()
+    r_vdf = vdf[vdf.value_date == date]
+    r_pdf = pdf[pdf.value_date == date]
+
+    # print('r_vdf: ', r_vdf)
+    # print('r_pdf: ', r_pdf)
+
+    print('r_pdf columns: ', r_pdf.columns)
+    r_vdf.sort_values(by='value_date', inplace=True)
+    r_vdf.reset_index(drop=True, inplace=True)
+
+    r_pdf.sort_values(by='value_date', inplace=True)
+    r_pdf.reset_index(drop=True, inplace=True)
+    # first: assign hedges to all.
+    pf = assign_hedge_objects(pf)
+    cc_pf = [fam for fam in pf.families if fam.name == 'cc_comp'][0]
+    qc_pf = [fam for fam in pf.families if fam.name == 'qc_comp'][0]
+
+    # assert hedger objects associated with each portfolio are not none
+    # sanity check baseline inputs.
+    cc_hedger, qc_hedger, pf_hedger = cc_pf.get_hedger(
+    ), qc_pf.get_hedger(), pf.get_hedger()
+    assert cc_hedger is not None
+    assert cc_hedger.vdf is None
+    assert cc_hedger.pdf is None
+    assert qc_hedger is not None
+    assert pf_hedger is not None
+    assert qc_hedger.vdf is None
+    assert qc_hedger.pdf is None
+    assert cc_hedger.mappings == {}
+    assert qc_hedger.mappings == {}
+
+    pf.assign_hedger_dataframes(r_vdf, r_pdf)
+
+    assert np.array_equal(cc_hedger.vdf, r_vdf)
+    try:
+        assert np.array_equal(cc_hedger.pdf, r_pdf)
+    except AssertionError as e:
+        for col in cc_hedger.pdf.columns:
+            print('col: ', col)
+            print(np.array_equal(cc_hedger.pdf[col], r_pdf[col]))
+
+    assert np.array_equal(qc_hedger.vdf, r_vdf)
+    assert np.array_equal(qc_hedger.pdf, r_pdf)
+
+    # check that the other computations are made as well.
+    assert cc_hedger.mappings != {}
+    assert qc_hedger.mappings != {}
+    print('cc_mappings: ', cc_hedger.mappings)
+    print('qc_mappings: ', qc_hedger.mappings)
+
+    r_vdf = vdf[vdf.value_date == maxdate]
+    r_pdf = pdf[pdf.value_date == maxdate]
+
+    # print('r_pdf columns: ', r_pdf.columns)
+    r_vdf.sort_values(by='value_date', inplace=True)
+    r_vdf.reset_index(drop=True, inplace=True)
+
+    r_pdf.sort_values(by='value_date', inplace=True)
+    r_pdf.reset_index(drop=True, inplace=True)
+    # update dataframe, check that they are equal again.
+    pf.assign_hedger_dataframes(r_vdf, r_pdf)
+    assert np.array_equal(cc_hedger.vdf, r_vdf)
+    assert np.array_equal(cc_hedger.pdf, r_pdf)
+    assert np.array_equal(qc_hedger.vdf, r_vdf)
+    assert np.array_equal(qc_hedger.pdf, r_pdf)

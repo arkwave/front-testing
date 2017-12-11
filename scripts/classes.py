@@ -74,8 +74,8 @@ class Option:
                          properties of the option. Used for daily to bullet conversion. 
     """
 
-    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted, 
-                 month, direc=None, barrier=None, lots=1000, bullet=True, 
+    def __init__(self, strike, tau, char, vol, underlying, payoff, shorted,
+                 month, direc=None, barrier=None, lots=1000, bullet=True,
                  ki=None, ko=None, rebate=0, ordering=1e5, settlement='futures', bvol=None):
         self.month = month
         self.barrier = barrier
@@ -249,11 +249,11 @@ class Option:
         try:
             assert self.tau > 0
             delta, gamma, theta, vega = \
-            _compute_greeks(self.char, self.K, self.tau, self.vol,
-                            s, self.r, product, self.payoff, self.lots,
-                            ki=self.ki, ko=self.ko, barrier=self.barrier,
-                            direction=self.direc, order=self.ordering, 
-                            bvol=self.bvol)
+                _compute_greeks(self.char, self.K, self.tau, self.vol,
+                                s, self.r, product, self.payoff, self.lots,
+                                ki=self.ki, ko=self.ko, barrier=self.barrier,
+                                direction=self.direc, order=self.ordering,
+                                bvol=self.bvol)
         except TypeError:
             print('char: ', self.char)
             print('strike: ', self.K)
@@ -295,11 +295,11 @@ class Option:
             product = self.get_product()
             s = self.underlying.get_price()
             delta, gamma, theta, vega = \
-            _compute_greeks(self.char, self.K, self.tau, sigma,
-                            s, self.r, product, self.payoff,
-                            self.lots, ki=self.ki, ko=self.ko,
-                            barrier=self.barrier, direction=self.direc,
-                            order=self.ordering, bvol=b_sigma)
+                _compute_greeks(self.char, self.K, self.tau, sigma,
+                                s, self.r, product, self.payoff,
+                                self.lots, ki=self.ki, ko=self.ko,
+                                barrier=self.barrier, direction=self.direc,
+                                order=self.ordering, bvol=b_sigma)
             # account for shorting
             if self.shorted:
                 delta, gamma, theta, vega = -delta, -gamma, -theta, -vega
@@ -336,7 +336,7 @@ class Option:
         val = _compute_value(self.char, self.tau, self.vol, self.K, s, self.r,
                              self.payoff, ki=self.ki, ko=self.ko, barrier=self.barrier,
                              d=self.direc, product=product, bvol=self.bvol)
-        self.price = val 
+        self.price = val
         return val
 
     def get_price(self):
@@ -436,6 +436,9 @@ class Option:
     def get_vol_id(self):
         return self.get_product() + '  ' + self.get_op_month() + '.' + self.get_month()
 
+    def get_uid(self):
+        return self.underlying.get_uid()
+
     def get_properties(self):
         return {'month': self.month, 'barrier': self.barrier, 'payoff': self.payoff,
                 'underlying': self.underlying, 'lots': self.lots, 'ki': self.ki,
@@ -465,7 +468,7 @@ class Future:
     7) get_product    : returns the name of this contract (i.e. the commodity)
     '''
 
-    def __init__(self, month, price, product, shorted=None, lots=1000, ordering=None):
+    def __init__(self, month, price, product, shorted=None, lots=1000, ordering=None, instructions={}):
         self.product = product
         self.ordering = ordering
         self.lots = lots
@@ -479,6 +482,7 @@ class Future:
         self.expired = self.check_expired()
         mult = -1 if shorted else 1
         self.delta = 1 * lots * mult
+        self.instructions = instructions
 
     def __str__(self):
         string = self.product + ' ' + self.month + ' '
@@ -528,3 +532,12 @@ class Future:
 
     def get_delta(self):
         return self.delta
+
+    def get_uid(self):
+        return self.product + '  ' + self.month
+
+    def set_instructions(self, instructions):
+        self.instructions = instructions
+
+    def get_instructions(self):
+        return self.instructions

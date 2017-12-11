@@ -45,10 +45,8 @@ Notes:
 from math import log, sqrt, exp, pi
 from scipy.stats import norm
 import numpy as np
-import copy
 from scipy.interpolate import interp1d
-# from pandas import to_datetime
-import pandas as pd
+import copy
 
 
 # Dictionary of multipliers for greeks/pnl calculation.
@@ -57,7 +55,7 @@ import pandas as pd
 
 # TODO: read this in during prep_data
 multipliers = {
-    'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
+    'LH':  [22.046, 18.143881, 0.025, 1, 400],
     'LSU': [1, 50, 0.1, 10, 50],
     'QC': [1.2153, 10, 1, 25, 12.153],
     'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
@@ -73,7 +71,7 @@ multipliers = {
     'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
     'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
     'COM': [1.0604, 50, 0.25, 2.5, 53.02],
-    'OBM': [1.0604, 50, 0.25, 1, 53.02],
+    'CA': [1.0604, 50, 0.25, 1, 53.02],
     'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
 }
 
@@ -179,7 +177,7 @@ def get_barrier_vol(df, product, tau, call_put_id, barlevel, order):
 
     Args:
         df (pandas dataframe) : dataframe of the form value_date|vol_id|strike|call_put_id|
-                                                        settle_vol|tau
+                                                        vol|tau
         product (str)         : underlying product of this option.
         tau (double)          : time to expiry in years.
         call_put_id (str)     : 'C' if call option else 'P'
@@ -211,7 +209,7 @@ def get_barrier_vol(df, product, tau, call_put_id, barlevel, order):
         tau_vals = sorted(list(bvol_df.tau))
         relevant_tau = min([x for x in tau_vals if x >= tau])
 
-        bvol = bvol_df[(bvol_df.tau == relevant_tau)].settle_vol.values[0]
+        bvol = bvol_df[(bvol_df.tau == relevant_tau)].vol.values[0]
 
     except (TypeError, IndexError):
         print('BARRIER VOL NOT FOUND')
@@ -936,8 +934,9 @@ def compute_strike_from_delta(option, delta1=None, vol=None, s=None, tau=None, c
     vol = option.vol if (vol is None and option is not None) else vol
     try:
         strike = s/(exp((vol*sqrt(tau) * D) - ((vol**2)*tau)/2))
-    except TypeError:
-        print(s, vol, tau, D)
+    except TypeError as e:
+        raise TypeError(
+            'invalid inputs. Listing spot, vol, tau and D: ', s, vol, tau, D)
     # getting ticksize, and rounding raw strike to closest available ticksize
     pdt = option.get_product() if pdt is None else pdt
     ticksize = multipliers[pdt][-2]
@@ -946,10 +945,41 @@ def compute_strike_from_delta(option, delta1=None, vol=None, s=None, tau=None, c
     return strike
 
 
+def compute_delta(x):
+    """Helper function to aid with vol_by_delta, rendered in this format to make use of 
+    pd.apply
+
+    Args:
+        x (pandas dataframe): dataframe of vols.
+
+    Returns:
+        double: value of delta
+    """
+    s = x.price
+    K = x.strike
+    tau = x.tau
+    char = x.call_put_id
+    vol = x.vol
+    r = 0
+    try:
+        d1 = (log(s/K) + (r + 0.5 * vol ** 2)*tau) / \
+            (vol * sqrt(tau))
+    except (ZeroDivisionError):
+        d1 = -np.inf
+
+    if char == 'C':
+        # call option calc for delta and theta
+        delta1 = norm.cdf(d1)
+    if char == 'P':
+        # put option calc for delta and theta
+        delta1 = norm.cdf(d1) - 1
+
+    return delta1
+
+
 def get_vol_from_delta(delta, vdf, pdf, volid, char, shorted, date):
     """Helper method that finds the vol of a given delta. Does so by:
-    1) Calculating the delta for all reported strikes in the strike-wise 
-    vol surface for that particular option type (i.e. call or put.)
+    1) Calculating the delta for all reported strikes in the strike-wise vol surface for that particular option type (i.e. call or put.)
     2) Interpolates delta vs vol using interp1d
     3) returns the value desired. 
 
@@ -962,28 +992,27 @@ def get_vol_from_delta(delta, vdf, pdf, volid, char, shorted, date):
         date (TYPE): Description
     """
     v_cols = ['pdt', 'value_date', 'vol_id', 'strike',
-              'call_put_id', 'tau', 'settle_vol', 'underlying_id']
+              'call_put_id', 'tau', 'vol', 'underlying_id']
     cpi = 'C' if char == 'call' else 'P'
     uid = volid.split()[0] + '  ' + volid.split('.')[1]
 
     price = pdf[(pdf.value_date == date) &
-                (pdf.underlying_id == uid)].settle_value.values[0]
+                (pdf.underlying_id == uid) &
+                (pdf.datatype == 'settlement')].price.values[0]
 
     vdata = copy.deepcopy(vdf[(vdf.value_date == date) &
                               (vdf.vol_id == volid) &
-                              (vdf.call_put_id == cpi)][v_cols])
-
+                              (vdf.call_put_id == cpi) &
+                              (vdf.datatype == 'settlement')][v_cols])
     # print('vdata: ', vdata)
-
     vdata.sort_values(by='strike', inplace=True)
-    vdata['settle_value'] = price
+    vdata['price'] = price
     vdata['delta'] = ''
 
     vdata['delta'] = vdata.apply(compute_delta, axis=1)
     vdata.delta = vdata.delta.abs()
-
     try:
-        f1 = interp1d(vdata.delta.values, vdata.settle_vol.values,
+        f1 = interp1d(vdata.delta.values, vdata.vol.values,
                       kind='linear', fill_value='extrapolate')
     except ValueError as e:
         raise ValueError("Invalid inputs in interpolation: ",

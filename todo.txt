@@ -1159,138 +1159,157 @@ BUG: calling update_sec_by_month in uid_hedges_satisfied zeroed out initially bo
 | As of 09/06/2017 |
 --------------------
 
-> Handling errors in other Volgraphix components. 
-	- [Done] skewhistory
-	- [Done] skewttm
-	- [Done] skewseason
-	- [Done] heatmap 
-	- [Done] comps 
-
-> Expand HSM to allow for Intraday data. 
-		- flag as to whether or not data is intraday or settlement to settlement. ==> infer from dataset? pass in as input?
-			- can be inferred quite easily for prices. 
-
-		- conditional intraday delta Hedging
-			= value-based
-			= breakeven-based 
-		 	--> need to write new functions/reconceptualize delta hedging;
-		 		- rethink hedge object => initialize at the start of the day, use throughout for hedging delta. 
-		 							   => can use existing framework to specify parameters (i.e. breakeven, value, etc.)
-
-		## Data processing steps: 
-		- how will this change data grabbing functions?
-		- new functions to prepare intraday data for simulation -> need samples. 
-		- timestep reconciliation; assume N intraday price moves and K intraday vol moves where N > K. Need
-		  to do the following:
-			- idea: additional flag where timestep step is determined by a flag in the data. 
-		  	1) bundle together vol and price data on the basis of timestep. 
-		  	2) apply these together. 
-		  	3) can even specify breakeven requirements in the dataset if needed?
-		  	> for each date in dates:
-		  		for timestamp in pdf[pdf.date == date]:
-		  			do the things. 
-
-		- something that will look for the EOD flag; one timestamp will be designated the EOD timestamp 
-			--> this is when rebalance(), signal() and pf.Timestep() will be called
+#### Handling errors in other Volgraphix components. 
+- [Done] skewhistory
+- [Done] skewttm
+- [Done] skewseason
+- [Done] heatmap 
+- [Done] comps 
 
 
+#### As of 09/07/2017
+##### Data Processing steps. 
+- [Done] basic cleaning steps. 
+- [Done] adding settlement data to intraday 
+- [Done] timestep reconciliation between uids
+- [Done] switching variables: i.e. settle_value -> price, settle_vol -> vol 
+- [Done] reconcile intraday prices with clean_data with price flag. 
+- [Done] Refactor to remove dependence on vol by delta. 
+- [Done] Re-write construction methods to default to settlement data
+- [Done] add time column to vol data 
+- [Done] conceptualize intraday loop -> settlement flag trigger for vol update.
 
--------------------------- OPEN ISSUES: ------------------------
 
-> Backend Implementation
-	- proper conceptualizing of slippage, aside from flat-value. bring all in line to this. 
+#### As of 09/11/2017
+- [Done] Roll product/TTM TOL should be part of individual families. 
+- [Done] error log in volgraphix.
+- [Done] debug straddle/strangle issue in the UI. 
+- [Done] added time column to price data; settlement to settlement should work with absolutely no issues now. 
+- [Done] catching errors with option construction. 
+
+#### As of 09/12/2017
+- [Dev] Rollovers per family.
+- [Done] speeding up data processing; cleaning intraday prices takes a long, long time.
+- [Done] marking beginning of settlement period. 
+	> issue: settlement vs last data entry of intraday data
+		- solution: hedge all remaning deltas using first price at beginning of settlement 
+		period. wait till settlement, and if settlement price results in residual delta, 
+		buy/sell to close it off. 
+
+#### As of 09/28/2017
+- [Done] Pulling intraday data from the database/cleaning. 
+- [Done] reconciling intraday data with settlements. 
+
+
+#### As of 10/5/2017:
+- [Done] parallelize to run multiple simulations at once. 
+- [Done] proper implementation of hedging per breakeven and per price move.
+
+
+#### As of 10/10/2017:
+- [Done] Go through profile results to isolate/refactor bottlenecks. 
+- [Done] double check the PnL computation for HBPB and HBPS modes. 
+
+
+
+##### As of 11/2/2017:
+1) [Done] fix granularize function. 
+2) [Done] standardize inputs for OHLC and intraday types 
+3) ensure that rolling works properly with book vols
+	> [Done] delta rolling
+	> [Done] contract rolling.
+		- [Done] fix the dataframe issue with rollovers not finding price data. 
+		- [Done] remark all rolled products to settlement vols on that day, pending flag. 
+
+4) [Done] re-run the hedging simulator for LH. 
+
+
+
+
+###### As of 11/13/2017:
+1) over night market time step reconciliation:
+	1) change settlements to be inserted one minute after close. 
+	2) [Done] multiple products = standardize the timezone. 
+	3) [Done] overnight market data pulling caveat. pull one business day earlier. 
+
+2) Pending bug fixes:
+	2_ testing.
+
+
+
+##### As of 11/29/2017:
+
+1) TrailingStop implementation:
 	
-	- Signals and Families
-		1. adjusting signals to include family paradigm 
-		2. related: implement a future signals thing.
+	> Finish implementing/testing trailingstop object. 
+		- issue: active updated whenever new prices are passed in --> gap moves beyond the stop limit don't trigger stop hits because active is set to False. 
+			solution_: implemented a lock that is activated when trailing stop monitoring is on, and deactivated only when the stop is hit. 
 
-	- refactor sim_ui/skew_funcs, remove extraneous repo and offer speedups where possible.
-	
-> Plotly visualization:
-	- same contract vol surface on two different days. 
-	- more descriptive statistics:
-		- [Done] drawdown
-		- labeling when the rolls happened (i.e. different color when log.delta_rolled) 
+	> How the hell are TrailingStop and Hedge going to communicate?
+		- 3 cases to consider:
+			> trigger bounds > breakeven multiple.
+				- while within range, hedge as per normal. when outside, trailing stop logic kicks in. run deltas until stop loss is hit,
+				upon which we zero out deltas completely. 
+			> trigger bounds < breakeven multiple:
+				- going to run deltas anyway. do nothing. this is equivalent to just hedging according to breakeven multiple. 
+			> trigger bound == breakeven multiple.
+				- want to preferentially follow the trailing stop until the stops are hit.
+				= solution: 1) stop loss monitoring should be active as soon as breakeven is hit --> run_deltas will return true. 
+						    2) in the case where ratio is specified, want to ret
 
+		DONE
+		- full flow between trailingstop and hedge object:
+			hedge_delta(intraday=True) -> passes price dictionary into trailingstop object --> checks monitoring status.
+			--> run_delta returns TRUE if trailing stop is being monitored, FALSE otherwise --> should also return a FRACTION that will determine how much of the delta to hedge. 
 
-> GUI Dev:
-	- [Done] need to fix/debug assign_ci / ciprice / civols. pretty badly. 
-	- Add a 'Pull Data' button? 
-	- integrate with Portfolio VAR Module. 
-	- Figure out new windows for each family. 
+		TODO 
+	> Incorporating TrailingStop into is_relevant_price_move. 
 
-------------------------------------------------------------
-
-
-
-
-
-********** Notes on certain issues: ***********
-
-> Open issue: move from centralized hedging specifications to more general forumlation via families, possibly. 
-	- TENTATIVE SOLUTION:
-		> each family is a portfolio object.
-		> hedges now come in two types: family-specific and portfolio-wide. 
-		> family-specific hedges (and by extension hedge object) will be associated with the relevant family. 
-
-	- things that need to change:
-		1) hedging for gamma/theta/vega/delta-rolls would be family-specific. 
-		2) static delta hedging would be portfolio-wide. 
-		3) rolling over contract to next month can either be family specific (if ttm_tol only specified) or portfolio-wide (if roll_product is also specified.)
-		4) hedges [dict] would need to be altogether removed from simulation. 
-		5) hedge [object] would now be associated with a portfolio. 
-		6) creating a portfolio would now take in options/futures as well as a hedge. 
-
-
-{'all': OrderedDict([('delta', [['static', 'zero', 1]])]), 
-   '1': OrderedDict([('delta', [['roll', 25.0, 1, (-5, 5)]])]), 
-   '2': OrderedDict([('delta', [['roll', 50.0, 1, (-20, 20)]])]), 
-   '3': OrderedDict([('delta', [['roll', 25.0, 1, (-7, 7)]])])}
-
-
-{ '2': OrderedDict([('delta', [['static', 'zero', 1], ['roll', 50.0, 1, (-10, 10)]]), 
-				   ('theta', [['bound', (9000, 11000), 1, 'straddle', 'strike', 'atm', 'uid']])]), 
-'all': OrderedDict()}
-
-
-___________________________________________
-hedging parameters:
-delta,zero,,1,,,,,,,
-delta,roll,50,1,"(30,70)",,,,,,
-gamma,bound,"(45, 55)",1,,0.5,years,straddle,strike,atm,uid
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		DONE
+	> testing HedgeParser object and evaluating usefulness. 
 
 
 
 
+------------- Notes -------------
+
+##### Scenario-based implementations 
+- [Done] Three different scenarios:
+	+ Case A: Flat vols + step-update.
+		* EOD update step.
+	+ Case B: Settlement to settlement
+		* Sanity check and ensure that results work the same when just dealing with settlements as opposed to settlements + intraday.
+	+ Case C: hedging basis book vols and pnl basis settlement. 
+		* update vols function that takes in a dataframe, updates the vols of all relevant options.
+
+- common implementation requirements across scenarios:
+	* [Done] Market Minuses update/reset
+	* [Done] book vol variable/dataframe
+	* [Done] refactor PnL computations. 
+	* [Done] book vols and contract rolls. 
+	* [Done] book vols and delta rolls
+	* [Done] book vols and hedging with options. 
+		- if using book vols, initialize/add with book vols, but compute cost using settle vols. 
+		- [Done] ISSUE: TTM is wrong when hedging basis book vols
+	* double check the PnL differential between HBPB and HBPS
+	* testing. 
+
+		 
+
+##### Hedging Updates:
+- move delta roll-hedging into the hedge object. 
+- Re-implementing hedging logic:
+	+ {breakeven multiple} -> {percentage} -> {buyback logic}
 
 
+##### UI Implementation:
+- Volgraphix implementation for each of the scenarios. 
+	+ checkboxes for each scenario:	
+		* Book PnL and Book Hedging
+		* Settle PnL and Settle Hedging
+		* Settle PnL and Book Hedging
+	> pipe these booleans as flags into the simulation to determine behavior. 
 
-=====================
-Notes from meeting: #
-=====================
+- volgraphix implementation for intraday hedging conditions. 
 
--- to do: --
-2. vanna/volga methods for vols. 
-
-3. high/low prices for barriers
-	> todo once data is acquired.
-
-
---- followed through ---
-1. XML instead of text files, read using beautiful soup.
-	> replaced using csv
-
-
-4. correlation surfaces as inputs
-	> required for monte carlo generation of series & pricing 
-
-
-MC Pricing for Barriers:
-1) Brownian bridge-based methods.
-
-
-MC Generation of Price and Vol series:
-No idea yet man.
-
-**
+--------------------------------------

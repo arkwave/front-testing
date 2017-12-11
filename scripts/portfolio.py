@@ -15,6 +15,7 @@ from operator import add
 import pprint
 import numpy as np
 from collections import deque
+import copy
 
 
 # Dictionary of multipliers for greeks/pnl calculation.
@@ -22,7 +23,7 @@ from collections import deque
 # options_tick, pnl_mult]
 
 multipliers = {
-    'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
+    'LH':  [22.046, 18.143881, 0.025, 1, 400],
     'LSU': [1, 50, 0.1, 10, 50],
     'QC': [1.2153, 10, 1, 25, 12.153],
     'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
@@ -38,13 +39,16 @@ multipliers = {
     'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
     'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
     'COM': [1.0604, 50, 0.25, 2.5, 53.02],
-    'OBM': [1.0604, 50, 0.25, 1, 53.02],
+    'CA': [1.0604, 50, 0.25, 1, 53.02],
     'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
 }
 
 
 seed = 7
 np.random.seed(seed)
+
+# TODO: Abstract away reliance on greeks by month; should be able to
+# accept any other convention as well.
 
 
 class Portfolio:
@@ -135,6 +139,9 @@ class Portfolio:
         self.init_sec_by_month('hedge')
         self.compute_net_greeks()
         self.value = self.compute_value()
+
+        # assigning the hedger for this portfolio
+        self.hedger = None
 
     def __str__(self):
         # custom print representation for this class.
@@ -686,35 +693,17 @@ class Portfolio:
         """
         val = 0
         # try:
-        for sec in self.OTC_options:
+        for sec in self.get_all_securities():
             pnl_mult = multipliers[sec.get_product()][-1]
             if sec.shorted:
                 val += -sec.lots * sec.get_price() * pnl_mult
             else:
                 val += sec.lots * sec.get_price() * pnl_mult
-
-        for sec in self.hedge_options:
-            pnl_mult = multipliers[sec.get_product()][-1]
-            if sec.shorted:
-                val += -sec.lots * sec.get_price() * pnl_mult
-            else:
-                val += sec.lots * sec.get_price() * pnl_mult
-
-        for sec in self.OTC_futures:
-            pnl_mult = multipliers[sec.get_product()][-1]
-            if sec.shorted:
-                val += -sec.lots * sec.price * pnl_mult
-            else:
-                val += sec.lots * sec.price * pnl_mult
-
-        for sec in self.hedge_futures:
-            pnl_mult = multipliers[sec.get_product()][-1]
-            if sec.shorted:
-                val -= sec.lots * sec.price * pnl_mult
-            else:
-                val += sec.lots * sec.price * pnl_mult
 
         return val
+
+    def get_all_securities(self):
+        return list(self.OTC_options) + list(self.hedge_options) + self.OTC_futures + self.hedge_futures
 
     def exercise_option(self, sec, flag):
         """Exercises an option if it is in-the-money. This consist of removing an object object
@@ -979,7 +968,13 @@ class Portfolio:
 
         return set(otc_products + hedge_products)
 
-    def breakeven(self):
+    def get_unique_volids(self):
+        """Returns a set of all unique vol_ids in the portfolio. 
+        """
+        allops = self.get_all_options()
+        return set([x.get_vol_id() for x in allops])
+
+    def breakeven(self, flag=None, conv=None):
         """Returns a dictionary of {pdt: {month: breakeven}} where breakeven is calculated by theta/gamma. 
         """
         bes = {}
@@ -992,7 +987,59 @@ class Portfolio:
                 gamma, theta = abs(dic[pdt][mth][1]), abs(dic[pdt][mth][2])
                 thetas.append(theta)
                 gammas.append(gamma)
-                bes[pdt][mth] = theta/gamma
-            total_be = sum(thetas) / sum(gammas)
-            bes[pdt]['all'] = total_be
+                bes[pdt][mth] = (((2.8*theta)/gamma) ** 0.5) / \
+                    multipliers[pdt][0]
+
         return bes
+
+    def assign_hedger_dataframes(self, vdf, pdf, settles=None):
+        """Helper method that updates the dataframes
+        present in this portfolio's hedger object. 
+
+        Args:
+            vdf (dataframe): Dataframe of volatilities
+            pdf (dataframe): Dataframe of prices
+
+        """
+        if self.hedger is not None:
+            self.hedger.update_dataframes(vdf, pdf, settles=settles)
+        if self.families:
+            for fa in self.families:
+                fa.hedger.update_dataframes(vdf, pdf, settles=settles)
+
+        print('hedger dataframes updated!')
+
+    def get_hedger(self):
+        return self.hedger
+
+    def get_hedgeparser(self, dup=False):
+        return self.hedger.get_hedgeparser() if dup is False \
+            else copy.deepcopy(self.hedger.get_hedgeparser())
+
+    def get_unique_uids(self):
+        """Helper method that returns a set of the unique underlyings currently in the portfolio. 
+        Used primarily to maintain the dictionary of changes in the timestamp-loop in simulation.run_simulation. 
+        """
+        ret = set([x.get_uid() for x in self.get_all_options()])
+        return ret
+
+    def get_uid_price(self, uid):
+        fts = [x for x in self.get_all_futures() if x.get_uid() == uid]
+        return fts[0].get_price()
+
+    def uid_price_dict(self):
+        """Helper method that returns a dictionary of uid -> price. 
+        """
+        ret = {}
+        for x in self.get_all_futures():
+            if x.get_uid() in ret:
+                continue
+            ret[x.get_uid()] = x.get_price()
+
+        return ret
+
+    def update_hedger_breakeven(self):
+        """Proxy method that calls this portfolio's hedger objects' set_breakeven method. 
+        """
+        if self.hedger is not None:
+            self.hedger.set_breakeven(self.breakeven())

@@ -51,33 +51,6 @@ contract_mths = {
 }
 
 
-def test_get_rollover_dates():
-    pdf.expdate = pd.to_datetime(pdf.expdate)
-    ret = pr.get_rollover_dates(pdf)
-    assert len(ret) == 1
-    assert set(ret.keys()) == set(['MW'])
-    # val = pd.to_datetime('2017-04-21 00:00:00')
-    # try:
-    #     assert ret['C'][0] == val
-    # except AssertionError:
-    #     print('found: ', ret['C'][0])
-    #     print('val: ', val)
-    ret = ret['MW']
-    actuals = [
-        pd.Timestamp('2017-02-24 00:00:00'),
-        pd.Timestamp('2017-04-21 00:00:00'),
-        pd.Timestamp('2017-06-23 00:00:00'),
-        pd.Timestamp('2017-08-25 00:00:00'),
-        pd.Timestamp('2017-11-24 00:00:00'),
-        pd.Timestamp('2018-02-23 00:00:00'),
-        pd.Timestamp('2018-04-20 00:00:00')]
-    # try:
-    assert np.array_equal(ret, actuals)
-    # except AssertionError:
-    #     print('ret: ', ret)
-    #     print('actuals: ', actuals)
-
-
 def test_find_cdist():
     pdt = 'C'
     all_mths = contract_mths[pdt]
@@ -154,3 +127,8 @@ def test_daily_to_bullets():
     # except AssertionError:
     #     print('actual len: ', len(ret2['OTC']))
     #     print('desired: ', 13)
+
+
+def test_granularize():
+    # create a sample dataframe that has random values.
+    pass

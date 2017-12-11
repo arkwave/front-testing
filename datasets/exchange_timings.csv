@@ -1,0 +1,17 @@
+Product Name,Product Id,Commodity ,Exchange ,Exch Time,Exch Start Hours,Exch End Hours,Source ,Website Name,Time Zone,pytz_desc,overnight
+Bean Oil,BO,BOZ7 Comdty,CBT,19:00-13:20,19:00,13:20,BBG,CMEGroup,Chicago,America/Chicago,TRUE
+Corn,C,C Z7 Comdty,CBT,19:00-13:20,19:00,13:20,BBG,CMEGroup,Chicago,America/Chicago,TRUE
+Kansas Wheat,KW,KWZ7 Comdty,CBT,19:00-13:20,19:00,13:20,BBG,CMEGroup,Chicago,America/Chicago,TRUE
+Soybean,S,S X7 Comdty,CBT,19:00-13:20,19:00,13:20,BBG,CMEGroup,Chicago,America/Chicago,TRUE
+Soybean Meal,SM,SMZ7 Comdty,CBT,19:00-13:20,19:00,13:20,BBG,CMEGroup,Chicago,America/Chicago,TRUE
+Wheat,W,W Z7 Comdty,CBT,19:00-13:20,19:00,13:20,BBG,CMEGroup,Chicago,America/Chicago,TRUE
+Live Cattle,LC,LCZ7 Comdty,CME,08:30-13:05,8:30,13:05,BBG,CMEGroup,Chicago,America/Chicago,FALSE
+Lean Hogs,LH,LHZ7 Comdty,CME,08:30-13:05,8:30,13:05,BBG,CMEGroup,Chicago,America/Chicago,FALSE
+NY Cocoa,CC,CCZ7 Comdty,NYB (ICE),04:45-13:30,4:45,13:30,BBG,ICE,New York,US/Eastern,FALSE
+Cotton,CT,CTZ7 Comdty,NYB (ICE),21:00-14:20,21:00,14:20,BBG,ICE,New York,US/Eastern,TRUE
+Coffee,KC,KCZ7 Comdty,NYB (ICE),04:15-13:30,4:15,13:30,BBG,ICE,New York,US/Eastern,FALSE
+Sugar,SB,SBH8 Comdty,NYB (ICE),03:30-13:00,3:30,13:00,BBG,ICE,New York,US/Eastern,FALSE
+Coffee Robusta,DF,DFX7 Comdty,ICE,09:00-17:30,9:00,17:30,BBG,ICE(London),London,Europe/London,FALSE
+London Cocoa,QC,QCZ7 Comdty,ICE,09:30-16:55,9:30,16:55,BBG,ICE(London),London,Europe/London,FALSE
+Milling Wheat,CA,CAZ7 Comdty,EOP,10:45-18:30,10:45,18:30,BBG,EOP,London,Europe/London,FALSE
+RedWheat,MW,MWZ7 Comdty,MGE,19:00-13:30,19:00,13:30,BBG,MGEX,Chicago,America/Chicago,TRUE
