@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-12-11 15:49:17
+# @Last Modified time: 2017-12-12 18:53:58
 
 # import time
 import datetime as dt
@@ -587,7 +587,7 @@ def pull_intraday_data(pdts, start_date=None, end_date=None, filepath='', contra
 
             print('fetching intraday data...')
             tdf = pd.read_sql_query(query, connection)
-            tdf.to_csv(fullpath, index=False)
+            # tdf.to_csv(fullpath, index=False)
 
         df = pd.concat([df, tdf])
 
@@ -601,6 +601,7 @@ def pull_intraday_data(pdts, start_date=None, end_date=None, filepath='', contra
     df.value_date = pd.to_datetime(df.value_date)
     df.sort_values(by=['value_date', 'time'], inplace=True)
     df.reset_index(drop=True, inplace=True)
+
     print('intraday data processing complete. elapsed: ', time.clock() - t)
 
     return df
@@ -818,3 +819,14 @@ def extend_data(pdt, start_date, end_date, last_pulled):
     pdf = pd.concat([ipdf, npdf])
 
     return vdf, pdf, iedf
+
+
+def fetch_exchange_timings():
+    user = 'sumit'
+    password = 'Olam1234'
+    engine = create_engine('postgresql://' + user + ':' + password +
+                           '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+    connection = engine.connect()
+    query = 'select * from public.bbg_exchange_timings'
+    df = pd.read_sql_query(query, connection)
+    return df

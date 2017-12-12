@@ -26,7 +26,7 @@ from ast import literal_eval
 from collections import OrderedDict
 import copy
 import datetime as dt
-
+import os
 seed = 7
 np.random.seed(seed)
 
@@ -1319,14 +1319,16 @@ def sanitize_intraday_timings(df, start_date, end_date, filepath=None, edf=None)
     Returns:
         Dataframe: With all timings outside of exchange timings removed. 
     """
-    # read in the exchange timing dataframe.
-    # print('sanitize_intraday_timings: filepath - ', filepath)
 
-    filepath = filepath if filepath is not None else ''
-    filepath += 'datasets/exchange_timings.csv'
+    timingspath = filepath + 'exchange_timings.csv'
 
-    # print('final filepath: ', filepath)
-    edf = pd.read_csv(filepath) if edf is None else edf
+    if os.path.exists(timingspath):
+        edf = pd.read_csv(timingspath)
+    else:
+        from .fetch_data import fetch_exchange_timings
+        edf = fetch_exchange_timings()
+        edf.to_csv(timingspath, index=False)
+
     edf['Exch Start Hours'] = pd.to_datetime(edf['Exch Start Hours']).dt.time
     edf['Exch End Hours'] = pd.to_datetime(edf['Exch End Hours']).dt.time
 
@@ -1344,7 +1346,6 @@ def sanitize_intraday_timings(df, start_date, end_date, filepath=None, edf=None)
         # overnight market case. covert, filter, unconvert.
         if pdt_start > pdt_end:
             # localize.
-            # print('overnight market case')
             t_merged = handle_overnight_market_timings(
                 t_merged, start_date, end_date)
         else:
@@ -1352,9 +1353,6 @@ def sanitize_intraday_timings(df, start_date, end_date, filepath=None, edf=None)
                                 (t_merged.time <= t_merged['Exch End Hours'])]
 
         assert not t_merged.empty
-        # localize the datetime to the product's location.
-        # print('timezone: ', t_merged.pytz_desc.unique()[0])
-
         t_merged.date_time = t_merged.date_time.dt.tz_localize(
             t_merged.pytz_desc.unique()[0])
 
