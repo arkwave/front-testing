@@ -1329,28 +1329,28 @@ def sanitize_intraday_timings(df, start_date, end_date, filepath=None, edf=None)
         edf = fetch_exchange_timings()
         edf.to_csv(timingspath, index=False)
 
-    edf['Exch Start Hours'] = pd.to_datetime(edf['Exch Start Hours']).dt.time
-    edf['Exch End Hours'] = pd.to_datetime(edf['Exch End Hours']).dt.time
+    edf['exch_start_hours'] = pd.to_datetime(edf['exch_start_hours']).dt.time
+    edf['exch_end_hours'] = pd.to_datetime(edf['exch_end_hours']).dt.time
 
-    edf.columns = ['pdt' if x == 'Product Id' else x for x in edf.columns]
+    edf.columns = ['pdt' if x == 'product_id' else x for x in edf.columns]
 
     merged = pd.merge(
-        df, edf[['pdt', 'Exch Start Hours', 'Exch End Hours', 'pytz_desc']], on=['pdt'])
+        df, edf[['pdt', 'exch_start_hours', 'exch_end_hours', 'pytz_desc']], on=['pdt'])
 
     fin = pd.DataFrame()
 
     for pdt in merged.pdt.unique():
         t_merged = merged[merged.pdt == pdt]
-        pdt_start = t_merged['Exch Start Hours'].values[0]
-        pdt_end = t_merged['Exch End Hours'].values[0]
+        pdt_start = t_merged['exch_start_hours'].values[0]
+        pdt_end = t_merged['exch_end_hours'].values[0]
         # overnight market case. covert, filter, unconvert.
         if pdt_start > pdt_end:
             # localize.
             t_merged = handle_overnight_market_timings(
                 t_merged, start_date, end_date)
         else:
-            t_merged = t_merged[(t_merged.time >= t_merged['Exch Start Hours']) &
-                                (t_merged.time <= t_merged['Exch End Hours'])]
+            t_merged = t_merged[(t_merged.time >= t_merged['exch_start_hours']) &
+                                (t_merged.time <= t_merged['exch_end_hours'])]
 
         assert not t_merged.empty
         t_merged.date_time = t_merged.date_time.dt.tz_localize(
@@ -1359,7 +1359,7 @@ def sanitize_intraday_timings(df, start_date, end_date, filepath=None, edf=None)
         # convert to the default timezone: Dubai.
         t_merged.date_time = t_merged.date_time.dt.tz_convert('Asia/Dubai')
         fin = pd.concat([fin, t_merged])
-    fin.drop(['Exch Start Hours', 'Exch End Hours'], inplace=True, axis=1)
+    fin.drop(['exch_start_hours', 'exch_end_hours'], inplace=True, axis=1)
     return fin
 
 
@@ -1376,9 +1376,9 @@ def handle_overnight_market_timings(df, start_date, end_date):
     timezone = df.pytz_desc.unique()[0]
     default = 'Asia/Dubai'
     # find the exchange timings in terms of dxb time.
-    pdt_start = pd.to_datetime(df['Exch Start Hours'].values[
+    pdt_start = pd.to_datetime(df['exch_start_hours'].values[
                                0].strftime('%H:%M:%S'))
-    pdt_end = pd.to_datetime(df['Exch End Hours'].values[
+    pdt_end = pd.to_datetime(df['exch_end_hours'].values[
                              0].strftime('%H:%M:%S'))
 
     pdt_start = pdt_start.tz_localize(timezone).tz_convert(default).time()

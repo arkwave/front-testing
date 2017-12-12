@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   Ananth
-# @Last Modified time: 2017-12-12 18:53:58
+# @Last Modified time: 2017-12-12 21:42:53
 
 # import time
 import datetime as dt
@@ -15,6 +15,7 @@ import numpy as np
 from .prep_data import match_to_signals, get_min_start_date, clean_data, vol_by_delta, \
     sanity_check, handle_intraday_conventions, clean_intraday_data
 from .global_vars import main_direc
+from joblib import Parallel, delayed
 
 contract_mths = {
 
@@ -90,6 +91,7 @@ def pull_settlement_data(pdt, start_date=None, end_date=None, write_dump=False,
         query += "and extract(YEAR from settlement_date) > 2009"
     print('query: ', query)
     df = pd.read_sql_query(query, connection)
+    connection.close()
 
     # df.to_csv('datasets/data_dump/' + pdt.lower() +
     #           '_raw_data.csv', index=False)
@@ -509,6 +511,7 @@ def pull_expdata():
     init_query = 'select vol_id, expiry_date from public.table_opera_option_expiry'
 
     df = pd.read_sql_query(init_query, connection)
+    connection.close()
 
     # initial processing.
     df.expiry_date = pd.to_datetime(df.expiry_date)
@@ -539,6 +542,7 @@ def pull_expdata():
     return df
 
 
+# TODO: parallelize.
 def pull_intraday_data(pdts, start_date=None, end_date=None, filepath='', contracts=None):
     """Helper method that pulls intraday data from the DB. 
 
@@ -546,55 +550,85 @@ def pull_intraday_data(pdts, start_date=None, end_date=None, filepath='', contra
         pdts (TYPE): Products for which intraday data is required
         start_date (None, optional): start date
         end_date (None, optional): end date
+        filepath (str, optional): Description
+        contracts (None, optional): Description
 
     Returns:
         TYPE: Dataframe
     """
     overnight_pdts = {'BO', 'C', 'KW', 'S', 'SM', 'W', 'CT', 'MW'}
 
-    df = pd.DataFrame()
     t = time.clock()
-    for pdt in pdts:
-        filename = 'datasets/debug/' + pdt + '_' + start_date + \
-            '_' + end_date + '_raw_intraday_data.csv'
-        fullpath = filepath + filename
-        if False:
-            pass
-        # print('fullpath: ', fullpath)
-        # if os.path.exists(fullpath):
-        #     print('raw file for ' + pdt + ' exists, reading in.')
-        #     tdf = pd.read_csv(fullpath)
-        #     if contracts is not None:
-        #         tdf = tdf[tdf.commodity.str.contains(
-        #             '|'.join([x for x in contracts]))]
 
-        #     tdf.date_time = pd.to_datetime(tdf.date_time)
+    par = True if len(pdts) > 1 else False
 
-        else:
-            print('raw file for ' + pdt + ' does not exist, pulling.')
-            user = 'sumit'
-            password = 'Olam1234'
-            engine = create_engine('postgresql://' + user + ':' + password +
-                                   '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
-            connection = engine.connect()
-            print('constructing query...')
-            offset = 1 if pdt in overnight_pdts else 0
-            query = construct_intraday_query(
-                pdts, start_date=start_date, end_date=end_date, offset=offset, contracts=contracts)
-            print('query: ', query)
+    if not par:
+        df = _pull_intraday_data(pdts[0], start_date=start_date, end_date=end_date,
+                                 filepath=filepath, contracts=contracts,
+                                 overnight_pdts=overnight_pdts)
+    else:
+        res = Parallel(n_jobs=len(pdts))(delayed(_pull_intraday_data)(pdt, start_date=start_date, end_date=end_date,
+                                                                      filepath=filepath, contracts=contracts,
+                                                                      overnight_pdts=overnight_pdts) for pdt in pdts)
+        df = pd.concat(res)
 
-            # fetch the dataframe from the db.
+    print('elapsed: ', time.clock() - t)
 
-            print('fetching intraday data...')
-            tdf = pd.read_sql_query(query, connection)
-            # tdf.to_csv(fullpath, index=False)
+    return df
 
-        df = pd.concat([df, tdf])
 
-    print('fetch completed. elapsed: ', time.clock() - t)
+def _pull_intraday_data(pdt, start_date=None, end_date=None, filepath='', contracts=None, overnight_pdts=None):
+    """Helper method that is called in pull_intraday_data in parallel if necessary. 
+
+    Args:
+        pdt (str): product. 
+        start_date (str, optional): start date
+        end_date (str, optional): end date
+        filepath (str, optional): path to write the data to. 
+        contracts (list, optional): contracts to be pulled in particular
+        overnight_pdts (set, optional): set of overnight products. 
+
+    Returns:
+        dataframe: dataframe of cleaned intraday data. 
+    """
+    vid_str = '_'.join([x for x in contracts]
+                       ) if contracts is not None else ''
+    filename = pdt + '_' + start_date + '_' + end_date + '_ ' + vid_str + \
+        '_raw_intraday_data.csv'
+    fullpath = filepath + filename
+
+    print('fullpath: ', fullpath)
+    if os.path.exists(fullpath):
+        print('raw file for ' + pdt + ' exists, reading in.')
+        df = pd.read_csv(fullpath)
+        if contracts is not None:
+            df = df[df.commodity.str.contains(
+                '|'.join([x for x in contracts]))]
+
+        df.date_time = pd.to_datetime(df.date_time)
+
+    else:
+        print('raw file for ' + pdt + ' does not exist, pulling.')
+        user = 'sumit'
+        password = 'Olam1234'
+        engine = create_engine('postgresql://' + user + ':' + password +
+                               '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+        connection = engine.connect()
+        print('constructing query...')
+        offset = 1 if pdt in overnight_pdts else 0
+        query = construct_intraday_query(
+            pdt, start_date=start_date, end_date=end_date, offset=offset, contracts=contracts)
+        print('query: ', query)
+
+        # fetch the dataframe from the db.
+
+        print('fetching intraday data...')
+        df = pd.read_sql_query(query, connection)
+        df.to_csv(fullpath, index=False)
+        connection.close()
+
     df = clean_intraday_data(df, pd.to_datetime(start_date),
                              pd.to_datetime(end_date), filepath=filepath)
-    print('aggregating complete. elapsed: ', time.clock() - t)
 
     df = handle_intraday_conventions(df)
 
@@ -602,12 +636,10 @@ def pull_intraday_data(pdts, start_date=None, end_date=None, filepath='', contra
     df.sort_values(by=['value_date', 'time'], inplace=True)
     df.reset_index(drop=True, inplace=True)
 
-    print('intraday data processing complete. elapsed: ', time.clock() - t)
-
     return df
 
 
-def construct_intraday_query(pdts, start_date=None, end_date=None, offset=None, contracts=None):
+def construct_intraday_query(pdt, start_date=None, end_date=None, offset=None, contracts=None):
     """Helper method that generates the SQL query for pulling from the intraday table. 
 
     Args:
@@ -619,18 +651,17 @@ def construct_intraday_query(pdts, start_date=None, end_date=None, offset=None, 
 
     # generate product query
     pdt_str = ''
-    for pdt in pdts:
-        space = 1 if len(pdt) == 1 else 0
-        pdt_str += ' commodity like '
-        if contracts is not None:
-            for i in contracts:
-                pdt_str += "'" + pdt + ' '*space + i + '%%' + "'"
-        else:
-            pdt_str += "'" + pdt + ' '*space + '%%' + "'"
-        if pdt != pdts[-1]:
-            pdt_str += ' or '
-        else:
-            pdt_str += ' ) '
+
+    # for pdt in pdts:
+    space = 1 if len(pdt) == 1 else 0
+    pdt_str += ' commodity like '
+    if contracts is not None:
+        for i in contracts:
+            pdt_str += "'" + pdt + ' '*space + i + '%%' + "'"
+    else:
+        pdt_str += "'" + pdt + ' '*space + '%%' + "'"
+
+    pdt_str += ' ) '
 
     init_query += pdt_str
 
@@ -718,6 +749,7 @@ def pull_ohlc_data(pdts, start_date, end_date, writepath='C:/Users/' + main_dire
             pdts, start_date=start_date, end_date=end_date)
         # print('query: ', query)
         df = pd.read_sql_query(query, connection)
+        connection.close()
 
         # rename the columns
         df.columns = ['ticker', 'value_date', 'px_open',
@@ -829,4 +861,5 @@ def fetch_exchange_timings():
     connection = engine.connect()
     query = 'select * from public.bbg_exchange_timings'
     df = pd.read_sql_query(query, connection)
+    connection.close()
     return df
