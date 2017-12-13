@@ -1262,11 +1262,7 @@ def clean_intraday_data(df, start_date, end_date, edf=None, filepath=None):
     Returns:
         TYPE: Description
     """
-    t = time.clock()
-
     assert not df.empty
-
-    # print('df.colums: ', df.columns)
 
     df = df[df.volume > 0]
     if 'pdt' not in df.columns:
@@ -1275,26 +1271,19 @@ def clean_intraday_data(df, start_date, end_date, edf=None, filepath=None):
         df['time'] = df.date_time.dt.time
     df['ftmth'] = df.commodity.str[2:5].str.strip()
     df['underlying_id'] = df.pdt + '  ' + df.ftmth
-    df.date_time = pd.to_datetime(df.date_time)
 
     assert not df.empty
-    # print('df.columns: ', df.columns)
 
     # filter for exchange timings.
     df = sanitize_intraday_timings(
         df, start_date, end_date, edf=edf, filepath=filepath)
-    # df.to_csv(filepath + 'datasets/debug/' + pdt +
-    #           '_sanitized_data.csv', index=False)
 
     assert not df.empty
     lst = []
 
-    print('clean_intraday_data: beginning aggregation...', end="")
-
+    # print('clean_intraday_data: beginning aggregation...', end="")
     for (comm, date_time), grp in df.groupby(['underlying_id', 'date_time']):
-        # print(comm, date_time)
         grp['block'] = (grp.price.shift(1) != grp.price).astype(int).cumsum()
-        # print(grp)
         for (price, block), grp2 in grp.groupby(['price', 'block'], sort=False):
             dic = {'underlying_id': comm,
                    'date_time': date_time,
@@ -1304,7 +1293,6 @@ def clean_intraday_data(df, start_date, end_date, edf=None, filepath=None):
     ret = pd.DataFrame(lst)
 
     assert not ret.empty
-    print('done. elapsed: ', time.clock() - t)
 
     return ret
 
