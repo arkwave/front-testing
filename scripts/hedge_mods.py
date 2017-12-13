@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-29 19:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-05 19:59:49
+# @Last Modified time: 2017-12-13 22:03:35
 import pprint
 from abc import ABC, abstractmethod
 import numpy as np
@@ -67,7 +67,8 @@ class TrailingStop(HedgeModifier):
                   'current levels': self.current_level,
                   'thresholds': self.thresholds,
                   'anchor_points': self.anchor_points,
-                  'active': self.active}
+                  'active': self.active,
+                  'stop levels': self.stop_levels}
 
         return pprint.pformat(r_dict)
 
@@ -169,7 +170,8 @@ class TrailingStop(HedgeModifier):
             if dic[uid][1] == 'price':
                 new[uid] = bound
             elif dic[uid][1] == 'breakeven':
-                val = breakevens[uid] * bound
+                pdt, mth = uid.split()
+                val = breakevens[pdt][mth] * bound
                 new[uid] = val
         return new
 
@@ -190,7 +192,8 @@ class TrailingStop(HedgeModifier):
 
             elif trigger_values[uid][1] == 'breakeven':
                 # case: stop loss monitoring is active upon a certain BE move.
-                val = breakevens[uid] * bound
+                pdt, mth = uid.split()
+                val = breakevens[pdt][mth] * bound
                 self.thresholds[uid] = (lastpt - val, lastpt + val)
 
     def update_current_level(self, dic, uid=None, update=True):
@@ -251,7 +254,8 @@ class TrailingStop(HedgeModifier):
 
                 elif data[1] == 'breakeven':
                     breakevens = self.pf.breakeven()
-                    val = breakevens[uid] * data[0]
+                    pdt, mth = uid.split()
+                    val = breakevens[pdt][mth] * data[0]
                     if self.current_level[uid] < lower:
                         self.stop_values[uid] = minimals[uid] + val
                     elif self.current_level[uid] > upper:
@@ -333,6 +337,7 @@ class TrailingStop(HedgeModifier):
             run_deltas returns false because trailing stops are hit, where monitoring is inactive.
         """
         # first: update the prices.
+        init_active = self.get_active(uid=uid)
 
         initial_current_vals = self.get_current_level()
 
@@ -345,7 +350,9 @@ class TrailingStop(HedgeModifier):
         print('stop values: ', self.stop_values)
         print('active: ', self.active)
 
-        if self.get_active(uid=uid):
+        curr_active = self.get_active(uid=uid)
+
+        if curr_active:
             # case: trailingstop got hit. neutralize all.
             hit, val = self.trailing_stop_hit(uid)
             print('hit, val: ', hit, val)
@@ -361,7 +368,12 @@ class TrailingStop(HedgeModifier):
 
             # case: active but TS not hit. run deltas.
             else:
-                ret = (True, '', stopval)
+                # case: activated on this price move.
+                if curr_active != init_active:
+                    ret = (True, 'breached', stopval)
+                # case: activated from some previous price move.
+                else:
+                    ret = (True, '', stopval)
 
         else:
             # case: inactive. default to portfolio default.

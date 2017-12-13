@@ -974,7 +974,7 @@ class Portfolio:
         allops = self.get_all_options()
         return set([x.get_vol_id() for x in allops])
 
-    def breakeven(self, flag=None, conv=None):
+    def breakeven(self):
         """Returns a dictionary of {pdt: {month: breakeven}} where breakeven is calculated by theta/gamma. 
         """
         bes = {}
@@ -983,12 +983,15 @@ class Portfolio:
             bes[pdt] = {}
             thetas = []
             gammas = []
+            ft_tick = multipliers[pdt][-3]
             for mth in dic[pdt]:
                 gamma, theta = abs(dic[pdt][mth][1]), abs(dic[pdt][mth][2])
                 thetas.append(theta)
                 gammas.append(gamma)
-                bes[pdt][mth] = (((2.8*theta)/gamma) ** 0.5) / \
+                val = (((2.8*theta)/gamma) ** 0.5) / \
                     multipliers[pdt][0]
+                # bes[pdt][mth] = val
+                bes[pdt][mth] = round(round(val/ft_tick) * ft_tick, 2)
 
         return bes
 

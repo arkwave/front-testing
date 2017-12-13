@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-12-05 13:48:47
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-05 19:11:35
+# @Last Modified time: 2017-12-13 21:40:59
 
 import numpy as np
 from .hedge_mods import HedgeModifier, TrailingStop
@@ -91,24 +91,31 @@ class HedgeParser:
 
                 if run_deltas:
                     # case: we want to run the deltas of this uid.
-                    # print('Case (1): run %s deltas' % uid)
+                    print('Case (1): run %s deltas' % uid)
                     run_trigger, hedge_interval = trigger_bounds[
                         uid], hedger_interval_dict[uid]
 
-                    # print('%s run_trigger: ' % uid, run_trigger)
-                    # print('%s hedge interval: ' % uid, hedge_interval)
+                    print('%s run_trigger: ' % uid, run_trigger)
+                    print('%s hedge interval: ' % uid, hedge_interval)
 
                     # case: run_delta + modification trigger != hedge
                     # interval stipulated.
                     if run_trigger > hedge_interval or run_trigger < hedge_interval:
-                        # print('Case (1.1): hedge interval != run trigger
-                        # bounds')
+                        print('Case (1.1): hedge interval != run trigger bounds')
                         ret[uid] = 1
 
-                    elif run_trigger == hedge_interval:
-                        # print('Case (1.2): hedge interval == run trigger
-                        # bounds')
-                        ret[uid] = 1-hedger_ratio
+                    elif np.isclose(run_trigger, hedge_interval):
+                        print('Case (1.2): hedge interval == run trigger bounds')
+                        # case: bounds are equal, but UID is currently active.
+                        if self.mod_obj.get_active(uid=uid):
+                            print('active case.')
+                            ret[uid] = 1 - \
+                                hedger_ratio if type_str == 'breached' else 1
+                        # case: bounds are equal to hedge levels, and uid is
+                        # inactive.
+                        else:
+                            print('inactive case.')
+                            ret[uid] = 1-hedger_ratio
 
                 else:
                     # print('Case (2): Do not run deltas for %s' % uid)

@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-05 13:53:26
+# @Last Modified time: 2017-12-13 21:22:46
 
 import pandas as pd
 import pprint
@@ -891,7 +891,7 @@ class Hedge:
 
         hedge_ratios = self.get_hedge_ratios(target_flag)
 
-        print('run_ratios: ', hedge_ratios)
+        print('hedge_ratios: ', hedge_ratios)
         print('--------- End HedgeParser Logic -------------')
         for product in tobehedged:
             for month in tobehedged[product]:
