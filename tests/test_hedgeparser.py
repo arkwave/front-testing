@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-30 21:19:46
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-05 19:54:20
+# @Last Modified time: 2017-12-13 20:33:20
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -461,6 +461,14 @@ def test_relevant_price_move_pathological():
     assert tstop.get_stop_values() == {'QC  Z7': 1515, 'CC  Z7': None}
     assert prices == [1590, 1580, 1570, 1560]
 
+    # similar move back up to 1595. prices should be 1515, 1525, 1535, 1545
+    assert tstop.get_current_level() == {'QC  Z7': 1510, 'CC  Z7': 1986}
+    prices = hp.relevant_price_move('QC  Z7', 1595)
+    assert tstop.get_thresholds(uid='QC  Z7') == (1485, 1545)
+    assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
+    assert tstop.get_stop_values() == {'QC  Z7': 1590, 'CC  Z7': None}
+    assert prices == [1515, 1525, 1535, 1545]
+
 
 def test_irrelevant_price_moves():
     vals = {'CC  Z7': 10, 'QC  Z7': 10}
@@ -489,7 +497,6 @@ def test_irrelevant_price_moves():
                                 for uid in pf.get_unique_uids()})
     print('stop values: ', tstop.get_stop_values())
 
-    # first things first: activate by breaching upside barrier.
     prices = hp.relevant_price_move('QC  Z7', 1565, comparison=None)
     assert not prices
     print('tstop: ', tstop)
