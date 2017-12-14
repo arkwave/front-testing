@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-13 21:22:46
+# @Last Modified time: 2017-12-14 14:43:43
 
 import pandas as pd
 import pprint
@@ -76,6 +76,7 @@ class Hedge:
         self.buckets = buckets if buckets is not None else [0, 30, 60, 90, 120]
         self.hedges = hedges
         self.intraday_conds = None
+        self.breakeven = self.pf.breakeven().copy()
         self.desc, self.params = self.process_hedges()
         self.hedgeparser = None
         if ('delta' in self.params) and \
@@ -83,7 +84,6 @@ class Hedge:
             self.hedgeparser = HedgeParser(self, self.params['delta']['intraday'],
                                            self.intraday_conds, self.pf)
         self.date = None
-        self.breakeven = self.pf.breakeven().copy()
 
         # check if vdf/pdf have been populated. if not, update.
         if (self.vdf is not None and self.pdf is not None):

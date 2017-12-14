@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-29 19:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-13 22:03:35
+# @Last Modified time: 2017-12-14 15:00:29
 import pprint
 from abc import ABC, abstractmethod
 import numpy as np
@@ -98,7 +98,7 @@ class TrailingStop(HedgeModifier):
         # divide up the input parameters into stop values, thresholds and
         # actives respectively.
         trigger_values = dic['trigger']
-        breakevens = self.pf.breakeven()
+        breakevens = self.parent.get_breakeven()
         self.trigger_bounds = trigger_values
         self.update_thresholds(breakevens)
         self.update_active()
@@ -144,8 +144,15 @@ class TrailingStop(HedgeModifier):
                 raise ValueError(
                     "%s is not in the portfolio passed into the TrailingStop object" % uid)
 
-    def get_anchor_points(self):
-        return self.anchor_points
+    def get_anchor_points(self, uid=None):
+        if uid is None:
+            return self.anchor_points
+        else:
+            try:
+                return self.anchor_points[uid]
+            except KeyError as e:
+                raise KeyError(
+                    'The provided uid %s is not in the trailingstop object.' % uid)
 
     # Setter/Update methods.
     def update_anchor_points(self, dic, uid=None):
@@ -159,7 +166,7 @@ class TrailingStop(HedgeModifier):
             self.anchor_points[uid] = dic[uid]
         else:
             self.anchor_points = dic
-        self.update_thresholds(self.pf.breakeven())
+        self.update_thresholds(self.parent.get_breakeven())
         self.update_active()
 
     def get_trigger_bounds_numeric(self, breakevens):
@@ -253,7 +260,7 @@ class TrailingStop(HedgeModifier):
                         self.stop_values[uid] = maximals[uid] - data[0]
 
                 elif data[1] == 'breakeven':
-                    breakevens = self.pf.breakeven()
+                    breakevens = self.parent.get_breakeven()
                     pdt, mth = uid.split()
                     val = breakevens[pdt][mth] * data[0]
                     if self.current_level[uid] < lower:
@@ -344,11 +351,6 @@ class TrailingStop(HedgeModifier):
         self.update_current_level(price_dict, uid=uid, update=update)
 
         stopval = self.get_stop_values(uid=uid)
-
-        print('current levels: ', self.current_level)
-        print('price dict: ', price_dict)
-        print('stop values: ', self.stop_values)
-        print('active: ', self.active)
 
         curr_active = self.get_active(uid=uid)
 

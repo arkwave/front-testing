@@ -1014,7 +1014,7 @@ def handle_intraday_conventions(df):
     ## Step 1 ##
     # first: Convert S H8 Comdty -> S  H8
 
-    print('df.columns: ', df.columns)
+    # print('df.columns: ', df.columns)
 
     # df['pdt'] = df.commodity.str[:2].str.strip()
     # df['ftmth'] = df.commodity.str[2:-6].str.strip()
@@ -1039,11 +1039,11 @@ def handle_intraday_conventions(df):
     df['datatype'] = 'intraday'
 
     cols = ['value_date', 'time', 'underlying_id',
-            'pdt', 'ftmth', 'price', 'datatype', 'date_time']
+            'pdt', 'ftmth', 'price', 'datatype', 'date_time', 'volume']
     df = df[cols]
 
-    df.columns = ['value_date', 'time', 'underlying_id',
-                  'pdt', 'ftmth', 'price', 'datatype', 'date_time']
+    # df.columns = ['value_date', 'time', 'underlying_id',
+    #               'pdt', 'ftmth', 'price', 'datatype', 'date_time', 'volume']
 
     df = df[df.price > 0]
 
@@ -1267,7 +1267,7 @@ def clean_intraday_data(df, start_date, end_date, edf=None, filepath=None):
     Returns:
         TYPE: Description
     """
-    print('cleaning intraday data')
+    # print('cleaning intraday data')
     t = time.clock()
 
     assert not df.empty
@@ -1289,14 +1289,14 @@ def clean_intraday_data(df, start_date, end_date, edf=None, filepath=None):
     # filter for exchange timings.
     df = sanitize_intraday_timings(
         df, start_date, end_date, edf=edf, filepath=filepath)
-    pdt = df.pdt.unique()[0]
-    df.to_csv(filepath + 'datasets/debug/' + pdt +
-              '_sanitized_data.csv', index=False)
+    # pdt = df.pdt.unique()[0]
+    # df.to_csv(filepath + 'datasets/debug/' + pdt +
+    #           '_sanitized_data.csv', index=False)
 
     assert not df.empty
     lst = []
 
-    print('beginning aggregation...', end="")
+    # print('beginning aggregation...', end="")
 
     for (comm, date_time), grp in df.groupby(['underlying_id', 'date_time']):
         # print(comm, date_time)
@@ -1311,9 +1311,9 @@ def clean_intraday_data(df, start_date, end_date, edf=None, filepath=None):
     ret = pd.DataFrame(lst)
 
     assert not ret.empty
-    print('done.')
+    # print('done.')
 
-    print('elapsed: ', time.clock() - t)
+    # print('elapsed: ', time.clock() - t)
     return ret
 
 

@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-27 18:27:57
+# @Last Modified time: 2017-12-14 14:03:18
 
 # import time
 import datetime as dt
@@ -604,7 +604,8 @@ def pull_intraday_data(pdts, start_date=None, end_date=None, filepath='', contra
     return df
 
 
-def construct_intraday_query(pdts, start_date=None, end_date=None, offset=None, contracts=None):
+def construct_intraday_query(pdts, start_date=None, end_date=None,
+                             offset=None, contracts=None):
     """Helper method that generates the SQL query for pulling from the intraday table. 
 
     Args:

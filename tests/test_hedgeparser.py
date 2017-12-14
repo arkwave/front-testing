@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-30 21:19:46
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-13 20:33:20
+# @Last Modified time: 2017-12-14 16:07:06
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -468,6 +468,66 @@ def test_relevant_price_move_pathological():
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
     assert tstop.get_stop_values() == {'QC  Z7': 1590, 'CC  Z7': None}
     assert prices == [1515, 1525, 1535, 1545]
+
+
+def test_relevant_price_move_be_pathological():
+    # vals = {'CC  Z7': 10, 'QC  Z7': 10}
+
+    be = {'CC': {'Z7': 1}, 'QC': {'Z7': 1}}
+
+    intraday_params = {'tstop': {'trigger': {'QC  Z7': (1, 'breakeven'),
+                                             'CC  Z7': (1, 'breakeven')},
+                                 'value': {'QC  Z7': (0.2, 'breakeven'),
+                                           'CC  Z7': (0.2, 'breakeven')}}}
+
+    gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+                                        ['intraday', 'breakeven', be, 1,
+                                         intraday_params]]})
+
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    pf_comp.hedge_params = gen_hedges
+    pf = copy.deepcopy(pf_comp)
+    pf = assign_hedge_objects(pf)
+
+    hp = pf.get_hedgeparser(dup=True)
+    tstop = hp.get_mod_obj()
+    assert tstop is not None
+    hedger = pf.get_hedger()
+    # basic checks.
+    assert isinstance(hp.get_mod_obj(), TrailingStop)
+    assert hp.get_hedger_ratio() == 1
+
+    # print('hedge intervals: ', {uid:  hedger.get_hedge_interval(uid)
+    #                             for uid in pf.get_unique_uids()})
+    # print('stop values: ', tstop.get_stop_values())
+
+    # first things first: activate by breaching upside barrier.
+    prices = hp.relevant_price_move('QC  Z7', 1615, comparison=None)
+    assert prices == [1587]
+    print('tstop: ', tstop)
+    assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
+    assert np.isclose(tstop.get_stop_values('QC  Z7'), 1609.6)
+    assert tstop.get_current_level() == {'QC  Z7': 1615, 'CC  Z7': 1986}
+
+    # now, move from 1615 --> 1510. prices should be 1609.6, 1582.6
+    prices = hp.relevant_price_move('QC  Z7', 1510)
+
+    assert tstop.get_current_level() == {'CC  Z7': 1986, 'QC  Z7': 1510}
+    assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
+    assert np.isclose(tstop.get_stop_values('QC  Z7'), 1515.4)
+    assert prices == [1609.6, 1582.6]
+    try:
+        assert tstop.get_thresholds(uid='QC  Z7') == (1582.6, 1636.6)
+    except AssertionError as e:
+        print(tstop.get_thresholds(uid='QC  Z7'))
+
+    # similar move back up to 1595. prices should be 1515.4, 1542.4.
+    assert tstop.get_current_level() == {'QC  Z7': 1510, 'CC  Z7': 1986}
+    prices = hp.relevant_price_move('QC  Z7', 1595)
+    assert tstop.get_thresholds(uid='QC  Z7') == (1488.4, 1542.4)
+    assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
+    assert np.isclose(tstop.get_stop_values('QC  Z7'), 1589.6)
+    assert prices == [1515.4, 1542.4]
 
 
 def test_irrelevant_price_moves():

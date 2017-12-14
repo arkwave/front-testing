@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-12-05 13:48:47
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-13 21:40:59
+# @Last Modified time: 2017-12-14 15:56:30
 
 import numpy as np
 from .hedge_mods import HedgeModifier, TrailingStop
@@ -148,7 +148,7 @@ class HedgeParser:
         """
         hedger = self.get_parent()
 
-        interval = hedger.get_hedge_interval(uid)
+        interval = hedger.get_hedge_interval(uid=uid)
 
         mod = self.get_mod_obj()
 
