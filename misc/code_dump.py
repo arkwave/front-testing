@@ -1010,3 +1010,155 @@ def civols(vdf, pdf, rollover='opex'):
     elapsed = time.time() - t
     # print('[CI-VOLS] elapsed: ', elapsed)
     return final
+
+
+#########################################################################
+######################## Old intraday functions #########################
+#########################################################################
+
+
+# def construct_intraday_query_old(pdt, start_date=None, end_date=None, offset=None, contracts=None):
+#     """Helper method that generates the SQL query for pulling from the intraday table.
+
+#     Args:
+#         pdts (TYPE): Description
+#         start_date (None, optional): Description
+#         end_date (None, optional): Description
+#     """
+#     init_query = 'select * from public.table_intra_day_trade where ('
+
+#     # generate product query
+#     pdt_str = ''
+
+#     # for pdt in pdts:
+#     space = 1 if len(pdt) == 1 else 0
+#     pdt_str += ' commodity like '
+#     if contracts is not None:
+#         for i in contracts:
+#             pdt_str += "'" + pdt + ' '*space + i + '%%' + "'"
+#     else:
+#         pdt_str += "'" + pdt + ' '*space + '%%' + "'"
+
+#     pdt_str += ' ) '
+
+#     init_query += pdt_str
+
+#     date_str = ''
+
+#     # add in date conditions
+#     if start_date is not None or end_date is not None:
+#         if offset is not None:
+#             start_date = (pd.to_datetime(start_date) -
+#                           BDay(offset)).strftime('%Y-%m-%d')
+
+#         date_str += ' and ('
+#         if start_date is not None:
+#             date_str += ' date(date_time) >= ' + "'" + start_date + "'"
+#             if end_date is None:
+#                 date_str += ' )'
+#             else:
+#                 date_str += ' and '
+
+#         if end_date is not None:
+#             date_str += ' date(date_time) <= ' + "'" + end_date + "'" + ')'
+
+#     init_query += ' ' + date_str
+
+#     # print('init_query: ', init_query)
+#     return init_query
+
+
+# def _pull_intraday_data_old(pdt, start_date=None, end_date=None, filepath='', contracts=None, overnight_pdts=None):
+#     """Helper method that is called in pull_intraday_data in parallel if necessary.
+
+#     Args:
+#         pdt (str): product.
+#         start_date (str, optional): start date
+#         end_date (str, optional): end date
+#         filepath (str, optional): path to write the data to.
+#         contracts (list, optional): contracts to be pulled in particular
+#         overnight_pdts (set, optional): set of overnight products.
+
+#     Returns:
+#         dataframe: dataframe of cleaned intraday data.
+#     """
+#     vid_str = '_'.join([x for x in contracts]
+#                        ) if contracts is not None else ''
+#     filename = pdt + '_' + start_date + '_' + end_date + '_ ' + vid_str + \
+#         '_raw_intraday_data.csv'
+#     fullpath = filepath + filename
+
+#     print('fullpath: ', fullpath)
+#     if os.path.exists(fullpath):
+#         print('raw file for ' + pdt + ' exists, reading in.')
+#         df = pd.read_csv(fullpath)
+#         if contracts is not None:
+#             df = df[df.commodity.str.contains(
+#                 '|'.join([x for x in contracts]))]
+
+#         df.date_time = pd.to_datetime(df.date_time)
+
+#     else:
+#         print('raw file for ' + pdt + ' does not exist, pulling.')
+#         user = 'sumit'
+#         password = 'Olam1234'
+#         engine = create_engine('postgresql://' + user + ':' + password +
+#                                '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+#         connection = engine.connect()
+#         print('constructing query...')
+#         offset = 1 if pdt in overnight_pdts else 0
+#         query = construct_intraday_query_old(
+#             pdt, start_date=start_date, end_date=end_date, offset=offset, contracts=contracts)
+#         print('query: ', query)
+
+#         # fetch the dataframe from the db.
+
+#         print('fetching intraday data...')
+#         df = pd.read_sql_query(query, connection)
+#         df.to_csv(fullpath, index=False)
+#         connection.close()
+
+#     df = clean_intraday_data(df, pd.to_datetime(start_date),
+#                              pd.to_datetime(end_date), filepath=filepath)
+
+#     df = handle_intraday_conventions(df)
+
+#     df.value_date = pd.to_datetime(df.value_date)
+#     df.sort_values(by=['value_date', 'time'], inplace=True)
+#     df.reset_index(drop=True, inplace=True)
+
+#     return df
+
+
+# def pull_intraday_data_old(pdts, start_date=None, end_date=None, filepath='', contracts=None):
+#     """Helper method that pulls intraday data from the DB.
+
+#     Args:
+#         pdts (TYPE): Products for which intraday data is required
+#         start_date (None, optional): start date
+#         end_date (None, optional): end date
+#         filepath (str, optional): Description
+#         contracts (None, optional): Description
+
+#     Returns:
+#         TYPE: Dataframe
+#     """
+#     overnight_pdts = {'BO', 'C', 'KW', 'S', 'SM', 'W', 'CT', 'MW'}
+
+#     t = time.clock()
+
+#     par = True if len(pdts) > 1 else False
+
+#     if not par:
+#         df = _pull_intraday_data_old(pdts[0], start_date=start_date, end_date=end_date,
+#                                      filepath=filepath, contracts=contracts,
+#                                      overnight_pdts=overnight_pdts)
+#     else:
+#         res = Parallel(n_jobs=len(pdts))(delayed(_pull_intraday_data_old)(pdt, start_date=start_date, end_date=end_date,
+#                                                                           filepath=filepath, contracts=contracts,
+#                                                                           overnight_pdts=overnight_pdts) for pdt in pdts)
+#         df = pd.concat(res)
+
+#     print('elapsed: ', time.clock() - t)
+
+#     return df

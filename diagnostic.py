@@ -1,13 +1,5 @@
 import numpy as np
 import pandas as pd
-# import time
-from sqlalchemy import create_engine
-from scripts.portfolio import Portfolio
-from scripts.util import create_underlying, create_vanilla_option
-import scripts.prep_data as pr
-import os
-from scripts.fetch_data import grab_data, pull_intraday_data
-
 
 multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 0.05, 400],
@@ -66,92 +58,52 @@ contract_mths = {
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
-
-"""Purpose: Sanity check the granularize function """
-
-# start_date = '2017-09-18'
-# end_date = '2017-10-06'
-# pdts = ['LH']
-
-# settle_vols, settle_prices, edf = grab_data(
-#     pdts, start_date, end_date, volids=['LH  Z7.Z7'])
-
-# data_path = 'C:/Users/Ananth/Desktop/Modules/HistoricSimulator/'
-
-# # handle date and time datatypes
-# settle_vols.time = settle_vols.time.astype(pd.Timestamp)
-# settle_vols.value_date = pd.to_datetime(settle_vols.value_date)
-# settle_prices.value_date = pd.to_datetime(settle_prices.value_date)
-# settle_prices.time = settle_prices.time.astype(pd.Timestamp)
-
-# cleaned = data_path + 'datasets/debug/lh_' + start_date + \
-#     '_' + end_date + '_intraday_cleaned.csv'
-
-
-# if os.path.exists(cleaned):
-#     fpdf = pd.read_csv(cleaned)
-#     fpdf.value_date = pd.to_datetime(fpdf.value_date)
-#     fpdf.time = pd.to_datetime(fpdf.time).dt.time
-
-# else:
-#     # intraday data.
-#     it_data = pull_intraday_data(
-#         pdts, start_date=start_date, end_date=end_date)
-#     it_data = pr.sanitize_intraday_timings(it_data, filepath=data_path)
-
-#     fpdf = pr.insert_settlements(it_data, settle_prices)
-#     fpdf.to_csv(cleaned, index=False)
-
-
-# # create the position.
-# callop = create_vanilla_option(settle_vols, settle_prices, 'LH  Z7.Z7', 'call',
-#                                False, strike='atm', greek='theta', greekval=10000)
-# pf = Portfolio(None, name='LH_pf')
-# pf.add_security([callop], 'OTC')
-# delta = pf.net_greeks['LH']['Z7'][0]
-# shorted = True if delta > 0 else False
-# lots = round(abs(delta))
-
-# ft, _ = create_underlying('LH', 'Z7', settle_prices, date=settle_prices.value_date.min(),
-#                           shorted=shorted, lots=lots)
-
-# pf.add_security([ft], 'hedge')
-
-# # filter one particular day.
-# tst_df = fpdf[(fpdf.value_date == pd.to_datetime('2017-09-21')) &
-#               (fpdf.underlying_id == 'LH  Z7')]
-# interval = 1.4
-from scripts.prep_data import clean_intraday_data, sanitize_intraday_timings
-import datetime as dt
+# Purpose: sanity check the new pulling functions and ensure that the two
+# results are identical.
 import os
-import time
+from scripts.fetch_data import pull_intraday_data_new, pull_intraday_data_old
 
-path = 'intraday_cleaning_test_full.csv'
-if os.path.exists(path):
-    df = pd.read_csv(path)
-    df.date_time = pd.to_datetime(df.date_time)
+pdt = 'CT'
+contract = ['H8']
+start = '2017-11-20'
+end = '2017-12-12'
+oldpath = 'old_data.csv'
+
+
+newdf = pull_intraday_data_new([pdt], start_date=start,
+                               end_date=end, contracts=contract)
+
+
+if os.path.exists(oldpath):
+    olddf = pd.read_csv(oldpath)
+    olddf.value_date = pd.to_datetime(olddf.value_date)
+    olddf.time = pd.to_datetime(olddf.time).dt.time
 else:
-    user = 'sumit'
-    password = 'Olam1234'
-    engine = create_engine('postgresql://' + user + ':' + password +
-                           '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
-    connection = engine.connect()
-    query = "select * from public.table_intra_day_trade where commodity like 'LCZ7 %%' and date_time >= '2017-09-18' and date_time <= '2017-10-06' "
+    olddf = pull_intraday_data_old(
+        [pdt], start_date=start, end_date=end, contracts=contract)
+    olddf.to_csv(oldpath)
 
-    t = time.clock()
-    df = pd.read_sql_query(query, connection)
-    print('data pulling time elapsed: ', time.clock() - t)
-    df.to_csv(path, index=False)
+# define a bunch of sanity checks.
 
+not_matching = []
 
-edf = pd.read_csv('datasets/exchange_timings.csv')
-df['pdt'] = df.commodity.str[:2].str.strip()
-df['time'] = df.date_time.dt.time
-tdf = df[df.time == dt.time(8, 30, 00)]
+for dt, grp in olddf.groupby('value_date'):
+    newdf_grp = newdf[newdf.value_date == dt]
+    print('date, oldlen, newlen: ', dt, len(grp), len(newdf_grp))
 
 
-# df = sanitize_intraday_timings(df, edf=edf)
+ndf = newdf[newdf.value_date == newdf.value_date.min()]
+odf = olddf[olddf.value_date == olddf.value_date.min()]
 
-t = time.clock()
-df2 = clean_intraday_data(df, edf=edf)
-print('data cleaning elapsed: ', time.clock() - t)
+# def sanity_check_data(old, new):
+#     # first: check length.
+#     try:
+#         assert len(old) == len(new)
+#     except AssertionError as e:
+#         raise AssertionError(len(old), len(new))
+
+#     # check dates.
+#     olddates = old.value_date.unique()
+#     newdates = new.value_date.unique()
+#     assert len(newdates) == len(olddates)
+#     assert newdates == olddates

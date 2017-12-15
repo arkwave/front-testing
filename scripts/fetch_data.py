@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-12-12 21:42:53
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-12-15 21:33:18
 
 # import time
 import datetime as dt
@@ -157,7 +157,7 @@ def pull_settlement_data(pdt, start_date=None, end_date=None, write_dump=False,
 def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
                   signals=None, test=False, write=False, writepath=None,
                   direc='C:/Users/' + main_direc + '/Desktop/Modules/HistoricSimulator/', volids=None):
-    """Utility function that does everything prep_data does, but to full 
+    """Utility function that does everything prep_data does, but to full
         datasets rather than things drawn from the database.
 
     Args:
@@ -286,17 +286,17 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
 
 
 def construct_data_paths(pdt, sd, ed, desired_path, volid_str=None):
-    """Helper method that constructs the paths to the datasets. 
+    """Helper method that constructs the paths to the datasets.
 
     Args:
-        pdt (TYPE): product we're interested in 
+        pdt (TYPE): product we're interested in
         start_date (TYPE): dataset start
-        end_date (TYPE): dataset end 
+        end_date (TYPE): dataset end
         desired_path (TYPE): dataset write-to location
-        volid_str (None, optional): str describing the volids contained. 
+        volid_str (None, optional): str describing the volids contained.
 
     Returns:
-        tuple: paths to vol data, price data and expiry data respectively. 
+        tuple: paths to vol data, price data and expiry data respectively.
     """
     volid_str = '_' + volid_str if volid_str != '' else volid_str
     final_volpath = desired_path + pdt.lower() + '_final_vols_' + \
@@ -544,7 +544,7 @@ def pull_expdata():
 
 # TODO: parallelize.
 def pull_intraday_data(pdts, start_date=None, end_date=None, filepath='', contracts=None):
-    """Helper method that pulls intraday data from the DB. 
+    """Helper method that pulls intraday data from the DB.
 
     Args:
         pdts (TYPE): Products for which intraday data is required
@@ -578,101 +578,96 @@ def pull_intraday_data(pdts, start_date=None, end_date=None, filepath='', contra
 
 
 def _pull_intraday_data(pdt, start_date=None, end_date=None, filepath='', contracts=None, overnight_pdts=None):
-    """Helper method that is called in pull_intraday_data in parallel if necessary. 
+    """Helper method that is called in pull_intraday_data in parallel if necessary.
 
     Args:
-        pdt (str): product. 
+        pdt (str): product.
         start_date (str, optional): start date
         end_date (str, optional): end date
-        filepath (str, optional): path to write the data to. 
+        filepath (str, optional): path to write the data to.
         contracts (list, optional): contracts to be pulled in particular
-        overnight_pdts (set, optional): set of overnight products. 
+        overnight_pdts (set, optional): set of overnight products.
 
     Returns:
-        dataframe: dataframe of cleaned intraday data. 
+        dataframe: dataframe of cleaned intraday data.
     """
-    vid_str = '_'.join([x for x in contracts]
+    vid_str = '_'.join([pdt + '  ' + x + '.' + x for x in contracts]
                        ) if contracts is not None else ''
-    filename = pdt + '_' + start_date + '_' + end_date + '_ ' + vid_str + \
-        '_raw_intraday_data.csv'
-    fullpath = filepath + filename
 
-    print('fullpath: ', fullpath)
-    if os.path.exists(fullpath):
-        print('raw file for ' + pdt + ' exists, reading in.')
-        df = pd.read_csv(fullpath)
-        if contracts is not None:
-            df = df[df.commodity.str.contains(
-                '|'.join([x for x in contracts]))]
+    if filepath == '':
+        filepath = 'datasets/debug/'
 
-        df.date_time = pd.to_datetime(df.date_time)
+    cleaned = filepath + pdt + '_' + start_date + '_' + \
+        end_date + '_intraday_cleaned' + '_' + vid_str + '.csv'
 
+    print('cleaned filepath: ', cleaned)
+
+    if os.path.exists(cleaned):
+        df = pd.read_csv(cleaned)
+        df.value_date = pd.to_datetime(df.value_date)
+        df.time = pd.to_datetime(df.time).dt.time
+
+    # filename = pdt + '_' + start_date + '_' + end_date + '_ ' + vid_str + \
+    #     '_intraday_data.csv'
     else:
-        print('raw file for ' + pdt + ' does not exist, pulling.')
+        print('cleaned file for ' + pdt + ' does not exist, pulling.')
         user = 'sumit'
         password = 'Olam1234'
         engine = create_engine('postgresql://' + user + ':' + password +
                                '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
         connection = engine.connect()
         print('constructing query...')
-        offset = 1 if pdt in overnight_pdts else 0
+        # offset = 1 if pdt in overnight_pdts else 0
         query = construct_intraday_query(
-            pdt, start_date=start_date, end_date=end_date, offset=offset, contracts=contracts)
+            pdt, start_date, end_date, contracts=contracts)
         print('query: ', query)
 
         # fetch the dataframe from the db.
 
         print('fetching intraday data...')
         df = pd.read_sql_query(query, connection)
-        df.to_csv(fullpath, index=False)
         connection.close()
-
-    df = clean_intraday_data(df, pd.to_datetime(start_date),
-                             pd.to_datetime(end_date), filepath=filepath)
-
-    df = handle_intraday_conventions(df)
-
-    df.value_date = pd.to_datetime(df.value_date)
-    df.sort_values(by=['value_date', 'time'], inplace=True)
-    df.reset_index(drop=True, inplace=True)
-
+        df.date_time = pd.to_datetime(df.date_time, format='%Y-%m-%d %H:%M:%S')
+        df.date_time = df.date_time.dt.tz_convert('Asia/Dubai')
+        df['value_date'] = df.date_time.dt.date
+        df['time'] = df.date_time.dt.time
+        df.sort_values(by=['index'], inplace=True)
+        df.reset_index(drop=True, inplace=True)
+        df.to_csv(cleaned, index=False)
     return df
 
 
-def construct_intraday_query(pdt, start_date=None, end_date=None, offset=None, contracts=None):
-    """Helper method that generates the SQL query for pulling from the intraday table. 
+def construct_intraday_query(pdt, start_date, end_date, contracts=None):
+    """Summary
 
     Args:
-        pdts (TYPE): Description
-        start_date (None, optional): Description
-        end_date (None, optional): Description
+        pdt (TYPE): product we want to pull data from. 
+        start (TYPE): start date
+        end (TYPE): Description
+        contracts (None, optional): Description
+
+    Returns:
+        TYPE: Description
     """
-    init_query = 'select * from public.table_intra_day_trade where ('
+    init_query = 'select * from public.cleaned_intraday_data where ('
 
     # generate product query
     pdt_str = ''
 
-    # for pdt in pdts:
-    space = 1 if len(pdt) == 1 else 0
-    pdt_str += ' commodity like '
-    if contracts is not None:
-        for i in contracts:
-            pdt_str += "'" + pdt + ' '*space + i + '%%' + "'"
+    if contracts is None:
+        pdt_str = " pdt = '%s'" % pdt
+
     else:
-        pdt_str += "'" + pdt + ' '*space + '%%' + "'"
+        uids = [pdt + '  ' + mth for mth in contracts]
+        uid_str = ", ".join(["'{0}'".format(i) for i in uids])
+        pdt_str = ' underlying_id in (%s) ' % uid_str
 
-    pdt_str += ' ) '
-
-    init_query += pdt_str
+    init_query += pdt_str + ")"
 
     date_str = ''
 
     # add in date conditions
     if start_date is not None or end_date is not None:
-        if offset is not None:
-            start_date = (pd.to_datetime(start_date) -
-                          BDay(offset)).strftime('%Y-%m-%d')
-
         date_str += ' and ('
         if start_date is not None:
             date_str += ' date(date_time) >= ' + "'" + start_date + "'"
@@ -680,11 +675,8 @@ def construct_intraday_query(pdt, start_date=None, end_date=None, offset=None, c
                 date_str += ' )'
             else:
                 date_str += ' and '
-
-        if end_date is not None:
-            date_str += ' date(date_time) <= ' + "'" + end_date + "'" + ')'
-
-    init_query += ' ' + date_str
+                date_str += ' date(date_time) <= ' + "'" + end_date + "'" + ')'
+    init_query += ' ' + date_str + ';'
 
     # print('init_query: ', init_query)
     return init_query

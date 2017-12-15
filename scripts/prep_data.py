@@ -1233,7 +1233,7 @@ def reorder_ohlc_data(df, pf):
                 22, 59, 58, 0)
             data_order = 'ohlc'
 
-    df.sort_values(by=['time'])
+    df.sort_values(by=['index'], inplace=True)
     df.reset_index(drop=True, inplace=True)
 
     df = granularize(df, pf, ohlc=True)
