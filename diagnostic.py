@@ -3,10 +3,13 @@ import pandas as pd
 # import time
 from sqlalchemy import create_engine
 from scripts.portfolio import Portfolio
-from scripts.util import create_underlying, create_vanilla_option
-import scripts.prep_data as pr
+from scripts.util import create_underlying, create_vanilla_option, create_straddle
 import os
 from scripts.fetch_data import grab_data, pull_intraday_data
+from scripts.prep_data import insert_settlements
+from scripts.simulation import run_simulation
+from collections import OrderedDict
+import datetime as dt
 
 
 multipliers = {
@@ -67,91 +70,70 @@ contract_mths = {
 }
 
 
-"""Purpose: Sanity check the granularize function """
+# Purpose: Small-scale runs using the trailing stop to check if it works
+# properly.
 
-# start_date = '2017-09-18'
-# end_date = '2017-10-06'
-# pdts = ['LH']
+start = '2017-11-20'
+end = '2017-12-01'
+volid = 'LH  Z7.Z7'
+pdt = volid.split()[0]
+ftmth = volid.split('.')[1]
 
-# settle_vols, settle_prices, edf = grab_data(
-#     pdts, start_date, end_date, volids=['LH  Z7.Z7'])
+cleaned = 'datasets/trailingstop_prices_cleaned.csv'
 
-# data_path = 'C:/Users/Ananth/Desktop/Modules/HistoricSimulator/'
+settle_vols, settle_price, _ = grab_data([pdt], start, end)
 
-# # handle date and time datatypes
-# settle_vols.time = settle_vols.time.astype(pd.Timestamp)
-# settle_vols.value_date = pd.to_datetime(settle_vols.value_date)
-# settle_prices.value_date = pd.to_datetime(settle_prices.value_date)
-# settle_prices.time = settle_prices.time.astype(pd.Timestamp)
+if os.path.exists(cleaned):
+    fpdf = pd.read_csv(cleaned)
+    fpdf.value_date = pd.to_datetime(fpdf.value_date)
+    fpdf.time = pd.to_datetime(fpdf.time).dt.time
 
-# cleaned = data_path + 'datasets/debug/lh_' + start_date + \
-#     '_' + end_date + '_intraday_cleaned.csv'
-
-
-# if os.path.exists(cleaned):
-#     fpdf = pd.read_csv(cleaned)
-#     fpdf.value_date = pd.to_datetime(fpdf.value_date)
-#     fpdf.time = pd.to_datetime(fpdf.time).dt.time
-
-# else:
-#     # intraday data.
-#     it_data = pull_intraday_data(
-#         pdts, start_date=start_date, end_date=end_date)
-#     it_data = pr.sanitize_intraday_timings(it_data, filepath=data_path)
-
-#     fpdf = pr.insert_settlements(it_data, settle_prices)
-#     fpdf.to_csv(cleaned, index=False)
-
-
-# # create the position.
-# callop = create_vanilla_option(settle_vols, settle_prices, 'LH  Z7.Z7', 'call',
-#                                False, strike='atm', greek='theta', greekval=10000)
-# pf = Portfolio(None, name='LH_pf')
-# pf.add_security([callop], 'OTC')
-# delta = pf.net_greeks['LH']['Z7'][0]
-# shorted = True if delta > 0 else False
-# lots = round(abs(delta))
-
-# ft, _ = create_underlying('LH', 'Z7', settle_prices, date=settle_prices.value_date.min(),
-#                           shorted=shorted, lots=lots)
-
-# pf.add_security([ft], 'hedge')
-
-# # filter one particular day.
-# tst_df = fpdf[(fpdf.value_date == pd.to_datetime('2017-09-21')) &
-#               (fpdf.underlying_id == 'LH  Z7')]
-# interval = 1.4
-from scripts.prep_data import clean_intraday_data, sanitize_intraday_timings
-import datetime as dt
-import os
-import time
-
-path = 'intraday_cleaning_test_full.csv'
-if os.path.exists(path):
-    df = pd.read_csv(path)
-    df.date_time = pd.to_datetime(df.date_time)
 else:
-    user = 'sumit'
-    password = 'Olam1234'
-    engine = create_engine('postgresql://' + user + ':' + password +
-                           '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
-    connection = engine.connect()
-    query = "select * from public.table_intra_day_trade where commodity like 'LCZ7 %%' and date_time >= '2017-09-18' and date_time <= '2017-10-06' "
-
-    t = time.clock()
-    df = pd.read_sql_query(query, connection)
-    print('data pulling time elapsed: ', time.clock() - t)
-    df.to_csv(path, index=False)
+    it_data = pull_intraday_data(
+        [pdt], start_date=start, end_date=end, contracts=[ftmth])
+    fpdf = insert_settlements(it_data, settle_price)
+    fpdf.to_csv(cleaned, index=False)
 
 
-edf = pd.read_csv('datasets/exchange_timings.csv')
-df['pdt'] = df.commodity.str[:2].str.strip()
-df['time'] = df.date_time.dt.time
-tdf = df[df.time == dt.time(8, 30, 00)]
+# create the portfolio and hedging parameters
+# be = {'CC': {'U7': 1, 'Z7': 1},
+#       'QC': {'U7': 1, 'Z7': 1}}
+# settle_vols.time = dt.time.max
+# settle_price.time = pd.to_datetime(settle_price.time).dt.time
+# settle_vols.time = pd.to_datetime(settle_vols.time).dt.time
+# fpdf.time = pd.to_datetime(fpdf.time).dt.time
 
 
-# df = sanitize_intraday_timings(df, edf=edf)
+vals = {'LH  Z7': 1.4}
 
-t = time.clock()
-df2 = clean_intraday_data(df, edf=edf)
-print('data cleaning elapsed: ', time.clock() - t)
+intraday_params = {'tstop': {'trigger': {'LH  Z7': (2, 'price')},
+                             'value': {'LH  Z7': (1, 'price')}}}
+
+gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+                                    ['intraday', 'static', vals, 1,
+                                     intraday_params]]})
+
+
+pf = Portfolio(hedge_params=gen_hedges, name='LHZ7 Tstop')
+
+# create the options.
+
+ops = create_straddle(volid, settle_vols, settle_price,
+                      settle_vols.value_date.min(), False, 'atm',
+                      greek='theta', greekval=10000)
+pf.add_security(ops, 'OTC')
+
+# add the future to make it delta neutral.
+delta = pf.get_net_greeks()['LH']['Z7'][0]
+shorted = True if delta > 0 else False
+lots_req = abs(round(delta))
+
+ft, _ = create_underlying(pdt, ftmth, settle_price,
+                          date=settle_price.value_date.min(),
+                          shorted=shorted, lots=lots_req)
+
+pf.add_security([ft], 'hedge')
+
+print('pf: ', pf)
+
+results = run_simulation(settle_vols, fpdf, pf)
