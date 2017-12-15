@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-12-11 20:13:45
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-12-15 23:24:33
 
 ################################ imports ###################################
 # general imports
@@ -265,12 +265,17 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
         if drawdown_limit is not None:
             curr_pnl = net_cumul_values[-1] if net_cumul_values else 0
+
+            if curr_pnl > highest_value:
+                print('net pnl exceeds highest value, resetting drawdown benchmark.')
+                highest_value = netpnl
+
             if highest_value - curr_pnl >= drawdown_limit:
-                print('Current Drawdown: ', highest_value - curr_pnl)
+                print('Current Drawdown: ', curr_pnl - highest_value)
                 print('DRAWDOWN LIMIT HAS BEEN BREACHED. ENDING SIMULATION...')
                 break
             else:
-                print('Current Drawdown: ', highest_value - curr_pnl)
+                print('Current Drawdown: ', curr_pnl - highest_value)
                 print('Current Drawdown Percentage: ',
                       ((highest_value - curr_pnl)/(drawdown_limit)) * 100)
 
@@ -547,10 +552,6 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
     # store a copy for log writing purposes.
 
-        if netpnl > highest_value:
-            print('net pnl exceeds highest value, resetting drawdown benchmark.')
-            highest_value = netpnl
-
         # compute market minuses, isolate if end of sim.
         mm, diff = compute_market_minus(pf, settle_vols)
         print('market minuses for the day: ', mm, diff)
@@ -669,7 +670,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                         if op.K < op.underlying.get_price()])
 
         if drawdown_limit is not None:
-            drawdown_val = highest_value - net_cumul_values[-1]
+            drawdown_val = net_cumul_values[-1] - highest_value
             drawdown_pct = (
                 highest_value - net_cumul_values[-1])/(drawdown_limit)
 
