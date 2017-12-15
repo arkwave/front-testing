@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-12-05 13:48:47
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-14 15:56:30
+# @Last Modified time: 2017-12-14 22:01:38
 
 import numpy as np
 from .hedge_mods import HedgeModifier, TrailingStop
@@ -190,9 +190,6 @@ class HedgeParser:
         5) UID is active and interval sign is opposite from direction to stop. returns empty list.
 
         """
-        print('-------------------------------------------------------------------')
-        print('START: ', start)
-        print('END: ', end)
 
         def f(start, end, interval):
             if start > end and interval > 0:
@@ -211,7 +208,6 @@ class HedgeParser:
             return []
 
         interval = -interval if end < start else interval
-        print('INTERVAL: ', interval)
 
         # edge case 1: No hedgemod present.
         if hedgemod is None:
@@ -221,7 +217,6 @@ class HedgeParser:
 
         # isolate the boolean condition to be tested.
         active = hedgemod.get_active(uid=uid)
-        print('ACTIVE: ', active)
 
         lst = []
 
@@ -229,27 +224,27 @@ class HedgeParser:
         curr = start + interval
         done = None
 
-        print('CURR: ', curr)
         # edge case 2: uid is already active. one of two cases:
         # if hit --> deactivate and continue.
         # if not hit and interval is in opposite direction from stop -> return
         # lst.
         if active:
-            print('active case.')
+            # print('active case.')
             # # case: edge case where the UID is active but the price move
             # # is irrelevant.
             erun, eruntype, estopval = hedgemod.run_deltas(
                 uid, {uid: end}, update=False)
-            print('edge case: run, runtype, stop:', erun, eruntype, estopval)
+            # print('edge case: run, runtype, stop:', erun, eruntype, estopval)
 
             if (eruntype != 'hit') and abs(start - end) < abs(interval):
                 done = True
-                print('DONE AFTER EDGE CASE: ', done)
+                # print('DONE AFTER EDGE CASE: ', done)
 
             else:
                 run, runtype, stopval = hedgemod.run_deltas(uid, {uid: curr})
                 print('run, str, stopval: ', run, runtype, stopval)
                 if runtype == 'hit':
+                    print('trailing stop hit! value: ', curr)
                     lst.append(stopval)
                     prev = stopval
                     curr = stopval + interval
@@ -262,9 +257,17 @@ class HedgeParser:
                         done = True
 
         # main loop
-        print('tstop before main loop: ', hedgemod)
-        print('current: ', curr)
+        # print('tstop before main loop: ', hedgemod)
+        # print('current: ', curr)
         done = f(curr, end, interval) if done is None else done
+
+        if not done:
+            print('-------------------------------------------------------------------')
+            print('START: ', start)
+            print('END: ', end)
+            print('ACTIVE: ', active)
+            print('CURR: ', curr)
+            print('INTERVAL: ', interval)
 
         while (not done):
             # print('main loop. curr, interval, active -  ', curr, interval, active)
@@ -305,11 +308,13 @@ class HedgeParser:
                         curr += interval
                     active = False
 
-            print('EOL inputs to Done: ', curr, end, interval)
+            # print('EOL inputs to Done: ', curr, end, interval)
             done = f(curr, end, interval)
-            print('done: ', done)
-            print('EOL List: ', lst)
-        print('-------------------------------------------------------------------')
+            # print('done: ', done)
+        if lst:
+            print('Price List: ', lst)
+            print('-------------------------------------------------------------------')
+        # print('-------------------------------------------------------------------')
         # at the very end, update the HedgeMod object to the latest value.
         hedgemod.update_current_level({uid: end}, uid=uid)
 

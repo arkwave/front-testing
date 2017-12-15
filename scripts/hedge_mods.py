@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-29 19:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-14 15:00:29
+# @Last Modified time: 2017-12-14 21:53:04
 import pprint
 from abc import ABC, abstractmethod
 import numpy as np
@@ -315,18 +315,23 @@ class TrailingStop(HedgeModifier):
         stop_direction = 1 if current_price <= self.anchor_points[uid] else -1
         stopval = self.stop_values[uid]
 
-        print('val, current_price, stopval: ', val, current_price, stopval)
-        print('stop direction: ', stop_direction)
+        # print('val, current_price, stopval: ', val, current_price, stopval)
+        # print('stop direction: ', stop_direction)
 
         if np.isclose(current_price, stopval):
+            print('stop hit! %s, %s' % (str(current_price), str(stopval)))
             return True, stopval
 
         # case 1: sell-stop and current price <= stop value.
         elif (current_price <= stopval) and stop_direction == -1:
+            print('stop hit! %s, %s, %s' %
+                  (str(current_price), str(stopval), stop_direction))
             return True, stopval
 
         # case 2: buy-stop and current price >= stop value.
         elif (current_price >= stopval) and stop_direction == 1:
+            print('stop hit! %s, %s, %s' %
+                  (str(current_price), str(stopval), stop_direction))
             return True, stopval
 
         return False, None
@@ -357,7 +362,7 @@ class TrailingStop(HedgeModifier):
         if curr_active:
             # case: trailingstop got hit. neutralize all.
             hit, val = self.trailing_stop_hit(uid)
-            print('hit, val: ', hit, val)
+            # print('hit, val: ', hit, val)
             if hit:
                 print('Update is %s' % update)
                 if update:

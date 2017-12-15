@@ -1414,7 +1414,6 @@ def handle_overnight_market_timings(df, start_date, end_date):
     return df
 
 
-# TODO: handle rounding of strikes when necessary.
 # TODO: handle HedgeParser implementation to account for trailing stops etc.
 def granularize(df, pf, interval=None, ohlc=False, intraday=False):
     """Helper function that takes in a dataframe filtered through reorder_ohlc_data, 
@@ -1545,7 +1544,7 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
                         print('curr_time: ', curr_time)
 
                         intermediates = create_intermediate_rows(
-                            intermediate_prices, lastrow, ohlc)
+                            intermediate_prices, lastrow, ohlc, curr_time, row)
                         fin_df = pd.concat([fin_df, intermediates])
                         curr_price = intermediate_prices[-1]
 
@@ -1611,7 +1610,7 @@ def create_intermediate_rows(lst, lastrow, ohlc, curr_time, row):
 
         newrow = {'value_date': row.value_date, 'time': newtime, 'pdt': row.pdt,
                   'ftmth': row.ftmth, 'price': newprice, 'datatype': 'intraday',
-                  'underlying_id': row.uid, 'relevant': True}
+                  'underlying_id': row.underlying_id, 'relevant': True}
 
         lastrow = newrow
         if ohlc:
