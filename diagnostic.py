@@ -58,52 +58,16 @@ contract_mths = {
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
-# Purpose: sanity check the new pulling functions and ensure that the two
-# results are identical.
-import os
-from scripts.fetch_data import pull_intraday_data_new, pull_intraday_data_old
+from scripts.fetch_data import pull_intraday_data
+from scripts.prep_data import filter_outliers
 
-pdt = 'CT'
+pdt = 'CC'
 contract = ['H8']
-start = '2017-11-20'
-end = '2017-12-12'
-oldpath = 'old_data.csv'
+start = '2017-11-26'
+end = '2017-11-28'
+# oldpath = 'old_data.csv'
 
+df = pull_intraday_data([pdt], start_date=start,
+                        end_date=end, contracts=contract)
 
-newdf = pull_intraday_data_new([pdt], start_date=start,
-                               end_date=end, contracts=contract)
-
-
-if os.path.exists(oldpath):
-    olddf = pd.read_csv(oldpath)
-    olddf.value_date = pd.to_datetime(olddf.value_date)
-    olddf.time = pd.to_datetime(olddf.time).dt.time
-else:
-    olddf = pull_intraday_data_old(
-        [pdt], start_date=start, end_date=end, contracts=contract)
-    olddf.to_csv(oldpath)
-
-# define a bunch of sanity checks.
-
-not_matching = []
-
-for dt, grp in olddf.groupby('value_date'):
-    newdf_grp = newdf[newdf.value_date == dt]
-    print('date, oldlen, newlen: ', dt, len(grp), len(newdf_grp))
-
-
-ndf = newdf[newdf.value_date == newdf.value_date.min()]
-odf = olddf[olddf.value_date == olddf.value_date.min()]
-
-# def sanity_check_data(old, new):
-#     # first: check length.
-#     try:
-#         assert len(old) == len(new)
-#     except AssertionError as e:
-#         raise AssertionError(len(old), len(new))
-
-#     # check dates.
-#     olddates = old.value_date.unique()
-#     newdates = new.value_date.unique()
-#     assert len(newdates) == len(olddates)
-#     assert newdates == olddates
+tdf, df = filter_outliers(df, fixed=30)

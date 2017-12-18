@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-15 21:33:18
+# @Last Modified time: 2017-12-18 20:08:58
 
 # import time
 import datetime as dt
@@ -542,7 +542,6 @@ def pull_expdata():
     return df
 
 
-# TODO: parallelize.
 def pull_intraday_data(pdts, start_date=None, end_date=None, filepath='', contracts=None):
     """Helper method that pulls intraday data from the DB.
 
@@ -595,7 +594,7 @@ def _pull_intraday_data(pdt, start_date=None, end_date=None, filepath='', contra
                        ) if contracts is not None else ''
 
     if filepath == '':
-        filepath = 'datasets/debug/'
+        filepath = 'C:/Users/Ananth/Desktop/Modules/HistoricSimulator/datasets/debug/'
 
     cleaned = filepath + pdt + '_' + start_date + '_' + \
         end_date + '_intraday_cleaned' + '_' + vid_str + '.csv'

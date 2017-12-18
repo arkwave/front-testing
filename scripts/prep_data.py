@@ -1747,7 +1747,43 @@ def aggregate_pnp_positions(df):
     return final
 
 
+def _filter_outliers(df, threshold):
+    """Helper function called in filter_outliers
+    that marks all outlier values as True. 
+
+    Args:
+        df (TYPE): dataframe of cleaned intraday prices grouped by product, UID and date. 
+        threshold (float): value above which a price diff considered an anomaly. 
+    """
+
+    # get the threshold
+    tick = multipliers[df.pdt.unique()[0]][-3]
+    threshold *= tick
+    df.ix[abs(df.price.diff()) > threshold, 'anomalous'] = True
+    return df
+
+
+def filter_outliers(df, fixed=10, dic=None, drop=False):
+    """Helper function that filters out anomalous price points (i.e.)
+    prices moving 60 ticks in one second, etc. 
+
+    Args:
+        df (TYPE): dataframe of cleaned intraday prices. 
+        fixed (float, optional): indicates if the thresholds are fixed multiples. 
+        dic (None, optional): if fixed is None, use this dictionary of product -> threshold (in ticks) to filter outliers.
+
+    Returns:
+        TYPE: Description
+    """
+    df = df.groupby(['pdt', 'underlying_id', 'value_date']
+                    ).apply(_filter_outliers, threshold=fixed)
+
+    if drop:
+        df = df[pd.isnull(df.anomalous)]
+
+    return df
+
+
 ##########################################################################
 ##########################################################################
 ##########################################################################
-####
