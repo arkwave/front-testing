@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-12-11 15:36:40
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-12-15 23:44:07
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -300,8 +300,8 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     # case: want to create an option with a specific breakeven. given price,
     # compute the vol
     if 'breakeven' in kwargs and kwargs['breakeven'] is not None:
-        pnl_mult = multipliers[pdt][-1]
-        vol = (16 * kwargs['breakeven'] * pnl_mult)/(ftprice * 100)
+        # pnl_mult = multipliers[pdt][-1]
+        vol = ((252**0.5) * kwargs['breakeven'])/(ftprice)
 
     # Case 1 : Vol is None, but strike is specified.
     elif vol is None and strike is not None:
