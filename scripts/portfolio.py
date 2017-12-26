@@ -461,14 +461,6 @@ class Portfolio:
             elif sec.check_expired():
                 explist['hedge'].append(sec)
 
-        for ft in self.OTC_futures:
-            if ft.check_expired():
-                explist['OTC'].append(ft)
-
-        for ft in self.hedge_futures:
-            if ft.check_expired():
-                explist['hedge'].append(ft)
-
         self.remove_security(explist['hedge'], 'hedge')
         self.remove_security(explist['OTC'], 'OTC')
 
@@ -1016,8 +1008,11 @@ class Portfolio:
         return self.hedger
 
     def get_hedgeparser(self, dup=False):
-        return self.hedger.get_hedgeparser() if dup is False \
-            else copy.deepcopy(self.hedger.get_hedgeparser())
+        if not dup:
+            return self.hedger.get_hedgeparser()
+        else:
+            # fin = HedgeParser(self, )
+            return copy.deepcopy(self.hedger.get_hedgeparser())
 
     def get_unique_uids(self):
         """Helper method that returns a set of the unique underlyings currently in the portfolio. 

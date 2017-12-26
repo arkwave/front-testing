@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-29 19:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-14 21:53:04
+# @Last Modified time: 2017-12-26 21:19:40
 import pprint
 from abc import ABC, abstractmethod
 import numpy as np
@@ -203,13 +203,13 @@ class TrailingStop(HedgeModifier):
                 val = breakevens[pdt][mth] * bound
                 self.thresholds[uid] = (lastpt - val, lastpt + val)
 
-    def update_current_level(self, dic, uid=None, update=True):
+    def update_current_level(self, dic, uid=None, update=True, reset=False):
         if uid is None:
             self.current_level = dic
         else:
             self.current_level[uid] = dic[uid]
 
-        if update:
+        if update and not reset:
             self.update_active()
             self.update_extrema()
 
@@ -295,6 +295,18 @@ class TrailingStop(HedgeModifier):
                                     self.thresholds[uid][0]))
                            for uid in self.current_level}
 
+    def eod_reset(self):
+        # resets everything. called at the end of a day.
+        # get all uids
+        uids = self.pf.get_unique_uids()
+        prices = self.pf.uid_price_dict()
+        self.update_anchor_points(prices)
+        self.update_current_level(prices, reset=True)
+
+        for uid in uids:
+            self.unlock(uid)
+            self.reset_extrema(uid)
+
     def trailing_stop_hit(self, uid, val=None):
         """
         Helper function that checks to see if the trailing stop has been hit. if so, return true.
@@ -375,6 +387,8 @@ class TrailingStop(HedgeModifier):
 
             # case: active but TS not hit. run deltas.
             else:
+                # print('%s is active. ' % uid)
+
                 # case: activated on this price move.
                 if curr_active != init_active:
                     ret = (True, 'breached', stopval)

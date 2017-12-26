@@ -479,7 +479,6 @@ class Future:
             self.price = price
         else:
             raise ValueError("Price cannot be negative")
-        self.expired = self.check_expired()
         mult = -1 if shorted else 1
         self.delta = 1 * lots * mult
         self.instructions = instructions
@@ -519,11 +518,6 @@ class Future:
 
     def get_product(self):
         return self.product
-
-    def check_expired(self):
-        ret = True if self.ordering == 0 else False
-        self.expired = ret
-        return ret
 
     def update_lots(self, lots):
         self.lots = lots

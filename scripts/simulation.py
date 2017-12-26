@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-27 14:12:41
+# @Last Modified time: 2017-12-26 22:00:17
 
 ################################ imports ###################################
 # general imports
@@ -317,7 +317,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         settle_vols = vdf_1[vdf_1.datatype == 'settlement'].copy()
         settle_prices = pdf_1[pdf_1.datatype == 'settlement'].copy()
 
-        print('settle_prices: ', settle_prices)
+        # print('settle_prices: ', settle_prices)
 
         # filter dataframes to get only pertinent UIDs data.
         pdf_1 = pdf_1[pdf_1.underlying_id.isin(
@@ -397,6 +397,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
                 pf.assign_hedger_dataframes(vdf, pdf_ts)
 
+                print('pf after hedger df assignment: ', pf)
                 print('last price before update: ', latest_price)
 
             # Step 3: Feed data into the portfolio.
@@ -412,7 +413,9 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                     "========================= PNL & BARR/EX ==========================")
 
             # Step 4: Compute pnl for the this timestep.
+                print('pf after feed: ', pf)
                 updated_val = pf.compute_value()
+
                 # sanity check: if the portfolio is closed out during this
                 # timestep, pnl = exercise proft.
                 if pf.empty():
@@ -534,11 +537,11 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # Step 7: Hedge - bring greek levels across portfolios (and families) into
     # line with target levels using specified vols/prices.
         print("========================= REBALANCE ==========================")
-        print('settle prices before rebalance: ', settle_prices)
+        # print('settle prices before rebalance: ', settle_prices)
         pf, cost, roll_hedged = rebalance(h_vdf, settle_prices, pf, brokerage=brokerage,
                                           slippage=slippage, next_date=next_date,
                                           settlements=settle_vols, book=book)
-        print('rebalance cost: ', cost)
+        # print('rebalance cost: ', cost)
         dailycost += cost
         print("==================================================================")
 
@@ -987,13 +990,19 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
     total_profit = exercise_profit + barrier_profit
     print('total_profit: ', total_profit)
 
+    print('pf after price updates: ', pf)
     # refresh portfolio after price updates.
     # if price_updated:
     pf.refresh()
+    print('pf after price update refresh 1: ', pf)
+
     # removing expiries
     pf.remove_expired()
+    print('pf after removing expiries: ', pf)
     # refresh after handling expiries.
     pf.refresh()
+
+    print('pf after price update refresh 2: ', pf)
 
     # TODO: Need to re-implement the sanity checks for when portfolio needs
     # to be cleaned out.
@@ -1033,6 +1042,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
     # calculating gamma pnl
     intermediate_val = pf.compute_value()
     print('intermediate value: ', intermediate_val)
+    print('init val: ', init_val)
     if exercised:
         # case: portfolio is empty after data feed step (i.e. expiries and
         # associated deltas closed)
@@ -1688,7 +1698,7 @@ def rebalance(vdf, pdf, pf, buckets=None, brokerage=None, slippage=None,
                     hedge_engine.refresh()
 
             # debug statements
-            print('overall hedge params: ', pf.hedge_params)
+            # print('overall hedge params: ', pf.hedge_params)
 
             # hedging delta after non-delta greeks.
             if 'delta' in pf.hedge_params:

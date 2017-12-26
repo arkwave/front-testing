@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-12-05 13:48:47
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-14 22:01:38
+# @Last Modified time: 2017-12-26 22:18:44
 
 import numpy as np
 from .hedge_mods import HedgeModifier, TrailingStop
@@ -65,7 +65,11 @@ class HedgeParser:
         hedger_ratio = self.hedger_ratio
 
         if flag == 'eod':
-            # print('HedgeParser - EOD case.')
+            # reset everything in the hedgemod object.
+            if self.mod_obj is not None:
+                # pass
+                self.mod_obj.eod_reset()
+                print('trailingstop after reset: ', self.mod_obj)
             return {uid: 0 for uid in uids}
 
         if self.mod_obj is None:
@@ -84,10 +88,14 @@ class HedgeParser:
             assert trigger_bounds.keys() == hedger_interval_dict.keys()
             assert set(trigger_bounds.keys()) == uids
 
-            for uid in uids:
+            prices = self.pf.uid_price_dict()
 
+            for uid in uids:
                 run_deltas, type_str, stopval = \
-                    self.mod_obj.run_deltas(uid, self.pf.uid_price_dict())
+                    self.mod_obj.run_deltas(uid, prices)
+
+                print('hedgeparser.parse_hedges: ',
+                      run_deltas, type_str, stopval)
 
                 if run_deltas:
                     # case: we want to run the deltas of this uid.
@@ -121,6 +129,8 @@ class HedgeParser:
                     # print('Case (2): Do not run deltas for %s' % uid)
                     # print('trailing stop %s' % ('hit' if type_str == 'hit' else 'not hit'))
                     ret[uid] = 0 if type_str == 'hit' else 1 - hedger_ratio
+
+                self.mod_obj.update_current_level(self.pf.uid_price_dict())
 
         return ret
 
@@ -245,6 +255,7 @@ class HedgeParser:
                 print('run, str, stopval: ', run, runtype, stopval)
                 if runtype == 'hit':
                     print('trailing stop hit! value: ', curr)
+                    print('hedgemod: ', hedgemod)
                     lst.append(stopval)
                     prev = stopval
                     curr = stopval + interval
@@ -255,6 +266,7 @@ class HedgeParser:
                     # we will never hit stop --> might as well return
                     if np.sign(stopval - end) != np.sign(interval):
                         done = True
+                        print('done: ', done)
 
         # main loop
         # print('tstop before main loop: ', hedgemod)
