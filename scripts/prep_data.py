@@ -1460,8 +1460,6 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
     curr_prices = pf.hedger.get_hedgepoints().copy()
 
     for uid in uids:
-        pdt = uid.split()[0]
-        ticksize = multipliers[pdt][2]
         uid_df = df[df.underlying_id == uid].sort_values('time')
         uid_df.reset_index(drop=True, inplace=True)
         # get the hedging value.
@@ -1482,9 +1480,15 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
             if row.datatype == 'settlement':
                 continue
 
-            intermediate_prices = \
-                hedgeparser.relevant_price_move(
-                    uid, row.price, comparison=curr_price)
+            # print('---------- entering HedgeParser.relevant_price_move ------------')
+            try:
+                intermediate_prices = \
+                    hedgeparser.relevant_price_move(
+                        uid, row.price, comparison=curr_price)
+            except TypeError as e:
+                print('Index: ', index)
+                raise TypeError from e
+            # print('---------- hedgeparser logic done -------------')
 
             # if it's less than interval and intraday, nothing needs to be
             # done. set to false.
@@ -1506,6 +1510,7 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
                     print('diff, interval: ', diff, interval)
                     print(
                         'found move close to interval. resetting curr_price to ' + str(row.price))
+                    print(hedgeparser.get_mod_obj())
 
                     fin_df.ix[(fin_df.underlying_id == uid) &
                               (fin_df.time == row.time) &
@@ -1547,6 +1552,9 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
                             intermediate_prices, lastrow, ohlc, curr_time, row)
                         fin_df = pd.concat([fin_df, intermediates])
                         curr_price = intermediate_prices[-1]
+                        print(hedgeparser.get_mod_obj())
+                print('---------------- row %s handled -------------' %
+                      str(index))
 
     # sort values by time, filter relevant entries and reset indexes.
     if ohlc:

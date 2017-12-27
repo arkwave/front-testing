@@ -3,7 +3,7 @@ import pandas as pd
 # import time
 from sqlalchemy import create_engine
 from scripts.portfolio import Portfolio
-from scripts.util import create_underlying, create_vanilla_option, create_straddle
+from scripts.util import create_underlying, create_vanilla_option, create_straddle, assign_hedge_objects
 import os
 from scripts.fetch_data import grab_data, pull_intraday_data
 from scripts.prep_data import insert_settlements
@@ -99,15 +99,15 @@ else:
 # be = {'CC': {'U7': 1, 'Z7': 1},
 #       'QC': {'U7': 1, 'Z7': 1}}
 # settle_vols.time = dt.time.max
-# settle_price.time = pd.to_datetime(settle_price.time).dt.time
+settle_price.time = pd.to_datetime(settle_price.time).dt.time
 # settle_vols.time = pd.to_datetime(settle_vols.time).dt.time
 # fpdf.time = pd.to_datetime(fpdf.time).dt.time
 
 
 vals = {'LH  Z7': 1.4}
 
-intraday_params = {'tstop': {'trigger': {'LH  Z7': (2, 'price')},
-                             'value': {'LH  Z7': (1, 'price')}}}
+intraday_params = {'tstop': {'trigger': {'LH  Z7': (1.5, 'price')},
+                             'value': {'LH  Z7': (0.2, 'price')}}}
 
 gen_hedges = OrderedDict({'delta': [['static', 0, 1],
                                     ['intraday', 'static', vals, 1,
@@ -135,5 +135,25 @@ ft, _ = create_underlying(pdt, ftmth, settle_price,
 pf.add_security([ft], 'hedge')
 
 print('pf: ', pf)
+
+# pf = assign_hedge_objects(pf, book=False)
+
+# h1 = pf.get_hedgeparser()
+
+# h2 = pf.get_hedgeparser(dup=True)
+
+# print('h1: ', h1)
+# print('-'*30)
+# print('h1.mod_obj: ', h1.get_mod_obj())
+# print('-'*30)
+# print('h2.mod_obj: ', h2.get_mod_obj())
+
+# print('#'*30)
+# prices = h1.relevant_price_move('LH  Z7', 58)
+# print('-'*30)
+# print('h1.mod_obj: ', h1.get_mod_obj())
+# print('-'*30)
+# print('h2.mod_obj: ', h2.get_mod_obj())
+# print('#'*30)
 
 results = run_simulation(settle_vols, fpdf, pf)

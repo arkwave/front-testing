@@ -2,9 +2,10 @@
 # @Author: Ananth
 # @Date:   2017-12-05 13:48:47
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-26 22:18:44
+# @Last Modified time: 2017-12-27 21:52:20
 
 import numpy as np
+import pprint
 from .hedge_mods import HedgeModifier, TrailingStop
 
 
@@ -40,6 +41,14 @@ class HedgeParser:
         if self.mod_obj is not None:
             assert isinstance(self.mod_obj, HedgeModifier)
 
+    def __str__(self):
+        mod_type = 'TrailingStop' if isinstance(
+            self.mod_obj, TrailingStop) else 'None'
+        params = {'mod_obj': self.mod_obj.__str__(),
+                  'mod_type': mod_type}
+
+        return str(pprint.pformat(params))
+
     def get_hedger_ratio(self):
         return self.hedger_ratio
 
@@ -68,6 +77,7 @@ class HedgeParser:
             # reset everything in the hedgemod object.
             if self.mod_obj is not None:
                 # pass
+                print('PERFORMING EOD RESET')
                 self.mod_obj.eod_reset()
                 print('trailingstop after reset: ', self.mod_obj)
             return {uid: 0 for uid in uids}
@@ -116,7 +126,7 @@ class HedgeParser:
                         print('Case (1.2): hedge interval == run trigger bounds')
                         # case: bounds are equal, but UID is currently active.
                         if self.mod_obj.get_active(uid=uid):
-                            print('active case.')
+                            print('parse_hedges - active case.')
                             ret[uid] = 1 - \
                                 hedger_ratio if type_str == 'breached' else 1
                         # case: bounds are equal to hedge levels, and uid is
@@ -134,8 +144,8 @@ class HedgeParser:
 
         return ret
 
-    def relevant_price_move(self, uid, val, comparison=None):
-        """ Helper function that takes in a uid, price value and an optional comparison
+    def relevant_price_move(self, uid, val, comparison):
+        """Helper function that takes in a uid, price value and an optional comparison
         price point returns a list of valid price moves between these two points, taking
         hedgemod constraints and hedging intervals into account. s
 
@@ -143,7 +153,8 @@ class HedgeParser:
             uid (str): the uid being handled, e.g. C  Z7
             val (float): the price point we're interested in.
             comparison (float, optional): the value to be compared against.
-                                          used when the HedgeParser is called in granularize.
+                                          used when the HedgeParser is called in granularize. the last point at which this UID
+                                          has been hedged. 
 
 
         Returns:
@@ -153,6 +164,11 @@ class HedgeParser:
                 2) hedge mod is not None:
                     - no monitoring active and invalid price move.
                     - uid is active and val is further away from stop value than comparison.
+
+
+        Raises:
+            ValueError: Raised iff comparison value and 
+                        hedgmodifier object are both None. 
 
 
         """
@@ -167,9 +183,6 @@ class HedgeParser:
                 raise ValueError(
                     "Comparison value is not explicitly specified, and HedgeMod object does not exist while trying to find relevant price moves for %s" % uid)
 
-        comparison = mod.get_current_level(
-            uid=uid) if comparison is None else comparison
-
         # generate a sequence of prices between comparison and val.
         # this is uni-directional by definition --> only need to care
         # about a single interval rather than caring about +- interval.
@@ -182,8 +195,8 @@ class HedgeParser:
         hedgemod and
 
         Args:
-            start (float): start point.
-            end (float): end point.
+            start (float): the last point at which this UID was hedged. 
+            end (float): the target value being imputed. 
             interval (float): the hedging interval considered.
             uid (str): the UID for which prices are being assessed. 
             hedgemod (HedgeModifier): HedgeModifier object.
@@ -203,19 +216,23 @@ class HedgeParser:
 
         def f(start, end, interval):
             if start > end and interval > 0:
+                # print('check case 1')
                 return True
             elif start > end and interval < 0:
+                # print('check case 2')
                 return False
             elif start < end and interval > 0:
+                # print('check case 3')
                 return False
             elif start < end and interval < 0:
+                # print('check case 4')
                 return True
 
         hedgemod = self.get_mod_obj() if hedgemod is None else hedgemod
 
-        # edge case 0: start and end are the same.
-        if start == end:
-            return []
+        # # edge case 0: start and end are the same.
+        # if start == end:
+        #     return []
 
         interval = -interval if end < start else interval
 
@@ -234,23 +251,34 @@ class HedgeParser:
         curr = start + interval
         done = None
 
+        # TODO : FURTHER TESTING ON THIS.
         # edge case 2: uid is already active. one of two cases:
         # if hit --> deactivate and continue.
         # if not hit and interval is in opposite direction from stop -> return
         # lst.
         if active:
-            # print('active case.')
+            print('gen_prices - active case.')
             # # case: edge case where the UID is active but the price move
-            # # is irrelevant.
+            # # is irrelevant as per Hedger
             erun, eruntype, estopval = hedgemod.run_deltas(
                 uid, {uid: end}, update=False)
-            # print('edge case: run, runtype, stop:', erun, eruntype, estopval)
-
+            print('edge case: run, runtype, stop:', erun, eruntype, estopval)
+            print('tstop after edge case check: ', self.mod_obj)
             if (eruntype != 'hit') and abs(start - end) < abs(interval):
                 done = True
-                # print('DONE AFTER EDGE CASE: ', done)
+                print('DONE AFTER EDGE CASE: ', done)
+
+            elif eruntype == 'hit':
+                # run delta call to update delta until stop value.
+                run, runtype, stopval = hedgemod.run_deltas(
+                    uid, {uid: estopval})
+                lst.append(estopval)
+                prev = estopval
+                curr = estopval + interval
+                active = run
 
             else:
+                print('prev, curr: ', prev, curr)
                 run, runtype, stopval = hedgemod.run_deltas(uid, {uid: curr})
                 print('run, str, stopval: ', run, runtype, stopval)
                 if runtype == 'hit':
@@ -260,17 +288,7 @@ class HedgeParser:
                     prev = stopval
                     curr = stopval + interval
                     active = run
-                else:
-                    print('active else case')
-                    # if direction to stop value from curr != direction of interval,
-                    # we will never hit stop --> might as well return
-                    if np.sign(stopval - end) != np.sign(interval):
-                        done = True
-                        print('done: ', done)
 
-        # main loop
-        # print('tstop before main loop: ', hedgemod)
-        # print('current: ', curr)
         done = f(curr, end, interval) if done is None else done
 
         if not done:
@@ -286,15 +304,15 @@ class HedgeParser:
             run, runtype, stopval = hedgemod.run_deltas(uid, {uid: curr})
             # print('run, runtype, stopval: ', run, runtype, stopval)
             # case: price move activates monitoring.
+            print('curr: ', curr)
             if run:
-                print('HedgeParser.gen_prices: running deltas at ' + str(curr))
-                lower, upper = hedgemod.get_thresholds(uid=uid)
-                # case: need to check for threshold between start and curr.
-                if curr > upper and prev < upper:
-                    lst.append(upper)
-                elif curr < lower and prev > lower:
-                    lst.append(lower)
-
+                # print('HedgeParser.gen_prices: running deltas at ' + str(curr))
+                # lower, upper = hedgemod.get_thresholds(uid=uid)
+                # # case: need to check for threshold between start and curr.
+                # if curr > upper and prev < upper:
+                #     lst.append(upper)
+                # elif curr < lower and prev > lower:
+                #     lst.append(lower)
                 prev = curr
                 curr += interval
 
@@ -304,6 +322,7 @@ class HedgeParser:
                     lst.append(curr)
                     prev = curr
                     curr += interval
+                    print('default case: ', prev, curr)
 
                 # case: stops are hit.
                 elif runtype == 'hit':

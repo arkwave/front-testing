@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-26 22:00:17
+# @Last Modified time: 2017-12-27 17:11:37
 
 ################################ imports ###################################
 # general imports
@@ -287,7 +287,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         # print('pdf_1: ', pdf_1)
 
         print("========================= INIT ==========================")
-        print('Portfolio before any ops pf:', pf)
+        print('Portfolio before any ops:', pf)
+        print('HedgeParser object: ', pf.get_hedgeparser())
         print('init val BOD: ', init_val)
         print("==========================================================")
 

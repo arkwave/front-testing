@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-29 19:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-26 21:19:40
+# @Last Modified time: 2017-12-27 21:40:10
 import pprint
 from abc import ABC, abstractmethod
 import numpy as np
@@ -203,13 +203,13 @@ class TrailingStop(HedgeModifier):
                 val = breakevens[pdt][mth] * bound
                 self.thresholds[uid] = (lastpt - val, lastpt + val)
 
-    def update_current_level(self, dic, uid=None, update=True, reset=False):
+    def update_current_level(self, dic, uid=None, update=True):
         if uid is None:
             self.current_level = dic
         else:
             self.current_level[uid] = dic[uid]
 
-        if update and not reset:
+        if update:
             self.update_active()
             self.update_extrema()
 
@@ -223,14 +223,18 @@ class TrailingStop(HedgeModifier):
 
     def update_extrema(self):
         for uid in self.current_level:
-            if abs(self.current_level[uid]) > abs(self.maximals[uid]):
+            if self.current_level[uid] > self.maximals[uid]:
+                print('maximals updated from %s to %s' %
+                      (self.maximals[uid], self.current_level[uid]))
                 self.maximals[uid] = self.current_level[uid]
-            if abs(self.current_level[uid]) < abs(self.minimals[uid]):
+            if self.current_level[uid] < self.minimals[uid]:
+                print('minimals updated from %s to %s' %
+                      (self.minimals[uid], self.current_level[uid]))
                 self.minimals[uid] = self.current_level[uid]
         self.update_stop_values()
 
     # need to figure out pathological cases.
-    def update_stop_values(self, maximals=None, minimals=None):
+    def update_stop_values(self):
         """
         Updates the values at which a given underlying will stop out by comparing current value to bounds
         specified in self.threshold. Two cases handled:
@@ -241,22 +245,29 @@ class TrailingStop(HedgeModifier):
             maximals (None, optional): Description
             minimals (None, optional): Description
         """
-        maximals = self.maximals if maximals is None else maximals
-        minimals = self.minimals if minimals is None else minimals
+        maximals = self.maximals
+        minimals = self.minimals
         assert self.stop_levels is not None
+
         for uid in self.stop_levels:
             if not self.get_active(uid=uid):
                 # # print('%s trailing stop monitor is inactive.' % uid +
                 #       ' setting stop_value to None.')
                 self.stop_values[uid] = None
             else:
+                print('-----------------------------------------')
+                print('stop values pre update: ', self.stop_values)
                 lower, upper = self.thresholds[uid]
                 data = self.stop_levels[uid]
                 if data[1] == 'price':
                     # case 1: current < lower bound.
                     if self.current_level[uid] < lower:
+                        print('minimal case: ', minimals[uid],
+                              data[0], self.current_level[uid])
                         self.stop_values[uid] = minimals[uid] + data[0]
                     elif self.current_level[uid] > upper:
+                        print('maximal case: ', maximals[uid],
+                              data[0], self.current_level[uid])
                         self.stop_values[uid] = maximals[uid] - data[0]
 
                 elif data[1] == 'breakeven':
@@ -267,6 +278,9 @@ class TrailingStop(HedgeModifier):
                         self.stop_values[uid] = minimals[uid] + val
                     elif self.current_level[uid] > upper:
                         self.stop_values[uid] = maximals[uid] - val
+                print('current levels: ', self.current_level)
+                print('stop values post update: ', self.stop_values)
+                print('-----------------------------------------')
 
     def unlock(self, uid):
         if self.locked[uid]:
@@ -299,15 +313,14 @@ class TrailingStop(HedgeModifier):
         # resets everything. called at the end of a day.
         # get all uids
         uids = self.pf.get_unique_uids()
-        prices = self.pf.uid_price_dict()
-        self.update_anchor_points(prices)
-        self.update_current_level(prices, reset=True)
-
         for uid in uids:
             self.unlock(uid)
             self.reset_extrema(uid)
+        prices = self.pf.uid_price_dict()
+        self.update_anchor_points(prices)
+        self.update_current_level(prices)
 
-    def trailing_stop_hit(self, uid, val=None):
+    def trailing_stop_hit(self, uid, initial):
         """
         Helper function that checks to see if the trailing stop has been hit. if so, return true.
 
@@ -322,28 +335,51 @@ class TrailingStop(HedgeModifier):
         if not self.get_active(uid=uid):
             return False
         # get the current price and the direction of the stop.
-        current_price = self.get_current_level(uid=uid) if val is None else val
+        current_price = self.get_current_level(uid=uid)
 
-        stop_direction = 1 if current_price <= self.anchor_points[uid] else -1
         stopval = self.stop_values[uid]
 
-        # print('val, current_price, stopval: ', val, current_price, stopval)
+        print('current price, stopval, thresholds: ',
+              current_price, stopval, self.thresholds[uid])
+
+        # get the stop direction.
+        if initial < self.thresholds[uid][0]:
+            stop_direction = 1
+        elif initial > self.thresholds[uid][1]:
+            stop_direction = -1
+        else:
+            stop_direction = 0
+
+        # stop_direction = 1 if current_price < self.anchor_points[uid] else -1
+
+        # base case: anchor point and current value are the same
+        if np.isclose(self.anchor_points[uid], current_price):
+            return False, None
+
+        print('dir, initial, current_price, stopval: ',
+              stop_direction, initial, current_price, stopval)
         # print('stop direction: ', stop_direction)
-
         if np.isclose(current_price, stopval):
-            print('stop hit! %s, %s' % (str(current_price), str(stopval)))
+            print('stop hit! - case 1')
+            print('stop direction: ', stop_direction)
+            print('current price, stop value price: %s, %s' % (
+                str(current_price), str(stopval)))
             return True, stopval
 
-        # case 1: sell-stop and current price <= stop value.
+        # case 2: sell-stop and current price <= stop value.
         elif (current_price <= stopval) and stop_direction == -1:
-            print('stop hit! %s, %s, %s' %
-                  (str(current_price), str(stopval), stop_direction))
+            print('stop hit! - case 2')
+            print('stop direction: ', stop_direction)
+            print('current price, stop value price: %s, %s' % (
+                str(current_price), str(stopval)))
             return True, stopval
 
-        # case 2: buy-stop and current price >= stop value.
+        # case 3: buy-stop and current price >= stop value.
         elif (current_price >= stopval) and stop_direction == 1:
-            print('stop hit! %s, %s, %s' %
-                  (str(current_price), str(stopval), stop_direction))
+            print('stop hit! - case 3')
+            print('stop direction: ', stop_direction)
+            print('current price, stop value price: %s, %s' % (
+                str(current_price), str(stopval)))
             return True, stopval
 
         return False, None
@@ -361,21 +397,28 @@ class TrailingStop(HedgeModifier):
             run_deltas returns false because trailing stops are hit, where monitoring is inactive.
         """
         # first: update the prices.
+        print('pre-update: ', self.__str__())
+
+        # save the initial values before price updates.
         init_active = self.get_active(uid=uid)
+        initial_current_vals = self.get_current_level().copy()
+        init = initial_current_vals[uid]
 
-        initial_current_vals = self.get_current_level()
-
+        # update current level. this will trigger updates to extrema,
+        # stop values and active status.
         self.update_current_level(price_dict, uid=uid, update=update)
 
-        stopval = self.get_stop_values(uid=uid)
+        print('post-update: ', self.__str__())
 
+        stopval = self.get_stop_values(uid=uid)
         curr_active = self.get_active(uid=uid)
 
         if curr_active:
             # case: trailingstop got hit. neutralize all.
-            hit, val = self.trailing_stop_hit(uid)
+            hit, val = self.trailing_stop_hit(uid, init)
             # print('hit, val: ', hit, val)
             if hit:
+                print('initial vals: ', initial_current_vals)
                 print('Update is %s' % update)
                 if update:
                     self.unlock(uid)
@@ -401,6 +444,9 @@ class TrailingStop(HedgeModifier):
             ret = (False, 'default', stopval)
 
         if not update:
+            print('resetting current level...')
+            print('pre-reset: ', self.__str__())
             self.reset_current_level(initial_current_vals)
+            print('post-reset: ', self.__str__())
 
         return ret
