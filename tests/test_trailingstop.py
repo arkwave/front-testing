@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-29 20:02:36
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-05 15:12:23
+# @Last Modified time: 2017-12-28 19:15:57
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -194,11 +194,14 @@ def test_trailingstop_hit_sellstop():
     # update the prices.
     newprices = {'QC  Z7': 1610, 'CC  Z7': 1990}
     tstop.update_current_level(newprices)
-    # print('first update: ', tstop)
+    print('first update: ', tstop)
     # QC Z7 should be active, CC Z7 inactive.
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
     assert tstop.get_maximals() == newprices
-    assert tstop.get_stop_values() == {'QC  Z7': 1605, 'CC  Z7': None}
+    try:
+        assert tstop.get_stop_values() == {'QC  Z7': 1605, 'CC  Z7': None}
+    except AssertionError as e:
+        raise AssertionError(tstop.get_stop_values()) from e
 
     print('-'*50)
     print('first update: ', tstop)
@@ -586,7 +589,10 @@ def test_trailingstop_locks_sellstops():
     # fall below the threshold. this should trigger a stop, updating
     # anchor points, locks, active and thresholds.
     newprices = {'QC  Z7': 1580, 'CC  Z7': 2000}
-    assert tstop.run_deltas('QC  Z7', newprices) == (False, 'hit', 1586)
+    try:
+        assert tstop.run_deltas('QC  Z7', newprices) == (False, 'hit', 1586)
+    except AssertionError as e:
+        raise AssertionError(tstop.run_deltas('QC  Z7', newprices))
     assert tstop.run_deltas('CC  Z7', newprices) == (False, 'hit', 2012)
     assert tstop.get_locks() == {'CC  Z7': False, 'QC  Z7': False}
     assert tstop.get_active() == {'CC  Z7': False, 'QC  Z7': False}
@@ -633,7 +639,11 @@ def test_trailingstop_locks_buystops():
 
     # update prices such that monitoring is now active. locks should be active.
     newprices = {'QC  Z7': 1529, 'CC  Z7': 1955}
-    assert tstop.run_deltas('QC  Z7', newprices)[0]
+    try:
+        bl = tstop.run_deltas('QC  Z7', newprices)
+        assert bl[0]
+    except AssertionError as e:
+        raise AssertionError(bl) from e
     assert tstop.run_deltas('CC  Z7', newprices)[0]
     assert tstop.get_locks() == {'CC  Z7': True, 'QC  Z7': True}
     assert tstop.get_active() == {'CC  Z7': True, 'QC  Z7': True}
@@ -650,8 +660,15 @@ def test_trailingstop_locks_buystops():
 
     # fall below the threshold. this should trigger a stop, updating
     # anchor points, locks, active and thresholds.
+
+    print('***************************************************************')
+
     newprices = {'QC  Z7': 1535, 'CC  Z7': 1961}
-    assert tstop.run_deltas('QC  Z7', newprices) == (False, 'hit', 1534)
+    try:
+        tup = tstop.run_deltas('QC  Z7', newprices)
+        assert tup == (False, 'hit', 1534)
+    except AssertionError as e:
+        raise AssertionError(tup) from e
     assert tstop.run_deltas('CC  Z7', newprices) == (False, 'hit', 1960)
     assert tstop.get_locks() == {'CC  Z7': False, 'QC  Z7': False}
     assert tstop.get_active() == {'CC  Z7': False, 'QC  Z7': False}
@@ -662,3 +679,5 @@ def test_trailingstop_locks_buystops():
         raise AssertionError(tstop.get_anchor_points())
     assert tstop.get_thresholds() == {'CC  Z7': (
         1930, 1990), 'QC  Z7': (1504, 1564)}
+
+    print('***************************************************************')

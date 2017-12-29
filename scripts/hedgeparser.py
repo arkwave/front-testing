@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-12-05 13:48:47
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-27 21:52:20
+# @Last Modified time: 2017-12-28 17:47:17
 
 import numpy as np
 import pprint
@@ -101,6 +101,9 @@ class HedgeParser:
             prices = self.pf.uid_price_dict()
 
             for uid in uids:
+                print('----- parsing hedges for %s with new price dict %s' %
+                      (uid, prices))
+
                 run_deltas, type_str, stopval = \
                     self.mod_obj.run_deltas(uid, prices)
 
@@ -140,7 +143,8 @@ class HedgeParser:
                     # print('trailing stop %s' % ('hit' if type_str == 'hit' else 'not hit'))
                     ret[uid] = 0 if type_str == 'hit' else 1 - hedger_ratio
 
-                self.mod_obj.update_current_level(self.pf.uid_price_dict())
+                self.mod_obj.update_current_level(
+                    self.pf.uid_price_dict(), uid=uid)
 
         return ret
 

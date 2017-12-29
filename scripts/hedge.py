@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-26 20:46:49
+# @Last Modified time: 2017-12-28 17:05:45
 
 import pandas as pd
 import pprint
@@ -869,21 +869,21 @@ class Hedge:
         tobehedged = {}
         print('last hedgepoints: ', self.last_hedgepoints)
         # case: intraday data
-        if intraday:
-            print('intraday hedging case')
-            curr_prices = self.pf.uid_price_dict()
-            for uid in self.pf.get_unique_uids():
-                pdt, mth = uid.split()
-                relevant_move, move_mult = self.is_relevant_price_move(
-                    uid, curr_prices[uid])
-                if relevant_move:
-                    if pdt not in tobehedged:
-                        tobehedged[pdt] = set()
-                    tobehedged[pdt].add(mth)
+        # if intraday:
+        #     print('intraday hedging case')
+        #     curr_prices = self.pf.uid_price_dict()
+        #     for uid in self.pf.get_unique_uids():
+        #         pdt, mth = uid.split()
+        #         relevant_move, move_mult = self.is_relevant_price_move(
+        #             uid, curr_prices[uid])
+        #         if relevant_move:
+        #             if pdt not in tobehedged:
+        #                 tobehedged[pdt] = set()
+        #             tobehedged[pdt].add(mth)
 
         # case: settlement-to-settlement.
-        else:
-            tobehedged = net_greeks
+        # else:
+        tobehedged = net_greeks
 
         print('tobehedged: ', tobehedged)
         print('-------- Entering HedgeParser Logic ---------')
