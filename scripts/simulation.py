@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-18 20:02:36
+# @Last Modified time: 2017-12-29 19:12:53
 
 ################################ imports ###################################
 # general imports
@@ -107,32 +107,18 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                    plot_results=True, drawdown_limit=None, mode='HSPS', mkt_minus=1e7,
                    ohlc=False, remark_on_roll=False, remark_at_end=False, hinge=False):
     """
-    Each run of the simulation consists of 5 steps:
-        1) Feed data into the portfolio.
+    Each run of the simulation consists of the following steps:
+        > for each day:
+            - granularize the day's data. 
+            > for each timestamp within the day's data:
+                - feed data. 
+                - intraday delta hedges. 
+                - day's pnl += timestamp pnl 
+            > Apply signals (if applicable)
+            > contract roll (if applicable)
+            > rebalance portfolio (eod delta hedges + hedging other greeks)
+            > proceed to next day. 
 
-        2) Compute:
-                > change in greeks from price and vol update
-                > change in overall value of portfolio from price and vol update.
-                > Check for expiry/exercise/ki/ko. Expiry can be due to barriers or tau = 0.
-                 Record changes to:
-                        - futures bought/sold as the result of exercise. [PnL]
-                        - changes in monthly greeks from options expiring. [PnL]
-                        - total number of securities in the portfolio; remove expired options.
-
-        3) Handle the options component:
-                > Check if option is bullet or daily.
-                > handle exericse appropriately.
-
-        4) PnL calculation. Components include:
-                > PnL contribution from changes in price/vols.
-                > PnL Contribution from Options
-                > PnL from shorting straddles (gamma/vega hedging)
-
-        5) Rebalance the Greeks
-                > buy/sell options to hedge gamma/vega according to conditions
-                > buy/sell futures to zero delta (if required)
-
-        Process then repeats from step 1 for the next input.
 
     Args:
         voldata (pandas dataframe): Dataframe of volatilities (strikewise)
@@ -158,7 +144,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
 
     Raises:
-        AssertionError: Description
+        AssertionError: occurs if intraday loop isn't filtered appropriately for UIDs. 
 
 
     """
@@ -716,7 +702,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 cpi = 'C' if op.char == 'call' else 'P'
                 barlevel = op.ki if op.ki is not None else op.ko
                 bvol = get_barrier_vol(
-                    vdf, op.get_product(), op.tau, cpi, barlevel)
+                    vdf, op.tau, cpi, barlevel, op.get_vol_id())
                 knockedin = op.knockedin
                 knockedout = op.knockedout
                 lst.extend([barlevel, bvol, knockedin, knockedout])
@@ -886,7 +872,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
         voldf (pandas dataframe): dataframe of vols in same format as returned by read_data
         pdf (pandas dataframe): dataframe of prices in same format as returned by read_data
         pf (portfolio object): portfolio specified by portfolio_specs.txt
-        init_val (TYPE): Description
+        init_val (float): the initial value of the portfolio
         brokerage (int, optional): brokerage fees per lot.
         slippage (int, optional): slippage cost
         flat_vols (bool, optional): Description
@@ -901,12 +887,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
     Notes:
         1) DO NOT ADD SECURITIES INSIDE THIS FUNCTION. Doing so will mess up the PnL calculations \
         and give you vastly overinflated profits or vastly exaggerated losses, due to reliance on \
-        the compute_value function.
-
-    Deleted Parameters:
-        dic (dictionary): dictionary of rollover dates, in the format
-            {product_i: [c_1 rollover, c_2 rollover, ... c_n rollover]}
-        prev_date (TYPE): Description
+        the Portfolio.compute_value function.
 
     """
     barrier_futures = []
@@ -1104,12 +1085,14 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
         vdf (TYPE): dataframe of volatilities
         pdf (TYPE): dataframe of prices
         ft (TYPE): future object whose price is being updated
+        val (TYPE): current price point
         pf (TYPE): portfolio being simulated.
+        date (TYPE): current date
+
+    Returns:
+        tuple: unchanged portfolio, cost, futures accumulated as a result of barrier events.
 
     """
-    # print('handling barriers...')
-
-    # print('future val: ', val)
 
     step = 0
     delta_diff = 0
@@ -1245,8 +1228,9 @@ def handle_exercise(pf, brokerage=None, slippage=None):
         as well as the updated portfolio.
 
     Notes on implementation:
-        1) options are exercised if less than or equal to 2 days to maturity, and
-        option is in the money. Futures obtained are immediately sold and profit is locked in.
+        1) options are exercised if less than or equal to 1 days to maturity, and
+        option is in the money. 
+        2) Accepts both cash and future settlement
 
     """
     if pf.empty():
@@ -1541,6 +1525,19 @@ def contract_roll(pf, op, vdf, pdf, date, flag):
         op (TYPE): the option being contract-rolled.
         vdf (TYPE): dataframe of strikewise-vols
         pdf (TYPE): dataframe of prices
+        date (TYPE): current date in the simulation
+        flag (TYPE): OTC or hedge.
+
+    Returns:
+        tuple: pf, cost, newop, op, iden 
+        > pf = updated portfolio with the new contract option. 
+        > cost = cost of rolling over.
+        > newop = the new option that was added. 
+        > iden = tuple of (product, future month, future price) 
+
+    Raises:
+        ValueError: Raised if the data for the contract being rolled to
+        cannot be found in the dataset provided.
     """
 
     # isolating a roll condition if it exists.
@@ -1619,10 +1616,6 @@ def rebalance(vdf, pdf, pf, buckets=None, brokerage=None, slippage=None,
 
     Returns:
         tuple: portfolio, cost, boolean indicating if delta-roll occurred.
-
-    Deleted Parameters:
-        hedges (dict): Dictionary of hedging conditions
-        counters (TYPE): Description
 
     """
 
@@ -1813,8 +1806,6 @@ def hedge_delta_roll_simple(pf, vdf, pdf, brokerage=None, slippage=None, book=Fa
     Returns:
         tuple: updated portfolio and cost of purchasing/selling options.
 
-    Deleted Parameters:
-        roll_cond (list): list of the form ['roll', value, frequency, bound]
     """
     # print('hedge_delta_roll conds: ', roll_cond)
 
@@ -1881,19 +1872,20 @@ def hedge_delta_roll_comp(fpf, vdf, pdf, brokerage=None, slippage=None, book=Fal
     of multiple families.
 
     Args:
-        fpf (TYPE): Description
-        vdf (TYPE): Description
-        pdf (TYPE): Description
-        brokerage (None, optional): Description
-        slippage (None, optional): Description
-        book (bool, optional): Description
-        settlements (None, optional): Description
+        fpf (object): full portfolio
+        vdf (dataframe): dataframe of vols
+        pdf (dataframe): dataframe of prices
+        brokerage (None, optional): brokerage value. 
+        slippage (None, optional): slippage value. 
+        book (bool, optional): True if hedging basis book vols else False
+        settlements (dataframe, optional): dataframe of settlement vols
 
     Returns:
-        TYPE: Description
+        tuple: portfolio with contracts rolled, and cost.
 
     Raises:
-        ValueError: Description
+        ValueError: Raised if something breaks while rolling over option composites from
+        two different families.
     """
     cost = 0
     processed = {}
@@ -1987,27 +1979,22 @@ def delta_roll(pf, op, roll_val, vdf, pdf, flag, slippage=None,
     """Helper function that deals with delta-rolling options.
 
     Args:
-        pf (TYPE): Description
-        op (TYPE): Description
-        roll_val (TYPE): Description
-        vdf (TYPE): Description
-        pdf (TYPE): Description
-        flag (TYPE): Description
-        slippage (None, optional): Description
-        brokerage (None, optional): Description
-        book (bool, optional): Description
-        settlements (None, optional): Description
+        pf (object): portfolio being evaluated
+        op (object): option being contract rolled.
+        roll_val (float): delta value we are rolling this option to. 
+        vdf (dataframe): dataframe of vols
+        pdf (dataframe): dataframe of prices
+        flag (str): OTC or hedge
+        slippage (float, optional): 
+        brokerage (float, optional): 
+        book (bool, optional): True if hedging is done basis book vols else False
+        settlements (dataframe, optional): dataframe of settlement vols. 
 
     Returns:
-        TYPE: Description
+        tuple: new option, old option, cost of rolling from old to new. 
     """
-    # print('delta not in bounds: ', op, abs(op.delta) / op.lots)
-
-    # print('handling ' + str(op) + ' from family ' + pf.name)
     print('family rolling conds: ', pf.hedge_params['delta'])
-
     cost = 0
-
     vol_id = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
     newop = create_vanilla_option(vdf, pdf, vol_id, op.char, op.shorted,
                                   lots=op.lots, delta=roll_val)
@@ -2071,7 +2058,6 @@ def check_roll_status(pf):
 
     Args:
         pf (portfolio): Portfolio object
-        hedges (dictionary): dictionary of hedges.
 
     Returns:
         boolean: True if delta is within bounds, false otherwise.

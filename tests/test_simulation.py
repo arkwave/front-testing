@@ -87,7 +87,7 @@ def generate_portfolio(flag):
 
 
 def test_generate_portfolio():
-    print('========== TEST: GENERATE PORTFOLIO ===========')
+    # print('========== TEST: GENERATE PORTFOLIO ===========')
     pf1 = generate_portfolio('long')
     for op in pf1.get_all_options():
         assert not op.shorted
@@ -99,11 +99,11 @@ def test_generate_portfolio():
     vega1, vega2 = net1[3], net2[3]
     assert gamma1 == -gamma2
     assert vega1 == -vega2
-    print('================================================')
+    # print('================================================')
 
 
 def test_shorted_greeks():
-    print('========== TEST: SHORTED GREEKS ===========')
+    # print('========== TEST: SHORTED GREEKS ===========')
     ft1 = Future('K7', 300, 'C')
     op1 = Option(
         350, 0.301369863013698, 'call', 0.4245569263291844, ft1, 'amer', False, 'K7', ordering=1)
@@ -111,13 +111,13 @@ def test_shorted_greeks():
         350, 0.301369863013698, 'call', 0.4245569263291844, ft1, 'amer', True, 'K7', ordering=1)
     g1 = np.array((op1.greeks()))
     g2 = -np.array((op2.greeks()))
-    # print(g1, g2)
+    # # print(g1, g2)
     assert np.isclose(g1.all(), g2.all())
-    print('================================================')
+    # print('================================================')
 
 
 def test_feed_data_updates():
-    print('========== TEST: FEED DATA UPDATES ===========')
+    # print('========== TEST: FEED DATA UPDATES ===========')
     pf = generate_portfolio('long')
     init_val = pf.compute_value()
     all_underlying = pf.get_underlying()
@@ -128,8 +128,8 @@ def test_feed_data_updates():
     # try:
     assert new_val != init_val
     # except AssertionError:
-    #     print('new: ', new_val)
-    #     print('init: ', init_val)
+    #     # print('new: ', new_val)
+    #     # print('init: ', init_val)
 
     pf2 = generate_portfolio('long')
     init2 = pf2.compute_value()
@@ -141,9 +141,9 @@ def test_feed_data_updates():
     # try:
     assert new2 != init2
     # except AssertionError:
-    #     print('new2: ', new2)
-    #     print('init2: ', init2)
-    print('================================================')
+    #     # print('new2: ', new2)
+    #     # print('init2: ', init2)
+    # print('================================================')
 
 
 def comp_portfolio(refresh=False):
@@ -184,7 +184,7 @@ def comp_portfolio(refresh=False):
 
 
 def test_handle_exercise_simple():
-    print('========== TEST: HANDLE EXERCISE SIMPLE ===========')
+    # print('========== TEST: HANDLE EXERCISE SIMPLE ===========')
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
 
     # testing exercise for simple portfolio.
@@ -210,7 +210,7 @@ def test_handle_exercise_simple():
     refops = copy.deepcopy(pf.OTC_options)
 
     profit, pf, exercised, tobeadded = handle_exercise(pf)
-    print('pf.OTC_options: ', pf.OTC_options)
+    # print('pf.OTC_options: ', pf.OTC_options)
     # exercise would be TRUE if any option was exercised.
     assert exercised == any([op.exercise() for op in refops])
     # check that tau gets set to 0
@@ -220,20 +220,20 @@ def test_handle_exercise_simple():
     # try:
     assert pf.get_net_greeks() == init_net
     # except AssertionError:
-    #     print('[Failure] test_simulation.test_handle_exercise')
-    #     print('actual: ', pf.get_net_greeks())
-    #     print('expected: ', init_net)
+    #     # print('[Failure] test_simulation.test_handle_exercise')
+    #     # print('actual: ', pf.get_net_greeks())
+    #     # print('expected: ', init_net)
 
     # removing expired
     pf.remove_expired()
 
     # now check that greeks go flat.
     assert pf.get_net_greeks() == {}
-    print('================================================')
+    # print('================================================')
 
 
 def test_handle_exercise_composite():
-    print('========== TEST: HANDLE EXERCISE COMPOSITE ===========')
+    # print('========== TEST: HANDLE EXERCISE COMPOSITE ===========')
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
     # testing exercise for COMPOSITE portfolios.
     pf = copy.deepcopy(pf_comp)
@@ -259,7 +259,7 @@ def test_handle_exercise_composite():
     refops = copy.deepcopy(pf.OTC_options)
 
     profit, pf, exercised, tobeadded = handle_exercise(pf)
-    # print('pf.OTC_options: ', pf.OTC_options)
+    # # print('pf.OTC_options: ', pf.OTC_options)
     # exercise would be TRUE if any option was exercised.
     assert exercised == any([op.exercise() for op in refops])
     # check that tau gets set to 0
@@ -269,10 +269,10 @@ def test_handle_exercise_composite():
     # try:
     assert pf.get_net_greeks() == init_net
     # except AssertionError:
-    #     print('##### [Failure] test_simulation.test_handle_exercise #####')
-    #     print('actual: ', pf.get_net_greeks())
-    #     print('expected: ', init_net)
-    #     print('##########################################################')
+    #     # print('##### [Failure] test_simulation.test_handle_exercise #####')
+    #     # print('actual: ', pf.get_net_greeks())
+    #     # print('expected: ', init_net)
+    #     # print('##########################################################')
     # removing expired
     pf.remove_expired()
 
@@ -288,11 +288,11 @@ def test_handle_exercise_composite():
     # try:
     assert pf.get_family_containing(ref_op_cc) is None
     # except AssertionError:
-    #     print('########################################################')
-    #     print('[Failure] test_simulation.test_handle_exercise_composite')
-    #     print('actual: ', pf.get_family_containing(ref_op_cc))
-    #     print('expected: ', 'None')
-    #     print('#########################################################')
+    #     # print('########################################################')
+    #     # print('[Failure] test_simulation.test_handle_exercise_composite')
+    #     # print('actual: ', pf.get_family_containing(ref_op_cc))
+    #     # print('expected: ', 'None')
+    #     # print('#########################################################')
 
     # explicitly check the family to make sure CC ops have been removed.
     ccfam = [x for x in pf.families if x.name == 'cc_comp'][0]
@@ -319,11 +319,11 @@ def test_handle_exercise_composite():
     # except AssertionError as e:
     #     raise AssertionError(
     #         'old, new: ', pf.get_net_greeks(), prerefresh_net) from e
-    print('================================================')
+    # print('================================================')
 
 
 def test_check_roll_status():
-    print('========== TEST: CHECK ROLL STATUS ===========')
+    # print('========== TEST: CHECK ROLL STATUS ===========')
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
 
     # first: check the roll status of a simple portfolio.
@@ -384,11 +384,11 @@ def test_check_roll_status():
     assert not check_roll_status(pfqc)
     assert not check_roll_status(pf_comp)
     # assert not check_roll_status()
-    print('================================================')
+    # print('================================================')
 
 
 def test_contract_roll():
-    print('========== TEST: CONTRACT ROLL BASE ===========')
+    # print('========== TEST: CONTRACT ROLL BASE ===========')
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
     pf = pf_simple
     ref_op = ccops[0]
@@ -401,18 +401,18 @@ def test_contract_roll():
     assert 'H8' in pf.OTC['CC']
     assert 'H8' in pf.get_net_greeks()['CC']
     # except AssertionError:
-    #     print('OTC: ', pf.OTC)
-    #     print('net: ', pf.get_net_greeks())
+    #     # print('OTC: ', pf.OTC)
+    #     # print('net: ', pf.get_net_greeks())
 
     assert newop.get_month() == 'H8'
     assert op == ref_op
     assert newop.lots == ref_op.lots
     assert newop.shorted == ref_op.shorted
-    print('================================================')
+    # print('================================================')
 
 
 def test_roll_over_no_product_simple():
-    print('========== TEST: CONTRACT ROLL NO PRODUCT SIMPLE ===========')
+    # print('========== TEST: CONTRACT ROLL NO PRODUCT SIMPLE ===========')
     # contract roll works, this just makes sure that composites are correctly
     # specified.
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
@@ -428,7 +428,7 @@ def test_roll_over_no_product_simple():
     # Z7 -> H8
     pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
 
-    print('pf: ', pf)
+    # print('pf: ', pf)
 
     assert 'H8' in pf.OTC['CC']
     assert 'H8' in pf.get_net_greeks()['CC']
@@ -440,11 +440,11 @@ def test_roll_over_no_product_simple():
     # checking for composites.
     assert op1 in op2.partners
     assert op2 in op1.partners
-    print('================================================')
+    # print('================================================')
 
 
 def test_rollover_no_product_simple_split():
-    print('========== TEST: CONTRACT ROLL NO PRODUCT SPLIT ===========')
+    # print('========== TEST: CONTRACT ROLL NO PRODUCT SPLIT ===========')
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
     date = pdf.value_date.min()
     r_vdf = vdf[vdf.value_date == date]
@@ -458,12 +458,12 @@ def test_rollover_no_product_simple_split():
     pf1.add_security([ccops[0]], 'OTC')
     pf1.ttm_tol = ttm_tol + 1
     pf1.roll = True
-    print('pf1: ', pf1)
+    # print('pf1: ', pf1)
     pf2.add_security([ccops[1]], 'OTC')
     pf = combine_portfolios([pf1, pf2], name='pf', refresh=True)
     pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
 
-    print('pf: ', pf)
+    # print('pf: ', pf)
 
     # try:
     assert 'H8' in pf.OTC['CC']
@@ -485,11 +485,11 @@ def test_rollover_no_product_simple_split():
     # checking for composites.
     assert op1 in op2.partners
     assert op2 in op1.partners
-    print('================================================')
+    # print('================================================')
 
 
 def test_rollover_no_product_comp():
-    print('========== TEST: CONTRACT ROLL NO PRODUCT COMP ===========')
+    # print('========== TEST: CONTRACT ROLL NO PRODUCT COMP ===========')
     # comp portfolio: checking composites in same families
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
     date = pdf.value_date.min()
@@ -516,8 +516,8 @@ def test_rollover_no_product_comp():
     assert 'Z7' not in pf1.OTC['CC']
     assert 'Z7' not in pf1.get_net_greeks()['CC']
     # except AssertionError:
-    #     print('pfcc.OTC: ', pf1.OTC['CC'])
-    #     print('pfcc.net: ', pf1.get_net_greeks()['CC'])
+    #     # print('pfcc.OTC: ', pf1.OTC['CC'])
+    #     # print('pfcc.net: ', pf1.get_net_greeks()['CC'])
 
     oplst = list(pf.OTC['CC']['H8'][0])
 
@@ -532,11 +532,11 @@ def test_rollover_no_product_comp():
     # checking for composites.
     assert op3 in op4.partners
     assert op4 in op3.partners
-    print('================================================')
+    # print('================================================')
 
 
 def test_rollover_no_product_split():
-    print('========== TEST: CONTRACT ROLL NO PRODUCT SPLIT FAMILY ===========')
+    # print('========== TEST: CONTRACT ROLL NO PRODUCT SPLIT FAMILY ===========')
     # comp portfolio: checking composites in different families
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
     date = pdf.value_date.min()
@@ -587,11 +587,11 @@ def test_rollover_no_product_split():
     # check that unaffected options are unaffected.
     assert op3 in op4.partners
     assert op4 in op3.partners
-    print('================================================')
+    # print('================================================')
 
 
 def test_roll_over_product():
-    print('========== TEST: CONTRACT ROLL PRODUCT ===========')
+    # print('========== TEST: CONTRACT ROLL PRODUCT ===========')
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
     # simple case
     date = pdf.value_date.min()
@@ -649,11 +649,11 @@ def test_roll_over_product():
     assert op2 in op1.partners
     assert op3 in op4.partners
     assert op4 in op3.partners
-    print('================================================')
+    # print('================================================')
 
 
 def test_delta_roll():
-    print('========== TEST: DELTA ROLL BASE ===========')
+    # print('========== TEST: DELTA ROLL BASE ===========')
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
     date = pdf.value_date.min()
     r_vdf = vdf[vdf.value_date == date]
@@ -662,11 +662,11 @@ def test_delta_roll():
     newop, op, cost = delta_roll(pf_simple, op, 25, r_vdf, r_pdf, 'OTC')
     newop_delta = abs(newop.delta/newop.lots)
     assert abs(newop_delta - 0.25) < 0.02
-    print('================================================')
+    # print('================================================')
 
 
 def test_hedge_delta_roll_simple():
-    print('========== TEST: DELTA ROLL SIMPLE ===========')
+    # print('========== TEST: DELTA ROLL SIMPLE ===========')
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
 
     # resetting the hedge params
@@ -707,11 +707,11 @@ def test_hedge_delta_roll_simple():
     op1, op2 = pf.OTC_options
     assert op1 in op2.partners
     assert op2 in op1.partners
-    print('================================================')
+    # print('================================================')
 
 
 def test_hedge_delta_roll_comp():
-    print('========== TEST: DELTA ROLL COMPOSITE ===========')
+    # print('========== TEST: DELTA ROLL COMPOSITE ===========')
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
 
     cc_hedges_c = {'delta': [['roll', 25, 1, (-10, 10)]],
@@ -750,11 +750,11 @@ def test_hedge_delta_roll_comp():
     for op in pfqc.OTC_options:
         delta = abs(op.delta/op.lots)
         assert abs(delta - 0.5) < 0.1
-    print('================================================')
+    # print('================================================')
 
 
 def test_roll_over_hedge_options():
-    print('========== TEST: ROLL OVER HEDGES ===========')
+    # print('========== TEST: ROLL OVER HEDGES ===========')
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
 
     pf = copy.deepcopy(pf_comp)
@@ -776,12 +776,12 @@ def test_roll_over_hedge_options():
 
     # create composites to roll together.
 
-    print('cc_pf: ', cc_pf)
+    # print('cc_pf: ', cc_pf)
 
     cc_pf.roll = True
     cc_pf.ttm_tol = ttm_tol + 1
 
-    print('pf: ', pf)
+    # print('pf: ', pf)
 
     pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
     pf.refresh()
@@ -800,11 +800,11 @@ def test_roll_over_hedge_options():
         raise AssertionError('DEBUG: ', [str(x)
                                          for x in pf.get_all_options()]) from e
 
-    print('================== test end ==========================')
+    # print('================== test end ==========================')
 
 
 def test_roll_composite_partners():
-    print('========== TEST: ROLL COMPOSITE PARTNERS ===========')
+    # print('========== TEST: ROLL COMPOSITE PARTNERS ===========')
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
 
     cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
@@ -839,9 +839,9 @@ def test_roll_composite_partners():
 
     pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
 
-    print('pf after roll: ', pf)
-    print('pf_c after roll: ', pf_c)
-    print('pf_q after roll: ', pf_q)
+    # print('pf after roll: ', pf)
+    # print('pf_c after roll: ', pf_c)
+    # print('pf_q after roll: ', pf_q)
 
     assert 'Z7' not in pf_c.net_greeks['CC']
     assert 'Z7' not in pf_q.net_greeks['QC']
@@ -852,14 +852,14 @@ def test_roll_composite_partners():
     assert 'H8' in pf_q.net_greeks['QC']
     assert 'H8' in pf_c.OTC['CC']
     assert 'H8' in pf_q.OTC['QC']
-    print('================== test end ==========================')
+    # print('================== test end ==========================')
 
 
 def test_roll_product_hedges():
     # Case: QC Z7.Z7 hedged with QC Z7.Z7, and CC Z7.Z7 hedged with CC. CC and QC
     # OTC options are partners. Rolling CC OTC should trigger QC OTC and QC/CC
     # Hedge to roll.
-    print('================ TEST: ROLL OVER WITH PRODUCT & HEDGES ================')
+    # print('================ TEST: ROLL OVER WITH PRODUCT & HEDGES ================')
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
 
     pf = copy.deepcopy(pf_comp)
@@ -894,9 +894,9 @@ def test_roll_product_hedges():
 
     pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
 
-    print('pf: ', pf)
-    print('pfcc1: ', pfcc1)
-    print('pfqc1: ', pfqc1)
+    # print('pf: ', pf)
+    # print('pfcc1: ', pfcc1)
+    # print('pfqc1: ', pfqc1)
 
     assert 'Z7' not in pfcc1.net_greeks['CC']
     assert 'Z7' not in pfcc1.OTC['CC']
@@ -918,7 +918,7 @@ def test_roll_product_hedges2():
     # Case: QC Z7.Z7 hedged with QC Z7.Z7, and CC Z7.Z7 unhedged. CC and QC
     # OTC options are partners. Rolling CC should trigger both QC OTC and QC
     # Hedge to roll.
-    print('================ TEST: ROLL OVER WITH PRODUCT & HEDGES - 2 ================')
+    # print('================ TEST: ROLL OVER WITH PRODUCT & HEDGES - 2 ================')
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
 
     pf = copy.deepcopy(pf_comp)
@@ -964,7 +964,7 @@ def test_roll_product_hedges2():
 
 
 def test_roll_over_full():
-    print('================= TEST: CLOSING OUT DELTAS =================')
+    # print('================= TEST: CLOSING OUT DELTAS =================')
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
 
     # creation info
@@ -1001,7 +1001,7 @@ def test_roll_over_full():
     pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
 
     pf.refresh()
-    print('pf: ', pf)
+    # print('pf: ', pf)
 
     # QC gets closed out altogether.
     assert 'QC' not in pf.hedges
@@ -1012,4 +1012,4 @@ def test_roll_over_full():
     # assert len(cc_hedges['H8'][1]) == 1
     # assert len(qc_hedges['H8'][1]) == 1
 
-    print('===============================================================')
+    # print('===============================================================')

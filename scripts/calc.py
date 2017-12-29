@@ -92,14 +92,26 @@ np.random.seed(seed)
 def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None,
                    barrier=None, d=None, product=None, bvol=None):
     '''Wrapper function that computes value of option.
-    Inputs: 1) ki      : Knock in value.
-            2) ko      : Knock out value.
-            3) barrier : type of barrier
-            4) d       : direction of barrier.
-            5) product : the underlying product
-            #) Remaining inputs are identical to _bsm_euro.
 
     Outputs: Price of the option
+
+    Args:
+        char (str): call/put
+        tau (float): ttm in years
+        vol (float): vol
+        K (float): strike
+        s (float): spot
+        r (float): interest rate
+        payoff (str): american/european option. irrelevant param. 
+        ki (float, optional): knock-in barrier level. 
+        ko (float, optional): knock out barrier level
+        barrier (str, optional): barrier type (american or euro)
+        d (str, optional): direction (up or donw)
+        product (str, optional): product
+        bvol (float, optional): barrier volatility
+
+    Returns:
+        TYPE: price of option based on inputs passed in. 
     '''
     # expiry case
     if tau <= 0:
@@ -172,58 +184,29 @@ def _amer_option(option, tau, vol, K, s, r):
 
 ####################### Barrier Option Valuation ##########################
 
-def get_barrier_vol(df, product, tau, call_put_id, barlevel, order):
+def get_barrier_vol(df, tau, call_put_id, barlevel, vol_id):
     """Gets the barrier volatility associated with this barrier option from the vol surface dataframe.
 
     Args:
-        df (pandas dataframe) : dataframe of the form value_date|vol_id|strike|call_put_id|
+        df (pandas dataframe): dataframe of the form value_date|vol_id|strike|call_put_id|
                                                         vol|tau
-        product (str)         : underlying product of this option.
-        tau (double)          : time to expiry in years.
-        call_put_id (str)     : 'C' if call option else 'P'
-        barlevel (double)     : value of the barrier.
+        product (str): underlying product of this option.
+        tau (double): time to expiry in years.
+        call_put_id (str): 'C' if call option else 'P'
+        barlevel (double): value of the barrier.
+        vol_id (str): vol_id, e.g. C Z7.Z7
 
     Returns:
-        bvol (double)         : implied volatility at the barrier as specified by the vol surface df
+        bvol (double): implied volatility at the barrier as specified by the vol surface df
     """
     bvol = 0
-    df['product'] = df['vol_id'].str.split().str[0]
-    try:
-        bvol_df = df[(df['order'] == order) &
-                     (df['strike'] == barlevel) &
-                     (df['pdt'] == product) &
-                     (df['call_put_id'] == call_put_id)]
 
-        # print('bvol_df: ', bvol_df)
-        print('inputs: ', order, product, call_put_id, barlevel)
-
-        print('debug 1 - ', df[(df['order'] == order) &
-                               (df['strike'] == barlevel) &
-                               (df['pdt'] == product)])
-
-        print('debug 2 - ', df[(df['order'] == order) &
-                               (df['strike'] == barlevel) &
-                               (df['pdt'] == product) &
-                               (df['call_put_id'] == call_put_id)])
-
-        tau_vals = sorted(list(bvol_df.tau))
-        relevant_tau = min([x for x in tau_vals if x >= tau])
-
-        bvol = bvol_df[(bvol_df.tau == relevant_tau)].vol.values[0]
-
-    except (TypeError, IndexError):
-        print('BARRIER VOL NOT FOUND')
-        print(type(barlevel))
-        print('debug - ', df[(df['call_put_id'] == call_put_id) &
-                             (df['strike'] == barlevel) &
-                             (df['pdt'] == product)])
-        print('debug 2 - ', df[(df['call_put_id'] == call_put_id) &
-                               (df['strike'] == barlevel) &
-                               (df['pdt'] == product)] &
-              (np.isclose(df['tau'].astype(np.float64), tau, atol=1e-4)))
-        print('barlevel: ', barlevel)
-        print('tau_val: ', tau)
-        print('Product: ', product)
+    bvol_df = df[(df['vol_id'] == vol_id) &
+                 (df['strike'] == barlevel) &
+                 (df['call_put_id'] == call_put_id)]
+    tau_vals = sorted(list(bvol_df.tau))
+    relevant_tau = min([x for x in tau_vals if x >= tau])
+    bvol = bvol_df[(bvol_df.tau == relevant_tau)].vol.values[0]
 
     return bvol
 
@@ -246,6 +229,9 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction,
     9) rebate    : premium returned if option knocks out. currently defaulted to 0
     10) ki       : knock in barrier amount.
     11) ko       : knock out barrier amount.
+    12) product  : the product this option is on
+    13) rebate   : rebate paid when barrier is hit. 
+    14) bvol     : barrier volatility. 
 
     Outputs:
     1) Price
@@ -448,7 +434,7 @@ def call_put_spread(s, k1, k2, r, vol1, vol2, tau, optiontype, payoff, b=0):
         tau (double)     : time to maturity.
         optiontype (str) : callspread or putspread.
         payoff (str)     : american or european exercise
-        b (int, optional): cost of carry.
+        b (int, optional): cost of carry. defaults to 0.
 
     Returns:
         double: price of this callspread/putspread
@@ -480,7 +466,7 @@ def call_put_spread_greeks(s, k1, k2, r, vol1, vol2, tau, optiontype, product, l
         product (str)    : underlying product.
         lots (double)    : number of lots
         payoff (str)     : american or european exercise
-        b (int, optional): cost of carry.
+        b (int, optional): cost of carry. defaults to 0
 
     Returns:
         delta, gamma, theta, vega: greeks of this call/put-spread
@@ -564,6 +550,7 @@ def digital_greeks(char, k, tau, vol, s, r, product, payoff, lots):
         r (double): interest rate
         product (string): product
         payoff (string): amer vs euro payoff
+        lots (float): lottage for greek scaling. 
 
     Returns:
         tuple: delta, gamma, theta, vega.
@@ -600,6 +587,11 @@ def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots,
              8) payoff : american or european option.
              9) lots   : number of lots.
              10) barrier: american or european barrier.
+             11) ki    : knockin barrier level
+             12) ko    : knockout barrier level
+             13) direction : direction (up or down)
+             14) order : 
+             15) bvol  :
 
     Outputs: 1) delta  : dC/dS
              2) gamma  : d^2C/dS^2
@@ -609,7 +601,7 @@ def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots,
 
     # european options
     if tau == 0:
-        print('tau == 0 case')
+        # print('tau == 0 case')
         gamma, theta, vega = 0, 0, 0
         if char == 'call':
             # in the money
@@ -635,19 +627,6 @@ def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots,
                                              direction, product, ki, ko, lots,
                                              order=order, bvol=bvol)
 
-    # # american options
-    # elif payoff == 'amer':
-    #     # vanilla case
-    #     if barrier is None:
-    #         return _amer_vanilla_greeks(
-    #             char, K, tau, vol, s, r, product, lots)
-    #     # american options with american barrier
-    #     elif barrier == 'amer':
-    #         return _amer_barrier_amer_greeks()
-    #     # american option with european barrier.
-    #     elif barrier == 'euro':
-    #         return _amer_barrier_euro_greeks()
-
 
 def _euro_vanilla_greeks(char, K, tau, vol, s, r, product, lots):
     """
@@ -660,7 +639,6 @@ def _euro_vanilla_greeks(char, K, tau, vol, s, r, product, lots):
                  7) product: underlying commodity.
                  8) payoff : american or european option.
                  9) lots   : number of lots.
-                 10) barrier: american or european barrier.
 
         Outputs: 1) delta  : dC/dS
                  2) gamma  : d^2C/dS^2
@@ -801,21 +779,24 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction,
     """Computes greeks of european options with american barriers. 
 
     Args:
-        char (str)           : Call or Put.
-        tau (double)         : time to expiry in years
-        vol (double          : volatility.
-        k (double)           : strike
-        s (double)           : price of underlying
-        r (double)           : interest rate
-        payoff (str)         : american or european exercise. 'amer' or 'euro.'
-        direction (str)      : direction of the barrier. 'up' or 'down'
-        product (str)        : underlying product. eg: 'C'
-        ki (double)          : knock-in value.
-        ko (double)          : knock-out value
-        lots (double)        : number of lots.
+        char (str): Call or Put.
+        tau (double): time to expiry in years
+        vol (float): strike volatility
+        k (double): strike
+        s (double): price of underlying
+        r (double): interest rate
+        payoff (str): american or european exercise. 'amer' or 'euro.'
+        direction (str): direction of the barrier. 'up' or 'down'
+        product (str): underlying product. eg: 'C'
+        ki (double): knock-in value.
+        ko (double): knock-out value
+        lots (double): number of lots.
+        order (int, optional): C1 C2 etc. 
         rebate (int, optional): payback if option fails to knock in / knocks out.
+        bvol (None, optional): barrier
+
     Returns:
-        delta, gamma, theta, vega : greeks of this instrument.
+        delta, gamma, theta, vega: greeks of this instrument.
     """
     barlevel = ki if ki else ko
 
@@ -872,36 +853,6 @@ def _compute_iv(optiontype, s, k, c, tau, r, flag):
         # return american_iv(s, k, c, tau, r, optiontype)
 
 
-def compute_delta(x):
-    """Helper function to aid with vol_by_delta, rendered in this format to make use of 
-    pd.apply
-    Args:
-
-        x (pandas dataframe): dataframe of vols.
-    Returns:
-        double: value of delta
-
-    """
-    s = x.settle_value
-    K = x.strike
-    tau = x.tau
-    char = x.call_put_id
-    vol = x.settle_vol
-    r = 0
-    try:
-        d1 = (log(s/K) + (r + 0.5 * vol ** 2)*tau) / \
-            (vol * sqrt(tau))
-    except (ZeroDivisionError):
-        d1 = -np.inf
-    if char == 'C':
-        # call option calc for delta and theta
-        delta1 = norm.cdf(d1)
-    if char == 'P':
-        # put option calc for delta and theta
-        delta1 = norm.cdf(d1) - 1
-    return delta1
-
-
 def compute_strike_from_delta(option, delta1=None, vol=None, s=None, tau=None, char=None, pdt=None):
     """Helper function that calculates the historic equivalent strike from 
     the delta of the option. Strike is reverse-engineered from Black Scholes.
@@ -913,9 +864,13 @@ def compute_strike_from_delta(option, delta1=None, vol=None, s=None, tau=None, c
         s (double, optional): custom spot price
         tau (double, optional): custom ttm in years 
         char (str, optional): call or put 
+        pdt (str, optional): product
 
     Returns:
         double: the strike corresponding to this delta.  
+
+    Raises:
+        TypeError: Raised if inputs to strike calculation are invalid. 
     """
     delta = abs(option.delta / option.lots) if delta1 is None else delta1
     delta = 1e-5 if delta == 0 else delta
@@ -984,12 +939,19 @@ def get_vol_from_delta(delta, vdf, pdf, volid, char, shorted, date):
     3) returns the value desired. 
 
     Args:
-        vdf (TYPE): Description
-        pdf (TYPE): Description
-        volid (TYPE): Description
-        char (TYPE): Description
-        shorted (TYPE): Description
-        date (TYPE): Description
+        delta (float): delta of the option. 
+        vdf (dataframe): dataframe of vols
+        pdf (dataframe): dataframe of prices
+        volid (str): vol_id, e.g. C Z7.Z7
+        char (str): call/put
+        shorted (bool): True if shorted else False
+        date (pandas timestamp): current date. 
+
+    Returns:
+        TYPE: Description
+
+    Raises:
+        ValueError: Raised if interpolation inputs are invalid. 
     """
     v_cols = ['pdt', 'value_date', 'vol_id', 'strike',
               'call_put_id', 'tau', 'vol', 'underlying_id']
@@ -1062,10 +1024,19 @@ def newton_raphson(option, s, k, c, tau, r, num_iter=100):
 
 
 def greeks_scaled(delta1, gamma1, theta1, vega1, product, lots):
-    """Summary: Scaling method to bring greeks into reportable units.
+    """Summary: Scaling method to bring greeks into reportable units, as per PnP units
+
+    Args:
+        delta1 (float): black-scholes delta
+        gamma1 (float): black-scholes gamma
+        theta1 (float): black-scholes theta
+        vega1 (float): black-scholes vega
+        product (str): product being evaluated
+        lots (float): size of the position
+
+    Returns:
+        tuple: scaled delta, gamma, theta, vega 
     """
-    # print('scripts.calc.greeks_scaled - inputs: ',
-    # delta1, gamma1, theta1, vega1, product, lots)
     lots = lots
     lm = multipliers[product][1]
     dm = multipliers[product][0]
@@ -1075,7 +1046,6 @@ def greeks_scaled(delta1, gamma1, theta1, vega1, product, lots):
     vega = (vega1 * lots * pnl_mult) / 100
     theta = (theta1 * lots * pnl_mult) / 365
 
-    # return delta1, gamma1, theta1/365, vega1/100
     return delta, gamma, theta, vega
 
 

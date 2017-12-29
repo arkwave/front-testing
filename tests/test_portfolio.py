@@ -158,7 +158,7 @@ def test_remove_security_futures():
     assert set(pf.get_net_greeks()['C'].keys()) == set(
         ['H7', 'K7'])
     # except AssertionError:
-    #     # print('remove_sec_ft 1: ', pf.get_net_greeks()['C'].keys())
+    #     # # print('remove_sec_ft 1: ', pf.get_net_greeks()['C'].keys())
 
     # checking addition
     curr_OTCs = pf.get_securities_monthly('OTC')
@@ -195,8 +195,8 @@ def test_remove_security_futures():
     # try:
     assert rem_net == prev_net
     # except AssertionError:
-    #     # print('remove_sec_ft 2: ', rem_net['C'].keys())
-    #     # print('remove_sec_ft 3: ', prev_net['C'].keys())
+    #     # # print('remove_sec_ft 2: ', rem_net['C'].keys())
+    #     # # print('remove_sec_ft 3: ', prev_net['C'].keys())
 
     # failing
     try:
@@ -251,10 +251,10 @@ def test_remove_security_options():
     # try:
     assert rem_net == prev_net
     # except AssertionError:
-    #     # print(rem_OTCs['C'].keys())
-    #     # print(pf.hedge_pos['C'].keys())
-    #     # print(rem_net['C'].keys())
-    #     # print(prev_net['C'].keys())
+    #     # # print(rem_OTCs['C'].keys())
+    #     # # print(pf.hedge_pos['C'].keys())
+    #     # # print(rem_net['C'].keys())
+    #     # # print(prev_net['C'].keys())
 
     try:
         assert rem_OTCs == prev_OTCs
@@ -294,9 +294,9 @@ def test_remove_expired_1():
     # try:
     assert curr_net != prev_net
     # except AssertionError:
-    #     # print('rem_exp_1 curr: ', curr_net)
-    #     # print('rem_exp_1 prev: ', prev_net)
-    #     # print('rem_exp_1 init: ', init_net)
+    #     # # print('rem_exp_1 curr: ', curr_net)
+    #     # # print('rem_exp_1 prev: ', prev_net)
+    #     # # print('rem_exp_1 init: ', init_net)
     assert 'M7' not in pf.OTC['C']
     assert len(pf.OTC_options) == 3
 
@@ -309,11 +309,11 @@ def test_remove_expired_2():
     pf.add_security([op], 'OTC')
     net = pf.get_net_greeks()['C']['H7']
     net = np.array(net)
-    # # print('net: ', net)
+    # # # print('net: ', net)
     # try:
     assert net.all() != 0
     # except AssertionError:
-    #     # print('pre-exp: ', net)
+    #     # # print('pre-exp: ', net)
     # decrement tau, expiring option.
     pf.timestep(0.05)
     assert op.check_expired()
@@ -322,7 +322,7 @@ def test_remove_expired_2():
     # try:
     assert len(net) == 0
     # except (AssertionError, IndexError, KeyError):
-    #     # print('post-exp: ', net)
+    #     # # print('post-exp: ', net)
 
 
 def test_ordering():
@@ -356,14 +356,14 @@ def test_compute_value():
     except AssertionError:
         assert np.isclose(addval-init_val, opval*50*op1.lots)
         assert (addval - init_val - (opval * op1.lots * pnlmult) < 2e-9)
-        # # print('residue: ', addval - init_val - (opval * op1.lots * pnlmult))
+        # # # print('residue: ', addval - init_val - (opval * op1.lots * pnlmult))
     # testing hedge pos
     pf.remove_security([op1], 'OTC')
 
     # try:
     assert pf.compute_value() == init_val
     # except AssertionError:
-    #     # print('testport compute_val remove: ', pf.compute_value(), init_val)
+    #     # # print('testport compute_val remove: ', pf.compute_value(), init_val)
 
     op2 = Option(
         35, 0.01, 'call', 0.4245569263291844, ft, 'amer', True, 'Z7')
@@ -374,8 +374,8 @@ def test_compute_value():
     assert np.isclose(init_val - shorted, op2.lots *
                       op2.get_price() * pnlmult)
     # except AssertionError:
-    #     # print('shorted: ',  op2.lots * op2.get_price())
-    #     # print('testport compute_val short: ', init_val, shorted)
+    #     # # print('shorted: ',  op2.lots * op2.get_price())
+    #     # # print('testport compute_val short: ', init_val, shorted)
 
 
 def test_exercise_option():
@@ -417,13 +417,13 @@ def test_price_vol_change():
     pf.update_sec_by_month(None, 'OTC', update=True)
     pf.update_sec_by_month(None, 'hedge', update=True)
     new_net = copy.deepcopy(pf.get_net_greeks())
-    # # print('new: ', new_net)
-    # # print('old: ', init_net)
+    # # # print('new: ', new_net)
+    # # # print('old: ', init_net)
     # try:
     assert new_net != init_net
     # except AssertionError:
-    #     # print('new_net: ', new_net)
-    #     # print('init_net: ', init_net)
+    #     # # print('new_net: ', new_net)
+    #     # # print('init_net: ', init_net)
 
 
 def test_decrement_ordering():
@@ -462,7 +462,7 @@ def test_decrement_ordering():
 
     # before removal; len should be the same.
     assert len(netgreeks) == 2
-    # # print(netgreeks['K7'])
+    # # # print(netgreeks['K7'])
 
 
 def test_compute_ordering():
@@ -479,7 +479,7 @@ def test_compute_ordering():
     pf.add_security([op1], 'OTC')
     pf.add_security([op2], 'OTC')
 
-    # # print('actual: ', pf.compute_ordering('C', 'N7'))
+    # # # print('actual: ', pf.compute_ordering('C', 'N7'))
 
     assert pf.compute_ordering('C', 'N7') == 2
     assert pf.compute_ordering('C', 'K7') == 1
@@ -617,7 +617,7 @@ def test_removing_from_composite():
     qop1, qop2 = qcops
 
     init = pf_comp.net_greeks.copy()
-    # # print('initial net: ', pf_comp.net_greeks)
+    # # # print('initial net: ', pf_comp.net_greeks)
 
     # first test
     pf_comp.remove_security([cop1], 'OTC')
@@ -629,24 +629,24 @@ def test_removing_from_composite():
     x1 = pfcc.net_greeks.copy()
     x1.update(pfqc.net_greeks.copy())
 
-    # # print('x1: ', x1)
-    # # print('actual: ', pf_comp.net_greeks)
+    # # # print('x1: ', x1)
+    # # # print('actual: ', pf_comp.net_greeks)
 
     assert x1 == pf_comp.get_net_greeks()
 
-    # # print('pre-add net: ', pf_comp.net_greeks)
+    # # # print('pre-add net: ', pf_comp.net_greeks)
     pfcc.add_security([cop1], 'OTC')
 
     assert pf_comp.net_greeks != init
 
-    # # print('bef refresh: ', pf_comp.net_greeks)
+    # # # print('bef refresh: ', pf_comp.net_greeks)
     pf_comp.refresh()
 
-    print('pf_comp before QC removal: ', pf_comp)
-    print('pfqc before qc_removal: ', pfqc)
+    # print('pf_comp before QC removal: ', pf_comp)
+    # print('pfqc before qc_removal: ', pfqc)
 
     assert pf_comp.net_greeks == init
-    # # print('aft refresh: ', pf_comp.net_greeks)
+    # # # print('aft refresh: ', pf_comp.net_greeks)
     # second test.
     pf_comp.remove_security([qop1], 'OTC')
     assert qop1 not in pfqc.OTC_options
@@ -658,9 +658,9 @@ def test_removing_from_composite():
     x.update(pfqc.net_greeks.copy())
     assert x == pf_comp.net_greeks
     # except AssertionError:
-    #     # print('FAILURE: test_portfolio.test_removing_from_composite')
-    #     # print('netnewgreeks: ', x)
-    #     # print('actual: ', pf_comp.net_greeks)
+    #     # # print('FAILURE: test_portfolio.test_removing_from_composite')
+    #     # # print('netnewgreeks: ', x)
+    #     # # print('actual: ', pf_comp.net_greeks)
 
 
 def test_adding_to_composites():
@@ -695,7 +695,7 @@ def test_adding_to_composites():
     # get the greeks for the heck of it.
     init_greeks = copy.deepcopy(pf.get_net_greeks())
 
-    print('============== first add ==================')
+    # print('============== first add ==================')
     # second test: add an option to pfqc, check if it is updated in pf.
     qc_straddle = create_straddle('QC  Z7.Z7', r_vdf, r_pdf, date,
                                   True, 'atm', greek='theta', greekval=2000)
@@ -712,7 +712,7 @@ def test_adding_to_composites():
         assert op in qc_pf.OTC['QC']['Z7'][0]
 
     # third: remove the QC options
-    print('================== second: remove added QC ====================')
+    # print('================== second: remove added QC ====================')
     pf.remove_security(qc_straddle, 'OTC')
     assert len(pf.OTC['QC']['Z7'][0]) == 2
     assert len(pf.OTC_options) == 4
@@ -721,27 +721,27 @@ def test_adding_to_composites():
         assert op not in pf.OTC_options
         assert op not in qc_pf.OTC_options
         assert op not in qc_pf.OTC['QC']['Z7'][0]
-    print('============================== end =============================')
+    # print('============================== end =============================')
     assert pf.get_net_greeks() == init_greeks
 
     # fourth: remove the cc options, check to see if cc_pf is empty.
     ccops2 = [op for op in pf.OTC_options if op.get_product() == 'CC']
-    print('====================== third: remove init cc =====================')
+    # print('====================== third: remove init cc =====================')
     pf.remove_security(ccops2, 'OTC')
     pf.refresh()
     assert 'CC' not in pf.OTC
     assert 'CC' not in cc_pf.OTC
     assert cc_pf.empty()
-    print('============================== end =============================')
+    # print('============================== end =============================')
 
 
 def test_degenerate_case():
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
     init_net_greeks = pf_comp.get_net_greeks().copy()
 
-    # # print('----- removing -----')
+    # # # print('----- removing -----')
     pf_comp.remove_security(ccops, 'OTC')
-    # # print('------ done removing ------')
+    # # # print('------ done removing ------')
 
     try:
         assert pfcc.empty()
@@ -797,13 +797,13 @@ def test_get_unique_products():
 def test_timestep():
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
 
-    # # print('pf.net_greeks: ', pf_simple.net_greeks)
+    # # # print('pf.net_greeks: ', pf_simple.net_greeks)
 
     # testing simple portfolio
     pf = pf_simple
     init_val = pf.compute_value()
     init_netgreeks = copy.deepcopy(pf.get_net_greeks())
-    # # print('init_netgreeks: ', init_netgreeks)
+    # # # print('init_netgreeks: ', init_netgreeks)
     # timestep
     pf.timestep(1/365)
     # pf.update_sec_by_month(None, 'OTC', update=True)
@@ -822,8 +822,8 @@ def test_timestep():
     # try:
     assert init_netgreeks == new_netgreeks
     # except AssertionError:
-    #     # print('init: ', init_netgreeks)
-    #     # print('new: ', new_netgreeks)
+    #     # # print('init: ', init_netgreeks)
+    #     # # print('new: ', new_netgreeks)
 
     # test composite portfolios.
     init_val = pf_comp.compute_value()
@@ -889,7 +889,7 @@ def test_timestep_delta_hedging_comp():
 
     cc_intermediate_ttm = ccops[0].tau
 
-    # # print('cc_intermediate: ', cc_intermediate_ttm)
+    # # # print('cc_intermediate: ', cc_intermediate_ttm)
     qc_intermediate_ttm = qcops[0].tau
 
     fee = hedge_engine.apply('delta')
@@ -899,7 +899,7 @@ def test_timestep_delta_hedging_comp():
     cc_ttm = ccops[0].tau
     qc_ttm = qcops[0].tau
 
-    # # print('cc_intermediate post hedge: ', cc_ttm)
+    # # # print('cc_intermediate post hedge: ', cc_ttm)
     # ensure the refresh doesn't fuck with the ttm.
     assert cc_ttm == cc_intermediate_ttm
     assert qc_ttm == qc_intermediate_ttm
@@ -910,7 +910,7 @@ def test_timestep_delta_hedging_comp():
     cc_new = ccops[0].tau
     qc_new = qcops[0].tau
 
-    # # print('cc_new: ', cc_new)
+    # # # print('cc_new: ', cc_new)
 
     assert qc_new == qc_init_ttm
     assert cc_new == cc_init_ttm
@@ -937,7 +937,7 @@ def test_rollovers_OTC_representation_simple():
 
     pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
 
-    # print('pf after rollovers: ', pf)
+    # # print('pf after rollovers: ', pf)
 
     assert 'Z7' not in pf.net_greeks['CC']
     assert 'Z7' not in pf.OTC['CC']
@@ -1049,14 +1049,14 @@ def test_refresh_securities_same_pdts():
     ccft, _ = create_underlying(
         'CC', 'H8', r_pdf, date, lots=cc_delta, shorted=cc_shorted)
 
-    # print('ccft: ', str(ccft))
+    # # print('ccft: ', str(ccft))
 
-    # print('pf1.hedges pre_add: ', pf1.hedges['CC'].keys())
+    # # print('pf1.hedges pre_add: ', pf1.hedges['CC'].keys())
 
     pf.add_security([ccft], 'hedge')
 
-    # print('pf1.hedges: ', pf1.hedges['CC'].keys())
-    # print('pf1.hedge_futures: ', [str(x) for x in pf1.hedge_futures])
+    # # print('pf1.hedges: ', pf1.hedges['CC'].keys())
+    # # print('pf1.hedge_futures: ', [str(x) for x in pf1.hedge_futures])
 
     # adding hedging futures should trigger 'H8' in pf.hedges, but NOT in
     # either of the sub-portfolios.
@@ -1093,9 +1093,9 @@ def test_add_futures_comp():
     """Adds future into composite portfolio and checks that future month is not added to 
     constituent family dictionaries. 
     """
-    print('================== init refresh ====================')
+    # print('================== init refresh ====================')
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
-    print('================== end init refresh ====================')
+    # print('================== end init refresh ====================')
     # creating portfolio
     pf = copy.deepcopy(pf_comp)
     # initialization parameters
@@ -1108,28 +1108,28 @@ def test_add_futures_comp():
                                True, 'atm', greek='theta', greekval=5000)
     cc_pf.add_security(cchedges, 'hedge')
 
-    # print('ccpf pre-refresh: ', cc_pf)
-    # print('ccpf.OTC: ', cc_pf.OTC)
-    # print('ccpf.hedges: ', cc_pf.hedges)
-    print('=============== comp refresh ==================')
+    # # print('ccpf pre-refresh: ', cc_pf)
+    # # print('ccpf.OTC: ', cc_pf.OTC)
+    # # print('ccpf.hedges: ', cc_pf.hedges)
+    # print('=============== comp refresh ==================')
     pf.refresh()
-    print('=============== refresh completed ================')
-    # print('ccpf post-refresh: ', cc_pf)
-    # print('ccpf.OTC: ', cc_pf.OTC)
-    # print('ccpf.hedges: ', cc_pf.hedges)
+    # print('=============== refresh completed ================')
+    # # print('ccpf post-refresh: ', cc_pf)
+    # # print('ccpf.OTC: ', cc_pf.OTC)
+    # # print('ccpf.hedges: ', cc_pf.hedges)
 
     cc_delta = int(cc_pf.net_greeks['CC']['Z7'][0])
     cc_shorted = True if cc_delta > 0 else False
 
     ccft, _ = create_underlying(
         'CC', 'Z7', r_pdf, date, lots=abs(cc_delta), shorted=cc_shorted)
-    print('==================== begin add =================')
+    # print('==================== begin add =================')
     pf.add_security([ccft], 'hedge')
-    print('===================== end add ==================')
+    # print('===================== end add ==================')
 
-    print('============== final refresh ================')
+    # print('============== final refresh ================')
     pf.refresh()
-    print('========== final refresh completed =============')
+    # print('========== final refresh completed =============')
 
     try:
         assert ccft not in cc_pf.hedges['CC']['Z7'][1]
@@ -1164,14 +1164,14 @@ def test_rollovers_OTC_representation_comp_no_fts():
     cc_pf.roll = True
     cc_pf.ttm_tol = (ccops[0].tau * 365) + 2
 
-    # print('cc_pf: ', cc_pf)
+    # # print('cc_pf: ', cc_pf)
 
     pf.refresh()
 
     pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
 
-    # print('pf after rollovers: ', pf)
-    # print('cc_pf after rollovers: ', cc_pf)
+    # # print('pf after rollovers: ', pf)
+    # # print('cc_pf after rollovers: ', cc_pf)
 
     assert 'Z7' not in pf.net_greeks['CC']
     assert 'Z7' not in pf.OTC['CC']
@@ -1219,10 +1219,10 @@ def test_rollovers_OTC_representation_comp_fts():
     ccft, _ = create_underlying(
         'CC', 'Z7', r_pdf, date, lots=cc_delta, shorted=cc_shorted)
 
-    print('ccpf before futures: ', cc_pf.hedges)
+    # print('ccpf before futures: ', cc_pf.hedges)
     pf.add_security([ccft], 'hedge')
     # pf.refresh()
-    print('ccpf after futures: ', cc_pf.hedges)
+    # print('ccpf after futures: ', cc_pf.hedges)
 
     assert ccft not in cc_pf.hedge_futures
     try:
@@ -1233,17 +1233,17 @@ def test_rollovers_OTC_representation_comp_fts():
 
     assert ccft not in cc_pf.hedges['CC']['Z7'][1]
 
-    # print('ccpf after futures: ', cc_pf)
+    # # print('ccpf after futures: ', cc_pf)
     pf.refresh()
-    print('ccpf after refresh: ', cc_pf)
+    # print('ccpf after refresh: ', cc_pf)
 
     pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
     pf.refresh()
 
-    print('pf after rollovers: ', pf)
-    print('pf.OTC: ', pf.OTC)
-    print('pf.hedge: ', pf.hedges)
-    # print('cc_pf after rollovers: ', cc_pf)
+    # print('pf after rollovers: ', pf)
+    # print('pf.OTC: ', pf.OTC)
+    # print('pf.hedge: ', pf.hedges)
+    # # print('cc_pf after rollovers: ', cc_pf)
     try:
         assert 'Z7' not in pf.net_greeks['CC']
     except AssertionError as e:
@@ -1283,16 +1283,16 @@ def test_refresh_vol_price_updates():
     for ft in pf_comp.get_all_futures():
         ft.update_price(50)
 
-    print('pf after price pre refresh: ', pf_comp)
+    # print('pf after price pre refresh: ', pf_comp)
     pf_comp.refresh()
-    print('pf after price post refresh: ', pf_comp)
+    # print('pf after price post refresh: ', pf_comp)
 
     for op in pf_comp.get_all_options():
         op.update_greeks(vol=0.25)
 
-    print('pf after vol pre refresh: ', pf_comp)
+    # print('pf after vol pre refresh: ', pf_comp)
     pf_comp.refresh()
-    print('pf after vol post refresh: ', pf_comp)
+    # print('pf after vol post refresh: ', pf_comp)
 
 
 def test_hedges_pf_updates():
@@ -1351,10 +1351,10 @@ def test_pf_assign_hedge_dataframes():
     r_vdf = vdf[vdf.value_date == date]
     r_pdf = pdf[pdf.value_date == date]
 
-    # print('r_vdf: ', r_vdf)
-    # print('r_pdf: ', r_pdf)
+    # # print('r_vdf: ', r_vdf)
+    # # print('r_pdf: ', r_pdf)
 
-    print('r_pdf columns: ', r_pdf.columns)
+    # print('r_pdf columns: ', r_pdf.columns)
     r_vdf.sort_values(by='value_date', inplace=True)
     r_vdf.reset_index(drop=True, inplace=True)
 
@@ -1382,12 +1382,13 @@ def test_pf_assign_hedge_dataframes():
     pf.assign_hedger_dataframes(r_vdf, r_pdf)
 
     assert np.array_equal(cc_hedger.vdf, r_vdf)
-    try:
-        assert np.array_equal(cc_hedger.pdf, r_pdf)
-    except AssertionError as e:
-        for col in cc_hedger.pdf.columns:
-            print('col: ', col)
-            print(np.array_equal(cc_hedger.pdf[col], r_pdf[col]))
+    # try:
+    assert np.array_equal(cc_hedger.pdf, r_pdf)
+    # except AssertionError as e:
+    #     for col in cc_hedger.pdf.columns:
+    #         # print('col: ', col)
+    #         # print(np.array_equal(cc_hedger.pdf[col], r_pdf[col]))
+    #         pass
 
     assert np.array_equal(qc_hedger.vdf, r_vdf)
     assert np.array_equal(qc_hedger.pdf, r_pdf)
@@ -1395,13 +1396,13 @@ def test_pf_assign_hedge_dataframes():
     # check that the other computations are made as well.
     assert cc_hedger.mappings != {}
     assert qc_hedger.mappings != {}
-    print('cc_mappings: ', cc_hedger.mappings)
-    print('qc_mappings: ', qc_hedger.mappings)
+    # print('cc_mappings: ', cc_hedger.mappings)
+    # print('qc_mappings: ', qc_hedger.mappings)
 
     r_vdf = vdf[vdf.value_date == maxdate]
     r_pdf = pdf[pdf.value_date == maxdate]
 
-    # print('r_pdf columns: ', r_pdf.columns)
+    # # print('r_pdf columns: ', r_pdf.columns)
     r_vdf.sort_values(by='value_date', inplace=True)
     r_vdf.reset_index(drop=True, inplace=True)
 

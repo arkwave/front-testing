@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-08-11 19:24:36
-# @Last Modified by:   Ananth
-# @Last Modified time: 2017-12-11 15:45:50
+# @Last Modified by:   arkwave
+# @Last Modified time: 2017-12-29 19:35:51
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -182,7 +182,7 @@ def test_hedge_delta():
     # uid representation: no ttm
     cc_engine = Hedge(pf_simple, pf_simple.hedge_params, r_vdf, r_pdf)
 
-    print('cc_engine: ', cc_engine)
+    # print('cc_engine: ', cc_engine)
 
     # check that deltas are zeroed out.
     cc_engine.hedge_delta()
@@ -387,19 +387,19 @@ def test_hedge():
     pf = copy.deepcopy(pfcc)
     pf.hedge_params = cc_hedges_c
 
-    print('____________________ HEDGE TEST 1 _____________________')
+    # print('____________________ HEDGE TEST 1 _____________________')
     engine = Hedge(pf, pf.hedge_params, r_vdf, r_pdf)
     tval = pf.net_greeks['CC']['Z7'][2]
     bounds = pf.hedge_params['theta'][0][1]
-    print('bounds: ', bounds)
+    # print('bounds: ', bounds)
     assert not engine.satisfied()
 
-    print('engine.mappings: ', engine.mappings['theta'])
+    # print('engine.mappings: ', engine.mappings['theta'])
 
     engine.hedge('theta', 'CC', 80, tval, (bounds[0] + bounds[1])/2)
 
     assert engine.satisfied()
-    print('____________________ HEDGE TEST 1 END _____________________')
+    # print('____________________ HEDGE TEST 1 END _____________________')
 
 
 def test_intraday_hedge_processing_static():
@@ -416,7 +416,7 @@ def test_intraday_hedge_processing_static():
 
     engine = pf.get_hedger()
 
-    print('engine: ', engine)
+    # print('engine: ', engine)
 
     assert 'intraday' in engine.params['delta']
     assert len(engine.params['delta']['intraday']) == 4
@@ -437,7 +437,7 @@ def test_intraday_hedgeing_static():
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf)
 
-    print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
+    # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
 
     # case 1: for both products, moves are less than static value.
     engine = pf.get_hedger()
@@ -446,7 +446,7 @@ def test_intraday_hedgeing_static():
     qcfts = [x for x in pf.get_all_futures() if x.get_uid() == 'QC  Z7']
     # price_changes = {'CC  Z7': 5, 'QC  Z7': 5}
 
-    # print('pf.net_greeks: ', pf.net_greeks)
+    # # print('pf.net_greeks: ', pf.net_greeks)
     init_greeks = pf.net_greeks.copy()
     for x in ccfts:
         x.update_price(x.get_price() + 5)
@@ -454,17 +454,17 @@ def test_intraday_hedgeing_static():
         x.update_price(x.get_price() + 5)
     engine.hedge_delta(intraday=True)
     assert pf.net_greeks == init_greeks
-    # print('pf.net_greeks: ', pf.net_greeks)
+    # # print('pf.net_greeks: ', pf.net_greeks)
 
     # case 2: CC move exceeds static value.
     # price_changes = {'CC  Z7': 20, 'QC  Z7': 5}
     init_greeks = pf.net_greeks.copy()
-    print('pf.net_greeks pre_hedge: ', pf.net_greeks)
+    # print('pf.net_greeks pre_hedge: ', pf.net_greeks)
     for x in ccfts:
         x.update_price(x.get_price() + 6)
     engine.hedge_delta(intraday=True)
     # pf.refresh()
-    print('pf.net_greeks post_hedge: ', pf.net_greeks)
+    # print('pf.net_greeks post_hedge: ', pf.net_greeks)
     # assert that CC is hedged, QC is not.
     assert abs(pf.net_greeks['CC']['Z7'][0]) < 1
     assert pf.net_greeks['QC'] == init_greeks['QC']
@@ -489,8 +489,8 @@ def test_intraday_hedging_static_ratio():
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf)
 
-    print('pf: ', pf)
-    print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
+    # print('pf: ', pf)
+    # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
 
     # case 1: for both products, moves are less than static value.
     engine = pf.get_hedger()
@@ -499,7 +499,7 @@ def test_intraday_hedging_static_ratio():
     qcfts = [x for x in pf.get_all_futures() if x.get_uid() == 'QC  Z7']
     # price_changes = {'CC  Z7': 5, 'QC  Z7': 5}
 
-    # print('pf.net_greeks: ', pf.net_greeks)
+    # # print('pf.net_greeks: ', pf.net_greeks)
     init_greeks = pf.net_greeks.copy()
     for x in ccfts:
         x.update_price(x.get_price() + 5)
@@ -507,21 +507,21 @@ def test_intraday_hedging_static_ratio():
         x.update_price(x.get_price() + 5)
     engine.hedge_delta(intraday=True)
     assert pf.net_greeks == init_greeks
-    # print('pf.net_greeks: ', pf.net_greeks)
+    # # print('pf.net_greeks: ', pf.net_greeks)
 
     pf.refresh()
 
     # case 2: CC move exceeds static value.
     # price_changes = {'CC  Z7': 20, 'QC  Z7': 5}
     init_greeks = pf.net_greeks.copy()
-    print('pf.net_greeks pre_hedge: ', pf.net_greeks)
+    # print('pf.net_greeks pre_hedge: ', pf.net_greeks)
     for x in ccfts:
         x.update_price(x.get_price() + 6)
 
     pf.refresh()
 
     init_delta = pf.net_greeks['CC']['Z7'][0]
-    print('init delta: ', init_delta)
+    # print('init delta: ', init_delta)
     engine.hedge_delta(intraday=True)
 
     pf.refresh()
@@ -529,8 +529,8 @@ def test_intraday_hedging_static_ratio():
     try:
         assert pf.net_greeks['QC'] == init_greeks['QC']
     except AssertionError as e:
-        print('actual: ', pf.net_greeks['QC'])
-        print('desired: ', init_greeks['QC'])
+        # print('actual: ', pf.net_greeks['QC'])
+        # print('desired: ', init_greeks['QC'])
         raise AssertionError from e
 
     try:
@@ -545,7 +545,7 @@ def test_intraday_hedging_static_ratio():
         x.update_price(x.get_price() + 11)
     pf.refresh()
     init_qc_delta = pf.net_greeks['QC']['Z7'][0]
-    print('init_qc_delta: ', init_qc_delta)
+    # print('init_qc_delta: ', init_qc_delta)
     engine.hedge_delta(intraday=True)
     assert np.isclose(round(abs(pf.net_greeks['QC']['Z7'][0])), 49)
 
@@ -567,11 +567,11 @@ def test_intraday_hedge_processing_be():
     # assign hedge objects and create copy
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf)
-    # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
-    # print('pf_be: ', pf.breakeven())
+    # # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
+    # # print('pf_be: ', pf.breakeven())
 
     engine = pf.get_hedger()
-    print('engine: ', engine)
+    # print('engine: ', engine)
 
     assert engine.intraday_conds is not None
 
@@ -583,9 +583,9 @@ def test_intraday_hedge_processing_be():
     assert engine.intraday_conds.entry_level == pf.uid_price_dict()
     assert engine.intraday_conds.maximals == pf.uid_price_dict()
 
-    # print('pf: ', pf)
-    print('TrailingStop: ', engine.intraday_conds)
-    # print('Tstop monitoring: ', engine.intraday_conds.active)
+    # # print('pf: ', pf)
+    # print('TrailingStop: ', engine.intraday_conds)
+    # # print('Tstop monitoring: ', engine.intraday_conds.active)
 
 
 def test_intraday_hedging_be():
@@ -600,8 +600,8 @@ def test_intraday_hedging_be():
     # assign hedge objects and create copy
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf)
-    print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
-    print('pf_be: ', pf.breakeven())
+    # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
+    # print('pf_be: ', pf.breakeven())
 
     ccfts = [x for x in pf.get_all_futures() if x.get_uid() == 'CC  Z7']
     qcfts = [x for x in pf.get_all_futures() if x.get_uid() == 'QC  Z7']
@@ -609,7 +609,7 @@ def test_intraday_hedging_be():
     # case 1: for both products, moves are less than breakeven * be_mult. no
     # change.
     engine = pf.get_hedger()
-    # print('pf.net_greeks: ', pf.net_greeks)
+    # # print('pf.net_greeks: ', pf.net_greeks)
     init_greeks = pf.net_greeks.copy()
     for x in ccfts:
         x.update_price(x.get_price() + 5)
@@ -617,18 +617,18 @@ def test_intraday_hedging_be():
         x.update_price(x.get_price() + 5)
     engine.hedge_delta(intraday=True)
     assert pf.net_greeks == init_greeks
-    # print('pf.net_greeks: ', pf.net_greeks)
+    # # print('pf.net_greeks: ', pf.net_greeks)
 
     # case 2: CC move exceeds breakeven * mult.
     # price_changes = {'CC  Z7': 28, 'QC  Z7': 15}
     init_greeks = pf.net_greeks.copy()
-    print('pf.net_greeks pre_hedge: ', pf.net_greeks)
+    # print('pf.net_greeks pre_hedge: ', pf.net_greeks)
     for x in ccfts:
         x.update_price(x.get_price() + 33)
     for x in qcfts:
         x.update_price(x.get_price() + 20)
     engine.hedge_delta(intraday=True)
-    print('pf.net_greeks post_hedge: ', pf.net_greeks)
+    # print('pf.net_greeks post_hedge: ', pf.net_greeks)
     # assert that CC is hedged, QC is not.
     assert abs(pf.net_greeks['CC']['Z7'][0]) < 1
     assert pf.net_greeks['QC'] == init_greeks['QC']
@@ -728,7 +728,7 @@ def test_intraday_hedging_be_ratio_hedgemod():
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf)
 
-    print('prices: ', pf.uid_price_dict())
+    # print('prices: ', pf.uid_price_dict())
 
     ccfts = [x for x in pf.get_all_futures() if x.get_uid() == 'CC  Z7']
     qcfts = [x for x in pf.get_all_futures() if x.get_uid() == 'QC  Z7']
@@ -737,7 +737,7 @@ def test_intraday_hedging_be_ratio_hedgemod():
     # change.
     engine = pf.get_hedger()
     init_greeks = pf.net_greeks.copy()
-    print('+++++++ First Update +++++++')
+    # print('+++++++ First Update +++++++')
     for x in ccfts:
         x.update_price(x.get_price() + 5)
     for x in qcfts:
@@ -746,10 +746,10 @@ def test_intraday_hedging_be_ratio_hedgemod():
     assert pf.net_greeks == init_greeks
     # refresh post price update.
     pf.refresh()
-    print('prices: ', pf.uid_price_dict())
-    print('TrailingStop: ', pf.hedger.intraday_conds)
-    print('+++++++++++++++++++++++++++++')
-    print('+++++++ Second Update +++++++')
+    # print('prices: ', pf.uid_price_dict())
+    # print('TrailingStop: ', pf.hedger.intraday_conds)
+    # print('+++++++++++++++++++++++++++++')
+    # print('+++++++ Second Update +++++++')
 
     # QC Price: 1565 -> 1585
     # CC Price: 1991 -> 2024
@@ -760,7 +760,7 @@ def test_intraday_hedging_be_ratio_hedgemod():
     for x in qcfts:
         x.update_price(x.get_price() + 20)
     pf.refresh()
-    print('prices: ', pf.uid_price_dict())
+    # print('prices: ', pf.uid_price_dict())
 
     # save the greeks for later comparison.
     init_greeks = pf.net_greeks.copy()
@@ -769,8 +769,8 @@ def test_intraday_hedging_be_ratio_hedgemod():
     # hedge and refresh portfolio.
     engine.hedge_delta(intraday=True)
     pf.refresh()
-    print('TrailingStop: ', pf.hedger.intraday_conds)
-    print('++++++++++++++++++++++++++++++')
+    # print('TrailingStop: ', pf.hedger.intraday_conds)
+    # print('++++++++++++++++++++++++++++++')
 
     init_cc_delta = round(abs(pf.net_greeks['CC']['Z7'][0]))
 
@@ -784,15 +784,15 @@ def test_intraday_hedging_be_ratio_hedgemod():
 
     # case 3: QC move exceeds breakeven. both commodities exceed trigger
     # bounds.
-    print('+++++++++ Third Update ++++++++++')
+    # print('+++++++++ Third Update ++++++++++')
     for x in ccfts:
         x.update_price(x.get_price() + 45)
     for x in qcfts:
         x.update_price(x.get_price() + 8)
     pf.refresh()
-    print('prices: ', pf.uid_price_dict())
-    print('TrailingStop: ', pf.hedger.intraday_conds)
-    print('+++++++++++++++++++++++++++++++++++')
+    # print('prices: ', pf.uid_price_dict())
+    # print('TrailingStop: ', pf.hedger.intraday_conds)
+    # print('+++++++++++++++++++++++++++++++++++')
 
     pre_hedge_qc_delta = round(abs(pf.net_greeks['QC']['Z7'][0]))
     engine.hedge_delta(intraday=True)
@@ -802,22 +802,22 @@ def test_intraday_hedging_be_ratio_hedgemod():
     try:
         assert round(new_qc_delta/pre_hedge_qc_delta, 1) == 1
     except AssertionError as e:
-        print('old delta: ', pre_hedge_qc_delta)
-        print('new delta: ', new_qc_delta)
+        # print('old delta: ', pre_hedge_qc_delta)
+        # print('new delta: ', new_qc_delta)
         raise AssertionError('desired value: ', round(
             new_qc_delta/pre_hedge_qc_delta, 1))
 
     # case 4: QC hits trailing stop. QC should be thoroughly hedged, while CC
     # should be running.
-    print('+++++++++ Fourth Update ++++++++++')
+    # print('+++++++++ Fourth Update ++++++++++')
     for x in ccfts:
         x.update_price(x.get_price() + 45)
     for x in qcfts:
         x.update_price(1587)
     pf.refresh()
-    print('prices: ', pf.uid_price_dict())
-    print('TrailingStop: ', pf.hedger.intraday_conds)
-    print('+++++++++++++++++++++++++++++++++++')
+    # print('prices: ', pf.uid_price_dict())
+    # print('TrailingStop: ', pf.hedger.intraday_conds)
+    # print('+++++++++++++++++++++++++++++++++++')
     pre_hedge_qc_delta = round(abs(pf.net_greeks['QC']['Z7'][0]))
     engine.hedge_delta(intraday=True)
     pf.refresh()
@@ -826,20 +826,20 @@ def test_intraday_hedging_be_ratio_hedgemod():
     try:
         assert round(new_qc_delta) == 0
     except AssertionError as e:
-        print('new delta: ', new_qc_delta)
+        # print('new delta: ', new_qc_delta)
         raise AssertionError('actual value: ', round(new_qc_delta, 1))
 
     # case 5: CC hits trailing stop. CC and QC should both be thoroughly
     # hedged.
-    print('+++++++++ Fifth Update ++++++++++')
+    # print('+++++++++ Fifth Update ++++++++++')
     for x in ccfts:
         x.update_price(2102)
     for x in qcfts:
         x.update_price(1600)
     pf.refresh()
-    print('prices: ', pf.uid_price_dict())
-    print('TrailingStop: ', pf.hedger.intraday_conds)
-    print('+++++++++++++++++++++++++++++++++++')
+    # print('prices: ', pf.uid_price_dict())
+    # print('TrailingStop: ', pf.hedger.intraday_conds)
+    # print('+++++++++++++++++++++++++++++++++++')
     pre_hedge_cc_delta = round(abs(pf.net_greeks['CC']['Z7'][0]))
     engine.hedge_delta(intraday=True)
     pf.refresh()
@@ -848,7 +848,7 @@ def test_intraday_hedging_be_ratio_hedgemod():
     try:
         assert round(new_cc_delta) == 0
     except AssertionError as e:
-        print('new delta: ', new_qc_delta)
+        # print('new delta: ', new_qc_delta)
         raise AssertionError('actual value: ', round(new_qc_delta, 1))
 
 
@@ -873,7 +873,7 @@ def test_intraday_hedging_static_ratio_hedgemod():
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf)
 
-    print('prices: ', pf.uid_price_dict())
+    # print('prices: ', pf.uid_price_dict())
 
     ccfts = [x for x in pf.get_all_futures() if x.get_uid() == 'CC  Z7']
     qcfts = [x for x in pf.get_all_futures() if x.get_uid() == 'QC  Z7']
@@ -882,7 +882,7 @@ def test_intraday_hedging_static_ratio_hedgemod():
     # change.
     engine = pf.get_hedger()
     init_greeks = pf.net_greeks.copy()
-    print('+++++++ First Update +++++++')
+    # print('+++++++ First Update +++++++')
     for x in ccfts:
         x.update_price(x.get_price() + 5)
     for x in qcfts:
@@ -891,10 +891,10 @@ def test_intraday_hedging_static_ratio_hedgemod():
     assert pf.net_greeks == init_greeks
     # refresh post price update.
     pf.refresh()
-    print('prices: ', pf.uid_price_dict())
-    print('TrailingStop: ', pf.hedger.intraday_conds)
-    print('+++++++++++++++++++++++++++++')
-    print('+++++++ Second Update +++++++')
+    # print('prices: ', pf.uid_price_dict())
+    # print('TrailingStop: ', pf.hedger.intraday_conds)
+    # print('+++++++++++++++++++++++++++++')
+    # print('+++++++ Second Update +++++++')
 
     # case 2: CC move exceeds value = trigger. should run 0.3*delta and
     # have stop losses in place.
@@ -903,7 +903,7 @@ def test_intraday_hedging_static_ratio_hedgemod():
     for x in qcfts:
         x.update_price(x.get_price() + 20)
     pf.refresh()
-    print('prices: ', pf.uid_price_dict())
+    # print('prices: ', pf.uid_price_dict())
 
     # save the greeks for later comparison.
     init_greeks = pf.net_greeks.copy()
@@ -912,8 +912,8 @@ def test_intraday_hedging_static_ratio_hedgemod():
     # hedge and refresh portfolio.
     engine.hedge_delta(intraday=True)
     pf.refresh()
-    print('TrailingStop: ', pf.hedger.intraday_conds)
-    print('++++++++++++++++++++++++++++++')
+    # print('TrailingStop: ', pf.hedger.intraday_conds)
+    # print('++++++++++++++++++++++++++++++')
 
     init_cc_delta = round(abs(pf.net_greeks['CC']['Z7'][0]))
 
@@ -934,15 +934,15 @@ def test_intraday_hedging_static_ratio_hedgemod():
     # case 3: QC move exceeds breakeven. both commodities exceed trigger
     # bounds. 30% of QC delta should be run, and trailingstop updated
     # accordingly.
-    print('+++++++++ Third Update ++++++++++')
+    # print('+++++++++ Third Update ++++++++++')
     for x in ccfts:
         x.update_price(x.get_price() + 45)
     for x in qcfts:
         x.update_price(x.get_price() + 11)
     pf.refresh()
-    print('prices: ', pf.uid_price_dict())
-    print('TrailingStop: ', pf.hedger.intraday_conds)
-    print('+++++++++++++++++++++++++++++++++++')
+    # print('prices: ', pf.uid_price_dict())
+    # print('TrailingStop: ', pf.hedger.intraday_conds)
+    # print('+++++++++++++++++++++++++++++++++++')
 
     pre_hedge_qc_delta = round(abs(pf.net_greeks['QC']['Z7'][0]))
     engine.hedge_delta(intraday=True)
@@ -951,8 +951,8 @@ def test_intraday_hedging_static_ratio_hedgemod():
     try:
         assert round(new_qc_delta/pre_hedge_qc_delta, 1) == 0.3
     except AssertionError as e:
-        print('old delta: ', pre_hedge_qc_delta)
-        print('new delta: ', new_qc_delta)
+        # print('old delta: ', pre_hedge_qc_delta)
+        # print('new delta: ', new_qc_delta)
         raise AssertionError('desired value: ', round(
             new_qc_delta/pre_hedge_qc_delta, 1))
 
@@ -964,15 +964,15 @@ def test_intraday_hedging_static_ratio_hedgemod():
 
     # case 4: QC hits trailing stop. QC should be thoroughly hedged, while CC
     # should be running. Anchor points should be reset.
-    print('+++++++++ Fourth Update ++++++++++')
+    # print('+++++++++ Fourth Update ++++++++++')
     for x in ccfts:
         x.update_price(x.get_price())
     for x in qcfts:
         x.update_price(1590)
     pf.refresh()
-    print('prices: ', pf.uid_price_dict())
-    print('TrailingStop: ', pf.hedger.intraday_conds)
-    print('+++++++++++++++++++++++++++++++++++')
+    # print('prices: ', pf.uid_price_dict())
+    # print('TrailingStop: ', pf.hedger.intraday_conds)
+    # print('+++++++++++++++++++++++++++++++++++')
     pre_hedge_qc_delta = round(abs(pf.net_greeks['QC']['Z7'][0]))
     engine.hedge_delta(intraday=True)
     pf.refresh()
@@ -981,7 +981,7 @@ def test_intraday_hedging_static_ratio_hedgemod():
     try:
         assert round(new_qc_delta) == 0
     except AssertionError as e:
-        print('new delta: ', new_qc_delta)
+        # print('new delta: ', new_qc_delta)
         raise AssertionError('actual value: ', round(new_qc_delta, 1))
 
     # check the TrailingStop parameters.
@@ -993,15 +993,15 @@ def test_intraday_hedging_static_ratio_hedgemod():
 
     # case 5: CC hits trailing stop. CC and QC should both be thoroughly
     # hedged.
-    print('+++++++++ Fifth Update ++++++++++')
+    # print('+++++++++ Fifth Update ++++++++++')
     for x in ccfts:
         x.update_price(2063)
     for x in qcfts:
         x.update_price(1600)
     pf.refresh()
-    print('prices: ', pf.uid_price_dict())
-    print('TrailingStop: ', pf.hedger.intraday_conds)
-    print('+++++++++++++++++++++++++++++++++++')
+    # print('prices: ', pf.uid_price_dict())
+    # print('TrailingStop: ', pf.hedger.intraday_conds)
+    # print('+++++++++++++++++++++++++++++++++++')
     pre_hedge_cc_delta = round(abs(pf.net_greeks['CC']['Z7'][0]))
     engine.hedge_delta(intraday=True)
     pf.refresh()
@@ -1010,7 +1010,7 @@ def test_intraday_hedging_static_ratio_hedgemod():
     try:
         assert round(new_cc_delta) == 0
     except AssertionError as e:
-        print('new delta: ', new_qc_delta)
+        # print('new delta: ', new_qc_delta)
         raise AssertionError('actual value: ', round(new_qc_delta, 1))
 
     # check the TrailingStop parameters.
@@ -1034,7 +1034,7 @@ def test_breakeven():
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf)
     init_be = pf.breakeven().copy()
-    print('pf_be: ', init_be)
+    # print('pf_be: ', init_be)
 
     hedge_engine = pf.get_hedger()
     assert init_be == hedge_engine.breakeven
@@ -1066,9 +1066,9 @@ def test_breakeven():
 #     # assign hedge objects and create copy
 #     pf = copy.deepcopy(pf_comp)
 #     pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf)
-#     # print('pf: ', pf)
+#     # # print('pf: ', pf)
 
-#     print('engine: ', pf.get_hedger())
+#     # print('engine: ', pf.get_hedger())
 
 #     ccfts = [x for x in pf.get_all_futures() if x.get_uid() == 'CC  Z7']
 #     qcfts = [x for x in pf.get_all_futures() if x.get_uid() == 'QC  Z7']
@@ -1097,7 +1097,7 @@ def test_is_relevant_price_move_be():
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf)
     init_be = pf.breakeven()
-    print('be: ', init_be)
+    # print('be: ', init_be)
 
     ccfts = [x for x in pf.get_all_futures() if x.get_uid() == 'CC  Z7']
     qcfts = [x for x in pf.get_all_futures() if x.get_uid() == 'QC  Z7']
@@ -1123,7 +1123,7 @@ def test_is_relevant_price_move_static():
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf)
 
-    print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
+    # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
 
     # case 1: for both products, moves are less than static value.
     engine = pf.get_hedger()

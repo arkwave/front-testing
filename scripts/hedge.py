@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-15 19:28:57
+# @Last Modified time: 2017-12-29 17:33:48
 
 import pandas as pd
 import pprint
@@ -852,15 +852,11 @@ class Hedge:
         greek representation the object was initialized with.
 
         Args:
-            intraday (bool, optional): Description
-            ohlc (bool, optional): Description
-            diff (None, optional): Description
-
-        Deleted Parameters:
-            pf (TYPE): Description
+            intraday (bool, optional): True if intraday hedge, False otherwise.
+            ohlc (bool, optional): True if simulation uses OHLC data, False otherwise. 
 
         Returns:
-            TYPE: Description
+            Portfolio: delta-hedged portfolio, based on inputs passed in. 
         """
         pnl = 0
         ft = None
@@ -952,9 +948,9 @@ class Hedge:
         of the greek, the greek itself, and the structure being used to hedge it.
 
         Args:
-            desc (TYPE): Description
-            val (TYPE): Description
-            flag (TYPE): Description
+            desc (TYPE): the kind of position being used to hedge
+            val (TYPE): the required valued 
+            flag (TYPE): the greek being hedged
         """
         shorted = None
         if desc in ('straddle', 'strangle', 'call', 'put'):
@@ -970,11 +966,17 @@ class Hedge:
         the requisite amount.
 
         Args:
-            data (TYPE): Description
-            shorted (TYPE): Description
-            hedge_id (TYPE): Description
-            flag (TYPE): Description
-            greekval (TYPE): Description
+            data (dict): greek-specific dictionary containing hedging specifications. subset of self.params.
+            shorted (bool): True if hedges are to be shorted, False otherwise.
+            hedge_id (str): vol_id to be used in creating the hedge.
+            flag (str): the greek being hedged
+            greekval (float): the sizing of the hedge required. 
+            loc (TYPE): loc = future month if uid hedging, else the ttm. 
+            settlements (dataframe, optional): dataframe of settlement vols. used if self.book = True, i.e if hedging is
+            being done basis book vols. 
+
+        Returns:
+            Option objects: the option objects used to hedge the greek. 
 
         """
         # designate the dataframes to be used for hedging.

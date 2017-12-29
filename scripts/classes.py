@@ -16,62 +16,60 @@ import numpy as np
 
 class Option:
 
-    """
-    Definitions for the option class.
-    Instance variables:
-        1)  ki         =   knock-in value. Defaults to None if not used.
-        2)  ko         =   knock-out value Defaults to None if not used. 
-        3)  K          =   strike price
-        4)  price      =   price according to BSM 
-        5)  tau        =   time to expiry in years (as per black-scholes)
-        6)  char       =   call or put option.
-        7)  vol        =   current implied volatility
-        9)  r          =   risk free interest rate. assumed to be 0, can be changed.
-        10) desc       =   string description of the object
-        11) month      =   month of expiry. used to keep greeks for different months separate.
-        12) barrier    =   American or European barrier.
-        13) lots       =   the quantity of underlying being shorted or bought upon expiry. 
-        14) bullet     =   True - Bullet. False - Daily.
-        15) underlying =   the underlying futures object
-        16) payoff     =   American or European option
-        17) direc      =   Indicates the direction of the barrier (up and out etc.).
-        18) knockedin  =   boolean indicating if this barrier knockin option is active.
-        19) knockedout =   boolean indicating if this barrier knockout option is active.
-        20) expired    =   boolean indicating if the option has expired.
-        21) rebate     =   value paid to holder of option if option is knocked out.
-        22) ordering   =   indicating if this option is c1, c2, ... c8. For vol/price purposes.
-        23) settlement =   string indicating if the option is cash- or future-settled upon exercise
+    """        
+    Attributes:
 
-        Notes: 
+        -- Implementation - specific attributes --
+
+        active (bool): True if option contributes greeks, false otherwise.
+        barrier (str/None): three potential inputs: None, amer or euro (for vanilla, american and european barriers respectively)
+        bullet (bool): True if option has bullet payoff, False if option is Daily
+        desc (str): description. defaults to 'option'.
+        direc (str): 'up' or 'down'. to be used for barrier options. 
+        expired (bool): True if option has expired, False otherwise. 
+        knockedin (bool): True if option is has a knock-in barrier that has been breached, False otherwise. 
+        knockedout (bool): True if option has a knock-out barrier that has been breached, False otherwise.
+        ko (float): Knock-out barrier level.
+        ki (float): Knock-in barrier level. 
+        partners (set): Set containing other option objects for composite actions. if this option object is contract or delta-rolled, all options
+        in this set are also contract/delta rolled. 
+        strike_type (str): callstrike or putstrike, depending on relationship of strike to current spot price. 
+
+        -----------------------------------------
+
+        -- Conventional Attributes --
+
+        K (float): strike
+        lots (float): lottage
+        month (str): Option month. The first component of C H8.Z8. 
+        ordering (int): C1, C2 etc. 
+        payoff (str): amer/euro. currently doesn't matter, since all options are evaluated like european options. 
+        price (float): option price, computed using black scholes.
+        product (str): Product this option is on. 
+        r (int): interest rate, defaults to 0
+        rebate (float): rebate value payed when a barrier is breached. defaults to 0. 
+        settlement (str): cash or future 
+        shorted (bool): True if short position, False otherwise. 
+        bvol (float): Barrier vol
+        char (str): call or put
+        tau (float): time to maturity in years. 
+        underlying (object): Underlying Futures object. 
+        vol (float): strike vol
+        delta (float): delta of this option (between 0 and 1)
+        gamma (TYPE): gamma
+        theta (TYPE): theta
+        vega (TYPE): vega
+
+        ----------------------------------------
+
+    Notes: 
         1_ ki, ko, bullet, direc and barrier default to None and must be 
            expressly overridden if an exotic option is desired.
         2_ knockedin and knockedout should be set ONLY for options that
            are knockin and knockout options respectively. the program assumes
            this assignment is done correctly.
+        3_ greeks are computed using black scholes, unmodified.
 
-    Instance Methods:
-    1) get_month       : returns the month of the underlying contract.
-    2) init_greeks     : initializes the greeks of this option. only called on init.
-    3) update_greeks   : updates and reassigns greeks upon changes in underlying price/vol.
-    4) greeks          : getter method that returns a tuple of the greeks
-    5) compute_vol     : computes the implied volatility of this option.
-    6) compute_price   : computes value of the object based on the appropriate valuation method.
-    7) get_price       : getter method for the value of the object.
-    8) update_tau      : updates time to expiry.
-    9) exercise        : exercises the option. as of now, returns a boolean.
-    10) moneyness      : returns 1, 0 , -1 depending if option is itm, atm, otm.
-    11) get_underlying : returns the underlying future object.
-    12) get_desc       : returns 'option'
-    13) get_product    : returns the NAME of the underlying future.
-    14) check_active   : for barriers, checks to see if this barrier is active or not.
-    15) check_expired  : expires this option. defaults to false upon initialization.
-    16) zero_option    : zeros the option's greeks.
-    17) shorted        : indicates if this is security is being longed or shorted.
-    18) set_ordering   : sets the ordering of this option.
-    19) get_ordering   : return self.ordering
-    20) get_month      : returns the month associated with this option.
-    21) get_properties : returns a dictionary containing all the non-default 
-                         properties of the option. Used for daily to bullet conversion. 
     """
 
     def __init__(self, strike, tau, char, vol, underlying, payoff, shorted,
@@ -254,7 +252,7 @@ class Option:
                                 ki=self.ki, ko=self.ko, barrier=self.barrier,
                                 direction=self.direc, order=self.ordering,
                                 bvol=self.bvol)
-        except TypeError:
+        except TypeError as e:
             print('char: ', self.char)
             print('strike: ', self.K)
             print('tau: ', self.tau)
@@ -267,6 +265,7 @@ class Option:
             print('ko: ', self.ko)
             print('barrier: ', self.barrier)
             print('direction: ', self.direc)
+            raise TypeError(getattr(e, 'message')) from e
 
         if self.shorted:
             # print('shorted!')
@@ -456,16 +455,17 @@ class Future:
     3) desc      :  string description of the object
     4) lots      :  number of lots represented by each future contract.
     5) product   :  the commodity of this future.
-    6) shorted   :  bool indicating whether this future is being shorted or \
-    longed
+    6) shorted   :  bool indicating whether this future is being shorted or long
+    7) delta     :  delta contribution of this future. 1 if shorted=False, -1 otherwise. 
 
     Instance Methods:
-    1) get_desc       : returns 'future'
-    2) get_price      : returns price of the future.
-    3) update_price   : updates the price based on inputted data.
-    5) get_month      : returns contract month.
-    6) get_lots       : returns lot size
-    7) get_product    : returns the name of this contract (i.e. the commodity)
+        1) get_desc       : returns 'future'
+        2) get_price      : returns price of the future.
+        3) update_price   : updates the price based on inputted data.
+        5) get_month      : returns contract month.
+        6) get_lots       : returns lot size
+        7) get_product    : returns the name of this contract (i.e. the commodity)
+
     '''
 
     def __init__(self, month, price, product, shorted=None, lots=1000, ordering=None, instructions={}):
@@ -479,10 +479,8 @@ class Future:
             self.price = price
         else:
             raise ValueError("Price cannot be negative")
-        self.expired = self.check_expired()
         mult = -1 if shorted else 1
         self.delta = 1 * lots * mult
-        self.instructions = instructions
 
     def __str__(self):
         string = self.product + ' ' + self.month + ' '
@@ -520,11 +518,6 @@ class Future:
     def get_product(self):
         return self.product
 
-    def check_expired(self):
-        ret = True if self.ordering == 0 else False
-        self.expired = ret
-        return ret
-
     def update_lots(self, lots):
         self.lots = lots
         mult = -1 if self.shorted else 1
@@ -535,9 +528,3 @@ class Future:
 
     def get_uid(self):
         return self.product + '  ' + self.month
-
-    def set_instructions(self, instructions):
-        self.instructions = instructions
-
-    def get_instructions(self):
-        return self.instructions

@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-15 23:44:07
+# @Last Modified time: 2017-12-29 19:27:54
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -72,102 +72,6 @@ contract_mths = {
 }
 
 
-# def create_portfolio(pdt, opmth, ftmth, optype, vdf, pdf, **kwargs):
-#     """Helper function that generates common portfolio types. Delegates construction to specific
-#      constructors, based on the input passed in.
-
-#     Args:
-#         pdt (TYPE): Product
-#         opmth (TYPE): Option month, e.g. K7
-#         ftmth (TYPE): Future month, e.g. K7
-#         optype (TYPE): structure name. valid inputs are call, put, callspread, putspread, fence, straddle, strangle, call_butterfly and put_butterfly
-#         vdf (TYPE): dataframe of vols
-#         pdf (TYPE): dataframe of prices
-#         **kwargs: dictionary of the form {'strikes':[], 'char':[], 'shorted':[], 'lots': [], 'greek': str, 'greekvals': [], 'atm': bool}
-
-#     Returns:
-#         Portfolio object: The portfolio being created.
-#     """
-#     print('kwargs: ', kwargs)
-#     pf = Portfolio()
-
-#     # create the underlying future
-#     ticksize = multipliers[pdt][-2]
-#     date = max(vdf.value_date.min(), pdf.value_date.min())
-#     _, ftprice = create_underlying(pdt, ftmth, pdf, date, shorted=False)
-
-#     # create the relevant options; get all relevant information
-#     volid = pdt + '  ' + opmth + '.' + ftmth
-#     shorted = kwargs['shorted']
-
-#     if 'atm' in kwargs and kwargs['atm']:
-#         strike = round(round(ftprice / ticksize) * ticksize, 2)
-
-#     if optype == 'straddle':
-#         op1, op2 = create_straddle(
-#             volid, vdf, pdf, date, shorted, strike, kwargs)
-#         ops = [op1, op2]
-
-#     elif optype == 'skew':
-#         delta = kwargs['delta']
-#         op1, op2 = create_skew(volid, vdf, pdf, date,
-#                                shorted, delta, ftprice, kwargs)
-#         ops = [op1, op2]
-
-#     elif optype == 'vanilla':
-#         strike = kwargs['strike'] if 'strike' in kwargs else None
-#         char = kwargs['char']
-#         delta = kwargs['delta'] if 'delta' in kwargs else None
-#         lots = kwargs['lots'] if 'lots' in kwargs else None
-#         op1 = create_vanilla_option(vdf, pdf, volid, char, shorted,
-#                                     date, lots=lots, delta=delta, strike=strike, kwargs=kwargs)
-#         ops = [op1]
-
-#     elif optype == 'spread':
-#         char = kwargs['char']
-#         op1, op2 = create_spread(
-#             char, volid, vdf, pdf, date, shorted, kwargs)
-#         ops = [op1, op2]
-
-#     elif optype == 'fence':
-#         delta = kwargs['delta']
-#         op1, op2 = create_skew(volid, vdf, pdf, date,
-#                                not shorted, delta, kwargs)
-#         ops = [op1, op2]
-
-#     elif optype == 'strangle':
-#         op1, op2 = create_strangle(volid, vdf, pdf, date, shorted, kwargs)
-#         ops = [op1, op2]
-
-#     elif optype == 'butterfly':
-#         char = kwargs['char']
-#         op1, op2, op3, op4 = create_butterfly(
-#             char, volid, vdf, pdf, date, shorted, kwargs)
-#         ops = [op1, op2, op3, op4]
-
-#     pf.add_security(ops, 'OTC')
-
-#     if 'hedges' in kwargs:
-#         print('creating hedges')
-#         dic = kwargs['hedges']
-#         if dic['type'] == 'straddle':
-#             # identifying the essentials
-#             pdt, ftmth, opmth = dic['pdt'], dic['ftmth'], dic['opmth']
-#             volid = pdt + '  ' + opmth + '.' + ftmth
-#             shorted = dic['shorted']
-#             # create the underlying future object
-#             h_ft, h_price = create_underlying(
-#                 pdt, ftmth, pdf, date, shorted=False)
-#             h_strike = round(round(h_price / ticksize) * ticksize, 2) \
-#                 if dic['strike'] == 'atm' else dic['strike']
-#             h1, h2 = create_straddle(
-#                 volid, vdf, pdf, date, shorted, h_strike, dic, pf=pf)
-
-#         pf.add_security([h1, h2], 'hedge')
-
-#     return pf
-
-
 def create_underlying(pdt, ftmth, pdf, date, flag='settlement', ftprice=None, shorted=False, lots=None):
     """Utility method that creates the underlying future object 
         given a product, month, price data and date. 
@@ -177,6 +81,8 @@ def create_underlying(pdt, ftmth, pdf, date, flag='settlement', ftprice=None, sh
         ftmth (TYPE): month (e.g. N7)
         pdf (TYPE): Dataframe of prices 
         date (TYPE): Date 
+        flag (str, optional): indicates whether we want to use settlement or intraday data points
+        ftprice (None, optional): Description
         shorted (bool, optional): indicates if the future is shorted or not
         lots (None, optional): lot size to use for this future. 
 
@@ -232,21 +138,22 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
         date (pd.Timestamp, optional): date to use when selecting vol
         payoff (string): american or european payoff
         lots (int, optional): number of lots 
-        kwargs (dict, optional): dictionary containing extra delimiting factors, 
-                                e.g. greek/greekvalue. 
         delta (float, optional): Delta of this option as an alternative to strike. 
         strike (float): strike of the option
         vol (float, optional): volatility of the option
+        bullet (bool, optional): True if option has bullet payoff, False if daily. 
+        **kwargs: additional parameters. current valid parameters are as follows:
+            1. 'greek' - greek to be used for sizing. 
+            2. 'greekval' - the sizing. 
+            3. 'tau' - specified custom time to maturity in years. 
+            4. 'breakeven' - specified custom breakeven. vol will be scaled accordingly. 
 
     Returns:
         object: Option created according to the parameters passed in. 
 
-
-    Deleted Parameters:
-        mth (string): month of the option, e.g. N7
-
     Raises:
-        ValueError: Description
+        IndexError: Raised if essential parameters cannot be found in the dataset provided.
+        ValueError: Raised if neither strike nor delta is passed in to specify option. 
 
 
     """
@@ -385,37 +292,35 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
 
 def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriertype,
                           direction, ki, ko, bullet, rebate=0, payoff='amer', lots=None,
-                          kwargs=None, vol=None, bvol=None):
+                          vol=None, bvol=None):
     """Helper method that creates barrier options. 
 
     Args:
-        vdf (TYPE): dataframe of vols
-        pdf (TYPE): dataframe of prices
-        volid (TYPE): vol_id of this barrier option
-        char (TYPE): call/put
-        strike (TYPE): strike price. 
-        shorted (TYPE): True or False
-        date (TYPE): date of initialization
-        barriertype (TYPE): amer or euro barrier. 
-        direction (TYPE): up or down
-        ki (TYPE): knockin value 
-        ko (TYPE): knockout value
-        bullet (TYPE): True if bullet, false if daily. 
+        vdf (dataframe): dataframe of vols
+        pdf (dataframe): dataframe of prices
+        volid (str): vol_id of this barrier option
+        char (str): call/put
+        strike (float/string): strike price. 
+        shorted (bool): True or False
+        date (pandas timestamp): date of initialization
+        barriertype (str): amer or euro barrier. 
+        direction (str): up or down
+        ki (float/None): knockin value 
+        ko (float/None): knockout value
+        bullet (bool): True if bullet, false if daily. 
         rebate (int, optional): rebate value.
         payoff (str, optional): amer or euro option
-        lots (None, optional): number of lots
-        kwargs (None, optional): additional parameters (greeks, etc)
+        lots (float, optional): number of lots
         vol (None, optional): vol at strike
         bvol (None, optional): vol at barrier
 
-    Deleted Parameters:
-        delta (None, optional): specif
 
     Returns:
-        TYPE: Description
+        object: barrier option object.
 
-    No Longer Raises:
-        ValueError: Description
+    Raises:
+        IndexError: Raised if either barrier vol, strike vol or ttm is not found. 
+
     """
     print('util.create_barrier_option - inputs: ',
           volid, char, shorted, lots, strike, vol)
@@ -487,7 +392,7 @@ def create_butterfly(char, volid, vdf, pdf, date, shorted, **kwargs):
         pdf (pandas dataframe): detaframe of prices
         date (pandas Timestamp): initialization date. 
         shorted (bool): determines if this is a short or long butterfly. 
-        kwargs (dic): dictionary of specifications must include the following:
+        **kwargs: dictionary of specifications must include the following:
             > 3 strikes OR one delta and one dist 
             > 3 lot sizes. 
 
@@ -496,12 +401,11 @@ def create_butterfly(char, volid, vdf, pdf, date, shorted, **kwargs):
             > 3 strikes. 
             > One delta and a spread. 
 
-    Deleted Parameters:
-        strike1 (TYPE): Description
-        strike2 (TYPE): Description
-        strike3 (TYPE): Description
-        strike4 (TYPE): Description
-        ft (TYPE): Description
+    Returns:
+        tuple: three option objects which form a butterfly.
+
+    Raises:
+        ValueError: Raised if neither strike nor delta specified. 
 
     """
     # checks if strikes are passed in, and if there are 3 strikes.
@@ -962,20 +866,21 @@ def combine_portfolios(lst, hedges=None, name=None, refresh=False):
     """Helper method that merges and returns a portfolio pf where pf.families = lst. 
 
     Args:
-        lst (TYPE): Description
+        lst (list): list of portfolio objects. 
+        hedges (dict, optional): hedging parameters to be assigned to the composite pf
+        name (None, optional): name to be assigned to composite pf
+        refresh (bool, optional): True if immediate refresh is desired, False otherwise.
+
+    Returns:
+        object: composite portfolio object. 
     """
 
     pf = Portfolio(None) if hedges is None else Portfolio(hedges, name)
     for p in lst:
-        # print('p: ', p)
-        # update the lists first.
         pf.OTC_options.extend(p.OTC_options)
         pf.hedge_options.extend(p.hedge_options)
-        # print('--------- merging OTCs ---------')
         pf.OTC = merge_dicts(p.OTC, pf.OTC)
-        # print('--------- merging hedges ----------')
         pf.hedges = merge_dicts(p.hedges, pf.hedges)
-        # print('---------- next loop ----------')
     pf.set_families(lst)
 
     if refresh:
@@ -1011,7 +916,6 @@ def transfer_dict(d1):
             values = newdic
 
     ret = dict.fromkeys(keys, values)
-    # print('transfer_dict.ret: ', ret)
     return ret
 
 
@@ -1022,20 +926,17 @@ def merge_lists(r1, r2):
     modify the constituent lists
 
     Args:
-        l1 (TYPE): Description
-        l2 (TYPE): Description
+        r1 (list): first list. 
+        r2 (list): second list. 
 
     Returns:
-        TYPE: Description
+        list: merged list. 
     """
-    # print('merge lists triggered')
     l1 = copy.copy(r1)
     l2 = copy.copy(r2)
     if len(l1) == 0:
-        # print('basecase: l1 is empty: ', l2)
         return transfer_lists(l2)
     elif len(l2) == 0:
-        # print('basecase: l2 is empty: ', l1)
         return transfer_lists(l1)
 
     ret = []
@@ -1061,19 +962,16 @@ def merge_dicts(d1, d2):
     any of the constituent dictionaries. 
 
     Args:
-        r1 (TYPE): First dictionary to be merged
-        r2 (TYPE): Second dictionary to be merged.
+        d1 (TYPE): First dictionary to be merged
+        d2 (TYPE): Second dictionary to be merged.
 
     Returns:
-        TYPE: Dictionary.
+        dict: merged dictionary. 
     # """
     ret = {}
-    # base cases: either d1 or d2 are empty.
     if len(d1) == 0:
-        # print('basecase: l1 is empty: ', d2)
         ret = transfer_dict(d2.copy())
     elif len(d2) == 0:
-        # print('basecase: l2 is empty: ', d1)
         ret = transfer_dict(d1.copy())
     else:
         # handles d1-unique and d1-d2 overlap keys.
@@ -1081,11 +979,9 @@ def merge_dicts(d1, d2):
             # base case: key is not in d2 -> d1[key] becomes default value for
             # this key in ret.
             if key not in d2:
-                # print(key + ' unique to d1')
                 if isinstance(d1[key], dict):
                     ret[key] = transfer_dict(d1[key].copy())
                 else:
-                    # print('hit list case')
                     ret[key] = transfer_lists(d1[key].copy())
             # case: this key exists in d2. need to merge the outputs of d1[key]
             # and d2[key]
@@ -1099,11 +995,9 @@ def merge_dicts(d1, d2):
 
         for key in d2:
             if key not in d1:
-                # print(key + ' unique to d2')
                 if isinstance(d2[key], dict):
                     ret[key] = transfer_dict(d2[key].copy())
                 else:
-                    # print('hit list case')
                     ret[key] = transfer_lists(d2[key].copy())
             # other case would already have been handled in d1 iteration
             else:
@@ -1167,9 +1061,10 @@ def assign_hedge_objects(pf, vdf=None, pdf=None, book=False):
         pf (TYPE): Portfolio object.
         vdf (dataframe, optional): dataframe of volatilities. 
         pdf (dataframe, optional): dataframe of prices 
+        book (bool, optional): True if hedging is done basis book vols, False otherwise.
 
     Returns:
-        TYPE: Description
+        object: Portfolio object with Hedger constructed and assigned.
 
     """
     # case: simple portfolio.
@@ -1204,6 +1099,7 @@ def mark_to_vols(pfx, vdf, dup=False, pdt=None):
         pfx (Portfolio): the portfolio being marked. 
         vdf (TYPE): volatility surface the portfolio is being marked to. 
         dup (bool, optional): flag that indicates whether or not this method 
+        pdt (str, optional): optional filter. marks vols only for this product, if specified.
         should modify the portfolio passed in (if marking is desired) or 
         return a duplicate. 
 
@@ -1272,25 +1168,3 @@ def compute_market_minus(pf, vdf):
     val = pf.compute_value() - newpf.compute_value()
     mm = abs(val)
     return mm, val
-
-
-def handle_date_by_pdt(pdt, date, edf):
-    """Helper method that decrements the date by 1 if a given product has an overnight market. 
-
-    Args:
-        pdt (TYPE): the product being handled
-        date (TYPE): the date in question
-        edf (dataframe): Dataframe of exchange timings
-
-    """
-    pass
-
-
-def handle_timezones(lst, edf):
-    """Helper function that reconciles timezones between the products specified. 
-
-    Args:
-        lst (TYPE): list of products we're interested in. 
-        edf (dataframe): Dataframe of exchange timings
-    """
-    pass

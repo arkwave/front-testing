@@ -116,7 +116,7 @@ def test_daily_to_bullets():
     dic2 = {'hedge': [], 'OTC': [op2]}
     # applying function
     sim_start = pd.to_datetime(vdf.value_date.min())
-    print('simstart: ', sim_start)
+    # print('simstart: ', sim_start)
     ret1 = pr.handle_dailies(dic1, sim_start)
     ret2 = pr.handle_dailies(dic2, sim_start)
 

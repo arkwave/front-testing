@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-29 19:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-04 13:58:29
+# @Last Modified time: 2017-12-29 17:39:57
 import pprint
 from abc import ABC, abstractmethod
 import numpy as np
@@ -25,19 +25,19 @@ class TrailingStop(HedgeModifier):
     Attributes:
         active (dict): UID -> true or false. Determines whether or not stop loss 
                               monitoring has been triggered. 
+        anchor_points (TYPE): UID -> reference points from which trigger bounds are applied. 
         current_level (TYPE): UID -> current price level dictionary. 
-        last_hedgepoints (TYPE): last values these UIDS were hedged at. 
         entry_level (TYPE): a dictionary mappng UID to the price level the tradewas entered at.
+        locked (TYPE): Description
         maximals (TYPE): highest UID price values seen so far. 
         minimals (dict): the lowest UID price values seen so far. 
         parent (TYPE): the Hedge object that created this trailingstop. 
         pf (portfolio object): the portfolio this trailing stop object is monitoring.
         stop_levels: copy of params['value']. used to re-compute the stop values
-        trigger_bounds (TYPE): dictionary mapping UID to trigger bounds around last hedged point, 
+        trigger_bounds (TYPE): dictionary mapping UID to trigger bounds around anchor point, 
                                exceeding which monitoring is turned on. 
-        thresholds (dict): dictionary mapping uid to the price level at which 
-            trailing stop monitoring is 'turned on' 
-        stop_values: uid -> price point upon which we stop out.  
+        trigger_bounds_numeric (TYPE): uid -> anchor point + trigger bound for each UID. 
+
 
     """
 

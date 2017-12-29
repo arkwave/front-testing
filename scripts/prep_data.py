@@ -108,30 +108,11 @@ def match_to_signals(vdf, pdf, signals):
     Returns:
         tuple: vol and price dataframes with prices updated/removed accordingly.
     """
-    # vdf.value_date -= pd.Timedelta('2 day')
-    # pdf.value_date -= pd.Timedelta('2 day')
-
-    # v_dates = pd.to_datetime(vdf.value_date.unique())
-    # p_dates = pd.to_datetime(pdf.value_date.unique())
-
-    # print('v_check 1: ', pd.Timestamp('2017-02-20') in v_dates)
-    # print('v_check 2: ', pd.Timestamp('2017-01-16') in v_dates)
 
     vdf['monday'] = vdf.value_date.dt.weekday == 0
-    # pdf['monday'] = pdf.value_date.dt.weekday == 0
 
     vdf.loc[vdf.monday == True, 'value_date'] -= pd.Timedelta('3 day')
-    # pdf.loc[pdf.monday == True, 'value_date'] -= pd.Timedelta('3 day')
     vdf.loc[vdf.monday == False, 'value_date'] -= pd.Timedelta('1 day')
-    # pdf.loc[pdf.monday == False, 'value_date'] -= pd.Timedelta('1 day')
-
-    # vdf.value_date -= pd.Timedelta('1 day')
-
-    # filtering relevant dates
-    # vdf = vdf[(vdf.value_date > pd.Timestamp('2017-01-02')) &
-    #           (vdf.value_date < pd.Timestamp('2017-04-02'))]
-    # pdf = pdf[(pdf.value_date > pd.Timestamp('2017-01-02')) &
-    #           (pdf.value_date < pd.Timestamp('2017-04-02'))]
 
     d1 = [x for x in vdf.value_date.unique()
           if x not in signals.value_date.unique()]
@@ -257,12 +238,13 @@ def prep_portfolio(voldata, pricedata, filepath=None, spec=None):
         voldata (TYPE): volatility data
         pricedata (TYPE): price data
         filepath (TYPE): path to the csv containing portfolio specifications
+        spec (dataframe, optional): pandas dataframe containing the portfolio specifications 
 
     Returns:
         TYPE: portfolio object
 
     Raises:
-        ValueError: Description
+        ValueError: raised if object creation parameters cannot be found. 
 
     """
 
@@ -270,7 +252,7 @@ def prep_portfolio(voldata, pricedata, filepath=None, spec=None):
     sim_start = None
     oplist = {'hedge': [], 'OTC': []}
     ftlist = {'hedge': [], 'OTC': []}
-    # sim_start = min(min(voldata.value_date), min(pricedata.value_date))
+
     # reading in the dataframe of portfolio specifications
     specs = pd.read_csv(filepath) if spec is None else spec
     specs = specs.fillna('None')
@@ -448,7 +430,7 @@ def handle_dailies(dic, sim_start):
         sim_start (TYPE): start_date of the simulation
 
     Returns:
-        TYPE: Description
+        dict: OTC/hedge -> list of daily options. 
     """
     for flag in dic:
         lst = dic[flag]
@@ -494,7 +476,7 @@ def handle_dailies(dic, sim_start):
 ###############################################################
 
 
-def clean_data(df, flag, date=None, edf=None, writeflag=None):
+def clean_data(df, flag, edf=None, writeflag=None):
     """Function that cleans the dataframes passed into it according to the flag passed in.
     1) flag == 'exp':
         > datatype conversion to pd.Timestamp
@@ -502,24 +484,18 @@ def clean_data(df, flag, date=None, edf=None, writeflag=None):
         > converts formatting; i.e. C H17 --> C H7
     2) flag == 'vol':
         > convert date strings to pd.Timestamp
-        > calculate time to maturity from vol_id (i.e. C Z7.Z7 --> TTM in years)
-        > appends expiry date
         > generates additional fields from existing ones.
-        > assigns preliminary ordering (i.e. c1, c2 months from current month). 
-          This step involves another function civols (line 479)
-        > computes all-purpose label comprising of vol_id, order, and call_put_id
-            - example: C Z7.Z7 4 C --> Corn Z7.Z7 call option with ordering 4
-            - example: C Z7.Z7 4 P --> Corn Z7.Z7 put option with ordering 4.
+
     3) flag == 'price':
         > expiry date and ordering like in vol.
         > date strings to pd.Timestamp
-        > calculates returns; log(S_curr/S_prev)
-        > calculates orderings with rollover, using function ciprice
-    Args:
-        df (pandas dataframe)   : the dataframe to be cleaned.
-        flag (pandas dataframe) : determines which dataframe is being processed.
-        edf (pandas dataframe)  : dataframe containing the expiries of options.
 
+    Args:
+        df (pandas dataframe): the dataframe to be cleaned.
+        flag (pandas dataframe): determines which dataframe is being processed.
+        edf (pandas dataframe): dataframe containing the expiries of options.
+
+        writeflag (None, optional): Description
 
     Returns:
         TYPE: the cleaned dataframe, with the appropriate data transformations made.
@@ -600,8 +576,6 @@ def vol_by_delta(voldata, pricedata):
     Returns:
         pandas dataframe: delta-wise vol of each option.
     """
-    # print('voldata: ', voldata)
-    # print('pricedata: ', pricedata)
     relevant_price = pricedata[
         ['pdt', 'underlying_id', 'value_date', 'price']]
     relevant_vol = voldata[['pdt', 'value_date', 'vol_id', 'strike',
@@ -679,12 +653,7 @@ def vol_by_delta(voldata, pricedata):
                         f1 = interp1d(deltas, vols, kind='linear',
                                       fill_value='extrapolate')
                     except ValueError:
-                        # print('INTERPOLATION BROKE')
-                        # print('vid: ', vid)
-                        # print('cpi: ', ind)
-                        # print('date: ', date)
-                        # print('deltas: ', deltas)
-                        # print('vols: ', vols)
+
                         continue
 
                     # grabbing delta-wise vols based on interpolation.
@@ -1395,7 +1364,7 @@ def handle_overnight_market_timings(df, start_date, end_date):
 # TODO: handle rounding of strikes when necessary.
 # TODO: handle HedgeParser implementation to account for trailing stops etc.
 def granularize(df, pf, interval=None, ohlc=False, intraday=False):
-    """Helper function that takes in a dataframe filtered through reorder_ohlc_data, 
+    """Helper function that takes in a dataframe 
     and checks for consecutive price moves that exceed the breakeven/flat value hedging
     interval specified for that underlying id. If this condition is met, 
     it splits up the move into hedge-interval level moves. Cases checked are as follows:
@@ -1412,6 +1381,9 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
         df (dataframe): dataframe of prices
         pf (portfolio object): portfolio being handled. 
 
+        interval (None, optional): Description
+        ohlc (bool, optional): Description
+        intraday (bool, optional): Description
 
     Returns:
         dataframe: dataframe with the price moves granularized according to the 
@@ -1423,7 +1395,6 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
         return df
 
     fin_df = df.copy()
-    hedgeparser = pf.get_hedgeparser(dup=True)
 
     # print('pre-granularize df: ', df)
 
@@ -1446,8 +1417,6 @@ def granularize(df, pf, interval=None, ohlc=False, intraday=False):
     curr_prices = pf.hedger.get_hedgepoints().copy()
 
     for uid in uids:
-        pdt = uid.split()[0]
-        ticksize = multipliers[pdt][2]
         uid_df = df[df.underlying_id == uid].sort_values('time')
         uid_df.reset_index(drop=True, inplace=True)
         # get the hedging value.

@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-11-29 20:02:36
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-11-30 21:18:29
+# @Last Modified time: 2017-12-29 19:35:15
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -85,11 +85,11 @@ def test_trailingstop_processing():
     # assign hedge objects and create copy
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf)
-    # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
-    # print('pf_be: ', pf.breakeven())
+    # # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
+    # # print('pf_be: ', pf.breakeven())
 
     tstop = pf.get_hedger().get_intraday_conds()
-    print('tstop: ', tstop)
+    # print('tstop: ', tstop)
 
     assert tstop.get_active() == {'QC  Z7': False, 'CC  Z7': False}
     assert not tstop.get_active(uid='QC  Z7')
@@ -118,13 +118,13 @@ def test_trailingstop_updates():
     # assign hedge objects and create copy
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf)
-    # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
-    # print('pf_be: ', pf.breakeven())
+    # # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
+    # # print('pf_be: ', pf.breakeven())
 
     tstop = pf.get_hedger().get_intraday_conds()
-    print('-'*50)
-    print('tstop: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('tstop: ', tstop)
+    # print('-'*50)
     assert tstop is not None
     assert isinstance(tstop, TrailingStop)
     assert tstop.get_current_level() == pf.uid_price_dict()
@@ -137,27 +137,27 @@ def test_trailingstop_updates():
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
     assert tstop.get_maximals() == newprices
     assert tstop.get_stop_values() == {'QC  Z7': 1605, 'CC  Z7': None}
-    print('-'*50)
-    print('first update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('first update: ', tstop)
+    # print('-'*50)
     # both should now be active.
     newprices = {'QC  Z7': 1650, 'CC  Z7': 2100}
     tstop.update_current_level(newprices)
     assert tstop.get_maximals() == newprices
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': True}
     assert tstop.get_stop_values() == {'QC  Z7': 1645, 'CC  Z7': 2090}
-    print('-'*50)
-    print('second update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('second update: ', tstop)
+    # print('-'*50)
     # check if updates are passed.
     newprices = {'QC  Z7': 1660, 'CC  Z7': 2095}
     tstop.update_current_level(newprices)
     assert tstop.get_maximals() == {'QC  Z7': 1660, 'CC  Z7': 2100}
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': True}
     assert tstop.get_stop_values() == {'QC  Z7': 1655, 'CC  Z7': 2090}
-    print('-'*50)
-    print('third update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('third update: ', tstop)
+    # print('-'*50)
 
 
 def test_trailingstop_hit_sellstop():
@@ -177,15 +177,15 @@ def test_trailingstop_hit_sellstop():
     # assign hedge objects and create copy
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf)
-    # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
-    # print('pf_be: ', pf.breakeven())
+    # # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
+    # # print('pf_be: ', pf.breakeven())
 
-    print('='*50)
-    print('pf: ', pf)
-    print('='*50)
+    # print('='*50)
+    # print('pf: ', pf)
+    # print('='*50)
 
     tstop = pf.get_hedger().get_intraday_conds()
-    # print('tstop: ', tstop)
+    # # print('tstop: ', tstop)
     assert tstop is not None
     assert isinstance(tstop, TrailingStop)
     assert tstop.get_current_level() == pf.uid_price_dict()
@@ -194,15 +194,15 @@ def test_trailingstop_hit_sellstop():
     # update the prices.
     newprices = {'QC  Z7': 1610, 'CC  Z7': 1990}
     tstop.update_current_level(newprices)
-    # print('first update: ', tstop)
+    # # print('first update: ', tstop)
     # QC Z7 should be active, CC Z7 inactive.
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
     assert tstop.get_maximals() == newprices
     assert tstop.get_stop_values() == {'QC  Z7': 1605, 'CC  Z7': None}
 
-    print('-'*50)
-    print('first update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('first update: ', tstop)
+    # print('-'*50)
 
     # both should now be active.
     newprices = {'QC  Z7': 1650, 'CC  Z7': 2100}
@@ -210,18 +210,18 @@ def test_trailingstop_hit_sellstop():
     assert tstop.get_maximals() == newprices
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': True}
     assert tstop.get_stop_values() == {'QC  Z7': 1645, 'CC  Z7': 2090}
-    print('-'*50)
-    print('second update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('second update: ', tstop)
+    # print('-'*50)
     # check if updates are passed.
     newprices = {'QC  Z7': 1660, 'CC  Z7': 2095}
     tstop.update_current_level(newprices)
     assert tstop.get_maximals() == {'QC  Z7': 1660, 'CC  Z7': 2100}
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': True}
     assert tstop.get_stop_values() == {'QC  Z7': 1655, 'CC  Z7': 2090}
-    print('-'*50)
-    print('third update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('third update: ', tstop)
+    # print('-'*50)
     # QC hits trailing stop.
     newprices = {'QC  Z7': 1655, 'CC  Z7': 2095}
     tstop.update_current_level(newprices)
@@ -231,7 +231,7 @@ def test_trailingstop_hit_sellstop():
     newprices = {'QC  Z7': 1655, 'CC  Z7': 2090}
     tstop.update_current_level(newprices)
     assert tstop.trailing_stop_hit('CC  Z7')
-    print('tstop after hit: ', tstop)
+    # print('tstop after hit: ', tstop)
 
 
 def test_trailingstop_update_locks():
@@ -251,9 +251,9 @@ def test_trailingstop_update_locks():
     # assign hedge objects and create copy
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf)
-    print('='*50)
-    print('pf: ', pf)
-    print('='*50)
+    # print('='*50)
+    # print('pf: ', pf)
+    # print('='*50)
 
     tstop = pf.get_hedger().get_intraday_conds()
     assert tstop is not None
@@ -265,7 +265,7 @@ def test_trailingstop_update_locks():
     # update the prices to move QC past threshold.
     newprices = {'QC  Z7': 1610, 'CC  Z7': 1990}
     tstop.update_current_level(newprices)
-    # print('first update: ', tstop)
+    # # print('first update: ', tstop)
     # QC Z7 should be active, CC Z7 inactive.
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
     assert tstop.get_locks() == {'QC  Z7': True, 'CC  Z7': False}
@@ -296,15 +296,15 @@ def test_trailingstop_hit_buystop():
     # assign hedge objects and create copy
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf)
-    # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
-    # print('pf_be: ', pf.breakeven())
+    # # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
+    # # print('pf_be: ', pf.breakeven())
 
-    print('='*50)
-    print('pf: ', pf)
-    print('='*50)
+    # print('='*50)
+    # print('pf: ', pf)
+    # print('='*50)
 
     tstop = pf.get_hedger().get_intraday_conds()
-    # print('tstop: ', tstop)
+    # # print('tstop: ', tstop)
     assert tstop is not None
     assert isinstance(tstop, TrailingStop)
     assert tstop.get_current_level() == pf.uid_price_dict()
@@ -313,24 +313,24 @@ def test_trailingstop_hit_buystop():
     # update the prices.
     newprices = {'QC  Z7': 1520, 'CC  Z7': 1990}
     tstop.update_current_level(newprices)
-    # print('first update: ', tstop)
+    # # print('first update: ', tstop)
     # QC Z7 should be active, CC Z7 inactive.
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
     # assert tstop.get_maximals() == newprices
     assert tstop.get_stop_values() == {'QC  Z7': 1525, 'CC  Z7': None}
 
-    print('-'*50)
-    print('first update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('first update: ', tstop)
+    # print('-'*50)
 
     # both should now be active.
     newprices = {'QC  Z7': 1510, 'CC  Z7': 1930}
     tstop.update_current_level(newprices)
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': True}
     assert tstop.get_stop_values() == {'QC  Z7': 1515, 'CC  Z7': 1940}
-    print('-'*50)
-    print('second update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('second update: ', tstop)
+    # print('-'*50)
 
     # check if updates are passed.
     newprices = {'QC  Z7': 1514, 'CC  Z7': 1935}
@@ -338,26 +338,26 @@ def test_trailingstop_hit_buystop():
     # assert tstop.get_maximals() == {'QC  Z7': 1660, 'CC  Z7': 2100}
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': True}
     assert tstop.get_stop_values() == {'QC  Z7': 1515, 'CC  Z7': 1940}
-    print('-'*50)
-    print('third update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('third update: ', tstop)
+    # print('-'*50)
 
     # QC hits trailing stop.
     newprices = {'QC  Z7': 1515, 'CC  Z7': 1935}
     tstop.update_current_level(newprices)
-    print('-'*50)
-    print('fourth update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('fourth update: ', tstop)
+    # print('-'*50)
     assert tstop.trailing_stop_hit('QC  Z7')
 
     # CC hits trailing stop.
     newprices = {'QC  Z7': 1515, 'CC  Z7': 1940}
     tstop.update_current_level(newprices)
-    print('-'*50)
-    print('fifth update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('fifth update: ', tstop)
+    # print('-'*50)
     assert tstop.trailing_stop_hit('CC  Z7')
-    print('tstop after hit: ', tstop)
+    # print('tstop after hit: ', tstop)
 
 
 def test_trailingstop_run_deltas_buystop():
@@ -377,17 +377,17 @@ def test_trailingstop_run_deltas_buystop():
     # assign hedge objects and create copy
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf)
-    # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
-    # print('pf_be: ', pf.breakeven())
+    # # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
+    # # print('pf_be: ', pf.breakeven())
 
-    print('='*50)
-    print('pf: ', pf)
-    print('='*50)
+    # print('='*50)
+    # print('pf: ', pf)
+    # print('='*50)
 
     tstop = pf.get_hedger().get_intraday_conds()
-    print('='*50)
-    print('tstop: ', tstop)
-    print('='*50)
+    # print('='*50)
+    # print('tstop: ', tstop)
+    # print('='*50)
 
     assert tstop is not None
     assert isinstance(tstop, TrailingStop)
@@ -399,9 +399,9 @@ def test_trailingstop_run_deltas_buystop():
     # QC Z7 should be active, CC Z7 inactive.
     assert tstop.run_deltas('QC  Z7', newprices)[0]
 
-    print('-'*50)
-    print('first update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('first update: ', tstop)
+    # print('-'*50)
     assert not tstop.run_deltas('CC  Z7', newprices)[0]
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
     assert tstop.get_stop_values() == {'QC  Z7': 1525, 'CC  Z7': None}
@@ -412,9 +412,9 @@ def test_trailingstop_run_deltas_buystop():
     assert tstop.run_deltas('CC  Z7', newprices)[0]
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': True}
     assert tstop.get_stop_values() == {'QC  Z7': 1515, 'CC  Z7': 1940}
-    print('-'*50)
-    print('second update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('second update: ', tstop)
+    # print('-'*50)
 
     # check if updates are passed.
     newprices = {'QC  Z7': 1514, 'CC  Z7': 1935}
@@ -422,27 +422,27 @@ def test_trailingstop_run_deltas_buystop():
     assert tstop.run_deltas('CC  Z7', newprices)[0]
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': True}
     assert tstop.get_stop_values() == {'QC  Z7': 1515, 'CC  Z7': 1940}
-    print('-'*50)
-    print('third update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('third update: ', tstop)
+    # print('-'*50)
 
     # QC hits trailing stop.
     newprices = {'QC  Z7': 1515, 'CC  Z7': 1935}
     assert not tstop.run_deltas('QC  Z7', newprices)[0]
     # after run_deltas call, anchor point should be reset.
     assert not tstop.trailing_stop_hit('QC  Z7')
-    print('-'*50)
-    print('fourth update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('fourth update: ', tstop)
+    # print('-'*50)
 
     # CC hits trailing stop.
     newprices = {'QC  Z7': 1515, 'CC  Z7': 1940}
     assert not tstop.run_deltas('CC  Z7', newprices)[0]
-    print('-'*50)
-    print('fifth update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('fifth update: ', tstop)
+    # print('-'*50)
     assert not tstop.trailing_stop_hit('CC  Z7')
-    print('tstop after hit: ', tstop)
+    # print('tstop after hit: ', tstop)
 
 
 def test_trailingstop_run_deltas_sellstop():
@@ -463,17 +463,17 @@ def test_trailingstop_run_deltas_sellstop():
     # assign hedge objects and create copy
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf)
-    # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
-    # print('pf_be: ', pf.breakeven())
+    # # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
+    # # print('pf_be: ', pf.breakeven())
 
-    print('='*50)
-    print('pf: ', pf)
-    print('='*50)
+    # print('='*50)
+    # print('pf: ', pf)
+    # print('='*50)
 
     tstop = pf.get_hedger().get_intraday_conds()
-    print('='*50)
-    print('tstop: ', tstop)
-    print('='*50)
+    # print('='*50)
+    # print('tstop: ', tstop)
+    # print('='*50)
 
     assert tstop is not None
     assert isinstance(tstop, TrailingStop)
@@ -485,9 +485,9 @@ def test_trailingstop_run_deltas_sellstop():
     # QC Z7 should be active, CC Z7 inactive.
     assert tstop.run_deltas('QC  Z7', newprices)[0]
 
-    print('-'*50)
-    print('first update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('first update: ', tstop)
+    # print('-'*50)
     assert not tstop.run_deltas('CC  Z7', newprices)[0]
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': False}
     assert tstop.get_stop_values() == {'QC  Z7': 1595, 'CC  Z7': None}
@@ -498,9 +498,9 @@ def test_trailingstop_run_deltas_sellstop():
     assert tstop.run_deltas('CC  Z7', newprices)[0]
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': True}
     assert tstop.get_stop_values() == {'QC  Z7': 1605, 'CC  Z7': 2030}
-    print('-'*50)
-    print('second update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('second update: ', tstop)
+    # print('-'*50)
 
     # check if updates are passed.
     newprices = {'QC  Z7': 1615, 'CC  Z7': 2045}
@@ -508,27 +508,27 @@ def test_trailingstop_run_deltas_sellstop():
     assert tstop.run_deltas('CC  Z7', newprices)[0]
     assert tstop.get_active() == {'QC  Z7': True, 'CC  Z7': True}
     assert tstop.get_stop_values() == {'QC  Z7': 1610, 'CC  Z7': 2035}
-    print('-'*50)
-    print('third update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('third update: ', tstop)
+    # print('-'*50)
 
     # QC hits trailing stop.
     newprices = {'QC  Z7': 1609, 'CC  Z7': 2036}
     assert not tstop.run_deltas('QC  Z7', newprices)[0]
     # after run_deltas call, anchor point should be reset.
     assert not tstop.trailing_stop_hit('QC  Z7')
-    print('-'*50)
-    print('fourth update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('fourth update: ', tstop)
+    # print('-'*50)
 
     # CC hits trailing stop.
     newprices = {'QC  Z7': 1610, 'CC  Z7': 2035}
     assert not tstop.run_deltas('CC  Z7', newprices)[0]
-    print('-'*50)
-    print('fifth update: ', tstop)
-    print('-'*50)
+    # print('-'*50)
+    # print('fifth update: ', tstop)
+    # print('-'*50)
     assert not tstop.trailing_stop_hit('CC  Z7')
-    print('tstop after hit: ', tstop)
+    # print('tstop after hit: ', tstop)
 
 
 def test_trailingstop_locks_sellstops():
@@ -547,17 +547,17 @@ def test_trailingstop_locks_sellstops():
     # assign hedge objects and create copy
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf)
-    # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
-    # print('pf_be: ', pf.breakeven())
+    # # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
+    # # print('pf_be: ', pf.breakeven())
 
-    print('='*50)
-    print('pf: ', pf)
-    print('='*50)
+    # print('='*50)
+    # print('pf: ', pf)
+    # print('='*50)
 
     tstop = pf.get_hedger().get_intraday_conds()
-    print('='*50)
-    print('tstop: ', tstop)
-    print('='*50)
+    # print('='*50)
+    # print('tstop: ', tstop)
+    # print('='*50)
 
     # initial: tstop locks should both be false.
     assert tstop.get_locks() == {'CC  Z7': False, 'QC  Z7': False}
@@ -612,17 +612,17 @@ def test_trailingstop_locks_buystops():
     # assign hedge objects and create copy
     pf = copy.deepcopy(pf_comp)
     pf = assign_hedge_objects(pf)
-    # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
-    # print('pf_be: ', pf.breakeven())
+    # # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
+    # # print('pf_be: ', pf.breakeven())
 
-    print('='*50)
-    print('pf: ', pf)
-    print('='*50)
+    # print('='*50)
+    # print('pf: ', pf)
+    # print('='*50)
 
     tstop = pf.get_hedger().get_intraday_conds()
-    print('='*50)
-    print('tstop: ', tstop)
-    print('='*50)
+    # print('='*50)
+    # print('tstop: ', tstop)
+    # print('='*50)
 
     # initial: tstop locks should both be false.
     assert tstop.get_locks() == {'CC  Z7': False, 'QC  Z7': False}

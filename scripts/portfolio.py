@@ -56,49 +56,44 @@ class Portfolio:
     """
     Class representing the overall portfolio.
 
-    Instance variables:
-    1) OTC_options           : list of OTC options.
-    2) hedge_options         : list of hedge options.
-    3) OTC_futures           : list of OTC futures
-    4) hedge_futures         : list of hedge futures.
-    5) newly_added           : list of newly added securities to this portfolio. used for ease of bookkeeping.
-    6) toberemoved           : list of securities to be removed from this portfolio.
-                               used for ease of bookkeeping.
-    7) value                 : value of the overall portfolio. computed by summing the value of the
-                               securities present in the portfolio.
-    8) OTC                   : dictionary of the form {product : {month: [set(options),
-                                                                          set(futures),
-                                                                          delta, gamma, theta, vega]}}
-                               containing OTC positions.
-    9) hedges                : dictionary of the same form as self.OTC.
-    10) net_greeks           : dictionary of the form {product : {month: [delta, gamma, theta, vega]}}
-                               containing net greeks, organized hierarchically by product and month.
+    All objects (i.e. Options or Futures) within the Portfolio object are 
+    placed in one of two categories: OTC or Hedge. OTC securities are the 'stuff we have positions in', while
+    hedge securities are the 'stuff we used to manage the risks of OTC securities'.
 
-    Instance Methods:
-    1) set_pnl                : setter method for pnl.
-    2) init_sec_by_month      : initializes OTC, hedges and net_greeks dictionaries. Only called at init.
-    3) add_security           : adds security to portfolio, adjusts greeks accordingly.
-    4) remove_security        : removes security from portfolio, adjusts greeks accordingly.
-    5) remove_expired         : removes all expired securities from portfolio, adjusts greeks accordingly.
-    6) update_sec_by_month    : updates OTC, hedges and net_greeks dictionaries in the case of
-                                1) adds 2) removes 3) price/vol changes
-    7) update_greeks_by_month : updates the greek counters associated with each month's securities.
-    8) compute_value          : computes overall value of portfolio.
-                                calls compute_value method of each security.
-    9) get_securities_monthly : returns OTC or hedges dictionary, depending on flag inputted.
-    10) get_securities        : returns a copy of ops and fts containing either OTC- or hedge-securities,
-                                depending on flag inputted.
-    11) timestep              : moves portfolio forward one day, decrementing tau for all securities.
-    12) get_underlying        : returns a list of all UNDERLYING futures in this portfolio.
-                                returns the actual futures, NOT a copy.
-    13) get_all_futures       : returns a list of all futures, UNDERLYING and PORTFOLIO.
-    14) compute_net_greeks    : computes the net product-specific monthly greeks,
-                                using OTC and hedges as inputs.
-    15) exercise_option       : if the option is in the money, exercises it, removing the option from the
-                                portfolio and adding/hedgeing a future as is appropriate.
-    16) net_greeks            : returns the self.net_greeks dictionary.
-    17) get_underlying_names  : returns a set of names of UNDERLYING futures.
-    18) get_all_future_names  : returns a set of names of ALL futures
+    Attributes: 
+
+        -- Position Representation --
+        hedge_futures (list): list of all hedge futures
+        hedge_options (TYPE): list of all hedge options
+        OTC_futures (list): list of all OTC futures
+        OTC_options (list): list of all OTC options
+        OTC (dict): dictionary containing OTC securities, withthe following format: 
+                    Product -> Month -> [set(options), set(futures), delta, gamma, theta, vega]
+        hedges (dict): dictionary containing hedge securities, withthe following format: 
+                    Product -> Month -> [set(options), set(futures), delta, gamma, theta, vega]
+        net_greeks (dict): dictionary containing net greek positions, with following format:
+                    Product -> Month -> [delta, gamma, theta, vega] where each greek is OTC - Hedge
+
+
+        -- Hedging Specification --
+        hedge_params (dict): dictionary specifying how and what is to be hedged.
+        hedger (TYPE): Hedge object that takes in hedge_params as a constructor, responsible
+                       for implementing these instructions. 
+
+        -- Other Structures -- 
+        families (list): optional list of 'related' Portfolios. Allows for contract rolling/delta rolling to be 
+                         applied across all options in all families, even as each portfolio is subject to its own
+                         specific hedging conditions. 
+
+        name (str): Optional name given to this portfolio. 
+        newly_added (list): freshly-added securities. 
+        toberemoved (list): securities marked for removal
+
+        -- Other Parameters -- 
+        roll (bool): True if contract rolling is to be applied, False otherwise. 
+        roll_product (str): used to specify a product on the basis of which contract rolling happens.
+        ttm_tol (float): threshold that, when breached, triggers a contract roll.
+        value (float): value of this portfolio. 
 
     """
 
@@ -189,27 +184,20 @@ class Portfolio:
         self.value = self.compute_value()
 
     def update_by_family(self):
+        """Helper method that passes on a call to self.refresh() to all
+        constituent families, returning a fully updated composite portfolio. 
+        """
         from .util import combine_portfolios
         tmp = None
         if self.families:
             for f in self.families:
                 f.refresh()
-                # print('--------------------')
-                # print('f.name: ', f.name)
-                # print('f.OTC: ', f.OTC)
-                # print('f.hedges: ', f.hedges)
-                # print('f.net: ', f.net_greeks)
-                # print('--------------------')
             tmp = combine_portfolios(
                 self.families, hedges=self.hedge_params, name=self.name)
-            # print('tmp.OTC: ', tmp.OTC)
-            # print('tmp.hedge: ', tmp.hedges)
-            # print('tmp netgreeks: ', tmp.net_greeks)
+
         if tmp is not None:
             otc_fts = self.OTC_futures
             hedge_fts = self.hedge_futures
-            # print('otc_fts: ', [str(x) for x in otc_fts])
-            # print('hedge_fts: ', [str(x) for x in hedge_fts])
             tmp.add_security(otc_fts, 'OTC')
             tmp.add_security(hedge_fts, 'hedge')
             self.OTC_futures.clear()
@@ -224,6 +212,14 @@ class Portfolio:
             self.compute_net_greeks()
 
     def get_family_containing(self, sec):
+        """Returns the family containing the specified security.
+
+        Args:
+            sec (object): option or future object being searched for. 
+
+        Returns:
+            object/None: returns the family containing this security if it exists, None otherwise. 
+        """
         if not self.families:
             return None
         else:
@@ -461,13 +457,13 @@ class Portfolio:
             elif sec.check_expired():
                 explist['hedge'].append(sec)
 
-        for ft in self.OTC_futures:
-            if ft.check_expired():
-                explist['OTC'].append(ft)
+        # for ft in self.OTC_futures:
+        #     if ft.check_expired():
+        #         explist['OTC'].append(ft)
 
-        for ft in self.hedge_futures:
-            if ft.check_expired():
-                explist['hedge'].append(ft)
+        # for ft in self.hedge_futures:
+        #     if ft.check_expired():
+        #         explist['hedge'].append(ft)
 
         self.remove_security(explist['hedge'], 'hedge')
         self.remove_security(explist['OTC'], 'OTC')
@@ -498,9 +494,8 @@ class Portfolio:
             op = self.hedge_options
             ft = self.hedge_futures
             other = self.OTC
-        # adding/removing security to portfolio
-        # print('flag: ', flag)
 
+        # adding/removing security to portfolio
         if update is None:
             # adding
             if added:
@@ -587,9 +582,7 @@ class Portfolio:
             # popped.
             for product in dic.copy():
                 toberemoved[product] = []
-                # print('product: ', product)
                 if dic[product] == {}:
-                    # print('product is nil')
                     toberemoved[product] = 'all'
                 # iterate through the months in this product.
                 for month in dic.copy()[product]:
@@ -626,6 +619,13 @@ class Portfolio:
             self.compute_net_greeks()
 
     def recompute(self, lst, flag):
+        """Helper method called in update_sec_by_month that recomputes the greeks of the 
+        list of securities specified. 
+
+        Args:
+            lst (list): list of securities
+            flag (str): OTC or hedge
+        """
         for sec in lst:
             pdt = sec.get_product()
             month = sec.get_month()
@@ -769,11 +769,6 @@ class Portfolio:
                         # try:
                         bucket = max([x
                                       for x in buckets if x < optau])
-                        # except ValueError:
-                        # print('adding larger bucket value')
-                        # buckets.append(np.inf)
-                        # if bucket not in otc_by_exp:
-                        # otc_by_exp[bucket] = [0, 0, 0, 0]
                         d, g, t, v = op.greeks()
                         net[comm][bucket][0].add(op)
                         net[comm][bucket][1] += d
@@ -836,6 +831,15 @@ class Portfolio:
         return (lst1, lst2)
 
     def get_all_options(self, pdt=None, mth=None):
+        """Gets all options, hedge and OTC
+
+        Args:
+            pdt (str, optional): Optional filter - get all options of this product. 
+            mth (str, optional): Optional filter - get all options of this month
+
+        Returns:
+            list: list of options that satisfy the filter conditions. 
+        """
         lst = self.OTC_options + self.hedge_options
         if pdt is not None:
             lst = [x for x in lst if x.get_product() == pdt]
@@ -844,6 +848,12 @@ class Portfolio:
         return lst
 
     def get_underlying(self):
+        """Returns a list of all futures objects that are the underlying
+        of some option in the portfolio. 
+
+        Returns:
+            list: list of future objects. 
+        """
         u_set = set()
         all_options = self.OTC_options + self.hedge_options
         for sec in all_options:
@@ -851,20 +861,41 @@ class Portfolio:
         return list(u_set)
 
     def get_underlying_names(self):
+        """gets all products for which underlying futures exist.
+
+        Returns:
+            list: list of names. 
+        """
         underlying = self.get_underlying()
         namelist = [ud.get_product() for ud in underlying]
         return set(namelist)
 
     def get_all_futures(self):
+        """Returns a list of all future objects in the portfolio. 
+
+        """
         retr = self.get_underlying()
         port_futures = self.OTC_futures + self.hedge_futures
         retr.extend(port_futures)
         return retr
 
     def get_pos_futures(self):
+        """Gets all future objects that are NOT underlying objects
+        of some option in the portfolio. 
+
+        Returns:
+            TYPE: Description
+        """
         return self.OTC_futures + self.hedge_futures
 
     def timestep(self, value, allops=True, ops=False):
+        """Timesteps the entire portfolio _value_ days into the future. 
+
+        Args:
+            value (int): number of days to timestep by.
+            allops (bool, optional): True if all options are to be timestepped, False if only OTC options. 
+            ops (list, optional): list of options we want to timestep.
+        """
         if ops:
             all_options = ops
         else:
@@ -881,11 +912,23 @@ class Portfolio:
         return self.net_greeks
 
     def get_all_future_names(self):
+        """Returns all products for which we have futures in the portfolio. 
+
+        Returns:
+            list: list of products. 
+        """
         all_futures = self.get_all_futures()
         names = [ft.get_product() for ft in all_futures]
         return set(names)
 
     def decrement_ordering(self, product, i):
+        """Decrements the ordering (C1, C2 etc) of 
+        each option and future on the specified product. 
+
+        Args:
+            product (str): product we're decrementing
+            i (int): the value to decrement it by. 
+        """
         options = self.get_all_options()
         futures = self.get_all_futures()
         for op in options:
@@ -896,6 +939,17 @@ class Portfolio:
                 ft.decrement_ordering(i)
 
     def compute_ordering(self, product, month):
+        """Gets the order of a given product-month combination
+        by looking up the computed order of a future in that
+        category. 
+
+        Args:
+            product (str)
+            month (str)
+
+        Returns:
+            int: the order.
+        """
         if product in self.OTC and month in self.OTC[product]:
             dic = self.OTC
         elif product in self.hedges and month in self.hedges[product]:
@@ -910,6 +964,16 @@ class Portfolio:
         return order
 
     def net_vega_pos(self, month, pdt=None):
+        """ Returns the net vega contribution from calls and puts individually of all
+        options satisfying the filtering critera specified. 
+
+        Args:
+            month (str): month we're interested in. 
+            pdt (str, optional): product we're interested in.
+
+        Returns:
+            tuple: call vega and put vega
+        """
         all_ops = [op for op in self.get_all_options()
                    if op.get_month() == month]
         if pdt is not None:
@@ -922,6 +986,15 @@ class Portfolio:
         return call_op_vega, put_op_vega
 
     def net_gamma_pos(self, month, pdt=None):
+        """Same as net_vega_pos but for gamma. 
+
+        Args:
+            month (TYPE): Description
+            pdt (None, optional): Description
+
+        Returns:
+            TYPE: Description
+        """
         all_ops = [op for op in self.get_all_options()
                    if op.get_month() == month]
         if pdt is not None:
@@ -1024,6 +1097,14 @@ class Portfolio:
         return ret
 
     def get_uid_price(self, uid):
+        """Returns the underlying price of the specified underlying_id, e.g. C Z7.
+
+        Args:
+            uid (str): ID associated with a future, e.g. C Z7.
+
+        Returns:
+            float: price of said future. 
+        """
         fts = [x for x in self.get_all_futures() if x.get_uid() == uid]
         return fts[0].get_price()
 
