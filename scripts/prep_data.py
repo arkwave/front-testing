@@ -991,23 +991,16 @@ def handle_intraday_conventions(df):
     df['time'] = df.date_time.dt.time
     df['value_date'] = pd.to_datetime(df.date_time.dt.date)
 
-    # # filter out weekends/bank holidays.
-    # cal = calendar()
-    # holidays = pd.to_datetime(cal.holidays(
-    #     start=df.value_date.min(), end=df.value_date.max())).tolist()
-    # df = df[~df.value_date.isin(holidays)]
-    # df = df[df.value_date.dt.dayofweek < 5]
-
     # adding in flags used to isolate intraday vs settlement and intraday vs
     # settlement period
     df['datatype'] = 'intraday'
 
     cols = ['value_date', 'time', 'underlying_id',
-            'pdt', 'ftmth', 'price', 'datatype', 'date_time']
+            'pdt', 'ftmth', 'price', 'datatype', 'date_time', 'volume']
     df = df[cols]
 
     df.columns = ['value_date', 'time', 'underlying_id',
-                  'pdt', 'ftmth', 'price', 'datatype', 'date_time']
+                  'pdt', 'ftmth', 'price', 'datatype', 'date_time', 'volume']
 
     df = df[df.price > 0]
 

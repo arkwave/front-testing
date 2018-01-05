@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-05-17 15:34:51
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-18 20:08:58
+# @Last Modified time: 2018-01-03 19:34:01
 
 # import time
 import datetime as dt
@@ -230,9 +230,9 @@ def prep_datasets(vdf, pdf, edf, start_date, end_date, pdt, specpath='',
     # clean dataframes
     print('==== cleaning dataframes ====')
     edf = clean_data(edf, 'exp')
-    vdf = clean_data(vdf, 'vol', date=start_date,
+    vdf = clean_data(vdf, 'vol',
                      edf=edf)
-    pdf = clean_data(pdf, 'price', date=start_date,
+    pdf = clean_data(pdf, 'price',
                      edf=edf)
     print('==== done cleaning dataframes ====')
     # reassigning variables
@@ -772,6 +772,8 @@ def pull_ohlc_data(pdts, start_date, end_date, writepath='C:/Users/' + main_dire
         # melt the dataframe to get identifier/price.
         df = pd.melt(df, id_vars=['underlying_id', 'pdt', 'ftmth', 'value_date'],
                      value_vars=['px_open', 'px_high', 'px_low', 'px_settle'])
+        assert not df.empty
+        print('OHLC pre-processing: ', df.head(5))
 
         # assign the datatype
         df.ix[df.variable.isin(['px_open', 'px_high', 'px_low']),
