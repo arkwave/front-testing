@@ -12,8 +12,7 @@ from sqlalchemy import create_engine
 import time
 import os
 import numpy as np
-from .prep_data import match_to_signals, get_min_start_date, clean_data, vol_by_delta, \
-    sanity_check, handle_intraday_conventions, clean_intraday_data
+from .prep_data import match_to_signals, get_min_start_date, clean_data, sanity_check
 from .global_vars import main_direc
 from joblib import Parallel, delayed
 
