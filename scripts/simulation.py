@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-29 19:12:53
+# @Last Modified time: 2018-02-26 20:48:24
 
 ################################ imports ###################################
 # general imports
@@ -18,7 +18,7 @@ from pandas.tseries.offsets import BDay
 # user defined imports
 from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites, assign_hedge_objects, compute_market_minus, mark_to_vols
 from .prep_data import reorder_ohlc_data, granularize
-from .calc import get_barrier_vol, _compute_value
+from .calc import get_barrier_vol, _compute_value, get_vol_at_strike
 from .signals import apply_signal
 
 
@@ -1042,7 +1042,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
         for op in pf.get_all_options():
             # info reqd: strike, order, product, tau
             strike, product, tau = op.K, op.product, op.tau
-            b_vol, strike_vol = None, None
+            bvol2, b_vol, strike_vol = None, None, None
             cpi = 'C' if op.char == 'call' else 'P'
             # interpolate or round? currently rounding, interpolation easy.
             ticksize = multipliers[op.get_product()][-2]
@@ -1066,11 +1066,18 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
                                   (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
                     df_tau = min(b_val.tau, key=lambda x: abs(x - tau))
                     b_vol = val[val.tau == df_tau].vol.values[0]
+
+                # case to update the barrier vol of the tick-wide digital. 
+                if op.barrier == 'euro':
+                    assert op.dbarrier is not None 
+                    bvol2 = get_vol_at_strike(voldf, op.dbarrier)
+
             except (IndexError, ValueError):
                 print('### BARRIER VOLATILITY DATA MISSING ###')
                 b_vol = op.bvol
+                bvol2 = op.bvol2 
 
-            op.update_greeks(vol=strike_vol, bvol=b_vol)
+            op.update_greeks(vol=strike_vol, bvol=b_vol, bvol2=bvol2)
 
         pf.refresh()
 

@@ -288,7 +288,8 @@ class Option:
                                 s, self.r, product, self.payoff, self.lots,
                                 ki=self.ki, ko=self.ko, barrier=self.barrier,
                                 direction=self.direc, order=self.ordering,
-                                bvol=self.bvol, bvol2=self.bvol2)
+                                bvol=self.bvol, bvol2=self.bvol2, 
+                                dbarrier=self.dbarrier)
         except TypeError as e:
             print('char: ', self.char)
             print('strike: ', self.K)
