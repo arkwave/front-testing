@@ -13,6 +13,27 @@ Description    : Script contains implementation of the Option and Futures classe
 # lots = 10
 import numpy as np
 
+multipliers = {
+    'LH':  [22.046, 18.143881, 0.025, 1, 400],
+    'LSU': [1, 50, 0.1, 10, 50],
+    'QC': [1.2153, 10, 1, 25, 12.153],
+    'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
+    'CC':  [1, 10, 1, 50, 10],
+    'CT':  [22.046, 22.679851, 0.01, 1, 500],
+    'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
+    'W':   [0.3674333, 136.07911, 0.25, 10, 50],
+    'S':   [0.3674333, 136.07911, 0.25, 10, 50],
+    'C':   [0.393678571428571, 127.007166832986, 0.25, 10, 50],
+    'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
+    'LC':  [22.046, 18.143881, 0.025, 1, 400],
+    'LRC': [1, 10, 1, 50, 10],
+    'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
+    'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
+    'COM': [1.0604, 50, 0.25, 2.5, 53.02],
+    'CA': [1.0604, 50, 0.25, 1, 53.02],
+    'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
+}
+
 
 class Option:
 
@@ -23,6 +44,8 @@ class Option:
 
         active (bool): True if option contributes greeks, false otherwise.
         barrier (str/None): three potential inputs: None, amer or euro (for vanilla, american and european barriers respectively)
+        dbarrier (float/None): used for European barriers. this is the value of the secondary digital strike based on which the 
+                               digital component is priced. 
         bullet (bool): True if option has bullet payoff, False if option is Daily
         desc (str): description. defaults to 'option'.
         direc (str): 'up' or 'down'. to be used for barrier options. 
@@ -51,6 +74,7 @@ class Option:
         settlement (str): cash or future 
         shorted (bool): True if short position, False otherwise. 
         bvol (float): Barrier vol
+        bvol2 (float): barrier vol of the second ticksize-differing strike. used only for euro barriers.
         char (str): call or put
         tau (float): time to maturity in years. 
         underlying (object): Underlying Futures object. 
@@ -74,7 +98,8 @@ class Option:
 
     def __init__(self, strike, tau, char, vol, underlying, payoff, shorted,
                  month, direc=None, barrier=None, lots=1000, bullet=True,
-                 ki=None, ko=None, rebate=0, ordering=1e5, settlement='futures', bvol=None):
+                 ki=None, ko=None, rebate=0, ordering=1e5, settlement='futures', 
+                 bvol=None, bvol2=None):
         self.month = month
         self.barrier = barrier
         self.payoff = payoff
@@ -88,11 +113,21 @@ class Option:
         self.knockedout = None
         # defaults to None. Is set upon first check_active call.
         self.knockedin = None
-        self.direc = direc
-        self.K = strike
-        self.tau = tau
         self.char = char
+        self.K = strike
+        self.dbarrier = None
+
+        # set the digital barrier, if applicable.
+        if self.barrier == 'euro':
+            mult = -1 if char == 'call' else 'put'
+            product = self.underlying.get_product() 
+            ticksize = multipliers[product][2]
+            self.dbarrier = strike + mult * ticksize
+
+        self.direc = direc
+        self.tau = tau
         self.bvol = bvol
+        self.bvol2 = bvol2 
         self.vol = vol
         self.r = 0
         self.shorted = shorted
@@ -161,8 +196,10 @@ class Option:
     def get_op_month(self):
         return self.month
 
-    def update_bvol(self, vol):
+    def update_bvol(self, vol, vol2=None):
         self.bvol = vol
+        if vol2 is not None:
+            self.bvol2 = vol2 
 
     def check_active(self):
         """Checks to see if this option object is active, i.e. if it has any value/contributes greeks. 
@@ -251,7 +288,7 @@ class Option:
                                 s, self.r, product, self.payoff, self.lots,
                                 ki=self.ki, ko=self.ko, barrier=self.barrier,
                                 direction=self.direc, order=self.ordering,
-                                bvol=self.bvol)
+                                bvol=self.bvol, bvol2=self.bvol2)
         except TypeError as e:
             print('char: ', self.char)
             print('strike: ', self.K)
@@ -277,11 +314,11 @@ class Option:
         self.vega = vega
         # return delta, gamma, theta, vega
 
-    def update_greeks(self, vol=None, bvol=None):
+    def update_greeks(self, vol=None, bvol=None, bvol2=None):
         from .calc import _compute_greeks
         # method that updates greeks given new values of s, vol and tau, and subsequently updates value.
         # used in passage of time step.
-        sigma, b_sigma = None, None
+        sigma, b_sigma, b_sigma2 = None, None, None
         active = self.check_active()
         self.active = active
         if active:
@@ -291,6 +328,9 @@ class Option:
                 sigma = self.vol
             if bvol is None:
                 b_sigma = self.bvol
+            if bvol2 is None:
+                b_sigma2 = self.bvol2
+
             product = self.get_product()
             s = self.underlying.get_price()
             delta, gamma, theta, vega = \
@@ -298,7 +338,8 @@ class Option:
                                 s, self.r, product, self.payoff,
                                 self.lots, ki=self.ki, ko=self.ko,
                                 barrier=self.barrier, direction=self.direc,
-                                order=self.ordering, bvol=b_sigma)
+                                order=self.ordering, bvol=b_sigma, bvol2=b_sigma2,
+                                dbarrier=self.dbarrier)
             # account for shorting
             if self.shorted:
                 delta, gamma, theta, vega = -delta, -gamma, -theta, -vega
@@ -307,6 +348,7 @@ class Option:
 
             self.vol = sigma
             self.bvol = b_sigma
+            self.bvol2 = b_sigma2
 
             self.price = self.compute_price()
             self.strike_type = 'callstrike' if self.K >= s else 'putstrike'
@@ -334,7 +376,8 @@ class Option:
         product = self.underlying.get_product()
         val = _compute_value(self.char, self.tau, self.vol, self.K, s, self.r,
                              self.payoff, ki=self.ki, ko=self.ko, barrier=self.barrier,
-                             d=self.direc, product=product, bvol=self.bvol)
+                             d=self.direc, product=product, bvol=self.bvol, 
+                             bvol2=self.bvol2, dbarrier=self.dbarrier)
         self.price = val
         return val
 
@@ -443,7 +486,7 @@ class Option:
                 'underlying': self.underlying, 'lots': self.lots, 'ki': self.ki,
                 'ko': self.ko, 'direc': self.direc, 'strike': self.K, 'char': self.char,
                 'vol': self.vol,  'shorted': self.shorted, 'ordering': self.ordering,
-                'rebate': self.rebate, 'bvol': self.bvol, 'settlement': self.settlement}
+                'rebate': self.rebate, 'bvol': self.bvol, 'bvol2': self.bvol2, 'settlement': self.settlement}
 
 
 class Future:

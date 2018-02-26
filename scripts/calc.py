@@ -90,11 +90,12 @@ np.random.seed(seed)
 
 
 def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None,
-                   barrier=None, d=None, product=None, bvol=None):
+                   barrier=None, d=None, product=None, bvol=None, bvol2=None,
+                   dbarrier=None):
     '''Wrapper function that computes value of option.
-
+    
     Outputs: Price of the option
-
+    
     Args:
         char (str): call/put
         tau (float): ttm in years
@@ -109,7 +110,9 @@ def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None,
         d (str, optional): direction (up or donw)
         product (str, optional): product
         bvol (float, optional): barrier volatility
-
+        bvol2 (float, optional): digital barrier vol
+        dbarrier (float, optional): digital barrier. 
+    
     Returns:
         TYPE: price of option based on inputs passed in. 
     '''
@@ -130,7 +133,8 @@ def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None,
             return _barrier_amer(char, tau, vol, K, s, r, payoff, d, ki, ko)
         elif barrier == 'euro':
             return _barrier_euro(char, tau, vol, K, s, r, payoff, d,
-                                 ki, ko, product, bvol=bvol)
+                                 ki, ko, product, bvol=bvol, bvol2=bvol2, 
+                                 dbarrier=dbarrier)
 
 
 ################### Vanilla Option Valuation ######################
@@ -214,13 +218,14 @@ def get_barrier_vol(df, tau, call_put_id, barlevel, vol_id):
 # NOTE: Currently follows implementation taken from PnP Excel source code,
 # and so only accounts for ECUI, ECUO, EPDI, EPDO options.
 def _barrier_euro(char, tau, vol, k, s, r, payoff, direction,
-                  ki, ko, product, rebate=0, bvol=None):
+                  ki, ko, product, rebate=0, bvol=None, bvol2=None, 
+                  dbarrier=None):
     """ Pricing model for options with European barriers.
 
     Inputs:
     1) Char      : call or put.
     2) tau       : time to expiry.
-    3) vol       : volatility
+    3) vol       : strike vol
     4) k         : strike price
     5) s         : price of underlying
     6) r         : interest rate
@@ -231,7 +236,7 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction,
     11) ko       : knock out barrier amount.
     12) product  : the product this option is on
     13) rebate   : rebate paid when barrier is hit. 
-    14) bvol     : barrier volatility. 
+    14) bvol1, bvol2 : barrier volatility for each of the ticksize-differing barrier strikes. 
 
     Outputs:
     1) Price
@@ -247,13 +252,14 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction,
     if ko:
         c1 = _compute_value(char, tau, vol, k, s, r, payoff)
         c2 = _compute_value(char, tau, bvol, barlevel, s, r, payoff)
-        c3 = digital_option(char, tau, bvol, barlevel,
+        # digital_option(char, tau, vol, dbarvol, k, dbar, s, r, payoff, product)
+        c3 = digital_option(char, tau, bvol, bvol2, barlevel, dbarrier,
                             s, r, payoff, product) * dpo
         val = c1 - c2 - c3
     elif ki:
         c1 = _compute_value(char, tau, bvol, barlevel, s, r, payoff)
-        c2 = dpo * digital_option(char, tau, bvol,
-                                  barlevel, s, r, payoff, product)
+        c2 = dpo * digital_option(char, tau, bvol, bvol2, barlevel, 
+                                  dbarrier, s, r, payoff, product)
         val = c1 + c2
     return val
 
@@ -507,23 +513,25 @@ def call_put_spread_greeks(s, k1, k2, r, vol1, vol2, tau, optiontype, product, l
     return delta, gamma, theta, vega
 
 
-def digital_option(char, tau, vol, k, s, r, payoff, product):
+def digital_option(char, tau, vol, dbarvol, k, dbar, s, r, payoff, product):
     """valuation of a digital option. used in computing value of Euro barrier options.
-
+    
     Args:
         char (string): call/put
-        k (double): strike
         tau (double): time to expiry
         vol (double): volatility
+        dbarvol (TYPE): Description
+        k (double): strike
+        dbar (TYPE): Description
         s (double): spot
         r (double): interest rate
+        payoff (TYPE): Description
         product (string): product
-
+    
     Returns:
         double: price.
     """
     ticksize = multipliers[product][2]
-    mult = -1 if char == 'call' else 1
     if tau <= 0:
         if char == 'call' and s >= k:
             return ticksize
@@ -532,12 +540,12 @@ def digital_option(char, tau, vol, k, s, r, payoff, product):
         else:
             return 0
     else:
-        c1 = _compute_value(char, tau, vol, k+mult*ticksize, s, r, payoff)
+        c1 = _compute_value(char, tau, dbarvol, dbar, s, r, payoff)
         c2 = _compute_value(char, tau, vol, k, s, r, payoff)
         return c1 - c2
 
 
-def digital_greeks(char, k, tau, vol, s, r, product, payoff, lots):
+def digital_greeks(char, k, dbar, tau, vol, vol2, s, r, product, payoff, lots):
     """Computes greeks of digital options.
 
     Args:
@@ -554,12 +562,11 @@ def digital_greeks(char, k, tau, vol, s, r, product, payoff, lots):
     Returns:
         tuple: delta, gamma, theta, vega.
     """
-    ticksize = multipliers[product][2]
-    mult = -1 if char == 'call' else 1
     d1, g1, t1, v1 = _compute_greeks(
-        char, k + mult*ticksize, tau, vol, s, r, product, payoff, lots)
+        char, dbar, tau, vol2, s, r, product, payoff, lots)
     d2, g2, t2, v2 = _compute_greeks(
         char, k, tau, vol, s, r, product, payoff, lots)
+
     d, g, t, v = d1-d2, g1-g2, t1-t2, v1-v2
     return d, g, t, v
 
@@ -570,7 +577,8 @@ def digital_greeks(char, k, tau, vol, s, r, product, payoff, lots):
 ##################### Greek-related formulas ################################
 #############################################################################
 def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots,
-                    ki=None, ko=None, barrier=None, direction=None, order=None, bvol=None):
+                    ki=None, ko=None, barrier=None, direction=None, 
+                    order=None, bvol=None, bvol2=None, dbarrier=None):
     """ Wrapper method. Filters for the necessary condition, and feeds 
     inputs to the relevant computational engine. Computes the greeks of
     various option profiles. Currently, american and european greeks and
@@ -591,6 +599,8 @@ def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots,
              13) direction : direction (up or down)
              14) order : 
              15) bvol  :
+             16) bvol2 : vol of the digital barrier used in european barrier pricing. 
+             17) dbarrier: digital barrier used in european barrier pricing. 
 
     Outputs: 1) delta  : dC/dS
              2) gamma  : d^2C/dS^2
@@ -624,7 +634,8 @@ def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots,
             # greeks for european options with european barrier.
             return _euro_barrier_euro_greeks(char, tau, vol, K, s, r, payoff,
                                              direction, product, ki, ko, lots,
-                                             order=order, bvol=bvol)
+                                             order=order, bvol=bvol, bvol2=bvol2, 
+                                             dbarrier=dbarrier)
 
 
 def _euro_vanilla_greeks(char, K, tau, vol, s, r, product, lots):
@@ -774,15 +785,16 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction,
 
 # NOTE: follows PnP implementation. Only supports ECUO, ECUI, EPDO, EPDI
 def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction,
-                              product, ki, ko, lots, order=None, rebate=0, bvol=None):
+                              product, ki, ko, lots, order=None, rebate=0, bvol=None,
+                              bvol2=None, dbarrier=None):
     """Computes greeks of european options with american barriers. 
-
+    
     Args:
         char (str): Call or Put.
         tau (double): time to expiry in years
         vol (float): strike volatility
         k (double): strike
-        s (double): price of underlying
+        s (double): price of underlying_id
         r (double): interest rate
         payoff (str): american or european exercise. 'amer' or 'euro.'
         direction (str): direction of the barrier. 'up' or 'down'
@@ -793,7 +805,9 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction,
         order (int, optional): C1 C2 etc. 
         rebate (int, optional): payback if option fails to knock in / knocks out.
         bvol (None, optional): barrier
-
+        bvol2 (TYPE, optional): Description
+        dbarrier (TYPE, optional): Description
+    
     Returns:
         delta, gamma, theta, vega: greeks of this instrument.
     """
@@ -809,7 +823,8 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction,
             char, k, tau, vol, s, r, product, payoff, lots))
         g2 = np.array(_compute_greeks(
             char, barlevel, tau, bvol, s, r, product, payoff, lots))
-        g3 = np.array(digital_greeks(char, barlevel, tau, bvol,
+        # digital_greeks(char, k, dbar, tau, vol, vol2, s, r, product, payoff, lots):
+        g3 = np.array(digital_greeks(char, barlevel, dbarrier, tau, bvol, bvol2, 
                                      s, r, product, payoff, lots)) * dpo
         greeks = g1 - g2 - g3
         d = greeks[0]
@@ -821,7 +836,7 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction,
         g1 = np.array(_compute_greeks(
             char, barlevel, tau, bvol, s, r, product, payoff, lots))
         g2 = dpo * \
-            np.array(digital_greeks(char, barlevel, tau, bvol,
+            np.array(digital_greeks(char, barlevel, dbarrier, tau, bvol, bvol2,
                                     s, r, product, payoff, lots))
         greeks = g1 + g2
         d = greeks[0]
