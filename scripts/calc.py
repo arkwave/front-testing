@@ -532,7 +532,6 @@ def digital_option(char, tau, vol, k, s, r, payoff, product):
         else:
             return 0
     else:
-        _compute_value
         c1 = _compute_value(char, tau, vol, k+mult*ticksize, s, r, payoff)
         c2 = _compute_value(char, tau, vol, k, s, r, payoff)
         return c1 - c2
@@ -981,6 +980,40 @@ def get_vol_from_delta(delta, vdf, pdf, volid, char, shorted, date):
                          vdata.delta.values, vdata.vol.values) from e
     val = f1(delta)
     return val
+
+
+def get_vol_at_strike(df, strike):
+    """Helper method that gets the vol at a strike from the dataset if it exists,
+    and interpolates using piecewise-linear interpolation and returns the interpolated
+    vol otherwise.
+
+    Args:
+        df (TYPE): dataframe of vols
+        strike (TYPE): strike at which the vols are desired
+
+    Returns:
+        float: the vol at the strike. 
+    """
+    # print('df: ', df)
+    try:
+        vol = df[df.strike == strike].settle_vol.values[0]
+
+    except IndexError:
+        print('calc.get_vol_at_strike - desired strike not in df. Interpolating...')
+        # interpolation step
+        df = df.sort_values(by='strike')
+        # print('strike, strikes in df: ', strike, df.strike.unique())
+        df.drop_duplicates(subset='strike', inplace=True)
+        # print('inputs: ', date, product, order, cpi, b_curr_tau)
+        print('df.strike: ', df.strike)
+        print('df.settle_vol ', df.settle_vol)
+        f_c = interp1d(df.strike,
+                       df.settle_vol, fill_value='extrapolate')
+        vol = f_c(strike)
+        print('vol after interpolation: ', vol)
+    print('--------------------------------------------')
+    return vol
+
 
 
 ####################################################################
