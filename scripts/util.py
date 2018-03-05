@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-29 19:27:54
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-03-05 17:30:05
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 import copy
 import os
-from .calc import compute_strike_from_delta, get_vol_from_delta
+from .calc import compute_strike_from_delta, get_vol_from_delta, get_vol_at_strike
 import sys
 
 multipliers = {
@@ -215,11 +215,13 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
         # get vol
         try:
             # print("Inputs: ", date.strftime('%Y-%m-%d'), volid, cpi, strike)
-            vol = vdf[(vdf.value_date == date) &
-                      (vdf.vol_id == volid) &
-                      (vdf.call_put_id == cpi) &
-                      (vdf.strike == strike) &
-                      (vdf.datatype == 'settlement')].vol.values[0]
+            tdf = vdf[(vdf.value_date == date) & 
+                      (vdf.vol_id == volid) & 
+                      (vdf.call_put_id == cpi) & 
+                      (vdf.datatype == 'settlement')]
+
+            vol = get_vol_at_strike(tdf, strike)
+
         except IndexError as e:
             raise IndexError(
                 'util.create_vanilla_option - vol not found in the dataset. inputs are: ', date, volid, cpi, strike) from e

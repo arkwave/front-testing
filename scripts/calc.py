@@ -1011,7 +1011,7 @@ def get_vol_at_strike(df, strike):
     """
     # print('df: ', df)
     try:
-        vol = df[df.strike == strike].settle_vol.values[0]
+        vol = df[df.strike == strike].vol.values[0]
 
     except IndexError:
         print('calc.get_vol_at_strike - desired strike not in df. Interpolating...')
@@ -1021,9 +1021,9 @@ def get_vol_at_strike(df, strike):
         df.drop_duplicates(subset='strike', inplace=True)
         # print('inputs: ', date, product, order, cpi, b_curr_tau)
         print('df.strike: ', df.strike)
-        print('df.settle_vol ', df.settle_vol)
+        print('df.settle_vol ', df.vol)
         f_c = interp1d(df.strike,
-                       df.settle_vol, fill_value='extrapolate')
+                       df.vol, fill_value='extrapolate')
         vol = f_c(strike)
         print('vol after interpolation: ', vol)
     print('--------------------------------------------')
