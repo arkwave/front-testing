@@ -243,6 +243,12 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction,
 
     """
     barlevel = ki if ki else ko
+    
+    if dbarrier is None: 
+        print('dbarrier is None; computing')
+        barlevel = ki if ki is not None else ko
+        ticksize = multipliers[product][-3]
+        dbarrier = barlevel - ticksize if direction == 'up' else barlevel + ticksize
 
     # case when barrier vol is not in vol surface; raise error.
     # if bvol is None:
@@ -630,8 +636,14 @@ def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots,
             return _euro_barrier_amer_greeks(char, tau, vol, K, s, r, payoff,
                                              direction, product, ki, ko, lots)
         elif barrier == 'euro':
-            # print('euro barrier case')
+            print('euro barrier case')
             # greeks for european options with european barrier.
+            if dbarrier is None: 
+                print('dbarrier is None; computing')
+                barlevel = ki if ki is not None else ko
+                ticksize = multipliers[product][-3]
+                dbarrier = barlevel - ticksize if direction == 'up' else barlevel + ticksize
+
             return _euro_barrier_euro_greeks(char, tau, vol, K, s, r, payoff,
                                              direction, product, ki, ko, lots,
                                              order=order, bvol=bvol, bvol2=bvol2, 
@@ -812,6 +824,14 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction,
         delta, gamma, theta, vega: greeks of this instrument.
     """
     barlevel = ki if ki else ko
+
+    print(tau, vol, k, s, r, direction, ki, ko, lots, bvol, bvol2, dbarrier)
+
+    if dbarrier is None: 
+        print('dbarrier is None; computing')
+        barlevel = ki if ki is not None else ko
+        ticksize = multipliers[product][-3]
+        dbarrier = barlevel - ticksize if direction == 'up' else barlevel + ticksize
 
     # case when barrier vol is not in vol surface; raise error.
     # if bvol is None:
