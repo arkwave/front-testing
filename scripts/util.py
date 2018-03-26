@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   RMS08
-# @Last Modified time: 2018-03-05 17:30:05
+# @Last Modified by:   arkwave
+# @Last Modified time: 2018-03-26 17:47:50
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -294,7 +294,7 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
 
 def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriertype,
                           direction, ki, ko, bullet, rebate=0, payoff='amer', lots=None,
-                          vol=None, bvol=None):
+                          vol=None, bvol=None, bvol2=None):
     """Helper method that creates barrier options. 
 
     Args:
@@ -325,7 +325,7 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
 
     """
     print('util.create_barrier_option - inputs: ',
-          volid, char, shorted, lots, strike, vol)
+          volid, char, shorted, lots, strike, vol, bvol, bvol2)
 
     # if delta is None and strike is None:
     #     raise ValueError(
@@ -353,14 +353,21 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
         raise IndexError(
             'util.create_barrier_option - cannot find tau given inpits: ', date, volid) from e
 
+    # filter out the relevant vol surface. 
+    rvols = vdf[(vdf.value_date == date) &
+                       (vdf.vol_id == volid) &
+                       (vdf.call_put_id == cpi)]
+
     # Case 1 : Vol is None, but strike is specified.
     if vol is None and strike is not None:
         # get vol
         try:
-            vol = vdf[(vdf.value_date == date) &
-                      (vdf.vol_id == volid) &
-                      (vdf.call_put_id == cpi) &
-                      (vdf.strike == strike)].vol.values[0]
+            vol = get_vol_at_strike(rvols, strike)
+            # vol = vdf[(vdf.value_date == date) &
+            #           (vdf.vol_id == volid) &
+            #           (vdf.call_put_id == cpi) &
+            #           (vdf.strike == strike)].vol.values[0]
+            print('strike vol: ', vol)
         except IndexError as e:
             raise IndexError(
                 'util.create_barrier_option - strike not found, input: ', date, volid, cpi, strike)
@@ -369,17 +376,28 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
     barlevel = ko if ko is not None else ki
     if bvol is None:
         try:
-            bvol = vdf[(vdf.value_date == date) &
-                       (vdf.vol_id == volid) &
-                       (vdf.call_put_id == cpi) &
-                       (vdf.strike == barlevel)].vol.values[0]
+            bvol = get_vol_at_strike(rvols, barlevel)
+            print('bvol: ', bvol)
         except IndexError as e:
             raise IndexError(
                 'util.create_barrier_option - bvol not found. inputs are: ', date, volid, cpi, barlevel) from e
 
+    # get bvol2 if necessary for european barriers. 
+    if barriertype == 'euro':
+        ticksize = multipliers[pdt][-3]
+        print('ticksize: ', ticksize)
+        digistrike = barlevel - ticksize if direction == 'up' else barlevel + ticksize
+        try:
+            bvol2 = get_vol_at_strike(rvols, digistrike)
+            print('digistrike vol: ', bvol2)
+        except IndexError as e:
+            raise IndexError(
+                'util.create_barrier_option - digistrike vol not found. inputs are: ', date, volid, cpi, digistrike) from e
+
     op1 = Option(strike, tau, char, vol, ft, payoff, shorted, opmth,
                  direc=direction, barrier=barriertype, lots=lots_req,
-                 bullet=bullet, ki=ki, ko=ko, rebate=rebate, ordering=ft.get_ordering(), bvol=bvol)
+                 bullet=bullet, ki=ki, ko=ko, rebate=rebate, ordering=ft.get_ordering(), 
+                 bvol=bvol, bvol2=bvol2)
 
     return op1
 
@@ -1170,3 +1188,7 @@ def compute_market_minus(pf, vdf):
     val = pf.compute_value() - newpf.compute_value()
     mm = abs(val)
     return mm, val
+
+
+def print_inputs(**kwargs):
+    pass

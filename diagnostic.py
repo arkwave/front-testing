@@ -58,16 +58,26 @@ contract_mths = {
     'MW':  ['H', 'K', 'N', 'U', 'Z']
 }
 
-from scripts.fetch_data import pull_intraday_data
-from scripts.prep_data import filter_outliers
+from scripts.fetch_data import grab_data
+from scripts.util import create_barrier_option
+# from scripts.prep_data import filter_outliers
 
-pdt = 'CC'
-contract = ['H8']
-start = '2017-11-26'
-end = '2017-11-28'
-# oldpath = 'old_data.csv'
+pdts = ['KC']
+contract = ['N8']
+start = '2018-01-01'
+end = '2018-01-10'
+# # oldpath = 'old_data.csv'
 
-df = pull_intraday_data([pdt], start_date=start,
-                        end_date=end, contracts=contract)
 
-tdf, df = filter_outliers(df, fixed=30)
+vdf, pdf, edf = grab_data(pdts, start, end)
+
+op = create_barrier_option(vdf, pdf, 'KC  N8.N8', 'call', 125, False, 
+                           vdf.value_date.min(), 'amer', 'up', None, 
+                           140, True, lots=100)
+
+# df = pull_intraday_data([pdt], start_date=start,
+#                         end_date=end, contracts=contract)
+
+# tdf, df = filter_outliers(df, fixed=30)
+
+

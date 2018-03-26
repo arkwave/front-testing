@@ -122,7 +122,8 @@ class Option:
             mult = -1 if char == 'call' else 'put'
             product = self.underlying.get_product() 
             ticksize = multipliers[product][2]
-            self.dbarrier = strike + mult * ticksize
+            barlevel = ki if ki is not None else ko
+            self.dbarrier = barlevel + mult * ticksize
 
         self.direc = direc
         self.tau = tau
