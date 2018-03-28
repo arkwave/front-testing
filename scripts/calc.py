@@ -245,7 +245,7 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction,
     barlevel = ki if ki else ko
     
     if dbarrier is None: 
-        print('dbarrier is None; computing')
+        # print('dbarrier is None; computing')
         barlevel = ki if ki is not None else ko
         ticksize = multipliers[product][-3]
         dbarrier = barlevel - ticksize if direction == 'up' else barlevel + ticksize
@@ -636,10 +636,10 @@ def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots,
             return _euro_barrier_amer_greeks(char, tau, vol, K, s, r, payoff,
                                              direction, product, ki, ko, lots)
         elif barrier == 'euro':
-            print('euro barrier case')
+            # print('euro barrier case')
             # greeks for european options with european barrier.
             if dbarrier is None: 
-                print('dbarrier is None; computing')
+                # print('dbarrier is None; computing')
                 barlevel = ki if ki is not None else ko
                 ticksize = multipliers[product][-3]
                 dbarrier = barlevel - ticksize if direction == 'up' else barlevel + ticksize
@@ -825,7 +825,7 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction,
     """
     barlevel = ki if ki else ko
 
-    print(tau, vol, k, s, r, direction, ki, ko, lots, bvol, bvol2, dbarrier)
+    # print(tau, vol, k, s, r, direction, ki, ko, lots, bvol, bvol2, dbarrier)
 
     if dbarrier is None: 
         print('dbarrier is None; computing')
@@ -1040,13 +1040,13 @@ def get_vol_at_strike(df, strike):
         # print('strike, strikes in df: ', strike, df.strike.unique())
         df.drop_duplicates(subset='strike', inplace=True)
         # print('inputs: ', date, product, order, cpi, b_curr_tau)
-        print('df.strike: ', df.strike)
-        print('df.settle_vol ', df.vol)
+        # print('df.strike: ', df.strike)
+        # print('df.settle_vol ', df.vol)
         f_c = interp1d(df.strike,
                        df.vol, fill_value='extrapolate')
         vol = f_c(strike)
-        print('vol after interpolation: ', vol)
-    print('--------------------------------------------')
+        # print('vol after interpolation: ', vol)
+    # print('--------------------------------------------')
     return vol
 
 

@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2018-03-26 17:47:50
+# @Last Modified time: 2018-03-27 22:38:36
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -345,6 +345,9 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
     ft, ftprice = create_underlying(pdt, ftmth, pdf, date,
                                     shorted=ft_shorted, lots=lots_req)
 
+    if strike == 'atm':
+        strike = ftprice
+
     # get tau
     try:
         tau = vdf[(vdf.value_date == date) &
@@ -398,6 +401,13 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
                  direc=direction, barrier=barriertype, lots=lots_req,
                  bullet=bullet, ki=ki, ko=ko, rebate=rebate, ordering=ft.get_ordering(), 
                  bvol=bvol, bvol2=bvol2)
+
+    # handling bullet vs daily
+    if not bullet:
+        tmp = {'OTC': [op1]}
+        ops = handle_dailies(tmp, date)
+        ops = ops['OTC']
+        return ops
 
     return op1
 

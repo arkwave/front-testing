@@ -445,14 +445,15 @@ def handle_dailies(dic, sim_start):
                 ttm_range = round(op.tau * 365)
                 expdate = sim_start + pd.Timedelta(str(ttm_range) + ' days')
                 daterange = pd.bdate_range(sim_start, expdate)
-                print('daterange: ', daterange)
+                # print('daterange: ', daterange)
                 taus = [((expdate - b_day).days) /
                         365 for b_day in daterange if b_day != expdate]
-                strike, char, vol, underlying, payoff, shorted, month, ordering, lots, settlement \
+                        
+                strike, char, vol, underlying, payoff, shorted, month, ordering, lots, settlement, bvol, bvol2 \
                     = params['strike'], params['char'], params['vol'], params['underlying'], \
                     params['payoff'],  params['shorted'], params['month'], \
                     params['ordering'], params['lots'],\
-                    params['settlement']
+                    params['settlement'], params['bvol'], params['bvol2']
                 # barrier params
                 direc, barrier, ki, ko, rebate, bvol = \
                     params['direc'], params['barrier'], params[
@@ -463,7 +464,7 @@ def handle_dailies(dic, sim_start):
                     ui = copy.deepcopy(underlying)
                     op_i = Option(strike, tau, char, vol, ui, payoff, shorted, month, direc=direc,
                                   barrier=barrier, lots=lots, bullet=False, ki=ki, ko=ko, rebate=rebate,
-                                  ordering=ordering, settlement=settlement, bvol=bvol)
+                                  ordering=ordering, settlement=settlement, bvol=bvol, bvol2=bvol2)
                     bullets.append(op_i)
 
             lst.extend(bullets)
