@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-08-11 19:24:36
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-29 19:35:51
+# @Last Modified time: 2018-03-28 20:34:57
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -100,74 +100,74 @@ def test_process_hedges():
     assert dic2['tau_val'] == 0.5
     assert engine2.desc == 'uid'
 
-    # exp representation with ttm specified.
-    cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
-                   'theta': [['bound', (-11000, -9000), 1, 0.5, 'years',
-                              'straddle', 'strike', 'atm', (0, 20, 40, 60, 80), 'exp']]}
-    pfcc.hedge_params = cc_hedges_c
-    engine3 = Hedge(pfcc, pfcc.hedge_params, r_vdf, r_pdf)
-    dic3 = engine3.params
-    assert 'theta' in dic3
-    assert 'delta' in dic3
-    dic3 = engine3.params['theta']
-    assert dic3['kind'] == 'straddle'
-    assert dic3['spectype'] == 'strike'
-    assert dic3['spec'] == 'atm'
-    assert dic3['tau_val'] == 0.5
-    assert engine3.desc == 'exp'
-    assert engine3.buckets == [0, 20, 40, 60, 80]
+    # # exp representation with ttm specified.
+    # cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
+    #                'theta': [['bound', (-11000, -9000), 1, 0.5, 'years',
+    #                           'straddle', 'strike', 'atm', (0, 20, 40, 60, 80), 'exp']]}
+    # pfcc.hedge_params = cc_hedges_c
+    # engine3 = Hedge(pfcc, pfcc.hedge_params, r_vdf, r_pdf)
+    # dic3 = engine3.params
+    # assert 'theta' in dic3
+    # assert 'delta' in dic3
+    # dic3 = engine3.params['theta']
+    # assert dic3['kind'] == 'straddle'
+    # assert dic3['spectype'] == 'strike'
+    # assert dic3['spec'] == 'atm'
+    # assert dic3['tau_val'] == 0.5
+    # assert engine3.desc == 'exp'
+    # assert engine3.buckets == [0, 20, 40, 60, 80]
 
-    # exp represetion with no ttm specified
-    cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
-                   'theta': [['bound', (-11000, -9000), 1, 'straddle',
-                              'strike', 'atm', (0, 20, 40, 60, 80), 'exp']]}
+    # # exp represetion with no ttm specified
+    # cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
+    #                'theta': [['bound', (-11000, -9000), 1, 'straddle',
+    #                           'strike', 'atm', (0, 20, 40, 60, 80), 'exp']]}
 
-    pfcc.hedge_params = cc_hedges_c
-    engine4 = Hedge(pfcc, pfcc.hedge_params, r_vdf, r_pdf)
-    dic4 = engine4.params
-    assert 'theta' in dic4
-    assert 'delta' in dic4
-    dic4 = engine4.params['theta']
-    assert dic4['kind'] == 'straddle'
-    assert dic4['spectype'] == 'strike'
-    assert dic4['spec'] == 'atm'
-    assert engine4.desc == 'exp'
-    assert engine4.buckets == [0, 20, 40, 60, 80]
+    # pfcc.hedge_params = cc_hedges_c
+    # engine4 = Hedge(pfcc, pfcc.hedge_params, r_vdf, r_pdf)
+    # dic4 = engine4.params
+    # assert 'theta' in dic4
+    # assert 'delta' in dic4
+    # dic4 = engine4.params['theta']
+    # assert dic4['kind'] == 'straddle'
+    # assert dic4['spectype'] == 'strike'
+    # assert dic4['spec'] == 'atm'
+    # assert engine4.desc == 'exp'
+    # assert engine4.buckets == [0, 20, 40, 60, 80]
 
-    # other tau descs
-    cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
-                   'theta': [['bound', (-11000, -9000), 1, 100, 'days',
-                              'straddle', 'strike', 'atm', (0, 20, 40, 60, 80), 'exp']]}
-    pfcc.hedge_params = cc_hedges_c
-    engine5 = Hedge(pfcc, pfcc.hedge_params, r_vdf, r_pdf)
-    dic5 = engine5.params
-    assert 'theta' in dic5
-    assert 'delta' in dic5
-    dic5 = engine5.params['theta']
-    assert dic5['kind'] == 'straddle'
-    assert dic5['spectype'] == 'strike'
-    assert dic5['spec'] == 'atm'
-    assert dic5['tau_val'] == 100/365
-    assert dic5['tau_desc'] == 'days'
-    assert engine5.desc == 'exp'
-    assert engine5.buckets == [0, 20, 40, 60, 80]
+    # # other tau descs
+    # cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
+    #                'theta': [['bound', (-11000, -9000), 1, 100, 'days',
+    #                           'straddle', 'strike', 'atm', (0, 20, 40, 60, 80), 'exp']]}
+    # pfcc.hedge_params = cc_hedges_c
+    # engine5 = Hedge(pfcc, pfcc.hedge_params, r_vdf, r_pdf)
+    # dic5 = engine5.params
+    # assert 'theta' in dic5
+    # assert 'delta' in dic5
+    # dic5 = engine5.params['theta']
+    # assert dic5['kind'] == 'straddle'
+    # assert dic5['spectype'] == 'strike'
+    # assert dic5['spec'] == 'atm'
+    # assert dic5['tau_val'] == 100/365
+    # assert dic5['tau_desc'] == 'days'
+    # assert engine5.desc == 'exp'
+    # assert engine5.buckets == [0, 20, 40, 60, 80]
 
-    cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
-                   'theta': [['bound', (-11000, -9000), 1, 0.6, 'ratio',
-                              'straddle', 'strike', 'atm', (0, 20, 40, 60, 80), 'exp']]}
-    pfcc.hedge_params = cc_hedges_c
-    engine5 = Hedge(pfcc, pfcc.hedge_params, r_vdf, r_pdf)
-    dic5 = engine5.params
-    assert 'theta' in dic5
-    assert 'delta' in dic5
-    dic5 = engine5.params['theta']
-    assert dic5['kind'] == 'straddle'
-    assert dic5['spectype'] == 'strike'
-    assert dic5['spec'] == 'atm'
-    assert dic5['tau_val'] == 0.6
-    assert dic5['tau_desc'] == 'ratio'
-    assert engine5.desc == 'exp'
-    assert engine5.buckets == [0, 20, 40, 60, 80]
+    # cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
+    #                'theta': [['bound', (-11000, -9000), 1, 0.6, 'ratio',
+    #                           'straddle', 'strike', 'atm', (0, 20, 40, 60, 80), 'exp']]}
+    # pfcc.hedge_params = cc_hedges_c
+    # engine5 = Hedge(pfcc, pfcc.hedge_params, r_vdf, r_pdf)
+    # dic5 = engine5.params
+    # assert 'theta' in dic5
+    # assert 'delta' in dic5
+    # dic5 = engine5.params['theta']
+    # assert dic5['kind'] == 'straddle'
+    # assert dic5['spectype'] == 'strike'
+    # assert dic5['spec'] == 'atm'
+    # assert dic5['tau_val'] == 0.6
+    # assert dic5['tau_desc'] == 'ratio'
+    # assert engine5.desc == 'exp'
+    # assert engine5.buckets == [0, 20, 40, 60, 80]
 
 
 # NOTE: this test needs to be expanded to check for short-dated options.
@@ -341,64 +341,64 @@ def test_add_hedges():
     ops = engine.add_hedges(data, False, 'CC  Z7.Z7', 'theta', 0, 'Z7')
     assert not ops
 
-    # exp case: bring theta down to -5000 from -10000 --> short straddles.
-    cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
-                   'theta': [['bound', (4500, 5000), 1, 'straddle',
-                              'strike', 'atm', (0, 20, 40, 60, 80), 'exp']]}
-    pf = copy.deepcopy(pfcc)
-    pf.hedge_params = cc_hedges_c
-    engine = Hedge(pf, pf.hedge_params, r_vdf, r_pdf)
-    assert not engine.satisfied()
-    data = engine.params['theta']
-    ops = engine.add_hedges(data, True, 'CC  Z7.Z7', 'theta', 5250, 'Z7')
-    assert len(ops) == 2
-    assert engine.satisfied()
+    # # exp case: bring theta down to -5000 from -10000 --> short straddles.
+    # cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
+    #                'theta': [['bound', (4500, 5000), 1, 'straddle',
+    #                           'strike', 'atm', (0, 20, 40, 60, 80), 'exp']]}
+    # pf = copy.deepcopy(pfcc)
+    # pf.hedge_params = cc_hedges_c
+    # engine = Hedge(pf, pf.hedge_params, r_vdf, r_pdf)
+    # assert not engine.satisfied()
+    # data = engine.params['theta']
+    # ops = engine.add_hedges(data, True, 'CC  Z7.Z7', 'theta', 5250, 'Z7')
+    # assert len(ops) == 2
+    # assert engine.satisfied()
 
-    # removing theta; going from 10000 -> 5000 theta.
-    pf = copy.deepcopy(pfqc)
-    qc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
-                   'theta': [['bound', (4500, 5000), 1, 'straddle',
-                              'strike', 'atm', (0, 20, 40, 60, 80), 'exp']]}
-    pf.hedge_params = qc_hedges_c
-    engine = Hedge(pf, pf.hedge_params, r_vdf, r_pdf)
-    data = engine.params['theta']
+    # # removing theta; going from 10000 -> 5000 theta.
+    # pf = copy.deepcopy(pfqc)
+    # qc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
+    #                'theta': [['bound', (4500, 5000), 1, 'straddle',
+    #                           'strike', 'atm', (0, 20, 40, 60, 80), 'exp']]}
+    # pf.hedge_params = qc_hedges_c
+    # engine = Hedge(pf, pf.hedge_params, r_vdf, r_pdf)
+    # data = engine.params['theta']
 
-    assert not engine.satisfied()
+    # assert not engine.satisfied()
 
-    ops = engine.add_hedges(data, False, 'QC  Z7.Z7', 'theta', 5250, 'Z7')
-    assert len(ops) == 2
-    assert engine.satisfied()
+    # ops = engine.add_hedges(data, False, 'QC  Z7.Z7', 'theta', 5250, 'Z7')
+    # assert len(ops) == 2
+    # assert engine.satisfied()
 
 
-def test_hedge():
-    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio()
+# def test_hedge():
+#     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio()
 
-    # simple case
-    pf = copy.deepcopy(pfcc)
+#     # simple case
+#     pf = copy.deepcopy(pfcc)
 
-    engine = Hedge(pf, pf.hedge_params, r_vdf, r_pdf)
-    assert engine.desc == 'uid'
-    assert engine.satisfied()
+#     engine = Hedge(pf, pf.hedge_params, r_vdf, r_pdf)
+#     assert engine.desc == 'uid'
+#     assert engine.satisfied()
 
-    cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
-                   'theta': [['bound', (4500, 5000), 1, 'straddle',
-                              'strike', 'atm', (0, 20, 40, 60, 80), 'exp']]}
+#     cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
+#                    'theta': [['bound', (4500, 5000), 1, 'straddle',
+#                               'strike', 'atm', (0, 20, 40, 60, 80), 'exp']]}
 
-    pf = copy.deepcopy(pfcc)
-    pf.hedge_params = cc_hedges_c
+#     pf = copy.deepcopy(pfcc)
+#     pf.hedge_params = cc_hedges_c
 
-    # print('____________________ HEDGE TEST 1 _____________________')
-    engine = Hedge(pf, pf.hedge_params, r_vdf, r_pdf)
-    tval = pf.net_greeks['CC']['Z7'][2]
-    bounds = pf.hedge_params['theta'][0][1]
-    # print('bounds: ', bounds)
-    assert not engine.satisfied()
+#     # print('____________________ HEDGE TEST 1 _____________________')
+#     engine = Hedge(pf, pf.hedge_params, r_vdf, r_pdf)
+#     tval = pf.net_greeks['CC']['Z7'][2]
+#     bounds = pf.hedge_params['theta'][0][1]
+#     # print('bounds: ', bounds)
+#     assert not engine.satisfied()
 
-    # print('engine.mappings: ', engine.mappings['theta'])
+#     # print('engine.mappings: ', engine.mappings['theta'])
 
-    engine.hedge('theta', 'CC', 80, tval, (bounds[0] + bounds[1])/2)
+#     engine.hedge('theta', 'CC', 80, tval, (bounds[0] + bounds[1])/2)
 
-    assert engine.satisfied()
+#     assert engine.satisfied()
     # print('____________________ HEDGE TEST 1 END _____________________')
 
 

@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-29 17:33:48
+# @Last Modified time: 2018-04-02 15:23:12
 
 import pandas as pd
 import pprint
@@ -324,139 +324,79 @@ class Hedge:
 
         data = self.params[flag]
 
-        # first case: greek by expiry.
-        if self.desc == 'exp':
-            # self.pf.update_sec_by_month(None, 'OTC', update=True)
-            # self.pf.update_sec_by_month(None, 'hedge', update=True)
-            self.greek_repr = self.pf.greeks_by_exp(self.buckets) \
-                if buckets is None else self.pf.greeks_by_exp(buckets)
-
-            calibration_dic = self.pf.greeks_by_exp(self.buckets) \
-                if buckets is None else self.pf.greeks_by_exp(buckets)
-
-            for product in calibration_dic:
-                df = self.vdf[(self.vdf.pdt == product) &
-                              (self.vdf.call_put_id == 'C')]
-                for exp in calibration_dic[product]:
-                    loc = (product, exp)
-                    if df.empty:
-                        if flag not in self.mappings:
-                            self.mappings[flag] = {}
-                        self.mappings[flag][loc] = False
-                        continue
-
-                    options = calibration_dic[product][exp][0]
-
-                    # case: no options associated with this product/exp bucket
-                    if not options:
-                        continue
-
-                    # case: ttm specification exists.
-                    if 'tau_val' in data:
-                        ttm_modifier = data['tau_val']
-                        # print('ttm modifier: ', ttm_modifier)
-                        # case: ttm modifier is a ratio.
-                        if data['tau_desc'] == 'ratio':
-                            if selection_criteria == 'median':
-                                ttm = np.median([op.tau for op in options])
-                            ttm = ttm * ttm_modifier
-                        # ttm modifier is an actual value. s
-                        else:
-                            ttm = ttm_modifier
-                    else:
-                        ttm = max([op.tau for op in options])
-
-                    # check available vol_ids and pick the closest one.
-
-                    closest_tau_val = sorted(
-                        df.tau, key=lambda x: abs(x - ttm))
-
-                    # sanity check: ensuring that the option being selected to
-                    # hedge has at least 4 days to maturity (i.e. to account
-                    # for a weekend)
-
-                    valid = [x for x in closest_tau_val if x > 4/365]
-                    closest_tau_val = valid[0]
-                    vol_ids = df[df.tau == closest_tau_val].vol_id.values
-
-                    # select the closest opmth/ftmth combination
-                    split = [x.split()[1] for x in vol_ids]
-                    # sort by ft_year, ft_month and op_month
-                    split = sorted(split, key=lambda y:
-                                   (int(y[4]), y[3], y[0]))
-
-                    volid = product + '  ' + split[0]
-
-                    # assign to parameter dictionary.
-                    if flag not in self.mappings:
-                        self.mappings[flag] = {}
-
-                    self.mappings[flag][loc] = volid
-
-        # second case: greeks by underlying (regular thing we're used to)
-        elif self.desc == 'uid':
+        # first case: greeks by underlying (regular thing we're used to)
+        if self.desc == 'uid':
             self.greek_repr = self.pf.get_net_greeks()
             net = self.pf.get_net_greeks()
             # assert not self.vdf.empty
-            for product in net:
-                product = product.strip()
-                df = self.vdf[self.vdf.pdt == product]
-                # case: holiday for this product.
+
+        # second case: aggregated greeks. 
+        # needs to do the following:
+        # 1. find out the largest contributing gamma. 
+        # 2. use the right TTM option to hedge - current method of specifying a ttm will work.
+        elif self.desc == 'agg': 
+            self.greek_repr = self.pf.get_aggregated_greeks() 
+            net = self.greek_repr.copy() 
+
+        for product in net:
+            product = product.strip()
+            df = self.vdf[self.vdf.pdt == product]
+            # case: holiday for this product.
+            if df.empty:
+                print('data does not exist for this date and product. ',
+                      self.date, product)
+            for month in net[product]:
+                month = month.strip()
+                uid = product + '  ' + month
+                df = df[df.underlying_id == uid]
+                data = net[product][month]
+                loc = (product, month)
                 if df.empty:
-                    print('data does not exist for this date and product. ',
-                          self.date, product)
-                for month in net[product]:
-                    month = month.strip()
-                    uid = product + '  ' + month
-                    df = df[df.underlying_id == uid]
-                    data = net[product][month]
-                    loc = (product, month)
-                    if df.empty:
-                        if flag not in self.mappings:
-                            self.mappings[flag] = {}
-                        self.mappings[flag][loc] = False
-                        continue
-                    if not data or (data == [0, 0, 0, 0]):
-                        continue
-                    # grab max possible ttm (i.e. ttm of the same month option)
-                    try:
-                        volid = product + '  ' + month + '.' + month
-                        ttm = df[(df.vol_id == volid) &
-                                 (df.call_put_id == 'C')].tau.values[0]
-
-                    except IndexError:
-                        print('hedge.uid_volid: cannot find max ttm')
-                        print('debug 1: ', df[(df.vol_id == volid)])
-                        print('debug 2: ', df[(df.call_put_id == 'C')])
-                        print('debug 3: ', df[
-                              (df.vol_id == volid) & (df.call_put_id == 'C')])
-
-                    # case: ttm specification exists.
-                    if 'tau_val' in data:
-                        ttm_modifier = data['tau_val']
-                        # case: ttm modifier is a ratio.
-                        if data['tau_desc'] == 'ratio':
-                            ttm = ttm * ttm_modifier
-                        # ttm modifier is an actual value.
-                        else:
-                            ttm = ttm_modifier
-
-                    closest_tau_val = min(df.tau, key=lambda x: abs(x - ttm))
-                    vol_ids = df[(df.underlying_id == uid) &
-                                 (df.tau == closest_tau_val)].vol_id.values
-
-                    # select the closest opmth/ftmth combination
-                    split = [x.split()[1] for x in vol_ids]
-                    # sort by ft_year, ft_month and op_month
-                    split = sorted(split, key=lambda y:
-                                   (int(y[4]), y[3], y[0]))
-
-                    volid = product + '  ' + split[0]
-
-                    # assign to parameter dictionary.
                     if flag not in self.mappings:
                         self.mappings[flag] = {}
-                    self.mappings[flag][loc] = volid
+                    self.mappings[flag][loc] = False
+                    continue
+                if not data or (data == [0, 0, 0, 0]):
+                    continue
+                # grab max possible ttm (i.e. ttm of the same month option)
+                try:
+                    volid = product + '  ' + month + '.' + month
+                    ttm = df[(df.vol_id == volid) &
+                             (df.call_put_id == 'C')].tau.values[0]
+
+                except IndexError:
+                    print('hedge.uid_volid: cannot find max ttm')
+                    print('debug 1: ', df[(df.vol_id == volid)])
+                    print('debug 2: ', df[(df.call_put_id == 'C')])
+                    print('debug 3: ', df[
+                          (df.vol_id == volid) & (df.call_put_id == 'C')])
+
+                # case: ttm specification exists.
+                if 'tau_val' in data:
+                    ttm_modifier = data['tau_val']
+                    # case: ttm modifier is a ratio.
+                    if data['tau_desc'] == 'ratio':
+                        ttm = ttm * ttm_modifier
+                    # ttm modifier is an actual value.
+                    else:
+                        ttm = ttm_modifier
+
+                closest_tau_val = min(df.tau, key=lambda x: abs(x - ttm))
+                vol_ids = df[(df.underlying_id == uid) &
+                             (df.tau == closest_tau_val)].vol_id.values
+
+                # select the closest opmth/ftmth combination
+                split = [x.split()[1] for x in vol_ids]
+                # sort by ft_year, ft_month and op_month
+                split = sorted(split, key=lambda y:
+                               (int(y[4]), y[3], y[0]))
+
+                volid = product + '  ' + split[0]
+
+                # assign to parameter dictionary.
+                if flag not in self.mappings:
+                    self.mappings[flag] = {}
+                self.mappings[flag][loc] = volid
 
     def get_bucket(self, val, buckets=None):
         """Helper method that gets the bucket associated with a given value according to self.buckets.

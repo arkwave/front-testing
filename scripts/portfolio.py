@@ -733,73 +733,21 @@ class Portfolio:
         self.remove_security(toberemoved, flag)
         self.add_security(tobeadded, flag)
 
-    def greeks_by_exp(self, buckets):
-        """Returns a dictionary of net greeks, organized by product and expiry.
 
-        Returns:
-            dictionary: dictionary
-        """
-        net = {}
-        if self.empty():
-            return
-        t = timer()
-        # preallocating
-        # otc_by_exp = {}
-        # hedges_by_exp = {}
-
-        for comm in self.get_unique_products():
-            # preallocating net
-            if comm not in net:
-                net[comm] = {}
-            for div in buckets:
-                if div not in net[comm]:
-                    net[comm][div] = []
-                net[comm][div] = [set(), 0, 0, 0, 0]
-
-        else:
-            otcs = self.OTC
-            hedges = self.hedges
-            # handle OTCs first then hedges
-            for comm in otcs:
-                for month in otcs[comm]:
-                    options = otcs[comm][month][0]
-                    for op in options:
-                        # bucket based on tau
-                        optau = float(op.tau * 365)
-                        # try:
-                        bucket = max([x
-                                      for x in buckets if x < optau])
-                        d, g, t, v = op.greeks()
-                        net[comm][bucket][0].add(op)
-                        net[comm][bucket][1] += d
-                        net[comm][bucket][2] += g
-                        net[comm][bucket][3] += t
-                        net[comm][bucket][4] += v
-                    fts = otcs[comm][month][1]
-                    for ft in fts:
-                        net[comm][bucket][1] += ft.get_delta()
-
-            for comm in hedges:
-                for month in hedges[comm]:
-                    options = hedges[comm][month][0]
-                    for op in options:
-                        # bucket based on tau
-                        optau = float(op.tau * 365)
-                        bucket = max(
-                            [x for x in buckets if x < optau])
-                        # if bucket not in hedges_by_exp:
-                        #     hedges_by_exp[bucket] = []
-                        d, g, t, v = op.greeks()
-                        net[comm][bucket][0].add(op)
-                        net[comm][bucket][1] += d
-                        net[comm][bucket][2] += g
-                        net[comm][bucket][3] += t
-                        net[comm][bucket][4] += v
-                    fts = hedges[comm][month][1]
-                    for ft in fts:
-                        net[comm][bucket][1] += ft.get_delta()
-        return net
-
+    # TODO: aggregate all greeks across months
+    def get_aggregated_greeks(self):
+        dic = self.get_net_greeks().copy() 
+        agg = {}
+        for pdt in dic:
+            if pdt not in agg:
+                agg[pdt] = [0,0,0,0]
+                for mth in dic[pdt]:
+                    agg[pdt][0] += dic[pdt][mth][0]
+                    agg[pdt][1] += dic[pdt][mth][1] 
+                    agg[pdt][2] += dic[pdt][mth][2] 
+                    agg[pdt][3] += dic[pdt][mth][3]
+        return agg  
+            
 
 ############### getter/utility methods #################
 
