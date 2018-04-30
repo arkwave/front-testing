@@ -178,6 +178,7 @@ class Option:
         string += ' vol - ' + str(self.vol) + ' |'
         string += ' bvol - '
         string += str(self.bvol) if self.bvol is not None else 'None'
+        string += ' bvol2 - ' + str(self.bvol2) if self.bvol2 is not None else 'None' + ' |'
         string += ' | strike type: ' + str(self.strike_type) + ' '
         string += '>>'
         return string

@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2018-03-27 22:38:36
+# @Last Modified time: 2018-04-05 13:10:05
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -331,13 +331,22 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
     #     raise ValueError(
     #         'neither delta nor strike passed in; aborting construction.')
 
-    lots_req = lots if lots is not None else 1000
-
     # naming conventions
     ftmth = volid.split('.')[1]
     pdt = volid.split()[0]
     opmth = volid.split()[1].split('.')[0]
     cpi = 'C' if char == 'call' else 'P'
+
+    # get tau
+    try:
+        tau = vdf[(vdf.value_date == date) &
+                  (vdf.vol_id == volid)].tau.values[0]
+    except IndexError as e:
+        raise IndexError(
+            'util.create_barrier_option - cannot find tau given inpits: ', date, volid) from e
+
+    # defaults to one lot per day to account for daily case. 
+    lots_req = lots if lots is not None else 1
 
     # create the underlying future
     ft_shorted = shorted if char == 'call' else not shorted
@@ -347,14 +356,6 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
 
     if strike == 'atm':
         strike = ftprice
-
-    # get tau
-    try:
-        tau = vdf[(vdf.value_date == date) &
-                  (vdf.vol_id == volid)].tau.values[0]
-    except IndexError as e:
-        raise IndexError(
-            'util.create_barrier_option - cannot find tau given inpits: ', date, volid) from e
 
     # filter out the relevant vol surface. 
     rvols = vdf[(vdf.value_date == date) &

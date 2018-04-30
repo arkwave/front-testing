@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2018-04-02 15:23:12
+# @Last Modified time: 2018-04-05 12:50:20
 
 import pandas as pd
 import pprint
@@ -72,7 +72,6 @@ class Hedge:
         self.last_hedgepoints = None
         self.update_hedgepoints()
         self.entry_levels = self.pf.uid_price_dict().copy()
-        self.buckets = buckets if buckets is not None else [0, 30, 60, 90, 120]
         self.hedges = hedges
         self.intraday_conds = None
         self.desc, self.params = self.process_hedges()
@@ -197,9 +196,9 @@ class Hedge:
                 # begin the process of assigning.
                 desc = r_conds[-1]
                 desc == 'uid' if desc is None else desc
-                if desc == 'exp':
-                    if r_conds[-2] is not None:
-                        self.buckets = list(r_conds[-2])
+
+                # FIXME: replace this with the appropriate aggregation conditions
+                if desc == 'agg':
                     params[flag]['kind'] = r_conds[-5]
                     params[flag]['spectype'] = r_conds[-4]
                     params[flag]['spec'] = r_conds[-3]
@@ -272,12 +271,12 @@ class Hedge:
         """
         # print('intraday conds: dic - ', dic)
         if 'tstop' in dic:
-            print('-------- Creating TrailingStop Object ---------')
+            # print('-------- Creating TrailingStop Object ---------')
             tstop_obj = TrailingStop(self.entry_levels, dic[
                                      'tstop'], self.pf, self.last_hedgepoints, self)
             self.intraday_conds = tstop_obj
             assert self.intraday_conds is not None
-            print('------------ TrailingStop Created -------------')
+            # print('------------ TrailingStop Created -------------')
 
     def calibrate_all(self):
         """Calibrates hedge object to all non-delta hedges. calibrate does one of the following things:
