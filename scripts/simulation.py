@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2018-02-26 20:48:24
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-05-01 17:06:24
 
 ################################ imports ###################################
 # general imports
@@ -965,7 +965,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
         pf, brokerage, slippage)
 
     total_profit = exercise_profit + barrier_profit
-    print('total_profit: ', total_profit)
+    # print('total_profit: ', total_profit)
 
     # refresh portfolio after price updates.
     # if price_updated:
@@ -1012,7 +1012,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
 
     # calculating gamma pnl
     intermediate_val = pf.compute_value()
-    print('intermediate value: ', intermediate_val)
+    # print('intermediate value: ', intermediate_val)
     if exercised:
         # case: portfolio is empty after data feed step (i.e. expiries and
         # associated deltas closed)
@@ -1021,13 +1021,13 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
             gamma_pnl = total_profit
         # case: portfolio is NOT empty.
         else:
-            print('other case')
+            # print('other case')
             gamma_pnl = (intermediate_val + total_profit) - init_val
     else:
-        print('pnl calc: not exercised case')
+        # print('pnl calc: not exercised case')
         gamma_pnl = (intermediate_val + total_profit -
                      init_val) if intermediate_val != 0 else 0
-        print('gamma pnl: ', gamma_pnl)
+        # print('gamma pnl: ', gamma_pnl)
 
     # skip feeding in vols if 1) data not present or 2) flat_vols flag is
     # triggered.
@@ -1138,17 +1138,17 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
 
     # case 1: knockin case - option is not currently knocked in.
     if op.ki is not None:
-        print('simulation.handle_barriers - knockin case')
+        # print('simulation.handle_barriers - knockin case')
         # case 1-1: di option, val is below barrier.
         if op.direc == 'down' and val <= op.ki:
-            print('simulation.handle_barriers - down-in case ' + str(op))
+            # print('simulation.handle_barriers - down-in case ' + str(op))
             step = ft_ticksize
         elif op.direc == 'up' and val >= op.ki:
-            print('simulation.handle_barriers - up-in case ' + str(op))
+            # print('simulation.handle_barriers - up-in case ' + str(op))
             step = -ft_ticksize
         # knockin case with no action
         else:
-            print('barriers handled')
+            # print('barriers handled')
             return pf, 0, []
 
         # get delta after converting to vanilla option.
@@ -1181,7 +1181,7 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
 
     # case 2: knockout.
     elif op.ko is not None:
-        print('simulation.handle_barriers - knockout case')
+        # print('simulation.handle_barriers - knockout case')
         if op.knockedout:
             print('simulation.handle_barriers - knockedout')
             ret = pf, 0, []
@@ -1189,21 +1189,21 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
         else:
             # case 1: updating price to val will initiate a knockout
             if op.direc == 'up' and val > op.ko:
-                print('simulation.handle_barriers - up-out case ' + str(op))
+                # print('simulation.handle_barriers - up-out case ' + str(op))
                 step = -ft_ticksize
             elif op.direc == 'down' and val < op.ko:
-                print('simulation.handle_barriers - down-out case ' + str(op))
+                # print('simulation.handle_barriers - down-out case ' + str(op))
                 step = ft_ticksize
             else:
-                print('barriers handled')
+                # print('barriers handled')
                 return pf, 0, []
 
             ft_price = round(
                 round((op.ko + step) / ft_ticksize) * ft_ticksize, 2)
             bar_op.underlying.update_price(ft_price)
-            print('future price: ', ft_price)
+            # print('future price: ', ft_price)
             delta_diff = bar_op.delta
-            print('delta_diff: ', delta_diff)
+            # print('delta_diff: ', delta_diff)
 
             # creating the future object.
             ft_shorted = True if delta_diff < 0 else False
@@ -1215,10 +1215,10 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
 
     # regular vanilla option case; do nothing.
     else:
-        print('simulation.handle_barriers - final else case')
+        # print('simulation.handle_barriers - final else case')
         ret = pf, 0, []
 
-    print('barriers handled')
+    # print('barriers handled')
     return ret
 
 
@@ -1257,15 +1257,15 @@ def handle_exercise(pf, brokerage=None, slippage=None):
             exer = op.exercise()
             op.tau = 0
             if exer:
-                print("exercising OTC op " + str(op))
+                # print("exercising OTC op " + str(op))
                 if op.settlement == 'cash':
                     print("----- CASH SETTLEMENT: OTC OP ------")
                 elif op.settlement == 'futures':
-                    print('----- FUTURE SETTLEMENT: OTC OP ------')
+                    # print('----- FUTURE SETTLEMENT: OTC OP ------')
                     ft = op.get_underlying()
                     ft.update_lots(op.lots)
-                    print('future added - ', str(ft))
-                    print('lots: ', op.lots, ft.lots)
+                    # print('future added - ', str(ft))
+                    # print('lots: ', op.lots, ft.lots)
                     tobeadded.append(ft)
 
                 # calculating the net profit from this exchange.
@@ -1274,29 +1274,30 @@ def handle_exercise(pf, brokerage=None, slippage=None):
                 # op.get_price() defaults to max(k-s,0 ) or max(s-k, 0)
                 # since op.tau = 0
                 oppnl = op.lots * op.get_price() * pnl_mult
-                print('profit on this exercise: ', oppnl)
-                print("-------------------------------------")
+                # print('profit on this exercise: ', oppnl)
+                # print("-------------------------------------")
                 profit += oppnl
                 exercised = True
 
             else:
-                print('letting OTC op ' + str(op) + ' expire.')
+                # print('letting OTC op ' + str(op) + ' expire.')
+                pass
 
     for op in hedge_ops:
         if np.isclose(op.tau, tol) or op.tau <= tol:
             exer = op.exercise()
             op.tau = 0
             if exer:
-                print('exercising hedge op ' + str(op))
+                # print('exercising hedge op ' + str(op))
                 if op.settlement == 'cash':
                     print("----- CASH SETTLEMENT: HEDGE OPS ------")
                 elif op.settlement == 'futures':
                     if op.settlement == 'futures':
-                        print('----- FUTURE SETTLEMENT: HEDGE OPS ------')
+                        # print('----- FUTURE SETTLEMENT: HEDGE OPS ------')
                         ft = op.get_underlying()
                         ft.update_lots(op.lots)
-                        print('future added - ', str(ft))
-                        print('lots: ', op.lots, ft.lots)
+                        # print('future added - ', str(ft))
+                        # print('lots: ', op.lots, ft.lots)
                         tobeadded.append(ft)
 
                 # calculating the net profit from this exchange.
@@ -1304,18 +1305,19 @@ def handle_exercise(pf, brokerage=None, slippage=None):
                 # op.get_price() defaults to max(k-s,0 ) or max(s-k, 0)
                 # since op.tau = 0
                 oppnl = op.lots * op.get_price() * pnl_mult
-                print('profit on this exercise: ', oppnl)
-                print('---------------------------------------')
+                # print('profit on this exercise: ', oppnl)
+                # print('---------------------------------------')
                 profit += oppnl
                 exercised = True
             else:
-                print('letting hedge op ' + str(op) + ' expire.')
+                # print('letting hedge op ' + str(op) + ' expire.')
+                pass
 
     # debug statement:
-    print('handle_exercise - tobeadded: ', [str(x) for x in tobeadded])
-    print('handle_exercise - options exercised: ', exercised)
-    print('handle_exercise - net exercise profit: ', profit)
-    print('handle exercise time: ', time.clock() - t)
+    # print('handle_exercise - tobeadded: ', [str(x) for x in tobeadded])
+    # print('handle_exercise - options exercised: ', exercised)
+    # print('handle_exercise - net exercise profit: ', profit)
+    # print('handle exercise time: ', time.clock() - t)
     return profit, pf, exercised, tobeadded
 
 

@@ -205,6 +205,16 @@ class Option:
         if vol2 is not None:
             self.bvol2 = vol2 
 
+    def get_greek(self, name):
+        if name == 'delta':
+            return self.delta 
+        if name == 'vega':
+            return self.vega 
+        if name == 'gamma':
+            return self.gamma 
+        if name == 'theta':
+            return self.theta
+
     def check_active(self):
         """Checks to see if this option object is active, i.e. if it has any value/contributes greeks. 
         Cases are as follows:
