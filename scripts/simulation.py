@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2018-02-26 20:48:24
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-05-29 11:01:51
 
 ################################ imports ###################################
 # general imports
@@ -221,7 +221,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     ##################################################
 
     ########### identifying simulation mode ###########
-    if mode in ('HBPS', 'HBPB'):
+    if mode in ('HBPS', 'HBPB') or flat_vols:
         flat_vols = True
     else:
         flat_vols = False
@@ -330,8 +330,9 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             try:
                 assert len(pdf_1.underlying_id.unique()) == 1
             except AssertionError as e:
-                raise AssertionError("dataset not filtered for UIDS on " + str(date) + " : ",
-                                     pdf_1.underlying_id.unique()) from e
+                if 'intraday' in pdf_1.datatype.unique():
+                    raise AssertionError("dataset not filtered for UIDS on " + str(date) + " : ",
+                                         pdf_1.underlying_id.unique()) from e
         print('================ beginning intraday loop =====================')
         unique_ts = pdf_1.time.unique()
         dailyhedges = []
@@ -842,6 +843,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     hedges_hit = pd.concat(hedges_hit)
     theta_paid = sum(thetas)
     gamma_money = grosspnl - theta_paid
+
     return log, net_cumul_values[-1], hedges_hit, gamma_money,\
         theta_paid, thetas, sum(gamma_pnl_daily), gamma_pnl_daily, breakevens, \
         (days, net_daily_values, gross_cumul_values,

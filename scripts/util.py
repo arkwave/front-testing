@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2018-03-26 17:47:50
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-05-29 10:51:28
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -72,7 +72,7 @@ contract_mths = {
 }
 
 
-def create_underlying(pdt, ftmth, pdf, date, flag='settlement', ftprice=None, shorted=False, lots=None):
+def create_underlying(pdt, ftmth, pdf, date=None, flag='settlement', ftprice=None, shorted=False, lots=None):
     """Utility method that creates the underlying future object 
         given a product, month, price data and date. 
 
@@ -93,6 +93,8 @@ def create_underlying(pdt, ftmth, pdf, date, flag='settlement', ftprice=None, sh
     # datatype = 'settlement' if settlement else 'intraday'
     flag = 'settlement' if flag == 'eod' else flag
     uid = pdt + '  ' + ftmth
+    date = date if date is not None else min(pdf.value_date)
+
     if ftprice is None:
         try:
             ftprice = pdf[(pdf.underlying_id == uid) &
