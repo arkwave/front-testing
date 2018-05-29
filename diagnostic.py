@@ -71,13 +71,52 @@ end = '2018-01-10'
 
 vdf, pdf, edf = grab_data(pdts, start, end)
 
-op = create_barrier_option(vdf, pdf, 'KC  N8.N8', 'call', 125, False, 
-                           vdf.value_date.min(), 'amer', 'up', None, 
-                           140, True, lots=100)
+# create the legs for a KCU8 118.20/128.00 Long Knight DDU b 121.85 
+vol_id = 'KC  U8.U8'
+acc = 118.20
+ref = 121.85
+char = 'call'
 
-# df = pull_intraday_data([pdt], start_date=start,
-#                         end_date=end, contracts=contract)
+direction = 'up'
+barriertype = 'amer'
+shorted = False
+bullet = False
+ki = None
+ko = 128
 
-# tdf, df = filter_outliers(df, fixed=30)
+
+vol = 0.19032
+bvol = 0.22648
+bvol2 = None
+date = pd.to_datetime('2018-05-21')
+expiry = pd.to_datetime('2018-08-18')
+
+op = create_barrier_option(None, None, vol_id, char, acc, shorted, date, 
+                           barriertype, direction, ki, ko, bullet, 
+                           lots=1, ref=ref, vol=vol, bvol=bvol, 
+                           bvol2=bvol2, expiry=expiry)
 
 
+value = sum([o.compute_price() for o in op]) / len([o for o in op if o.tau > 0])
+print('number of ops: ', len(op))
+print('-------------------- t ----------------------')
+print('mkt value: ', value)
+print('delta: ', sum([o.get_greek('delta') for o in op]))
+print('gamma: ', sum([o.get_greek('gamma') for o in op]))
+print('theta: ', sum([o.get_greek('theta') for o in op]))
+print('vega: ', sum([o.get_greek('vega') for o in op]))
+print('--------------------------------------------------')
+
+for o in op:
+    o.update_tau(1/365)
+    o.update()
+
+value = sum([o.compute_price() for o in op]) / len([o for o in op if o.tau > 0])
+print('-------------- t + 1 --------------------')
+print('mkt value: ', value)
+value = sum([o.compute_price() for o in op]) / len(op)
+print('delta: ', sum([o.get_greek('delta') for o in op]))
+print('gamma: ', sum([o.get_greek('gamma') for o in op]))
+print('theta: ', sum([o.get_greek('theta') for o in op]))
+print('vega: ', sum([o.get_greek('vega') for o in op]))
+print('--------------------------------------------------')
