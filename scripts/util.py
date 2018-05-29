@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   RMS08
-# @Last Modified time: 2018-05-01 16:07:09
+# @Last Modified time: 2018-05-29 10:17:58
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -294,10 +294,10 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
 # ko=None, rebate=0, ordering=1e5, settlement='futures')
 
 def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriertype,
-                          direction, ki, ko, bullet, rebate=0, payoff='amer', lots=None,
-                          vol=None, bvol=None, bvol2=None):
+                          direction, ki, ko, bullet, expiry=None, rebate=0, payoff='amer', 
+                          lots=None, vol=None, bvol=None, bvol2=None, ref=None):
     """Helper method that creates barrier options. 
-
+    
     Args:
         vdf (dataframe): dataframe of vols
         pdf (dataframe): dataframe of prices
@@ -311,19 +311,24 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
         ki (float/None): knockin value 
         ko (float/None): knockout value
         bullet (bool): True if bullet, false if daily. 
+        expiry (None, optional): Optional parameter to use to compute TTM if dataset not specified
         rebate (int, optional): rebate value.
         payoff (str, optional): amer or euro option
         lots (float, optional): number of lots
         vol (None, optional): vol at strike
         bvol (None, optional): vol at barrier
-
-
+        bvol2 (None, optional): Digital barrier vol for european barriers
+        ref (None, optional): futures reference
+    
     Returns:
         object: barrier option object.
-
+    
     Raises:
         IndexError: Raised if either barrier vol, strike vol or ttm is not found. 
-
+    
+    Deleted Parameters:
+        tau (None, optional): ttm of the option in years. 
+    
     """
     print('util.create_barrier_option - inputs: ',
           volid, char, shorted, lots, strike, vol, bvol, bvol2)
@@ -340,8 +345,12 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
 
     # get tau
     try:
-        tau = vdf[(vdf.value_date == date) &
-                  (vdf.vol_id == volid)].tau.values[0]
+        # case: expiry is explicitly specified. 
+        if expiry is not None:
+            tau = ((expiry - date).days) / 365
+        else:
+            tau = vdf[(vdf.value_date == date) &
+                      (vdf.vol_id == volid)].tau.values[0]
     except IndexError as e:
         raise IndexError(
             'util.create_barrier_option - cannot find tau given inpits: ', date, volid) from e
@@ -353,17 +362,22 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
     ft_shorted = shorted if char == 'call' else not shorted
     # print('util.create_vanilla_option - pdf.columns: ', pdf.columns)
     ft, ftprice = create_underlying(pdt, ftmth, pdf, date,
-                                    shorted=ft_shorted, lots=lots_req)
+                                    shorted=ft_shorted, lots=lots_req, ftprice=ref)
 
     if strike == 'atm':
         strike = ftprice
 
     # filter out the relevant vol surface. 
-    rvols = vdf[(vdf.value_date == date) &
-                       (vdf.vol_id == volid) &
-                       (vdf.call_put_id == cpi)]
+    if vol is None or bvol is None:
+        rvols = vdf[(vdf.value_date == date) &
+                           (vdf.vol_id == volid) &
+                           (vdf.call_put_id == cpi)]
 
     # Case 1 : Vol is None, but strike is specified.
+
+    print('vol is None: ', vol is None)
+    print('bvol is None: ', bvol is None)
+
     if vol is None and strike is not None:
         # get vol
         try:
@@ -389,22 +403,31 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
 
     # get bvol2 if necessary for european barriers. 
     if barriertype == 'euro':
-        ticksize = multipliers[pdt][-3]
-        print('ticksize: ', ticksize)
-        digistrike = barlevel - ticksize if direction == 'up' else barlevel + ticksize
-        try:
-            bvol2 = get_vol_at_strike(rvols, digistrike)
-            print('digistrike vol: ', bvol2)
-        except IndexError as e:
-            raise IndexError(
-                'util.create_barrier_option - digistrike vol not found. inputs are: ', date, volid, cpi, digistrike) from e
+        if bvol2 is None:
+            ticksize = multipliers[pdt][-3]
+            print('ticksize: ', ticksize)
+            digistrike = barlevel - ticksize if direction == 'up' else barlevel + ticksize
+            try:
+                bvol2 = get_vol_at_strike(rvols, digistrike)
+                print('digistrike vol: ', bvol2)
+            except IndexError as e:
+                raise IndexError(
+                    'util.create_barrier_option - digistrike vol not found. inputs are: ', date, volid, cpi, digistrike) from e
 
+    print('---------------------------------')
+    print('vol used: ', vol)
+    print('bvol used: ', bvol)
+    print('bvol2 used: ', bvol2)
+    print('spot used: ', ftprice, ref)
+    print('daily option: ', not bullet)
+    print('----------------------------------')
     op1 = Option(strike, tau, char, vol, ft, payoff, shorted, opmth,
                  direc=direction, barrier=barriertype, lots=lots_req,
                  bullet=bullet, ki=ki, ko=ko, rebate=rebate, ordering=ft.get_ordering(), 
                  bvol=bvol, bvol2=bvol2)
 
     # handling bullet vs daily
+    
     if not bullet:
         tmp = {'OTC': [op1]}
         ops = handle_dailies(tmp, date)

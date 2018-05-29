@@ -447,8 +447,10 @@ def handle_dailies(dic, sim_start):
                 daterange = pd.bdate_range(sim_start, expdate)
                 # print('daterange: ', daterange)
                 taus = [((expdate - b_day).days) /
-                        365 for b_day in daterange if b_day != expdate]
-                        
+                        365 for b_day in daterange if b_day <= expdate]
+                
+                # print(taus)
+
                 strike, char, vol, underlying, payoff, shorted, month, ordering, lots, settlement, bvol, bvol2 \
                     = params['strike'], params['char'], params['vol'], params['underlying'], \
                     params['payoff'],  params['shorted'], params['month'], \
