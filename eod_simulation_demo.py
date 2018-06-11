@@ -1,6 +1,6 @@
 import pandas as pd
 from scripts.fetch_data import grab_data
-from scripts.util import create_vanilla_option, create_underlying 
+from scripts.util import create_vanilla_option, create_underlying, combine_portfolios
 from scripts.simulation import run_simulation
 from scripts.portfolio import Portfolio 
 from collections import OrderedDict
@@ -109,7 +109,7 @@ def plot_output(log):
 
 
 if __name__ == "__main__":
-    for year in [2010]:
+    for year in [2015]:
         # initializing variables
         start_date = str(year) + '-05-25'
         end_date = str(year) + '-08-15'
@@ -131,11 +131,20 @@ if __name__ == "__main__":
                                          vol=0.26, greek='vega', greekval='100000')
 
         # specify the hedging parameters
-        hedge_dict = OrderedDict({'delta': [['static', 0, 1]]})
-        pf = Portfolio(hedge_dict, name='test')
+        gen_hedges = OrderedDict({'delta': [['static', 0, 1]]})
+        hedge_dict_1 = OrderedDict({'gamma': [['bound', (3800, 4200), 1, 'straddle', 
+                                               'strike', 'atm', 'uid']]})
 
-        # add the securities to the portfolio
-        pf.add_security([u_option, z_option], 'OTC')
+        hedge_dict_2 = OrderedDict({'gamma': [['bound', (2000, 2400), 1, 'straddle', 
+                                               'strike', 'atm', 'uid']]})
+
+        pf1 = Portfolio(hedge_dict_1, name='test')
+        pf1.add_security([u_option], 'OTC')
+
+        pf2 = Portfolio(hedge_dict_2, name='test')
+        pf2.add_security([z_option], 'OTC')
+
+        pf = combine_portfolios([pf1, pf2], hedges=gen_hedges, refresh=True, name='full')
 
         # zeroing deltas
         dic = pf.get_net_greeks()
@@ -151,6 +160,8 @@ if __name__ == "__main__":
 
         if hedge_fts:
             pf.add_security(hedge_fts, 'hedge')
+
+        print(pf)
 
         results = run_simulation(vdf, pdf, pf, flat_vols=True, plot_results=False)
         plot_output(results[0])
