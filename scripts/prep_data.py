@@ -445,7 +445,10 @@ def handle_dailies(dic, sim_start):
                 ttm_range = round(op.tau * 365)
                 expdate = sim_start + pd.Timedelta(str(ttm_range) + ' days')
                 daterange = pd.bdate_range(sim_start, expdate)
-                print('daterange: ', daterange)
+
+                print('4th July in DateRange: ', pd.Timestamp('2018-07-04') in daterange)
+
+                # print('daterange: ', daterange)
                 taus = [((expdate - b_day).days) /
                         365 for b_day in daterange if b_day != expdate]
                 strike, char, vol, underlying, payoff, shorted, month, ordering, lots, settlement \

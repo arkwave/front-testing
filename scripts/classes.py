@@ -462,7 +462,12 @@ class Option:
         self.strike_type = 'callstrike' if self.K >= self.underlying.get_price() else 'putstrike'
 
     def zero_option(self):
-        self.delta, self.gamma, self.theta, self.vega = 0, 0, 0, 0
+        # check to see if the option is in the money. 
+        self.gamma, self.theta, self.vega = 0, 0, 0
+        if self.char == 'call' and self.K < self.underlying.get_price():
+            self.delta = 1 if not self.shorted else -1 
+        if self.char == 'put' and self.K > self.underlying.get_price():
+            self.delta = -1 if not self.shorted else 1
 
     def check_expired(self):
         ret = True if (np.isclose(self.tau, 0) or self.tau <=

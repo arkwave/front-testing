@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   RMS08
-# @Last Modified time: 2018-05-29 10:51:28
+# @Last Modified by:   arkwave
+# @Last Modified time: 2018-06-27 15:20:42
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -176,7 +176,7 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     cpi = 'C' if char == 'call' else 'P'
 
     # get min start date for debugging
-    min_start_date = min(vdf[vdf.pdt == pdt].value_date)
+    min_start_date = min(vdf[vdf.vol_id == volid].value_date)
 
     date = min_start_date if (date is None or min_start_date > date) else date
 
