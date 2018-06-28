@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2018-06-27 15:20:42
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-06-28 14:03:06
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -294,9 +294,9 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
 # month, direc=None, barrier=None, lots=1000, bullet=True, ki=None,
 # ko=None, rebate=0, ordering=1e5, settlement='futures')
 
-def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriertype,
-                          direction, ki, ko, bullet, rebate=0, payoff='amer', lots=None,
-                          vol=None, bvol=None, bvol2=None):
+def create_barrier_option(vdf, pdf, volid, char, strike, shorted, barriertype, direction, 
+                          bullet=None, ki=None, ko=None, date=None, rebate=0, 
+                          payoff='amer', lots=None, vol=None, bvol=None, bvol2=None):
     """Helper method that creates barrier options. 
 
     Args:
@@ -326,9 +326,10 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
         IndexError: Raised if either barrier vol, strike vol or ttm is not found. 
 
     """
-    print('util.create_barrier_option - inputs: ',
-          volid, char, shorted, lots, strike, vol, bvol, bvol2)
+    # print('util.create_barrier_option - inputs: ',
+    #       volid, char, shorted, lots, strike, vol, bvol, bvol2)
 
+    date = vdf.value_date.min() if date is None else date
     # if delta is None and strike is None:
     #     raise ValueError(
     #         'neither delta nor strike passed in; aborting construction.')
@@ -369,7 +370,7 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
             #           (vdf.vol_id == volid) &
             #           (vdf.call_put_id == cpi) &
             #           (vdf.strike == strike)].vol.values[0]
-            print('strike vol: ', vol)
+            # print('strike vol: ', vol)
         except IndexError as e:
             raise IndexError(
                 'util.create_barrier_option - strike not found, input: ', date, volid, cpi, strike)
@@ -379,7 +380,7 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
     if bvol is None:
         try:
             bvol = get_vol_at_strike(rvols, barlevel)
-            print('bvol: ', bvol)
+            # print('bvol: ', bvol)
         except IndexError as e:
             raise IndexError(
                 'util.create_barrier_option - bvol not found. inputs are: ', date, volid, cpi, barlevel) from e
@@ -387,11 +388,11 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
     # get bvol2 if necessary for european barriers. 
     if barriertype == 'euro':
         ticksize = multipliers[pdt][-3]
-        print('ticksize: ', ticksize)
+        # print('ticksize: ', ticksize)
         digistrike = barlevel - ticksize if direction == 'up' else barlevel + ticksize
         try:
             bvol2 = get_vol_at_strike(rvols, digistrike)
-            print('digistrike vol: ', bvol2)
+            # print('digistrike vol: ', bvol2)
         except IndexError as e:
             raise IndexError(
                 'util.create_barrier_option - digistrike vol not found. inputs are: ', date, volid, cpi, digistrike) from e
@@ -400,6 +401,13 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
                  direc=direction, barrier=barriertype, lots=lots_req,
                  bullet=bullet, ki=ki, ko=ko, rebate=rebate, ordering=ft.get_ordering(), 
                  bvol=bvol, bvol2=bvol2)
+
+    # handling bullet vs daily
+    if not bullet:
+        tmp = {'OTC': [op1]}
+        ops = handle_dailies(tmp, date)
+        ops = ops['OTC']
+        return ops
 
     return op1
 

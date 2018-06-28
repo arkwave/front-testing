@@ -59,25 +59,91 @@ contract_mths = {
 }
 
 from scripts.fetch_data import grab_data
-from scripts.util import create_barrier_option
+from scripts.util import create_barrier_option, create_vanilla_option
 # from scripts.prep_data import filter_outliers
 
+# start = pd.to_datetime('2018-06-28')
+# dx = start
+# end = pd.to_datetime('2018-11-09')
+# incl = 1
+# ttms = []
+
+# while dx <= end:
+#     exptime = ((dx - start).days + incl)
+#     ttms.append(exptime)
+#     step = 3 if dx.dayofweek == 4 else 1 
+#     dx += pd.Timedelta(str(step) + ' days')
+
+
 pdts = ['KC']
-contract = ['N8']
-start = '2018-01-01'
-end = '2018-01-10'
-# # oldpath = 'old_data.csv'
-
-
+contract = ['Z8']
+start = '2018-06-27'
+end = '2018-06-28'
 vdf, pdf, edf = grab_data(pdts, start, end)
 
-op = create_barrier_option(vdf, pdf, 'KC  N8.N8', 'call', 125, False, 
-                           vdf.value_date.min(), 'amer', 'up', None, 
-                           140, True, lots=100)
-
-# df = pull_intraday_data([pdt], start_date=start,
-#                         end_date=end, contracts=contract)
-
-# tdf, df = filter_outliers(df, fixed=30)
+# op = create_vanilla_option(vdf, pdf, 'KC  Z8.Z8', 'call', False, bullet=False, strike=120, lots=1)
+op = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'call', 120, False, 
+                           'euro', 'up', bullet=False, ko=130, 
+                           lots=1)
 
 
+# for o in op:
+#     o.update_tau(1/365)
+#     o.update()
+
+
+# print('============================')
+# print('future price: ', op.get_underlying().get_price())
+# print('strike vol: ', op.vol)
+# print('============================')
+
+print('============================')
+print('future price: ', op[0].get_underlying().get_price())
+print('strike vol: ', op[0].vol)
+print('barrier vol: ', op[0].bvol)
+print('barrier vol2: ', op[0].bvol2)
+print('op: ', op[-1])
+print('============================')
+
+# print('-'*30)
+# print("t = 0")
+# print('FV: ', op.get_price())
+# print('delta: ', op.greeks()[0])
+# print('gamma: ', op.greeks()[1])
+# print('theta: ', op.greeks()[2])
+# print('vega: ', op.greeks()[3])
+# print('-'*30)
+
+
+print('-'*30)
+print("t = 0")
+print('num ops: ', len(op))
+print('FV: ', sum([o.get_price() for o in op])/len(op))
+print('delta: ', sum([o.greeks()[0] for o in op]))
+print('gamma: ', sum([o.greeks()[1] for o in op]))
+print('theta: ', sum([o.greeks()[2] for o in op]))
+print('vega: ', sum([o.greeks()[3] for o in op]))
+print('-'*30)
+
+
+# print('-'*30)
+# print("t = 1")
+# op.update_tau(1/365)
+# op.update()
+# print('FV: ', op.get_price())
+# print('delta: ', op.greeks()[0])
+# print('gamma: ', op.greeks()[1])
+# print('theta: ', op.greeks()[2])
+# print('vega: ', op.greeks()[3])
+# print('-'*30)
+
+
+# print('-'*30)
+# print("t = 1")
+# print('num ops: ', len(op) - 1)
+# print('FV: ', (sum([o.get_price() for o in op[:-1]])/(len(op)-1) + 0.35))
+# print('delta: ', sum([o.greeks()[0] for o in op[:-1]]) + 1)
+# print('gamma: ', sum([o.greeks()[1] for o in op[:-1]]))
+# print('theta: ', sum([o.greeks()[2] for o in op[:-1]]))
+# print('vega: ', sum([o.greeks()[3] for o in op[:-1]]))
+# print('-'*30)

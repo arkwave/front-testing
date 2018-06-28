@@ -432,6 +432,8 @@ def handle_dailies(dic, sim_start):
     Returns:
         dict: OTC/hedge -> list of daily options. 
     """
+    from pandas.tseries.offsets import BDay
+    sim_start += BDay(1)
     for flag in dic:
         lst = dic[flag]
         tmp = lst.copy()
@@ -444,29 +446,47 @@ def handle_dailies(dic, sim_start):
                 lst.remove(op)
                 ttm_range = round(op.tau * 365)
                 expdate = sim_start + pd.Timedelta(str(ttm_range) + ' days')
-                daterange = pd.bdate_range(sim_start, expdate)
+                print('sim_start: ', sim_start)
+                print('expdate: ', expdate)
+                dx = sim_start
+                end = expdate
+                incl = 1
+                taus = []
+                while dx <= end:
+                    exptime = ((dx - sim_start).days + incl)/365
+                    taus.append(exptime)
+                    step = 3 if dx.dayofweek == 4 else 1 
+                    dx += pd.Timedelta(str(step) + ' days')
 
-                print('4th July in DateRange: ', pd.Timestamp('2018-07-04') in daterange)
+                # print('taus: ', taus)
 
-                # print('daterange: ', daterange)
-                taus = [((expdate - b_day).days) /
-                        365 for b_day in daterange if b_day != expdate]
+                # daterange = pd.bdate_range(sim_start, expdate)
+                # print(daterange)
+                # print('4th July in DateRange: ', pd.Timestamp('2018-07-04') in daterange)
+
+                # # print('daterange: ', daterange)
+                # taus = [((expdate - (b_day)).days) /
+                #         365 for b_day in daterange if b_day < expdate]
+
+                # print(taus)
+                # print(len(taus))
+
                 strike, char, vol, underlying, payoff, shorted, month, ordering, lots, settlement \
                     = params['strike'], params['char'], params['vol'], params['underlying'], \
                     params['payoff'],  params['shorted'], params['month'], \
                     params['ordering'], params['lots'],\
                     params['settlement']
                 # barrier params
-                direc, barrier, ki, ko, rebate, bvol = \
+                direc, barrier, ki, ko, rebate, bvol, bvol2 = \
                     params['direc'], params['barrier'], params[
-                        'ki'], params['ko'], params['rebate'], params['bvol']
+                        'ki'], params['ko'], params['rebate'], params['bvol'], params['bvol2']
 
                 # creating the bullets corresponding to this daily option.
                 for tau in taus:
                     ui = copy.deepcopy(underlying)
                     op_i = Option(strike, tau, char, vol, ui, payoff, shorted, month, direc=direc,
                                   barrier=barrier, lots=lots, bullet=False, ki=ki, ko=ko, rebate=rebate,
-                                  ordering=ordering, settlement=settlement, bvol=bvol)
+                                  ordering=ordering, settlement=settlement, bvol=bvol, bvol2=bvol2)
                     bullets.append(op_i)
 
             lst.extend(bullets)

@@ -119,10 +119,13 @@ class Option:
 
         # set the digital barrier, if applicable.
         if self.barrier == 'euro':
-            mult = -1 if char == 'call' else 'put'
+            mult = -1 if char == 'call' else 1
             product = self.underlying.get_product() 
             ticksize = multipliers[product][2]
             barlevel = ki if ki is not None else ko
+            # print('barlevel: ', barlevel)
+            # print('mult: ', mult)
+            # print('ticksize: ', ticksize)
             self.dbarrier = barlevel + mult * ticksize
 
         self.direc = direc
