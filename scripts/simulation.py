@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   RMS08
-# @Last Modified time: 2018-05-29 11:01:51
+# @Last Modified time: 2018-07-03 19:22:34
 
 ################################ imports ###################################
 # general imports
@@ -925,15 +925,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
 
             # index error would occur only if data is missing.
             except IndexError:
-                # print('###### PRICE DATA MISSING #######')
-                # print('ordering: ', ordering)
-                # print('uid: ', uid)
-                # print('pdt: ', pdt)
-                # print('debug 1: ', pdf[(pdf.pdt == pdt) &
-                #                        (pdf.order == ordering)])
-                # broken = True
                 ft.update_price(ft.get_price())
-                # break
 
     # handling pnl arising from barrier futures.
         if barrier_futures:
@@ -953,16 +945,8 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
 
                 # index error would occur only if data is missing.
                 except IndexError:
-                    # print('###### PRICE DATA MISSING #######')
-                    # print('ordering: ', ordering)
-                    # print('uid: ', uid)
-                    # print('pdt: ', pdt)
-                    # print('debug 1: ', pdf[(pdf.pdt == pdt) &
-                    #                        (pdf.order == ordering)])
                     ft.update_price(ft.get_price())
-                    # broken = True
-                    # break
-
+                    
     exercise_profit, pf, exercised, exercise_futures = handle_exercise(
         pf, brokerage, slippage)
 
