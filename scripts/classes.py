@@ -105,6 +105,10 @@ class Option:
         self.payoff = payoff
         self.underlying = underlying
         self.bullet = bullet  # daily = list of bullets.
+        self.dailies = None 
+        # get the ttm list of all constituent daily options if this option is daily.
+        if not self.bullet:
+            self.dailies = get_ttms()
         self.lots = lots
         self.desc = 'option'
         self.ki = ki
@@ -338,18 +342,28 @@ class Option:
 
             product = self.get_product()
             s = self.underlying.get_price()
-            delta, gamma, theta, vega = \
-                _compute_greeks(self.char, self.K, self.tau, sigma,
-                                s, self.r, product, self.payoff,
-                                self.lots, ki=self.ki, ko=self.ko,
-                                barrier=self.barrier, direction=self.direc,
-                                order=self.ordering, bvol=b_sigma, bvol2=b_sigma2,
-                                dbarrier=self.dbarrier)
-            # account for shorting
-            if self.shorted:
-                delta, gamma, theta, vega = -delta, -gamma, -theta, -vega
 
-            self.delta, self.gamma, self.theta, self.vega = delta, gamma, theta, vega
+            d, g, t, v = 0,0,0,0 
+            ttms = [self.tau] if self.bullet else self.dailies 
+
+            for tau in ttms:
+                delta, gamma, theta, vega = \
+                    _compute_greeks(self.char, self.K, self.tau, sigma,
+                                    s, self.r, product, self.payoff,
+                                    self.lots, ki=self.ki, ko=self.ko,
+                                    barrier=self.barrier, direction=self.direc,
+                                    order=self.ordering, bvol=b_sigma, bvol2=b_sigma2,
+                                    dbarrier=self.dbarrier)
+                # account for shorting
+                if self.shorted:
+                    delta, gamma, theta, vega = -delta, -gamma, -theta, -vega
+
+                d += delta 
+                g += gamma 
+                t += theta 
+                v += vega 
+
+            self.delta, self.gamma, self.theta, self.vega = d, g, t, v
 
             self.vol = sigma
             self.bvol = b_sigma
@@ -377,12 +391,15 @@ class Option:
     def compute_price(self):
         from .calc import _compute_value
         # computes the value of this structure from relevant information.
+        ttms = [self.tau] if self.bullet else self.dailies 
         s = self.underlying.get_price()
         product = self.underlying.get_product()
-        val = _compute_value(self.char, self.tau, self.vol, self.K, s, self.r,
-                             self.payoff, ki=self.ki, ko=self.ko, barrier=self.barrier,
-                             d=self.direc, product=product, bvol=self.bvol, 
-                             bvol2=self.bvol2, dbarrier=self.dbarrier)
+        val = 0 
+        for tau in ttms:
+            val += _compute_value(self.char, tau, self.vol, self.K, s, self.r,
+                                  self.payoff, ki=self.ki, ko=self.ko, barrier=self.barrier,
+                                  d=self.direc, product=product, bvol=self.bvol, 
+                                  bvol2=self.bvol2, dbarrier=self.dbarrier)
         self.price = val
         return val
 
@@ -409,8 +426,11 @@ class Option:
                 return 0
 
     def update_tau(self, diff):
-        self.tau -= diff
-
+        if self.bullet:
+            self.tau -= diff
+        else:
+            self.dailies = [x - diff for x in self.dailies if (not np.isclose(x, 0) and x > 0)]
+        
     def get_product(self):
         return self.underlying.get_product()
 
