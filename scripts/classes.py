@@ -99,16 +99,14 @@ class Option:
     def __init__(self, strike, tau, char, vol, underlying, payoff, shorted,
                  month, direc=None, barrier=None, lots=1000, bullet=True,
                  ki=None, ko=None, rebate=0, ordering=1e5, settlement='futures', 
-                 bvol=None, bvol2=None):
+                 bvol=None, bvol2=None, dailies=None):
         self.month = month
         self.barrier = barrier
         self.payoff = payoff
         self.underlying = underlying
         self.bullet = bullet  # daily = list of bullets.
-        self.dailies = None 
+        self.dailies = dailies
         # get the ttm list of all constituent daily options if this option is daily.
-        if not self.bullet:
-            self.dailies = get_ttms()
         self.lots = lots
         self.desc = 'option'
         self.ki = ki
@@ -208,6 +206,12 @@ class Option:
         self.bvol = vol
         if vol2 is not None:
             self.bvol2 = vol2 
+
+    def get_ttms(self):
+        return self.dailies
+
+    def set_ttms(self, lst):
+        self.dailies = lst 
 
     def check_active(self):
         """Checks to see if this option object is active, i.e. if it has any value/contributes greeks. 
@@ -348,7 +352,7 @@ class Option:
 
             for tau in ttms:
                 delta, gamma, theta, vega = \
-                    _compute_greeks(self.char, self.K, self.tau, sigma,
+                    _compute_greeks(self.char, self.K, tau, sigma,
                                     s, self.r, product, self.payoff,
                                     self.lots, ki=self.ki, ko=self.ko,
                                     barrier=self.barrier, direction=self.direc,
@@ -400,6 +404,7 @@ class Option:
                                   self.payoff, ki=self.ki, ko=self.ko, barrier=self.barrier,
                                   d=self.direc, product=product, bvol=self.bvol, 
                                   bvol2=self.bvol2, dbarrier=self.dbarrier)
+        val = val/len(ttms)
         self.price = val
         return val
 

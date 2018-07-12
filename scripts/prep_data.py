@@ -485,7 +485,7 @@ def handle_dailies(dic, sim_start):
                 for tau in taus:
                     ui = copy.deepcopy(underlying)
                     op_i = Option(strike, tau, char, vol, ui, payoff, shorted, month, direc=direc,
-                                  barrier=barrier, lots=lots, bullet=False, ki=ki, ko=ko, rebate=rebate,
+                                  barrier=barrier, lots=lots, bullet=True, ki=ki, ko=ko, rebate=rebate,
                                   ordering=ordering, settlement=settlement, bvol=bvol, bvol2=bvol2)
                     bullets.append(op_i)
 
