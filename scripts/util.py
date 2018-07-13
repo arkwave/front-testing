@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2018-07-12 18:53:36
+# @Last Modified time: 2018-07-13 15:58:54
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -260,8 +260,8 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     if not bullet:
         date += BDay(1)
         tst = pd.Timedelta('%s days' % round(tau*365))
-        print('Tau-implied expdate: ', date + tst)
-        print('Actual expdate: ', expiry_date)
+        # print('Tau-implied expdate: ', date + tst)
+        # print('Actual expdate: ', expiry_date)
         # expiry_date += BDay(1)
         dailies = []
         # step = 3 if date.dayofweek == 4 else 1 
