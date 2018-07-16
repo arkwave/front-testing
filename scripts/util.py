@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   RMS08
-# @Last Modified time: 2018-07-16 15:24:53
+# @Last Modified time: 2018-07-16 19:23:13
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -908,6 +908,35 @@ def close_out_deltas(pf, dtc):
 
     # print('pf after closing out deltas: ', pf)
     return pf, cost
+
+
+def hedge_all_deltas(pf, pdf):
+    """Helper function that delta hedges each future-month combo in a portfolio. 
+    
+    Args:
+        pf (TYPE): Portfolio with specified hedging parameters.
+        pdf (TYPE): Dataframe of settlement prices. 
+    
+    Returns:
+        TYPE: Description
+    """
+    dic = pf.get_net_greeks()
+    hedge_fts = []
+    for pdt in dic:
+        for mth in dic[pdt]:
+            # get the delta value. 
+            print('raw value: ', dic[pdt][mth][0])
+            delta = round(abs(dic[pdt][mth][0]))
+            print('delta: ', delta)
+            shorted = True if delta > 0 else False
+            # delta = abs(delta) 
+            ft, ftprice = create_underlying(pdt, mth, pdf, shorted=shorted, lots=delta)
+            print('ft: ', ft)
+            hedge_fts.append(ft)
+    if hedge_fts:
+        pf.add_security(hedge_fts, 'hedge')
+
+    return pf
 
 
 def create_composites(lst):

@@ -143,9 +143,7 @@ class Portfolio:
         otcops = [op.__str__() for op in self.OTC_options]
         otcft = [op.__str__() for op in self.OTC_futures]
         hedgeops = [op.__str__() for op in self.hedge_options]
-        hedgeft = [op.__str__() for op in self.hedge_futures]
         nets = self.net_greeks
-
         ft_dic = {}
         for product in self.net_greeks:
             if product not in ft_dic:
@@ -153,13 +151,14 @@ class Portfolio:
             for mth in self.net_greeks[product]:
                 if mth not in ft_dic[product]:
                     ft_dic[product][mth] = []
-                otc_ftpos = sum([x.lots for x in self.OTC_futures if x.get_product(
-                ) == product and x.get_month() == mth])
-                hedge_ftpos = sum([x.lots for x in self.hedge_futures if x.get_product(
-                ) == product and x.get_month() == mth])
-                ft_dic[product][mth].extend([otc_ftpos, hedge_ftpos])
-        # otcs = self.OTC
-        # hedges = self.hedges
+                longs = sum([x.lots for x in self.OTC_futures + self.hedge_futures
+                             if x.get_product() == product and 
+                             x.get_month() == mth and 
+                             not x.shorted])
+                shorts = sum([x.lots for x in self.OTC_futures + self.hedge_futures
+                              if x.get_product() == product and 
+                              x.get_month() == mth and x.shorted])
+                ft_dic[product][mth] = longs - shorts
 
         r_dict = {'OTC Options': otcops,
                   'OTC Futures': otcft,
