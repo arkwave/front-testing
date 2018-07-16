@@ -13,25 +13,22 @@ np.random.seed(seed)
 
 pdts = ['KC']
 contract = ['Z8']
-start = '2018-07-12'
-end = '2018-07-13'
+start = '2018-07-13'
+end = '2018-07-16'
 vdf, pdf, edf = grab_data(pdts, start, end)
 
 ecuo = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'call', 120, False, 
                              'euro', 'up', bullet=False, ko=130, 
                              lots=1)
-
 ecui = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'call', 120, False, 
                              'euro', 'up', bullet=False, ki=130, 
                              lots=1)
-
 epdo = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'put', 120, False, 
                              'euro', 'down', bullet=False, ko=115, 
                              lots=1)
 epdi = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'put', 120, False, 
                              'euro', 'down', bullet=False, ki=115, 
                              lots=1)
-
 cuo = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'call', 120, False, 
                              'amer', 'up', bullet=False, ko=130, 
                              lots=1)
@@ -59,6 +56,7 @@ pdi = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'put', 120, False,
 
 ops = [ecuo, ecui, epdo, epdi, cuo, cui, cdo, cdi, puo, pui, pdo, pdi]
 
+
 print('============================')
 print('future price: ', ecuo.get_underlying().get_price())
 print('strike vol: ', ecuo.vol)
@@ -69,15 +67,28 @@ print('Lower digital: ', epdi.bvol2)
 print('============================')
 
 
+# ops = [ecuo]
+
+# print('initial ttms: ', np.array(ecuo.get_ttms()) * 365)
+# ecuo.update_tau(1/365)
+# print('final ttms: ', np.array(ecuo.get_ttms()) * 365)
+
 for op in ops:
+    # print('init ttms:')
+    # print(np.array(op.get_ttms()) * 365)
+    op.update_tau(1/365)
+    op.update()
+    # print('final ttms:')
+    # print(np.array(op.get_ttms()) * 365)
     print('-'*30)
     print(op)
-    print('num ops: ', len(op.get_ttms()))
+    print('num ops: ', len([x for x in op.get_ttms() if not np.isclose(x, 0)]))
     print('FV: ', op.get_price())
-    print('delta: ', op.greeks()[0])
-    print('gamma: ', op.greeks()[1])
-    print('theta: ', op.greeks()[2])
-    print('vega: ', op.greeks()[3])
+    print('delta: ', op.delta)
+    print('gamma: ', op.gamma)
+    print('theta: ', op.theta)
+    print('vega: ', op.vega)
+    print('----------------------')
 
 # print('-'*30)
 # print("t = 0")

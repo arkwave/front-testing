@@ -245,12 +245,13 @@ class Option:
         if self.ki:
             # all knockin options contribute greeks/have value until expiry.
             active = True if not expired else False
-            if self.direc == 'up':
-                self.knockedin = True if (s >= self.ki) else False
-            if self.direc == 'down':
-                self.knockedin = True if (s <= self.ki) else False
-            if self.knockedin:
-                self.ki, self.ko, self.barrier, self.direc = None, None, None, None
+            if self.barrier == 'amer':
+                if self.direc == 'up':
+                    self.knockedin = True if (s >= self.ki) else False
+                if self.direc == 'down':
+                    self.knockedin = True if (s <= self.ki) else False
+                if self.knockedin:
+                    self.ki, self.ko, self.barrier, self.direc = None, None, None, None
         if self.ko:
             if self.barrier == 'amer':
                 # american up and out
@@ -366,6 +367,10 @@ class Option:
                 g += gamma 
                 t += theta 
                 v += vega 
+                if tau == 0:
+                    print("Zero TTM detected; printing greeks")
+                    print(delta, gamma, theta, vega)
+                    print('lots: ', self.lots)
 
             self.delta, self.gamma, self.theta, self.vega = d, g, t, v
 
@@ -434,7 +439,8 @@ class Option:
         if self.bullet:
             self.tau -= diff
         else:
-            self.dailies = [x - diff for x in self.dailies if (not np.isclose(x, 0) and x > 0)]
+            self.dailies = [x - diff for x in self.dailies if not np.isclose(x-diff, 0)] 
+            # self.dailies = [x for x in tmp if round(x*365) > 0]
         
     def get_product(self):
         return self.underlying.get_product()
@@ -496,6 +502,7 @@ class Option:
             self.delta = 1 if not self.shorted else -1 
         if self.char == 'put' and self.K > self.underlying.get_price():
             self.delta = -1 if not self.shorted else 1
+        self.delta *= self.lots 
 
     def check_expired(self):
         ret = True if (np.isclose(self.tau, 0) or self.tau <=
