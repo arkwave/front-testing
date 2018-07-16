@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   RMS08
-# @Last Modified time: 2018-07-03 19:22:34
+# @Last Modified time: 2018-07-16 22:38:03
 
 ################################ imports ###################################
 # general imports
@@ -315,6 +315,9 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             pf.get_unique_uids())].reset_index(drop=True)
         vdf_1 = vdf_1[vdf_1.vol_id.isin(
             pf.get_unique_volids())].reset_index(drop=True)
+
+        print('vdf_1', vdf_1)
+
         data_order = None
 
         print('vdf unique times: ', vdf_1.time.unique())
@@ -326,7 +329,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             pdf_1 = granularize(pdf_1, pf, intraday=True)
             if pdf_1.empty:
                 continue
-            print('pdf_1: ', pdf_1)
+            print('vdf_1: ', pdf_1)
             try:
                 assert len(pdf_1.underlying_id.unique()) == 1
             except AssertionError as e:
@@ -346,6 +349,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
             # currently, vdf only exists for settlement anyway.
             vdf = vdf_1[vdf_1.time == ts]
+            # print('vdf_1: ', vdf)
             for index in pdf.index:
 
                 # get the current row and variables
@@ -394,6 +398,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             # Step 3: Feed data into the portfolio.
 
                 print("========================= FEED DATA ==========================")
+                print('vdf: ', vdf)
                 # NOTE: currently, exercising happens as soon as moneyness is triggered.
                 # This should not be much of an issue since exercise is never
                 # actually reached.
@@ -1071,6 +1076,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
     return pf, broken, gamma_pnl, vega_pnl, total_profit, exercise_futures, barrier_futures
 
 
+# TODO: Streamline this so that it calls comp functions and doesn't create new objects. 
 def handle_barriers(vdf, pdf, ft, val, pf, date):
     """Handles delta differential and spot hedging for knockin/knockout events.
 
@@ -1117,7 +1123,10 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
     # create vanilla option with the same stats as the barrier option AFTER
     # knockin.
 
-    volid = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
+    volid = op.get_vol_id()
+
+    print('vdf Z8: ', vdf)
+
     vanop = create_vanilla_option(vdf, pdf, volid, op.char, op.shorted,
                                   lots=op.lots, vol=op.vol, strike=op.K,
                                   bullet=op.bullet)

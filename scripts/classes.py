@@ -213,6 +213,9 @@ class Option:
     def set_ttms(self, lst):
         self.dailies = lst 
 
+    def is_bullet(self):
+        return self.bullet
+
     def check_active(self):
         """Checks to see if this option object is active, i.e. if it has any value/contributes greeks. 
         Cases are as follows:
@@ -256,12 +259,15 @@ class Option:
             if self.barrier == 'amer':
                 # american up and out
                 if self.direc == 'up':
-                    active = False if s >= self.ko else True
-                    self.knockedout = not active
+                    active = False if s >= self.ko else True    
                 # american down and out
                 if self.direc == 'down':
                     active = False if s <= self.ko else True
-                    self.knockedout = not active
+                self.knockedout = not active
+                # if knocked out, remove all elements from self.dailies
+                if self.knockedout:
+                    self.dailies = []
+
             # european knockout are active until expiry.
             elif self.barrier == 'euro':
                 active = True if not expired else False
@@ -436,11 +442,12 @@ class Option:
                 return 0
 
     def update_tau(self, diff):
-        if self.bullet:
-            self.tau -= diff
-        else:
-            self.dailies = [x - diff for x in self.dailies if not np.isclose(x-diff, 0)] 
-            # self.dailies = [x for x in tmp if round(x*365) > 0]
+        self.tau -= diff
+        if not self.bullet:
+            self.dailies = [x - diff for x in self.dailies] 
+
+    def remove_expired_dailies(self):
+        self.dailies = [x for x in self.dailies if not np.isclose(x, 0)]
         
     def get_product(self):
         return self.underlying.get_product()
@@ -505,8 +512,11 @@ class Option:
         self.delta *= self.lots 
 
     def check_expired(self):
-        ret = True if (np.isclose(self.tau, 0) or self.tau <=
-                       0) else False
+        if self.bullet:
+            ret = True if (np.isclose(self.tau, 0) or self.tau <=
+                           0) else False
+        else:
+            ret = True if not self.dailies else False
         self.expired = ret
         return ret
 

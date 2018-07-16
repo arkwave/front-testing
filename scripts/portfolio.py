@@ -447,6 +447,11 @@ class Portfolio:
             # vanilla/knockin case
             if sec.check_expired():
                 explist['OTC'].append(sec)
+
+            # case: daily options that have 0 in their ttm lists.
+            if not sec.is_bullet():
+                sec.remove_expired_dailies()
+                
         for sec in self.hedge_options:
             # handling barrier case.
             if sec.barrier == 'amer':
@@ -455,14 +460,6 @@ class Portfolio:
 
             elif sec.check_expired():
                 explist['hedge'].append(sec)
-
-        # for ft in self.OTC_futures:
-        #     if ft.check_expired():
-        #         explist['OTC'].append(ft)
-
-        # for ft in self.hedge_futures:
-        #     if ft.check_expired():
-        #         explist['hedge'].append(ft)
 
         self.remove_security(explist['hedge'], 'hedge')
         self.remove_security(explist['OTC'], 'OTC')
