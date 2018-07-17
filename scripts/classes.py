@@ -444,7 +444,8 @@ class Option:
     def update_tau(self, diff):
         self.tau -= diff
         if not self.bullet:
-            self.dailies = [x - diff for x in self.dailies] 
+            self.dailies = [x - diff if x-diff > 0 else 0 
+                            for x in self.dailies] 
 
     def remove_expired_dailies(self):
         self.dailies = [x for x in self.dailies if not np.isclose(x, 0)]

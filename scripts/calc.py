@@ -678,9 +678,12 @@ def _euro_vanilla_greeks(char, K, tau, vol, s, r, product, lots):
         if char == 'put':
             delta = -1 if K >= s else 0
         return delta, theta, gamma, vega
-
-    d1 = (log(s/K) + (r + 0.5 * (vol ** 2))*tau) / \
-        (vol * sqrt(tau))
+    try:
+        d1 = (log(s/K) + (r + 0.5 * (vol ** 2))*tau) / \
+            (vol * sqrt(tau))
+    except ValueError as e:
+        inputs = {'spot': s, 'strike': K, 'vol': vol, 'tau': tau}
+        raise ValueError("Error in inputs: ", inputs) from e 
     # d2 = d1 - vol*(sqrt(tau))
     gamma1 = norm.pdf(d1)/(s*vol*sqrt(tau))
     vega1 = s * exp(r*tau) * norm.pdf(d1) * sqrt(tau)
