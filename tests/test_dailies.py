@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2018-07-17 20:09:38
 # @Last Modified by:   arkwave
-# @Last Modified time: 2018-07-17 22:00:50
+# @Last Modified time: 2018-07-18 13:55:26
 import sys
 sys.path.append('../')
 from scripts.fetch_data import grab_data
