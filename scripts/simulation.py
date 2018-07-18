@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   RMS08
-# @Last Modified time: 2018-07-16 22:38:03
+# @Last Modified by:   arkwave
+# @Last Modified time: 2018-07-17 15:17:16
 
 ################################ imports ###################################
 # general imports
@@ -182,10 +182,10 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # init_val = pf.compute_value()
     init_diff = (pd.to_datetime(
         date_range[1]) - pd.to_datetime(date_range[0])).days - 1
-    print('init diff: ', init_diff)
+    # print('init diff: ', init_diff)
     pf.timestep(init_diff * timestep)
     init_val = pf.compute_value()
-    print('sim_start BOD init_value: ', init_val)
+    # print('sim_start BOD init_value: ', init_val)
     # assign book vols; defaults to initialization date.
     book_vols = voldata[voldata.value_date ==
                         pd.to_datetime(date_range[0])]
@@ -213,7 +213,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             sigvals[(pdt, 'call')] = 0
             sigvals[(pdt, 'put')] = 0
 
-    print('sigvals: ', sigvals)
+    # print('sigvals: ', sigvals)
     # boolean flag indicating missing data
     # Note: [partially depreciated]
     broken = False
@@ -308,7 +308,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         settle_vols = vdf_1[vdf_1.datatype == 'settlement'].copy()
         settle_prices = pdf_1[pdf_1.datatype == 'settlement'].copy()
 
-        print('settle_prices: ', settle_prices)
+        # print('settle_prices: ', settle_prices)
 
         # filter dataframes to get only pertinent UIDs data.
         pdf_1 = pdf_1[pdf_1.underlying_id.isin(
@@ -316,7 +316,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         vdf_1 = vdf_1[vdf_1.vol_id.isin(
             pf.get_unique_volids())].reset_index(drop=True)
 
-        print('vdf_1', vdf_1)
+        # print('vdf_1', vdf_1.head(5))
 
         data_order = None
 
@@ -340,8 +340,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         unique_ts = pdf_1.time.unique()
         dailyhedges = []
         for ts in unique_ts:
+            ts = pd.to_datetime(ts).time()
             pdf = pdf_1[pdf_1.time == ts]
-            print('ts: ', ts)
             if ohlc:
                 print('@@@@@@@@@@@@@@@ OHLC STEP GRANULARIZING @@@@@@@@@@@@@@@@')
                 init_pdf, pdf, data_order = reorder_ohlc_data(pdf, pf)
@@ -349,7 +349,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
             # currently, vdf only exists for settlement anyway.
             vdf = vdf_1[vdf_1.time == ts]
-            # print('vdf_1: ', vdf)
+            print('vdf time filter: ', vdf)
             for index in pdf.index:
 
                 # get the current row and variables
@@ -387,13 +387,13 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
                 # for prices: filter and use exclusively the intraday data. assign
                 # to hedger objects.
-                print('pf at start: ', pf)
-                print('price datatype: ', pdf_ts.datatype.unique())
-                print('vol datatype: ', vdf.datatype.unique())
+                # print('pf at start: ', pf)
+                # print('price datatype: ', pdf_ts.datatype.unique())
+                # print('vol datatype: ', vdf.datatype.unique())
 
                 pf.assign_hedger_dataframes(vdf, pdf_ts)
 
-                print('last price before update: ', latest_price)
+                # print('last price before update: ', latest_price)
 
             # Step 3: Feed data into the portfolio.
 
@@ -705,10 +705,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                       'vega', 'net_call_vega', 'net_put_vega', 'b/s']
 
             if op.barrier is not None:
-                cpi = 'C' if op.char == 'call' else 'P'
                 barlevel = op.ki if op.ki is not None else op.ko
-                bvol = get_barrier_vol(
-                    vdf, op.tau, cpi, barlevel, op.get_vol_id())
+                bvol = op.bvol
                 knockedin = op.knockedin
                 knockedout = op.knockedout
                 lst.extend([barlevel, bvol, knockedin, knockedout])
