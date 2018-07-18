@@ -470,9 +470,8 @@ class Option:
         active = self.check_active()
         # degenerate case: knocked out.
         if self.knockedout:
-            return None
+            return -1
         self.active = active
-        # print('active: ', active)
         if active:
             s = self.underlying.get_price()
             # at the money
@@ -481,7 +480,12 @@ class Option:
             if self.char == 'call':
                 # ITM
                 if self.K < s:
-                    return 1
+                    if self.barrier is None:
+                        return 1
+                    # check for KOs
+                    elif self.barrier is not None:
+                        pass
+
                 # OTM
                 else:
                     return -1
