@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2018-07-17 20:09:38
 # @Last Modified by:   RMS08
-# @Last Modified time: 2018-07-19 16:59:50
+# @Last Modified time: 2018-07-19 22:36:01
 import sys
 sys.path.append('../')
 import numpy as np 
@@ -524,8 +524,16 @@ def test_pdo():
 
 
 def test_remove_expired():
-    pass 
-
+    cdo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
+                                 'amer', 'down', bullet=False, ko=down_bar, 
+                                 lots=1)
+    assert all([x > 0 for x in cdo.get_ttms()])
+    init_len = len(cdo.get_ttms())
+    cdo.update_tau(1/365)
+    assert not all([x > 0 for x in cdo.get_ttms()])
+    cdo.remove_expired_dailies() 
+    assert not all([x > 0 for x in cdo.get_ttms()])
+    assert init_len - len(cdo.get_ttms()) == 1
 
 def test_expiry():
     pass 

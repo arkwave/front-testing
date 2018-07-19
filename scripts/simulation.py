@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2018-07-17 15:17:16
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-07-19 22:24:52
 
 ################################ imports ###################################
 # general imports
@@ -1240,21 +1240,24 @@ def handle_exercise(pf, brokerage=None, slippage=None):
     profit = 0
     tol = 1 / 365
     # handle options exercise
-    # all_ops = pf.get_all_options()
-    otc_ops = pf.OTC_options
-    hedge_ops = pf.hedge_options
+    all_ops = pf.get_all_options()
+    # otc_ops = pf.OTC_options
+    # hedge_ops = pf.hedge_options
 
     tobeadded = []
-    for op in otc_ops:
-        if np.isclose(op.tau, tol) or op.tau <= tol:
+    for op in all_ops:
+        # bullet case
+        ttm = op.tau if op.is_bullet() else min(op.get_dailies())
+        if np.isclose(ttm, tol) or op.tau <= tol:
             exer = op.exercise()
-            op.tau = 0
+            if op.is_bullet():
+                op.tau = 0 
             if exer:
-                print("exercising OTC op " + str(op))
+                print("exercising option " + str(op))
                 if op.settlement == 'cash':
-                    print("----- CASH SETTLEMENT: OTC OP ------")
+                    print("----- CASH SETTLEMENT ------")
                 elif op.settlement == 'futures':
-                    print('----- FUTURE SETTLEMENT: OTC OP ------')
+                    print('----- FUTURE SETTLEMENT ------')
                     ft = op.get_underlying()
                     ft.update_lots(op.lots)
                     print('future added - ', str(ft))
@@ -1264,45 +1267,44 @@ def handle_exercise(pf, brokerage=None, slippage=None):
                 # calculating the net profit from this exchange.
                 product = op.get_product()
                 pnl_mult = multipliers[product][-1]
-                # op.get_price() defaults to max(k-s,0 ) or max(s-k, 0)
-                # since op.tau = 0
                 oppnl = op.lots * op.get_price() * pnl_mult
                 print('profit on this exercise: ', oppnl)
-                print("-------------------------------------")
+                print("------------------------------")
                 profit += oppnl
                 exercised = True
 
             else:
-                print('letting OTC op ' + str(op) + ' expire.')
+                print('letting op ' + str(op) + ' expire.')
 
-    for op in hedge_ops:
-        if np.isclose(op.tau, tol) or op.tau <= tol:
-            exer = op.exercise()
-            op.tau = 0
-            if exer:
-                print('exercising hedge op ' + str(op))
-                if op.settlement == 'cash':
-                    print("----- CASH SETTLEMENT: HEDGE OPS ------")
-                elif op.settlement == 'futures':
-                    if op.settlement == 'futures':
-                        print('----- FUTURE SETTLEMENT: HEDGE OPS ------')
-                        ft = op.get_underlying()
-                        ft.update_lots(op.lots)
-                        print('future added - ', str(ft))
-                        print('lots: ', op.lots, ft.lots)
-                        tobeadded.append(ft)
 
-                # calculating the net profit from this exchange.
-                pnl_mult = multipliers[op.get_product()][-1]
-                # op.get_price() defaults to max(k-s,0 ) or max(s-k, 0)
-                # since op.tau = 0
-                oppnl = op.lots * op.get_price() * pnl_mult
-                print('profit on this exercise: ', oppnl)
-                print('---------------------------------------')
-                profit += oppnl
-                exercised = True
-            else:
-                print('letting hedge op ' + str(op) + ' expire.')
+    # for op in hedge_ops:
+    #     if np.isclose(op.tau, tol) or op.tau <= tol:
+    #         exer = op.exercise()
+    #         op.tau = 0
+    #         if exer:
+    #             print('exercising hedge op ' + str(op))
+    #             if op.settlement == 'cash':
+    #                 print("----- CASH SETTLEMENT: HEDGE OPS ------")
+    #             elif op.settlement == 'futures':
+    #                 if op.settlement == 'futures':
+    #                     print('----- FUTURE SETTLEMENT: HEDGE OPS ------')
+    #                     ft = op.get_underlying()
+    #                     ft.update_lots(op.lots)
+    #                     print('future added - ', str(ft))
+    #                     print('lots: ', op.lots, ft.lots)
+    #                     tobeadded.append(ft)
+
+    #             # calculating the net profit from this exchange.
+    #             pnl_mult = multipliers[op.get_product()][-1]
+    #             # op.get_price() defaults to max(k-s,0 ) or max(s-k, 0)
+    #             # since op.tau = 0
+    #             oppnl = op.lots * op.get_price() * pnl_mult
+    #             print('profit on this exercise: ', oppnl)
+    #             print('---------------------------------------')
+    #             profit += oppnl
+    #             exercised = True
+    #         else:
+    #             print('letting hedge op ' + str(op) + ' expire.')
 
     # debug statement:
     print('handle_exercise - tobeadded: ', [str(x) for x in tobeadded])

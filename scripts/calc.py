@@ -117,7 +117,7 @@ def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None,
         TYPE: price of option based on inputs passed in. 
     '''
     # expiry case
-    if tau <= 0:
+    if tau <= 0 or np.isclose(tau, 0):
         val = max(s-K, 0) if char == 'call' else max(K-s, 0)
         # print('t = 0 intrinsic value: ', val)
         return val
