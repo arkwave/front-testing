@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   RMS08
-# @Last Modified time: 2018-07-16 19:23:13
+# @Last Modified time: 2018-07-19 16:31:48
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -169,7 +169,7 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
         raise ValueError(
             'neither delta nor strike passed in; aborting construction.')
 
-    lots_req = lots if lots is not None else 1000
+    lots_req = lots if lots is not None else 1
 
     # naming conventions
     ftmth = volid.split('.')[1]

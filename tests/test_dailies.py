@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2018-07-17 20:09:38
-# @Last Modified by:   arkwave
-# @Last Modified time: 2018-07-18 21:59:09
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-07-19 16:59:50
 import sys
 sys.path.append('../')
 import numpy as np 
@@ -98,9 +98,9 @@ def test_euro_knockin():
     ecui.update()
     assert ecui.check_active()
     assert not ecui.check_expired()
-    assert ecui.moneyness() == -1
-    assert not ecui.exercise()
-    assert not ecui.knockedin
+    assert ecui.knockedin
+    assert ecui.moneyness() == 1
+    assert ecui.exercise()
     assert not np.array_equal(ecui.greeks(), initial_greeks)
 
     # update the future price to 135; option should now be ITM, active and not expired. 
@@ -108,10 +108,9 @@ def test_euro_knockin():
     ecui.update()
     assert ecui.check_active()
     assert not ecui.check_expired()
+    assert ecui.knockedin
     assert ecui.moneyness() == 1
     assert ecui.exercise()
-    # this is a semantic check; european options are never 'knocked in' per se. 
-    assert not ecui.knockedin
     assert not np.array_equal(ecui.greeks(), initial_greeks)
 
     #### EPDI test ####
@@ -123,7 +122,6 @@ def test_euro_knockin():
     assert epdi.moneyness() == -1
     assert not epdi.knockedin
     initial_greeks = epdi.greeks()
-    print('initial greeks: ', initial_greeks)
 
     # update the future price to 116; option should now be OTM, active and not expired. 
     epdi.get_underlying().update_price(116)
@@ -140,9 +138,9 @@ def test_euro_knockin():
     epdi.update()
     assert epdi.check_active()
     assert not epdi.check_expired()
-    assert epdi.moneyness() == -1
-    assert not epdi.exercise()
-    assert not epdi.knockedin
+    assert epdi.knockedin
+    assert epdi.moneyness() == 1
+    assert epdi.exercise()
     assert not np.array_equal(epdi.greeks(), initial_greeks)
 
     # update the future price to 105; option should now be ITM, active and not expired. 
@@ -150,8 +148,8 @@ def test_euro_knockin():
     epdi.update()
     assert epdi.check_active()
     assert not epdi.check_expired()
+    assert epdi.knockedin
     assert epdi.moneyness() == 1
-    assert not epdi.knockedin
     assert not np.array_equal(epdi.greeks(), initial_greeks)
 
 
@@ -207,7 +205,7 @@ def test_euro_knockout():
     assert not epdo.check_expired()
     assert epdo.moneyness() == 1
     assert not epdo.knockedout
-    initial_greeks = epdo.greeks().copy()
+    initial_greeks = epdo.greeks()
 
     # update the future price to 130; option should now be OTM, active, not expired
     epdo.get_underlying().update_price(130)
@@ -259,10 +257,14 @@ def test_cui():
     assert cui.barrier is None
 
     # create vanilla option and compare greeks/market value. 
-    comp_van = create_vanilla_option(vdf, pdf, volid, 'call', False, strike=strike, bullet=False)
+    comp_van = create_vanilla_option(vdf, pdf, volid, 'call', False, strike=strike, 
+                                     bullet=False, lots=1)
     comp_van.get_underlying().update_price(130)
     comp_van.update() 
-    assert np.array_equal(comp_van.greeks(), cui.greeks())
+    try:
+        assert np.array_equal(comp_van.greeks(), cui.greeks())
+    except AssertionError as e:
+        raise AssertionError(comp_van.greeks(), cui.greeks()) from e
     assert np.isclose(comp_van.get_price(), cui.get_price())
 
 
@@ -297,7 +299,7 @@ def test_pui():
     assert pui.barrier is None
 
     # create vanilla option and compare greeks/market value. 
-    comp_van = create_vanilla_option(vdf, pdf, volid, 'put', False, strike=strike, bullet=False)
+    comp_van = create_vanilla_option(vdf, pdf, volid, 'put', False, strike=strike, bullet=False, lots=1)
     comp_van.get_underlying().update_price(130)
     comp_van.update() 
     assert np.array_equal(comp_van.greeks(), pui.greeks())
@@ -336,15 +338,15 @@ def test_cdi():
     # bump prices to barrier; should trigger KI to vanilla option. 
     cdi.get_underlying().update_price(110)
     cdi.update()
+    assert cdi.knockedin 
     assert cdi.moneyness() == -1
     assert not cdi.exercise()
-    assert cdi.knockedin 
     assert cdi.check_active() 
     assert not cdi.check_expired()
     assert cdi.barrier is None
 
     # create vanilla option and compare greeks/market value. 
-    comp_van = create_vanilla_option(vdf, pdf, volid, 'put', False, strike=strike, bullet=False)
+    comp_van = create_vanilla_option(vdf, pdf, volid, 'call', False, strike=strike, bullet=False)
     comp_van.get_underlying().update_price(110)
     comp_van.update() 
     assert np.array_equal(comp_van.greeks(), cdi.greeks())
@@ -424,7 +426,7 @@ def test_cuo():
     assert cuo.moneyness() == -1
     assert not cuo.exercise()
     assert not cuo.check_active() 
-    assert not cuo.check_expired()
+    assert cuo.check_expired()
     assert np.array_equal(cuo.greeks(), [0,0,0,0])
 
 
@@ -455,7 +457,7 @@ def test_cdo():
     assert cdo.moneyness() == -1
     assert not cdo.exercise()
     assert not cdo.check_active() 
-    assert not cdo.check_expired()
+    assert cdo.check_expired()
     assert np.array_equal(cdo.greeks(), [0,0,0,0])
 
 
@@ -484,8 +486,8 @@ def test_puo():
     assert puo.knockedout
     assert puo.moneyness() == -1
     assert not puo.exercise()
+    assert puo.check_expired()
     assert not puo.check_active() 
-    assert not puo.check_expired()
     assert np.array_equal(puo.greeks(), [0,0,0,0])
 
 
@@ -515,7 +517,7 @@ def test_pdo():
     assert pdo.moneyness() == -1
     assert not pdo.exercise()
     assert not pdo.check_active() 
-    assert not pdo.check_expired()
+    assert pdo.check_expired()
     assert np.array_equal(pdo.greeks(), [0,0,0,0])
 
     pass 
