@@ -245,12 +245,12 @@ def test_moneyness_american():
     ft.update_price(50)
     assert op.check_active() == False
     assert op.knockedout == True
-    assert op.moneyness() == None
+    assert op.moneyness() == -1
     # futher changes should not affect moneyness since option has knocked out.
     ft.update_price(20)
-    assert op.moneyness() == None
+    assert op.moneyness() == -1
     ft.update_price(35)
-    assert op.moneyness() == None
+    assert op.moneyness() == -1
 
     # put options
     strike2 = 20
@@ -263,7 +263,7 @@ def test_moneyness_american():
     ft2.update_price(10)
     assert op2.moneyness() == 1
     ft2.update_price(50)
-    assert op2.moneyness() == None
+    assert op2.moneyness() == -1
 
 
 def test_zero_options():
