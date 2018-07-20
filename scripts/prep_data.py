@@ -579,8 +579,6 @@ def clean_data(df, flag, edf=None, writeflag=None):
             df['time'] = dt.time.max
         if 'datatype' not in df.columns:
             df['datatype'] = 'settlement'
-
-        df['time'] = df['time'].astype(pd.Timestamp)
     df.reset_index(drop=True, inplace=True)
     # df = df.dropna()
     assert not df.empty

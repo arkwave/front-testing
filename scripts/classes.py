@@ -376,10 +376,10 @@ class Option:
                 g += gamma 
                 t += theta 
                 v += vega 
-                if tau == 0:
-                    print("Zero TTM detected; printing greeks")
-                    print(delta, gamma, theta, vega)
-                    print('lots: ', self.lots)
+                # if tau == 0:
+                #     # print("Zero TTM detected; printing greeks")
+                #     print(delta, gamma, theta, vega)
+                #     print('lots: ', self.lots)
 
             self.delta, self.gamma, self.theta, self.vega = d, g, t, v
 

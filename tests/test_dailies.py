@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2018-07-17 20:09:38
-# @Last Modified by:   RMS08
-# @Last Modified time: 2018-07-19 22:36:01
+# @Last Modified by:   arkwave
+# @Last Modified time: 2018-07-20 18:08:33
 import sys
 sys.path.append('../')
 import numpy as np 
@@ -520,8 +520,6 @@ def test_pdo():
     assert pdo.check_expired()
     assert np.array_equal(pdo.greeks(), [0,0,0,0])
 
-    pass 
-
 
 def test_remove_expired():
     cdo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
@@ -532,8 +530,29 @@ def test_remove_expired():
     cdo.update_tau(1/365)
     assert not all([x > 0 for x in cdo.get_ttms()])
     cdo.remove_expired_dailies() 
-    assert not all([x > 0 for x in cdo.get_ttms()])
+    assert all([x > 0 for x in cdo.get_ttms()])
     assert init_len - len(cdo.get_ttms()) == 1
 
+
 def test_expiry():
-    pass 
+    cdo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
+                                 'amer', 'down', bullet=False, ko=down_bar, 
+                                 lots=1)
+    assert not cdo.check_expired() 
+    cdo.update_tau(1/365)
+    cdo.update() 
+    assert not cdo.check_expired()
+    cdo.remove_expired_dailies() 
+
+    cdo.update_tau(cdo.tau - 1/365)
+    cdo.update() 
+    assert not cdo.check_expired()
+    cdo.remove_expired_dailies()
+    assert len(cdo.get_ttms()) == 1
+
+    cdo.update_tau(1/365)
+    cdo.update() 
+    assert not cdo.check_expired() 
+    cdo.remove_expired_dailies()
+    assert len(cdo.get_ttms()) == 0
+    assert cdo.check_expired()
