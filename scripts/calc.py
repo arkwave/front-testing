@@ -570,10 +570,13 @@ def digital_greeks(char, k, dbar, tau, vol, vol2, s, r, product, payoff, lots):
     Returns:
         tuple: delta, gamma, theta, vega.
     """
-    d1, g1, t1, v1 = _compute_greeks(
-        char, dbar, tau, vol2, s, r, product, payoff, lots)
-    d2, g2, t2, v2 = _compute_greeks(
-        char, k, tau, vol, s, r, product, payoff, lots)
+    try:
+        d1, g1, t1, v1 = _compute_greeks(char, dbar, tau, vol2, s, r, 
+                                         product, payoff, lots)
+        d2, g2, t2, v2 = _compute_greeks(char, k, tau, vol, s, r, 
+                                         product, payoff, lots)
+    except TypeError as e:
+        raise TypeError(char, dbar, tau, vol2, s, r, k, vol)
 
     d, g, t, v = d1-d2, g1-g2, t1-t2, v1-v2
     return d, g, t, v

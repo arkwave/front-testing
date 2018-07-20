@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   RMS08
-# @Last Modified time: 2018-07-19 22:24:52
+# @Last Modified by:   arkwave
+# @Last Modified time: 2018-07-20 22:34:31
 
 ################################ imports ###################################
 # general imports
@@ -225,6 +225,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         flat_vols = True
     else:
         flat_vols = False
+
+    print('flatvols: ', flat_vols)
     ###################################################
 
     for i in range(len(date_range)):
@@ -318,9 +320,11 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
         # print('vdf_1', vdf_1.head(5))
 
+        pdf_1.time = pd.to_datetime(pdf_1.time).dt.time
+
         data_order = None
 
-        print('vdf unique times: ', vdf_1.time.unique())
+        # print('vdf unique times: ', vdf_1.time.unique())
         # need this check because for intraday/settlement to settlement, no reordering
         # is required; granularize is called in OHLC case only after an order
         # has been determined
@@ -329,7 +333,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             pdf_1 = granularize(pdf_1, pf, intraday=True)
             if pdf_1.empty:
                 continue
-            print('vdf_1: ', pdf_1)
+            # print('vdf_1: ', pdf_1)
             try:
                 assert len(pdf_1.underlying_id.unique()) == 1
             except AssertionError as e:
@@ -338,18 +342,18 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                                          pdf_1.underlying_id.unique()) from e
         print('================ beginning intraday loop =====================')
         unique_ts = pdf_1.time.unique()
+        # print('unique_ts: ', unique_ts)
+        # print('unique_ts_type: ', type(unique_ts[0]))
         dailyhedges = []
         for ts in unique_ts:
-            ts = pd.to_datetime(ts).time()
+            # ts = pd.to_datetime(ts).time()
             pdf = pdf_1[pdf_1.time == ts]
             if ohlc:
                 print('@@@@@@@@@@@@@@@ OHLC STEP GRANULARIZING @@@@@@@@@@@@@@@@')
                 init_pdf, pdf, data_order = reorder_ohlc_data(pdf, pf)
                 print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
-
             # currently, vdf only exists for settlement anyway.
             vdf = vdf_1[vdf_1.time == ts]
-            print('vdf time filter: ', vdf)
             for index in pdf.index:
 
                 # get the current row and variables
@@ -398,7 +402,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             # Step 3: Feed data into the portfolio.
 
                 print("========================= FEED DATA ==========================")
-                print('vdf: ', vdf)
+                # print('vdf: ', vdf)
                 # NOTE: currently, exercising happens as soon as moneyness is triggered.
                 # This should not be much of an issue since exercise is never
                 # actually reached.
@@ -426,10 +430,13 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 dailygamma += gamma_pnl
                 dailyvega += vega_pnl
 
+                print('pf before adding bar fts/ex fts: ', pf)
+
                 # Detour: add in exercise & barrier futures if required.
                 if exercise_futures:
                     print('adding exercise futures')
                     pf.add_security(exercise_futures, 'OTC')
+                    print('pf: ', pf)
 
                 if barrier_futures:
                     print('adding barrier futures')
@@ -1065,7 +1072,8 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
                 print('### BARRIER VOLATILITY DATA MISSING ###')
                 b_vol = op.bvol
                 bvol2 = op.bvol2 
-
+            # print('bvol: ', b_vol)
+            # print('bvol2: ', bvol2)
             op.update_greeks(vol=strike_vol, bvol=b_vol, bvol2=bvol2)
 
         pf.refresh()
@@ -1123,7 +1131,7 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
 
     volid = op.get_vol_id()
 
-    print('vdf Z8: ', vdf)
+    # print('vdf Z8: ', vdf)
 
     vanop = create_vanilla_option(vdf, pdf, volid, op.char, op.shorted,
                                   lots=op.lots, vol=op.vol, strike=op.K,
@@ -1247,8 +1255,10 @@ def handle_exercise(pf, brokerage=None, slippage=None):
     tobeadded = []
     for op in all_ops:
         # bullet case
-        ttm = op.tau if op.is_bullet() else min(op.get_dailies())
-        if np.isclose(ttm, tol) or op.tau <= tol:
+        ttm = op.tau if op.is_bullet() else min(op.get_ttms())
+        print('ttm: ', np.array(op.get_ttms()) * 365)
+        print('exercise: ', op.exercise())
+        if np.isclose(ttm, tol) or ttm < tol:
             exer = op.exercise()
             if op.is_bullet():
                 op.tau = 0 
@@ -1267,7 +1277,8 @@ def handle_exercise(pf, brokerage=None, slippage=None):
                 # calculating the net profit from this exchange.
                 product = op.get_product()
                 pnl_mult = multipliers[product][-1]
-                oppnl = op.lots * op.get_price() * pnl_mult
+                ftprice, strike = op.get_underlying().get_price(), op.K
+                oppnl = op.lots * abs(ftprice - strike) * pnl_mult
                 print('profit on this exercise: ', oppnl)
                 print("------------------------------")
                 profit += oppnl

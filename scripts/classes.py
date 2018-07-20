@@ -345,20 +345,18 @@ class Option:
         active = self.check_active()
         self.active = active
         if active:
-            sigma = vol
-            b_sigma = bvol
-            if vol is None:
-                sigma = self.vol
-            if bvol is None:
-                b_sigma = self.bvol
-            if bvol2 is None:
-                b_sigma2 = self.bvol2
-
+            sigma = vol if vol is not None else self.vol
+            b_sigma = bvol if bvol is not None else self.bvol 
+            b_sigma2 = bvol2 if bvol2 is not None else self.bvol2
+            
             product = self.get_product()
             s = self.underlying.get_price()
 
             d, g, t, v = 0,0,0,0 
             ttms = [self.tau] if self.bullet else self.dailies 
+
+            # print('b_sigma: ', b_sigma)
+            # print('b_sigma2: ', b_sigma2)
 
             for tau in ttms:
                 delta, gamma, theta, vega = \
