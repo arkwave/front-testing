@@ -2,11 +2,12 @@
 # @Author: arkwave
 # @Date:   2018-07-17 20:09:38
 # @Last Modified by:   arkwave
-# @Last Modified time: 2018-07-20 18:08:33
+# @Last Modified time: 2018-07-23 19:08:00
 import sys
 sys.path.append('../')
 import numpy as np 
 from scripts.fetch_data import grab_data
+from copy import deepcopy
 from scripts.util import create_vanilla_option, create_barrier_option
 
 ####################################################
@@ -556,3 +557,48 @@ def test_expiry():
     cdo.remove_expired_dailies()
     assert len(cdo.get_ttms()) == 0
     assert cdo.check_expired()
+
+
+def test_reverse_timestep():
+    cdo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
+                                 'amer', 'down', bullet=False, ko=down_bar, 
+                                 lots=1)
+    init_ttms = deepcopy(cdo.get_ttms())
+    # print('init_ttms: ', np.array(init_ttms)*365)
+
+    cdo.update_tau(1/365)
+    new_ttms = deepcopy(cdo.get_ttms())
+    # print('new_ttms: ', np.array(new_ttms)*365)
+
+    # check that timestep has been deceremented by 1 appropriately.
+    assert all([np.isclose(init_ttms[i] - new_ttms[i], 1/365) for i in range(len(init_ttms)) if init_ttms[i] > 0])
+
+    # undo the timestep.
+    cdo.update_tau(-1/365)
+    new_ttms = deepcopy(cdo.get_ttms())
+    assert np.array_equal(new_ttms, init_ttms)
+
+    cdo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
+                                 'amer', 'down', bullet=False, ko=down_bar, 
+                                 lots=1)
+    init_ttms = deepcopy(cdo.get_ttms())
+    cdo.update_tau(2/365)
+    new_ttms = deepcopy(cdo.get_ttms())
+    try:
+        assert all([(init_ttms[i] - new_ttms[i] <= 2/365) or (np.isclose(init_ttms[i] - new_ttms[i], 2/365)) 
+                    for i in range(len(init_ttms))])
+    except AssertionError as e:
+        print([init_ttms[i] - new_ttms[i] <= 2/365 for i in range(len(init_ttms))])
+        print('new ttms: ', np.array(new_ttms)*365)
+        print('old ttms: ', np.array(init_ttms)*365)
+        raise AssertionError from e 
+
+    # undo the timestep.
+    cdo.update_tau(-2/365)
+    new_ttms = deepcopy(cdo.get_ttms())
+    try:
+        assert np.allclose(new_ttms, init_ttms)
+    except AssertionError as e:
+        print('new ttms: ', new_ttms)
+        print('old ttms: ', init_ttms)
+        raise AssertionError from e
