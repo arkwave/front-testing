@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2018-07-17 20:09:38
 # @Last Modified by:   arkwave
-# @Last Modified time: 2018-07-23 19:08:00
+# @Last Modified time: 2018-07-23 19:13:46
 import sys
 sys.path.append('../')
 import numpy as np 
@@ -601,4 +601,35 @@ def test_reverse_timestep():
     except AssertionError as e:
         print('new ttms: ', new_ttms)
         print('old ttms: ', init_ttms)
+        raise AssertionError from e
+
+    cdo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
+                                 'amer', 'down', bullet=False, ko=down_bar, 
+                                 lots=1)
+    init_ttms = deepcopy(cdo.get_ttms())
+    print('init :', np.array(init_ttms)*365)
+
+    cdo.update_tau(7/365)
+    new_ttms = deepcopy(cdo.get_ttms())
+    print('new :', np.array(new_ttms)*365)
+    try:
+        assert all([(init_ttms[i] - new_ttms[i] <= 7/365) or (np.isclose(init_ttms[i] - new_ttms[i], 7/365)) 
+                    for i in range(len(init_ttms))])
+    except AssertionError as e:
+        print([init_ttms[i] - new_ttms[i] <= 7/365 for i in range(len(init_ttms))])
+        print('new ttms: ', np.array(new_ttms)*365)
+        print('old ttms: ', np.array(init_ttms)*365)
+        raise AssertionError from e 
+
+    # undo the timestep.
+    cdo.update_tau(-7/365)
+    new_ttms = deepcopy(cdo.get_ttms())
+    print('post :', np.array(new_ttms)*365)
+    try:
+        assert np.allclose(new_ttms, init_ttms)
+    except AssertionError as e:
+        assert len(new_ttms) == len(init_ttms)
+        # print(np.array(init_ttms)*365)
+        # print(np.array(new_ttms)*365)
+
         raise AssertionError from e

@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2018-07-20 22:34:31
+# @Last Modified time: 2018-07-23 20:22:25
 
 ################################ imports ###################################
 # general imports
@@ -182,9 +182,12 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # init_val = pf.compute_value()
     init_diff = (pd.to_datetime(
         date_range[1]) - pd.to_datetime(date_range[0])).days - 1
-    # print('init diff: ', init_diff)
+    print('init diff: ', init_diff)
+    print('initial ttms: ', np.array(pf.OTC_options[0].get_ttms())*365)
     pf.timestep(init_diff * timestep)
     init_val = pf.compute_value()
+    print('initial ttms: ', np.array(pf.OTC_options[0].get_ttms())*365)
+
     # print('sim_start BOD init_value: ', init_val)
     # assign book vols; defaults to initialization date.
     book_vols = voldata[voldata.value_date ==
@@ -216,7 +219,6 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # print('sigvals: ', sigvals)
     # boolean flag indicating missing data
     # Note: [partially depreciated]
-    broken = False
     hedges_hit = []
     ##################################################
 
@@ -282,6 +284,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         print("========================= INIT ==========================")
         print('Portfolio before any ops pf:', pf)
         print('init val BOD: ', init_val)
+        print('ttms: ', np.array(pf.OTC_options[0].get_ttms()) * 365)
         print("==========================================================")
 
         log_pf = copy.deepcopy(pf)
@@ -332,7 +335,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             print('@@@@@@@@@@@@@@@@@ Granularizing: Intraday Case @@@@@@@@@@@@@@@@')
             pdf_1 = granularize(pdf_1, pf, intraday=True)
             if pdf_1.empty:
-                continue
+                print('DATAFRAME IS EMPTY')
+                # continue
             # print('vdf_1: ', pdf_1)
             try:
                 assert len(pdf_1.underlying_id.unique()) == 1
@@ -406,7 +410,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 # NOTE: currently, exercising happens as soon as moneyness is triggered.
                 # This should not be much of an issue since exercise is never
                 # actually reached.
-                pf, broken, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
+                pf, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
                     = feed_data(vdf, pdf_ts, pf, init_val, flat_vols=flat_vols, flat_price=flat_price)
 
                 print(
@@ -468,6 +472,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         hedges_hit.append(dailyhedges)
         print('================ end intraday loop =====================')
         print('pf after intraday loop: ', pf)
+
+        pf.remove_expired()
 
         # case: if mode = HBPS, update current dailypnl value to factor in
         # settlement vols.
@@ -535,6 +541,10 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
         pf.assign_hedger_dataframes(h_vdf, settle_prices, settles=settle_vols)
 
+        # testing: remove after.
+        init_ttms = np.array(pf.OTC_options[0].get_ttms())*365
+        print('ttms before rebalance: ', init_ttms)
+
     # Step 7: Hedge - bring greek levels across portfolios (and families) into
     # line with target levels using specified vols/prices.
         print("========================= REBALANCE ==========================")
@@ -545,6 +555,11 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         print('rebalance cost: ', cost)
         dailycost += cost
         print("==================================================================")
+
+        final_ttms = np.array(pf.OTC_options[0].get_ttms())*365
+        print('ttms after rebalance: ', final_ttms)
+
+        assert np.array_equal(init_ttms, final_ttms)
 
     # Step 8: Update highest_value so that the next
     # loop can check for drawdown.
@@ -904,58 +919,55 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
     """
     barrier_futures = []
     exercise_futures = []
-    broken = False
     exercise_profit = 0
     barrier_profit = 0
 
-    # 1) sanity checks
-    if pf.empty():
-        return pf, False, 0, 0, 0, [], []
+    # # 1) sanity checks
+    # if pf.empty():
+    #     return pf, False, 0, 0, 0, [], []
 
     # print('curr_date: ', curr_date)
     date = pd.to_datetime(pdf.value_date.unique()[0])
 
     # 2)  update prices of futures, underlying & portfolio alike.
-    if not broken:
-        # price_updated = False
-        for ft in pf.get_all_futures():
+    for ft in pf.get_all_futures():
+        pdt = ft.get_product()
+        uid = ft.get_uid()
+        try:
+            # case: flat price.
+            if flat_price:
+                continue
+            else:
+                val = pdf[(pdf.pdt == pdt) &
+                          (pdf.underlying_id == uid)].price.values[0]
+                pf, cost, fts = handle_barriers(
+                    voldf, pdf, ft, val, pf, date)
+                barrier_futures.extend(fts)
+                ft.update_price(val)
+
+        # index error would occur only if data is missing.
+        except IndexError:
+            ft.update_price(ft.get_price())
+
+    # handling pnl arising from barrier futures.
+    if barrier_futures:
+        for ft in barrier_futures:
             pdt = ft.get_product()
-            uid = ft.get_uid()
+            pnl_mult = multipliers[pdt][-1]
             try:
-                # case: flat price.
-                if flat_price:
-                    continue
-                else:
-                    val = pdf[(pdf.pdt == pdt) &
-                              (pdf.underlying_id == uid)].price.values[0]
-                    pf, cost, fts = handle_barriers(
-                        voldf, pdf, ft, val, pf, date)
-                    barrier_futures.extend(fts)
-                    ft.update_price(val)
+                uid = ft.get_product() + '  ' + ft.get_month()
+                val = pdf[(pdf.pdt == pdt) &
+                          (pdf.underlying_id == uid)].price.values[0]
+                # calculate difference between ki price and current price
+                diff = val - ft.get_price()
+                pnl_diff = diff * ft.lots * pnl_mult
+                barrier_profit += pnl_diff
+                # update the price of each future
+                ft.update_price(val)
 
             # index error would occur only if data is missing.
             except IndexError:
                 ft.update_price(ft.get_price())
-
-    # handling pnl arising from barrier futures.
-        if barrier_futures:
-            for ft in barrier_futures:
-                pdt = ft.get_product()
-                pnl_mult = multipliers[pdt][-1]
-                try:
-                    uid = ft.get_product() + '  ' + ft.get_month()
-                    val = pdf[(pdf.pdt == pdt) &
-                              (pdf.underlying_id == uid)].price.values[0]
-                    # calculate difference between ki price and current price
-                    diff = val - ft.get_price()
-                    pnl_diff = diff * ft.lots * pnl_mult
-                    barrier_profit += pnl_diff
-                    # update the price of each future
-                    ft.update_price(val)
-
-                # index error would occur only if data is missing.
-                except IndexError:
-                    ft.update_price(ft.get_price())
                     
     exercise_profit, pf, exercised, exercise_futures = handle_exercise(
         pf, brokerage, slippage)
@@ -967,8 +979,10 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
     # if price_updated:
     pf.refresh()
     # removing expiries
+    print('ttms before removing expiries: ', np.array(pf.OTC_options[0].get_ttms()) * 365)
     pf.remove_expired()
     # refresh after handling expiries.
+    print('ttms after removing expiries: ', np.array(pf.OTC_options[0].get_ttms()) * 365)
     pf.refresh()
 
     # TODO: Need to re-implement the sanity checks for when portfolio needs
@@ -1027,7 +1041,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
 
     # skip feeding in vols if 1) data not present or 2) flat_vols flag is
     # triggered.
-    volskip = True if (voldf.empty or flat_vols) else False
+    volskip = True if flat_vols else False
     if volskip:
         print('Volskip is True')
         print('vdf datatype: ', voldf.datatype.unique())
@@ -1079,7 +1093,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
         pf.refresh()
 
     vega_pnl = pf.compute_value() - intermediate_val if intermediate_val != 0 else 0
-    return pf, broken, gamma_pnl, vega_pnl, total_profit, exercise_futures, barrier_futures
+    return pf, gamma_pnl, vega_pnl, total_profit, exercise_futures, barrier_futures
 
 
 # TODO: Streamline this so that it calls comp functions and doesn't create new objects. 

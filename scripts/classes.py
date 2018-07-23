@@ -147,6 +147,7 @@ class Option:
         self.settlement = settlement
         self.strike_type = 'callstrike' if self.K >= self.underlying.get_price() else 'putstrike'
         self.partners = set()
+        self.prev_dailies = None 
 
     def __str__(self):
         string = '<<'
@@ -434,9 +435,16 @@ class Option:
     def update_tau(self, diff):
         self.tau -= diff
         if not self.bullet:
-            self.dailies = [x - diff if x-diff > 0 else 0 
-                            for x in self.dailies] 
-
+            if diff >= 0:
+                self.prev_dailies = self.dailies 
+                self.dailies = [x - diff if x-diff > 0 else 0 
+                                for x in self.dailies] 
+            else:
+                # this is only ever called when reversing a timestep. 
+                if self.prev_dailies is not None:
+                    self.dailies = self.prev_dailies 
+                    self.prev_dailies = None 
+                    
     def remove_expired_dailies(self):
         self.dailies = [x for x in self.dailies if not np.isclose(x, 0)]
         
