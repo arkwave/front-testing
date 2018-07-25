@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2018-07-23 20:22:25
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-07-25 17:24:29
 
 ################################ imports ###################################
 # general imports
@@ -20,7 +20,7 @@ from .util import create_underlying, create_vanilla_option, close_out_deltas, cr
 from .prep_data import reorder_ohlc_data, granularize
 from .calc import get_barrier_vol, _compute_value, get_vol_at_strike
 from .signals import apply_signal
-
+import datetime
 
 # blockPrint()
 # enablePrint()
@@ -180,8 +180,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # the portfolio.
     # get the init diff and timestep
     # init_val = pf.compute_value()
-    init_diff = (pd.to_datetime(
-        date_range[1]) - pd.to_datetime(date_range[0])).days - 1
+    init_diff = (pd.to_datetime(date_range[1]) - 
+                 pd.to_datetime(date_range[0])).days
     print('init diff: ', init_diff)
     print('initial ttms: ', np.array(pf.OTC_options[0].get_ttms())*365)
     pf.timestep(init_diff * timestep)
@@ -196,6 +196,12 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
           pd.to_datetime(date_range[0]).strftime('%Y-%m-%d'))
     # reassign the dates since the first datapoint is the init date.
     date_range = date_range[1:]
+    ########################################
+
+    ############## Bookkeeping #############
+    pricedata.time = pd.to_datetime(pricedata.time).dt.time
+    voldata.loc[voldata.datatype == 'settlement', 'time'] = datetime.time.max
+    pricedata.loc[pricedata.datatype == 'settlement', 'time'] = datetime.time.max
     ########################################
 
     ############ Other useful variables: #############
@@ -323,7 +329,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
         # print('vdf_1', vdf_1.head(5))
 
-        pdf_1.time = pd.to_datetime(pdf_1.time).dt.time
+        # pdf_1.time = pd.to_datetime(pdf_1.time).dt.time
 
         data_order = None
 
@@ -359,7 +365,6 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             # currently, vdf only exists for settlement anyway.
             vdf = vdf_1[vdf_1.time == ts]
             for index in pdf.index:
-
                 # get the current row and variables
                 pdf_ts = pdf[pdf.index == index]
                 datatype = pdf_ts.datatype.values[0]
@@ -391,20 +396,9 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                     print('settlement price move to ' + str(val) +
                           ' for uid last hedged at ' + str(lp))
 
-                print('timestep init val: ', init_val)
-
-                # for prices: filter and use exclusively the intraday data. assign
-                # to hedger objects.
-                # print('pf at start: ', pf)
-                # print('price datatype: ', pdf_ts.datatype.unique())
-                # print('vol datatype: ', vdf.datatype.unique())
-
                 pf.assign_hedger_dataframes(vdf, pdf_ts)
 
-                # print('last price before update: ', latest_price)
-
             # Step 3: Feed data into the portfolio.
-
                 print("========================= FEED DATA ==========================")
                 # print('vdf: ', vdf)
                 # NOTE: currently, exercising happens as soon as moneyness is triggered.
@@ -922,6 +916,9 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
     exercise_profit = 0
     barrier_profit = 0
 
+    if voldf.empty:
+        print("Volatility Dataframe is empty!")
+
     # # 1) sanity checks
     # if pf.empty():
     #     return pf, False, 0, 0, 0, [], []
@@ -1260,7 +1257,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
     exercised = False
     t = time.clock()
     profit = 0
-    tol = 1 / 365
+    tol = 1/365
     # handle options exercise
     all_ops = pf.get_all_options()
     # otc_ops = pf.OTC_options
@@ -1272,10 +1269,12 @@ def handle_exercise(pf, brokerage=None, slippage=None):
         ttm = op.tau if op.is_bullet() else min(op.get_ttms())
         print('ttm: ', np.array(op.get_ttms()) * 365)
         print('exercise: ', op.exercise())
-        if np.isclose(ttm, tol) or ttm < tol:
+        if np.isclose(ttm, 0) or ttm < tol:
             exer = op.exercise()
             if op.is_bullet():
                 op.tau = 0 
+            else:
+                op.get_ttms()[0] = 0
             if exer:
                 print("exercising option " + str(op))
                 if op.settlement == 'cash':
@@ -1300,36 +1299,6 @@ def handle_exercise(pf, brokerage=None, slippage=None):
 
             else:
                 print('letting op ' + str(op) + ' expire.')
-
-
-    # for op in hedge_ops:
-    #     if np.isclose(op.tau, tol) or op.tau <= tol:
-    #         exer = op.exercise()
-    #         op.tau = 0
-    #         if exer:
-    #             print('exercising hedge op ' + str(op))
-    #             if op.settlement == 'cash':
-    #                 print("----- CASH SETTLEMENT: HEDGE OPS ------")
-    #             elif op.settlement == 'futures':
-    #                 if op.settlement == 'futures':
-    #                     print('----- FUTURE SETTLEMENT: HEDGE OPS ------')
-    #                     ft = op.get_underlying()
-    #                     ft.update_lots(op.lots)
-    #                     print('future added - ', str(ft))
-    #                     print('lots: ', op.lots, ft.lots)
-    #                     tobeadded.append(ft)
-
-    #             # calculating the net profit from this exchange.
-    #             pnl_mult = multipliers[op.get_product()][-1]
-    #             # op.get_price() defaults to max(k-s,0 ) or max(s-k, 0)
-    #             # since op.tau = 0
-    #             oppnl = op.lots * op.get_price() * pnl_mult
-    #             print('profit on this exercise: ', oppnl)
-    #             print('---------------------------------------')
-    #             profit += oppnl
-    #             exercised = True
-    #         else:
-    #             print('letting hedge op ' + str(op) + ' expire.')
 
     # debug statement:
     print('handle_exercise - tobeadded: ', [str(x) for x in tobeadded])

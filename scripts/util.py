@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   RMS08
-# @Last Modified time: 2018-07-19 16:31:48
+# @Last Modified time: 2018-07-25 16:39:17
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -178,7 +178,11 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     cpi = 'C' if char == 'call' else 'P'
 
     # get min start date for debugging
-    min_start_date = min(vdf[vdf.vol_id == volid].value_date)
+    try:
+        min_start_date = min(vdf[vdf.vol_id == volid].value_date)
+    except ValueError as e:
+        raise ValueError("Inputs: ", vdf, volid)
+
 
     date = min_start_date if (date is None or min_start_date > date) else date
 
@@ -425,7 +429,7 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, barriertype, d
     # handling bullet vs daily
     if not bullet:
         date += BDay(1)
-        # expiry_date += BDay(1)
+        # expiry_date -= BDay(1)
         dailies = []
         # step = 3 if date.dayofweek == 4 else 1 
         dx = pd.to_datetime(date)
