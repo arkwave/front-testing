@@ -848,6 +848,21 @@ class Portfolio:
             lst = [x for x in lst if x.get_month() == mth]
         return lst
 
+    def get_hedge_options(self, pdt=None, mth=None):
+        """Returns hedge options. If pdt and month are specified, these
+        are used to select and return the options.
+        
+        Args:
+            pdt (None, optional): filters for this product. 
+            mth (None, optional): filters for this month.
+        """
+        lst = self.hedge_options 
+        if pdt is not None:
+            lst = [x for x in lst if x.get_product() == pdt]
+        if mth is not None:
+            lst = [x for x in lst if x.get_month() == mth]
+        return lst 
+
     def get_underlying(self):
         """Returns a list of all futures objects that are the underlying
         of some option in the portfolio. 

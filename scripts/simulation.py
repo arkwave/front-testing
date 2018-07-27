@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   RMS08
-# @Last Modified time: 2018-07-27 12:59:51
+# @Last Modified time: 2018-07-27 17:07:47
 
 ################################ imports ###################################
 # general imports
@@ -18,7 +18,7 @@ from pandas.tseries.offsets import BDay
 # user defined imports
 from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites, assign_hedge_objects, compute_market_minus, mark_to_vols
 from .prep_data import reorder_ohlc_data, granularize
-from .calc import get_barrier_vol, _compute_value, get_vol_at_strike
+from .calc import _compute_value, get_vol_at_strike
 from .signals import apply_signal
 import datetime
 
@@ -105,7 +105,8 @@ np.random.seed(seed)
 def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                    end_date=None, brokerage=None, slippage=None, signals=None,
                    plot_results=True, drawdown_limit=None, mode='HSPS', mkt_minus=1e7,
-                   ohlc=False, remark_on_roll=False, remark_at_end=False, hinge=False):
+                   ohlc=False, remark_on_roll=False, remark_at_end=False,
+                   roll_hedges_only=False, same_month_exception=False):
     """
     Each run of the simulation consists of the following steps:
         > for each day:
@@ -118,8 +119,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             > contract roll (if applicable)
             > rebalance portfolio (eod delta hedges + hedging other greeks)
             > proceed to next day. 
-
-
+    
+    
     Args:
         voldata (pandas dataframe): Dataframe of volatilities (strikewise)
         pricedata (pandas dataframe): Dataframe of prices (either intraday or settlement-to-settlement)
@@ -137,16 +138,18 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         ohlc (bool, optional): flag indicating if data is open-high-low-close.
         remark_on_roll (bool, optional): flag indicating if book vols are remarked to settlements on contract rolls.
         remark_at_end (bool, optional): flag indicating if book vols are remarked to settlement vols on end of simulation.
-        hinge (bool, optional): flag indicating if hinge analysis is in place (i.e. 1 intrady hedge and 1 settlement hedge. )
-
+        roll_hedges_only (bool, optional): boolean that indicates if only hedges are to be rolled. else, if the pf has a 'roll' value, it will roll all options. 
+        same_month_exception (bool, optional): boolean that indicates if a same-month roll exception holds for hedges. 
+    
     Returns:
         dataframe: dataframe consisting of the logs on each day of the simulation.
-
-
+    
+    
     Raises:
         AssertionError: occurs if intraday loop isn't filtered appropriately for UIDs. 
-
-
+        ValueError: if contract rolling is attempted but the price and volatility dataframes do not have the relevant information
+                  :  if delta-rolling is attempted on an option's partner, but that partner belongs to a non-existent family. 
+    
     """
 
     ##### timers #####
@@ -502,7 +505,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         roll_vdf = settle_vols if remark_on_roll else h_vdf
 
         pf, cost, all_deltas = roll_over(pf, roll_vdf, settle_prices, date, brokerage=brokerage,
-                                         slippage=slippage)
+                                         slippage=slippage, hedges_only=roll_hedges_only, 
+                                         same_month_exception=same_month_exception)
         pf.refresh()
         print('roll_over cost: ', cost)
         dailycost += cost
@@ -1066,7 +1070,7 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
             return pf, 0, []
 
     bar_op = copy.deepcopy(op)
-    
+
     # create vanilla option with the same stats as the barrier option AFTER
     # knockin.
     volid = op.get_vol_id()
@@ -1195,8 +1199,8 @@ def handle_exercise(pf, brokerage=None, slippage=None):
     for op in all_ops:
         # bullet case
         ttm = op.tau if op.is_bullet() else min(op.get_ttms())
-        print('ttm: ', np.array(op.get_ttms()) * 365)
-        print('exercise: ', op.exercise())
+        # print('ttm: ', np.array(op.get_ttms()) * 365)
+        # print('exercise: ', op.exercise())
         if np.isclose(ttm, 0) or ttm < tol:
             exer = op.exercise()
             if op.is_bullet():
@@ -1246,22 +1250,27 @@ def handle_exercise(pf, brokerage=None, slippage=None):
 ###############################################################################
 
 
-def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None):
+def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, hedges_only=False, same_month_exception=False):
     """
-        If ttm < ttm_tol, closes out that position (and all accumulated deltas),
-        saves lot size/strikes, and rolls it over into the
-        next month.
-
+    If ttm < ttm_tol, closes out that position (and all accumulated deltas),
+    saves lot size/strikes, and rolls it over into the
+    next month.
+    
     Args:
         pf (TYPE): portfolio being hedged
         vdf (TYPE): volatility dataframe
-        pdf (TYPE): price dataframef
+        pdf (TYPE): price dataframe
+        date (TYPE): Date to be used when accessing data from dataframes.
         brokerage (TYPE, optional): brokerage amount
         slippage (TYPE, optional): slippage amount
-        ttm_tol (int, optional): tolerance level for time to maturity.
-
+        hedges_only (bool, optional): boolean that indicates if only hedges are to be rolled.
+        same_month_exception (bool, optional): if True, hedges are not rolled if they have the same product & month as OTC ops
+    
     Returns:
         tuple: updated portfolio and cost of operations undertaken
+    
+    Deleted Parameters:
+        ttm_tol (int, optional): tolerance level for time to maturity.
     """
     # from itertools import cycle
     print(' ---- beginning contract rolling --- ')
@@ -1305,9 +1314,12 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None):
                 continue
 
         # assign all options.
-        dic = fa.get_all_options()
+        dic = fa.get_hedge_options() if hedges_only else fa.get_all_options()
 
-        # print('dic: ', [str(x) for x in dic])
+        # get list of all product-month combos in OTC options to address same month exception case.
+        otc_params = set([(op.get_product(), op.get_month()) for op in pf.OTC_options])
+        # otc_mth = set([op.get_month()] for op in pf.OTC_options)
+
         print('num_ops: ', len(dic))
 
         # get list of already processed ops for this family.
@@ -1315,7 +1327,7 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None):
 
         # iterate over each option in this family
         for op in dic.copy():
-            flag = 'OTC' if op in fa.OTC_options else 'hedge'
+            flag = 'hedge' if (hedges_only or op in fa.get_hedge_options()) else 'OTC'
             # case: op has already been processed since its parter was
             # processed.
             if op in processed_ops:
@@ -1328,6 +1340,18 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None):
             needtoroll = (((round(op.tau * 365) <= fa.ttm_tol) or
                            np.isclose(op.tau, fa.ttm_tol/365)) or
                           roll_all)
+
+            print('tolerance breached: ', round(op.tau * 365) <= fa.ttm_tol)
+            print('op.tau: ', op.tau * 365)
+            print('fa ttm tol: ', fa.ttm_tol)
+            print('ttm close: ', np.isclose(op.tau, fa.ttm_tol/365))
+
+            # final check in the case of same_month_exception 
+            if same_month_exception:
+                if (op.get_product(), op.get_month()) in otc_params:
+                    print('same month exception triggered')
+                    needtoroll = False
+
             print('needtoroll: ', needtoroll)
             if needtoroll:
                 print('rolling option ' + str(op) + ' from ' + flag)
