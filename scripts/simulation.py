@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   RMS08
-# @Last Modified time: 2018-07-27 17:07:47
+# @Last Modified time: 2018-07-27 18:05:22
 
 ################################ imports ###################################
 # general imports
@@ -401,7 +401,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 # NOTE: currently, exercising happens as soon as moneyness is triggered.
                 # This should not be much of an issue since exercise is never
                 # actually reached.
-                pf, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
+                pf, gamma_pnl, vega_pnl, exercise_barrier_profit, exercise_futures, barrier_futures \
                     = feed_data(vdf, pdf_ts, pf, init_val, flat_vols=flat_vols, flat_price=flat_price)
 
                 print("==================== PNL & BARR/EX =====================")
@@ -411,9 +411,9 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 # sanity check: if the portfolio is closed out during this
                 # timestep, pnl = exercise proft.
                 if pf.empty():
-                    pnl = exercise_profit
+                    pnl = exercise_barrier_profit
                 else:
-                    pnl = (updated_val - init_val) + exercise_profit
+                    pnl = (updated_val - init_val) + exercise_barrier_profit
 
                 print('timestamp pnl: ', pnl)
                 print('timestamp gamma pnl: ', gamma_pnl)
