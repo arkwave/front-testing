@@ -259,6 +259,11 @@ class Portfolio:
         """
         return (len(self.OTC) == 0) and (len(self.hedges) == 0)
 
+    def ops_empty(self):
+        """Checks to see if there are any OTC options left; called in rebalance in simulation.
+        """
+        return len(self.OTC_options) == 0
+
     def init_sec_by_month(self, iden):
         """Initializing method that creates the relevant futures list,
             options list, and dictionary depending on the flag passed in.

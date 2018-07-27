@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   RMS08
-# @Last Modified time: 2018-07-25 17:24:29
+# @Last Modified time: 2018-07-27 12:59:51
 
 ################################ imports ###################################
 # general imports
@@ -327,13 +327,9 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         vdf_1 = vdf_1[vdf_1.vol_id.isin(
             pf.get_unique_volids())].reset_index(drop=True)
 
-        # print('vdf_1', vdf_1.head(5))
-
-        # pdf_1.time = pd.to_datetime(pdf_1.time).dt.time
-
+        # optional parameter if OHLC is used, indicating the order in which entries were sorted.
         data_order = None
 
-        # print('vdf unique times: ', vdf_1.time.unique())
         # need this check because for intraday/settlement to settlement, no reordering
         # is required; granularize is called in OHLC case only after an order
         # has been determined
@@ -350,13 +346,12 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 if 'intraday' in pdf_1.datatype.unique():
                     raise AssertionError("dataset not filtered for UIDS on " + str(date) + " : ",
                                          pdf_1.underlying_id.unique()) from e
+
         print('================ beginning intraday loop =====================')
         unique_ts = pdf_1.time.unique()
-        # print('unique_ts: ', unique_ts)
-        # print('unique_ts_type: ', type(unique_ts[0]))
+        # bookkeeping variable. 
         dailyhedges = []
         for ts in unique_ts:
-            # ts = pd.to_datetime(ts).time()
             pdf = pdf_1[pdf_1.time == ts]
             if ohlc:
                 print('@@@@@@@@@@@@@@@ OHLC STEP GRANULARIZING @@@@@@@@@@@@@@@@')
@@ -400,15 +395,13 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
             # Step 3: Feed data into the portfolio.
                 print("========================= FEED DATA ==========================")
-                # print('vdf: ', vdf)
                 # NOTE: currently, exercising happens as soon as moneyness is triggered.
                 # This should not be much of an issue since exercise is never
                 # actually reached.
                 pf, gamma_pnl, vega_pnl, exercise_profit, exercise_futures, barrier_futures \
                     = feed_data(vdf, pdf_ts, pf, init_val, flat_vols=flat_vols, flat_price=flat_price)
 
-                print(
-                    "========================= PNL & BARR/EX ==========================")
+                print("==================== PNL & BARR/EX =====================")
 
             # Step 4: Compute pnl for the this timestep.
                 updated_val = pf.compute_value()
@@ -484,16 +477,16 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             print('total = gamma + vega: ', dailypnl, dailyvega + dailygamma)
 
     # Step 5: Apply signal
-        print("========================= SIGNALS ==========================")
+        
         if signals is not None:
-            print('signals not none, applying. ')
+            print("========================= SIGNALS ==========================")
             relevant_signals = signals[signals.value_date == date]
             pf, cost, sigvals = apply_signal(pf, settle_prices, settle_vols, relevant_signals, date,
                                              sigvals, strat='filo',
                                              brokerage=brokerage, slippage=slippage)
             print('signals cost: ', cost)
             dailycost += cost
-        print("====================================================================")
+            print("====================================================================")
 
     # Step 6: rolling over portfolio and hedges if required.
         # simple case
@@ -528,7 +521,6 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                     curr_settles = settle_vols[settle_vols.pdt == pdt]
                     unaffected = pd.concat([unaffected, curr_settles])
                 book_vols = unaffected
-
             print('new book vols: ', book_vols)
 
         print("===================================================================")
@@ -536,31 +528,34 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         pf.assign_hedger_dataframes(h_vdf, settle_prices, settles=settle_vols)
 
         # testing: remove after.
-        init_ttms = np.array(pf.OTC_options[0].get_ttms())*365
-        print('ttms before rebalance: ', init_ttms)
+        try:
+            init_ttms = np.array(pf.OTC_options[0].get_ttms())*365
+            print('ttms before rebalance: ', init_ttms)
+        except IndexError:
+            print('portfolio is empty!')
+            print('pf: ', pf)
+            print('pf.empty: ', pf.empty())
+
 
     # Step 7: Hedge - bring greek levels across portfolios (and families) into
     # line with target levels using specified vols/prices.
         print("========================= REBALANCE ==========================")
-        print('settle prices before rebalance: ', settle_prices)
+        # print('settle prices before rebalance: ', settle_prices)
         pf, cost, roll_hedged = rebalance(h_vdf, settle_prices, pf, brokerage=brokerage,
                                           slippage=slippage, next_date=next_date,
                                           settlements=settle_vols, book=book)
         print('rebalance cost: ', cost)
         dailycost += cost
         print("==================================================================")
-
-        final_ttms = np.array(pf.OTC_options[0].get_ttms())*365
-        print('ttms after rebalance: ', final_ttms)
+        try:
+            final_ttms = np.array(pf.OTC_options[0].get_ttms())*365
+            print('ttms after rebalance: ', final_ttms)
+        except IndexError as e:
+            print('portfolio is empty!')
 
         assert np.array_equal(init_ttms, final_ttms)
 
-    # Step 8: Update highest_value so that the next
-    # loop can check for drawdown.
-
-    # store a copy for log writing purposes.
-
-        # compute market minuses, isolate if end of sim.
+    # Step 8: compute market minuses, isolate if end of sim.
         mm, diff = compute_market_minus(pf, settle_vols)
         print('market minuses for the day: ', mm, diff)
         if end_date is not None:
@@ -669,80 +664,10 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # Step 13: Logging relevant output to csv
     ##########################################################################
         print("========================= LOG WRITING  ==========================")
-        # Portfolio-wide information
-        # dic = log_pf.get_net_greeks()
-        call_vega = sum([op.vega for op in log_pf.get_all_options()
-                         if op.K >= op.underlying.get_price()])
-
-        put_vega = sum([op.vega for op in log_pf.get_all_options()
-                        if op.K < op.underlying.get_price()])
-
-        if drawdown_limit is not None:
-            drawdown_val = net_cumul_values[-1] - highest_value
-            drawdown_pct = (
-                highest_value - net_cumul_values[-1])/(drawdown_limit)
-
-        settlement_prices = pf.uid_price_dict()
-        # option specific information
-        for op in log_pf.get_all_options():
-            op_value = op.get_price()
-            # pos = 'long' if not op.shorted else 'short'
-            char = op.char
-            oplots = -op.lots if op.shorted else op.lots
-            opvol = op.vol
-            strike = op.K
-            pdt, ftmth, opmth = op.get_product(), op.get_month(), op.get_op_month()
-            vol_id = op.get_vol_id()
-            tau = round(op.tau * 365)
-            where = 'OTC' if op in pf.OTC_options else 'hedge'
-            underlying_id = op.get_uid()
-            ftprice = settlement_prices[underlying_id]
-
-            dic = log_pf.get_net_greeks()
-            d, g, t, v = dic[pdt][ftmth]
-
-            breakeven = log_pf.hedger.breakeven[pdt][ftmth]
-            breakevens.append(breakeven)
-
-            # fix logging to take into account BOD to BOD convention.
-            lst = [date, vol_id, underlying_id, char, where, tau, op_value, oplots,
-                   ftprice, strike, opvol, dailypnl, dailynet, grosspnl, netpnl,
-                   dailygamma, gammapnl, dailyvega, vegapnl, roll_hedged, d, g, t, v,
-                   data_order, num_days, breakeven]
-
-            cols = ['value_date', 'vol_id', 'underlying_id', 'call/put', 'otc/hedge',
-                    'ttm', 'option_value', 'option_lottage', 'px_settle',
-                    'strike', 'vol', 'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross',
-                    'cu_pnl_net', 'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl',
-                    'cu_vega_pnl', 'delta_rolled', 'net_delta', 'net_gamma', 'net_theta',
-                    'net_vega', 'data order', 'timestep', 'breakeven']
-
-            adcols = ['pdt', 'ft_month', 'op_month', 'delta', 'gamma', 'theta',
-                      'vega', 'net_call_vega', 'net_put_vega', 'b/s']
-
-            if op.barrier is not None:
-                barlevel = op.ki if op.ki is not None else op.ko
-                bvol = op.bvol
-                knockedin = op.knockedin
-                knockedout = op.knockedout
-                lst.extend([barlevel, bvol, knockedin, knockedout])
-                cols.extend(['barlevel', 'barrier_vol',
-                             'knockedin', 'knockedout'])
-
-            if drawdown_limit is not None:
-                lst.extend([drawdown_val, drawdown_pct])
-                cols.extend(['drawdown', 'drawdown_pct'])
-
-            cols.extend(adcols)
-
-            # getting net greeks
-            delta, gamma, theta, vega = op.greeks()
-
-            lst.extend([pdt, ftmth, opmth, delta, gamma, theta,
-                        vega, call_vega, put_vega, dailycost])
-
-            l_dic = OrderedDict(zip(cols, lst))
-            loglist.append(l_dic)
+        dailylog = write_log(log_pf, pf, drawdown_limit, date, dailypnl, dailynet, grosspnl, netpnl, dailygamma, 
+                             gammapnl, dailyvega, vegapnl, roll_hedged, data_order, num_days,
+                             highest_value, net_cumul_values, breakevens, dailypnl, dailycost)
+        loglist.extend(dailylog)
         print("========================= END LOG WRITING ==========================")
 
         print('[1.0]   EOD PNL (GROSS): ', dailypnl)
@@ -1130,18 +1055,21 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
     # opmth = op.get_op_month()
 
     # base case: option is a vanilla option, or has expired.
-
     if (op.barrier is None) or (op.check_expired()):
         # print('simulation.handle_barrers - vanilla/expired case ')
         ret = pf, 0, []
         return ret
 
+    # edge case where there is one daily op expiring today.
+    if not op.is_bullet():
+        if np.isclose(max(op.get_ttms()), 0):
+            return pf, 0, []
+
     bar_op = copy.deepcopy(op)
+    
     # create vanilla option with the same stats as the barrier option AFTER
     # knockin.
-
     volid = op.get_vol_id()
-
     # print('vdf Z8: ', vdf)
 
     vanop = create_vanilla_option(vdf, pdf, volid, op.char, op.shorted,
@@ -1252,7 +1180,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
         2) Accepts both cash and future settlement
 
     """
-    if pf.empty():
+    if pf.empty() or pf.ops_empty():
         return 0, pf, False, []
     exercised = False
     t = time.clock()
@@ -1618,7 +1546,7 @@ def rebalance(vdf, pdf, pf, buckets=None, brokerage=None, slippage=None,
     droll = None
 
     # sanity check
-    if pf.empty():
+    if pf.empty() or pf.ops_empty():
         return pf, 0, False
 
     roll_hedged = check_roll_status(pf)
@@ -2088,6 +2016,113 @@ def check_roll_status(pf):
                     bool_list[index] = False
 
     return all([i for i in bool_list])
+
+
+def write_log(log_pf, pf, drawdown_limit, date, dailpnl, dailynet, grosspnl, netpnl, dailygamma, 
+              gammapnl, dailyvega, vegapnl, roll_hedged, data_order, num_days,
+              highest_value, net_cumul_values, breakevens, dailypnl, dailycost):
+    """Summary
+    
+    Args:
+        log_pf (TYPE): Description
+        pf (TYPE): Description
+        drawdown_limit (TYPE): Description
+        date (TYPE): Description
+        dailpnl (TYPE): Description
+        dailynet (TYPE): Description
+        grosspnl (TYPE): Description
+        netpnl (TYPE): Description
+        dailygamma (TYPE): Description
+        gammapnl (TYPE): Description
+        dailyvega (TYPE): Description
+        vegapnl (TYPE): Description
+        roll_hedged (TYPE): Description
+        data_order (TYPE): Description
+        num_days (TYPE): Description
+        highest_value (TYPE): Description
+        net_cumul_values (TYPE): Description
+        breakevens (TYPE): Description
+        dailypnl (TYPE): Description
+        dailycost (TYPE): Description
+    
+    Returns:
+        TYPE: Description
+    """
+    loglist = []
+    call_vega = sum([op.vega for op in log_pf.get_all_options()
+                     if op.K >= op.underlying.get_price()])
+
+    put_vega = sum([op.vega for op in log_pf.get_all_options()
+                    if op.K < op.underlying.get_price()])
+
+    if drawdown_limit is not None:
+        drawdown_val = net_cumul_values[-1] - highest_value
+        drawdown_pct = (
+            highest_value - net_cumul_values[-1])/(drawdown_limit)
+
+    settlement_prices = pf.uid_price_dict()
+    # option specific information
+    for op in log_pf.get_all_options():
+        op_value = op.get_price()
+        # pos = 'long' if not op.shorted else 'short'
+        char = op.char
+        oplots = -op.lots if op.shorted else op.lots
+        opvol = op.vol
+        strike = op.K
+        pdt, ftmth, opmth = op.get_product(), op.get_month(), op.get_op_month()
+        vol_id = op.get_vol_id()
+        tau = round(op.tau * 365)
+        where = 'OTC' if op in pf.OTC_options else 'hedge'
+        underlying_id = op.get_uid()
+        ftprice = settlement_prices[underlying_id]
+
+        dic = log_pf.get_net_greeks()
+        d, g, t, v = dic[pdt][ftmth]
+
+        breakeven = log_pf.hedger.breakeven[pdt][ftmth]
+        breakevens.append(breakeven)
+
+        # fix logging to take into account BOD to BOD convention.
+        lst = [date, vol_id, underlying_id, char, where, tau, op_value, oplots,
+               ftprice, strike, opvol, dailypnl, dailynet, grosspnl, netpnl,
+               dailygamma, gammapnl, dailyvega, vegapnl, roll_hedged, d, g, t, v,
+               data_order, num_days, breakeven]
+
+        cols = ['value_date', 'vol_id', 'underlying_id', 'call/put', 'otc/hedge',
+                'ttm', 'option_value', 'option_lottage', 'px_settle',
+                'strike', 'vol', 'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross',
+                'cu_pnl_net', 'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl',
+                'cu_vega_pnl', 'delta_rolled', 'net_delta', 'net_gamma', 'net_theta',
+                'net_vega', 'data order', 'timestep', 'breakeven']
+
+        adcols = ['pdt', 'ft_month', 'op_month', 'delta', 'gamma', 'theta',
+                  'vega', 'net_call_vega', 'net_put_vega', 'b/s']
+
+        if op.barrier is not None:
+            barlevel = op.ki if op.ki is not None else op.ko
+            bvol = op.bvol
+            knockedin = op.knockedin
+            knockedout = op.knockedout
+            lst.extend([barlevel, bvol, knockedin, knockedout])
+            cols.extend(['barlevel', 'barrier_vol',
+                         'knockedin', 'knockedout'])
+
+        if drawdown_limit is not None:
+            lst.extend([drawdown_val, drawdown_pct])
+            cols.extend(['drawdown', 'drawdown_pct'])
+
+        cols.extend(adcols)
+
+        # getting net greeks
+        delta, gamma, theta, vega = op.greeks()
+
+        lst.extend([pdt, ftmth, opmth, delta, gamma, theta,
+                    vega, call_vega, put_vega, dailycost])
+
+        l_dic = OrderedDict(zip(cols, lst))
+        loglist.append(l_dic)
+    
+    return loglist
 
 #######################################################################
 #######################################################################
