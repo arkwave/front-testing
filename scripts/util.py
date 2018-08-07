@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   RMS08
-# @Last Modified time: 2018-07-25 16:39:17
+# @Last Modified by:   arkwave
+# @Last Modified time: 2018-08-07 17:11:36
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -1148,24 +1148,25 @@ def volids_from_ci(date_range, product, ci):
     return dates_to_volid
 
 
-def assign_hedge_objects(pf, vdf=None, pdf=None, book=False):
+def assign_hedge_objects(pf, vdf=None, pdf=None, book=False, slippage=None):
     """Helper method that generates and relates a portfolio object 
     with the the Hedger object calibrated to pf.hedge_params. 
-
+    
     Args:
         pf (TYPE): Portfolio object.
         vdf (dataframe, optional): dataframe of volatilities. 
         pdf (dataframe, optional): dataframe of prices 
         book (bool, optional): True if hedging is done basis book vols, False otherwise.
-
+        slippage (None, optional): either flat value for slippage or dictionary of lots -> slippage ticks
+    
     Returns:
         object: Portfolio object with Hedger constructed and assigned.
-
+    
     """
     # case: simple portfolio.
     from .hedge import Hedge
     # print('assign_hedge_objects - init pf: ', pf)
-    hedger = Hedge(pf, pf.hedge_params, vdf=vdf, pdf=pdf, book=book)
+    hedger = Hedge(pf, pf.hedge_params, vdf=vdf, pdf=pdf, book=book, slippage=slippage)
     # print('assign_hedge_objects - after creating hedge object: ', pf)
     pf.hedger = hedger
     # print('assign_hedge_objects - after assigning hedger: ', pf)

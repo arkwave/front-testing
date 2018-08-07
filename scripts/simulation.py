@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   RMS08
-# @Last Modified time: 2018-07-27 18:05:22
+# @Last Modified by:   arkwave
+# @Last Modified time: 2018-08-07 17:24:35
 
 ################################ imports ###################################
 # general imports
@@ -51,6 +51,24 @@ multipliers = {
     'COM': [1.0604, 50, 0.25, 2.5, 53.02],
     'CA': [1.0604, 50, 0.25, 1, 53.02],
     'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
+}
+
+op_ticksize = {
+
+    'QC': 1,
+    'CC': 1,
+    'SB': 0.01,
+    'LSU': 0.05,
+    'KC': 0.01,
+    'DF': 1,
+    'CT': 0.01,
+    'C': 0.125,
+    'S': 0.125,
+    'SM': 0.05,
+    'BO': 0.005,
+    'W': 0.125,
+    'MW': 0.125,
+    'KW': 0.125
 }
 
 contract_mths = {
@@ -178,7 +196,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     ########################################
     # constructing/assigning hedge objects #
     book = True if mode in ('HBPS', 'HBPB') else False
-    pf = assign_hedge_objects(pf, book=book)
+    pf = assign_hedge_objects(pf, book=book, slippage=slippage)
     # initial timestep, because previous day's settlements were used to construct
     # the portfolio.
     # get the init diff and timestep
@@ -1360,7 +1378,7 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, hedges_only=Fal
                 # creating the underlying future object
                 print('rolling op')
                 fa, cost, newop, old_op, iden = contract_roll(
-                    fa, op, vdf, pdf, date, flag)
+                    fa, op, vdf, pdf, date, flag, slippage=slippage)
                 composites.append(newop)
                 processed_ops.add(old_op)
                 deltas_to_close.add(iden)
@@ -1399,11 +1417,11 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, hedges_only=Fal
                 flag = 'hedge'
                 # roll the option
                 fam, cost, newop, old_op, iden = contract_roll(
-                    fam, op, vdf, pdf, date, flag)
+                    fam, op, vdf, pdf, date, flag, slippage=slippage)
                 # roll the partners
                 deltas_to_close, composites, total_cost, processed, rolled_vids\
                     = roll_handle_partners(date, pf, fa, op, deltas_to_close,
-                                           composites, total_cost, processed, vdf, pdf, rolled_vids)
+                                           composites, total_cost, processed, vdf, pdf, rolled_vids, slippage=slippage)
                 edge_case_ops.update(partners)
                 create_composites(composites)
 
@@ -1420,9 +1438,10 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, hedges_only=Fal
     return pf, total_cost, deltas_to_close
 
 
-def roll_handle_partners(date, pf, fa, op, deltas_to_close, composites, total_cost, processed, vdf, pdf, rolled_vids):
+def roll_handle_partners(date, pf, fa, op, deltas_to_close, composites, 
+                         total_cost, processed, vdf, pdf, rolled_vids, slippage=None):
     """Helper method that handles partners when rolling options.
-
+    
     Args:
         date (TYPE): current date within the simulation
         pf (TYPE): super-portfolio being handled.
@@ -1435,10 +1454,11 @@ def roll_handle_partners(date, pf, fa, op, deltas_to_close, composites, total_co
         vdf (TYPE): dataframe of volatilies.
         pdf (TYPE): dataframe of prices
         rolled_vids (TYPE): vol_ids that have already been rolled thus far.
-
+        slippage (None, optional): Optional parameter that adds slippage risk, measured in ticks.
+    
     Returns:
         tuple: updated deltas_to_close, composites, total_cost, processed and rolled_vids
-
+    
     Deleted Parameters:
         cost (TYPE): Description
     """
@@ -1456,7 +1476,7 @@ def roll_handle_partners(date, pf, fa, op, deltas_to_close, composites, total_co
             rolled_vids.add(opx.get_vol_id())
             flag2 = 'OTC' if opx in tar.OTC_options else 'hedge'
             tar, cost2, new_opx, old_opx, iden_2 = contract_roll(
-                tar, opx, vdf, pdf, date, flag2)
+                tar, opx, vdf, pdf, date, flag2, slippage=slippage)
             composites.append(new_opx)
             deltas_to_close.add(iden_2)
             processed[tar].add(old_opx)
@@ -1465,9 +1485,9 @@ def roll_handle_partners(date, pf, fa, op, deltas_to_close, composites, total_co
     return deltas_to_close, composites, total_cost, processed, rolled_vids
 
 
-def contract_roll(pf, op, vdf, pdf, date, flag):
+def contract_roll(pf, op, vdf, pdf, date, flag, slippage=None):
     """Helper method that deals with contract rolliing if needed.
-
+    
     Args:
         pf (TYPE): the portfolio to which this option belongs.
         op (TYPE): the option being contract-rolled.
@@ -1475,14 +1495,15 @@ def contract_roll(pf, op, vdf, pdf, date, flag):
         pdf (TYPE): dataframe of prices
         date (TYPE): current date in the simulation
         flag (TYPE): OTC or hedge.
-
+        slippage (None, optional): Slippage factor. 
+    
     Returns:
         tuple: pf, cost, newop, op, iden 
         > pf = updated portfolio with the new contract option. 
         > cost = cost of rolling over.
         > newop = the new option that was added. 
         > iden = tuple of (product, future month, future price) 
-
+    
     Raises:
         ValueError: Raised if the data for the contract being rolled to
         cannot be found in the dataset provided.
@@ -1544,6 +1565,12 @@ def contract_roll(pf, op, vdf, pdf, date, flag):
 
     pf.refresh()
 
+    if slippage is not None:
+        if type(slippage) == dict:
+            num_ticks = slippage[op.get_product()][min([x for x in slippage], key=lambda x: abs(x - op.lots))]
+        else:
+            num_ticks = slippage
+        cost += num_ticks * op_ticksize[newop.get_product()] * multipliers[newop.get_product()][-1]
     return pf, cost, newop, op, iden
 
 
@@ -1955,15 +1982,14 @@ def delta_roll(pf, op, roll_val, vdf, pdf, flag, slippage=None,
     if brokerage:
         cost += (brokerage * (op.lots + newop.lots))
 
-    if slippage:
-        ttm = newop.tau * 365
-        if ttm < 60:
-            s_val = slippage[0]
-        elif ttm >= 60 and ttm < 120:
-            s_val = slippage[1]
+    if slippage is not None:
+        if type(slippage) == dict:
+            pdt_ticks = slippage[op.get_product()] 
+            num_ticks = pdt_ticks[min([x for x in pdt_ticks], key=lambda x: abs(x - op.lots))]
         else:
-            s_val = slippage[-1]
-        cost += (s_val * (newop.lots + op.lots))
+            num_ticks = slippage
+
+        cost += num_ticks * op_ticksize[newop.get_product()] * multipliers[newop.get_product()][-1]
 
     # case: hedging is being done basis book vols. need to calculate premium difference when
     # considering this option basis book vols and basis settle vols, and add the difference to the

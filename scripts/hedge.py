@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-29 17:33:48
+# @Last Modified time: 2018-08-07 17:26:36
 
 import pandas as pd
 import pprint
@@ -30,6 +30,24 @@ multipliers = {
     'COM': [1.0604, 50, 0.25, 2.5, 53.02],
     'CA': [1.0604, 50, 0.25, 1, 53.02],
     'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
+}
+
+op_ticksize = {
+
+    'QC': 1,
+    'CC': 1,
+    'SB': 0.01,
+    'LSU': 0.05,
+    'KC': 0.01,
+    'DF': 1,
+    'CT': 0.01,
+    'C': 0.125,
+    'S': 0.125,
+    'SM': 0.05,
+    'BO': 0.005,
+    'W': 0.125,
+    'MW': 0.125,
+    'KW': 0.125
 }
 
 
@@ -611,10 +629,14 @@ class Hedge:
     def apply(self, flag, intraday=False, ohlc=False):
         """Main method that actually applies the hedging logic specified.
         The kind of structure used to hedge is specified by self.params['kind']
-
+        
         Args:
-            pf (TYPE): The portfolio being hedged
             flag (string): the greek being hedged
+            intraday (bool, optional): indicates if this hedge is an intraday delta hedge
+            ohlc (bool, optional): indicates if this is an OHLC hedge
+            
+        Returns:
+            TYPE: Description
         """
         # base case: flag not in hedges
         # print('======= applying ' + flag + ' hedge =========')
@@ -713,18 +735,13 @@ class Hedge:
             return 0
 
         # adding the hedge structures.
-        ops = self.add_hedges(data, shorted, hedge_id, flag,
-                              reqd_val, loc, settlements=self.settlements)
+        ops, cost = self.add_hedges(data, shorted, hedge_id, flag,
+                                    reqd_val, loc, settlements=self.settlements)
 
         self.refresh()
 
         # computing slippage/brokerage if required.
         if ops:
-            if self.s:
-                pass
-            if self.b:
-                cost += self.b * sum([op.lots for op in ops])
-
             # case: hedging is being done basis book vols. In this case,
             # the difference in premium paid must be computed basis settlement
             # vols, and the added to the cost of transaction.
@@ -1051,6 +1068,21 @@ class Hedge:
                     #       ' is within bounds. skipping hedging.')
                     return []
 
+            # computing cost of hedges
+            if ops:
+                cost = sum([op.get_price() for op in ops])
+                op = ops[0]
+                if self.s is not None:
+                    if type(self.s) == dict:
+                        pdt_ticks = self.s[op.get_product()] 
+                        num_ticks = pdt_ticks[min([x for x in pdt_ticks], key=lambda x: abs(x - op.lots))]
+                    else:
+                        num_ticks = self.s
+                    cost += num_ticks * op_ticksize[op.get_product()] * multipliers[op.get_product()][-1]
+
+                if self.b:
+                    cost += self.b * sum([op.lots for op in ops])
+
             self.pf.add_security(list(ops), 'hedge')
 
         except IndexError:
@@ -1058,4 +1090,4 @@ class Hedge:
             print(product + ' ' + str(loc) +
                   ' price and/or vol data does not exist. skipping...')
 
-        return ops
+        return ops, cost 
