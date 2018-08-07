@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2018-08-07 17:24:35
+# @Last Modified time: 2018-08-07 17:37:31
 
 ################################ imports ###################################
 # general imports
@@ -1567,10 +1567,12 @@ def contract_roll(pf, op, vdf, pdf, date, flag, slippage=None):
 
     if slippage is not None:
         if type(slippage) == dict:
-            num_ticks = slippage[op.get_product()][min([x for x in slippage], key=lambda x: abs(x - op.lots))]
+            pdt_ticks = slippage[op.get_product()] 
+            num_ticks = pdt_ticks[min([x for x in pdt_ticks], key=lambda x: abs(x - op.lots))]
         else:
             num_ticks = slippage
         cost += num_ticks * op_ticksize[newop.get_product()] * multipliers[newop.get_product()][-1]
+
     return pf, cost, newop, op, iden
 
 
