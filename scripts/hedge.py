@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2018-08-07 17:26:36
+# @Last Modified time: 2018-08-08 12:40:41
 
 import pandas as pd
 import pprint
@@ -1078,11 +1078,13 @@ class Hedge:
                         num_ticks = pdt_ticks[min([x for x in pdt_ticks], key=lambda x: abs(x - op.lots))]
                     else:
                         num_ticks = self.s
+                    print('greek hedge - num_ticks: ', num_ticks)
                     cost += num_ticks * op_ticksize[op.get_product()] * multipliers[op.get_product()][-1]
 
                 if self.b:
                     cost += self.b * sum([op.lots for op in ops])
 
+            print('adding options: ', len(ops) > 0)
             self.pf.add_security(list(ops), 'hedge')
 
         except IndexError:

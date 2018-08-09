@@ -172,16 +172,22 @@ class Option:
             if self.direc == 'down':
                 string += 'DO'
             string += ' ' + str(self.ko)
+        price = self.get_price()
         string += ' S ' if self.shorted else ' L '
         string += str(self.underlying.get_price())
         string += ' | lots - ' + str(int(self.lots)) + ' |'
         string += ' ttm - ' + str(round(self.tau * 365)) + ' |'
         string += ' order - [c_' + str(self.ordering) + '] |'
-        string += ' price - ' + str(self.price) + ' |'
+        string += ' price - ' + str(price) + ' |'
         string += ' delta - ' + str(abs(self.delta / self.lots)) + ' |'
         string += ' vol - ' + str(self.vol) + ' |'
         string += ' bvol - '
-        string += str(self.bvol) if self.bvol is not None else 'None'
+        string += str(self.bvol) if self.bvol is not None else 'None' 
+        string += ' | '
+        string += ' | dbarrier - %s | ' % self.dbarrier  
+        string += 'bvol2 - ' + str(self.bvol2) if self.bvol2 is not None else 'None' 
+        string += ' | '
+        string += ' len_ttms - %s | ' % len(self.dailies)
         string += ' | strike type: ' + str(self.strike_type) + ' '
         string += '>>'
         return string

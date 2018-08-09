@@ -1074,10 +1074,13 @@ class Portfolio:
             gammas = []
             for mth in dic[pdt]:
                 gamma, theta = abs(dic[pdt][mth][1]), abs(dic[pdt][mth][2])
-                thetas.append(theta)
-                gammas.append(gamma)
-                bes[pdt][mth] = (((2.8*theta)/gamma) ** 0.5) / \
-                    multipliers[pdt][0]
+                if np.isclose(gamma, 0) or np.isclose(theta, 0):
+                    bes[pdt][mth] = 0 
+                else:
+                    thetas.append(theta)
+                    gammas.append(gamma)
+                    bes[pdt][mth] = (((2.8*theta)/gamma) ** 0.5) / \
+                        multipliers[pdt][0]
 
         return bes
 
