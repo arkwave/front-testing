@@ -172,13 +172,13 @@ class Option:
             if self.direc == 'down':
                 string += 'DO'
             string += ' ' + str(self.ko)
-        price = self.get_price()
+        # price = self.get_price()
         string += ' S ' if self.shorted else ' L '
         string += str(self.underlying.get_price())
         string += ' | lots - ' + str(int(self.lots)) + ' |'
         string += ' ttm - ' + str(round(self.tau * 365)) + ' |'
         string += ' order - [c_' + str(self.ordering) + '] |'
-        string += ' price - ' + str(price) + ' |'
+        string += ' price - ' + str(self.price) + ' |'
         string += ' delta - ' + str(abs(self.delta / self.lots)) + ' |'
         string += ' vol - ' + str(self.vol) + ' |'
         string += ' bvol - '

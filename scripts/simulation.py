@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2018-08-10 10:34:54
+# @Last Modified time: 2018-08-10 16:35:59
 
 ################################ imports ###################################
 # general imports
@@ -207,12 +207,12 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     init_diff = (pd.to_datetime(date_range[1]) - 
                  pd.to_datetime(date_range[0])).days
     print('init diff: ', init_diff)
-    print('initial ttms: ', np.array(pf.OTC_options[0].get_ttms())*365)
+    # print('initial ttms: ', np.array(pf.OTC_options[0].get_ttms())*365)
     pf.timestep(init_diff * timestep)
     # pf.remove_expired()
     pf = hedge_all_deltas(pf, pricedata)
     init_val = pf.compute_value()
-    print('post init ttms: ', np.array(pf.OTC_options[0].get_ttms())*365)
+    # print('post init ttms: ', np.array(pf.OTC_options[0].get_ttms())*365)
 
     # print('sim_start BOD init_value: ', init_val)
     # assign book vols; defaults to initialization date.
@@ -316,7 +316,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         print("========================= INIT ==========================")
         print('Portfolio before any ops pf:', pf)
         print('init val BOD: ', init_val)
-        print('ttms: ', np.array(pf.OTC_options[0].get_ttms()) * 365)
+        # print('ttms: ', np.array(pf.OTC_options[0].get_ttms()) * 365)
         print("==========================================================")
 
         dailypnl = 0
@@ -338,11 +338,10 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         print('last hedgepoints: ', pf.hedger.last_hedgepoints)
 
         # grab and store the settlement vols/prices so intraday data
-        # can be granularized with no problems
+        # can be granularized with no problems, and saving for rebalancing/rollover 
+        # steps if needed.
         settle_vols = vdf_1[vdf_1.datatype == 'settlement'].copy()
         settle_prices = pdf_1[pdf_1.datatype == 'settlement'].copy()
-
-        # print('settle_prices: ', settle_prices)
 
         # filter dataframes to get only pertinent UIDs data.
         pdf_1 = pdf_1[pdf_1.underlying_id.isin(
@@ -376,6 +375,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         dailyhedges = []
         for ts in unique_ts:
             pdf = pdf_1[pdf_1.time == ts]
+            pdf.reset_index(drop=True, inplace=True)
             print('pdf: ', pdf)
             if ohlc:
                 print('@@@@@@@@@@@@@@@ OHLC STEP GRANULARIZING @@@@@@@@@@@@@@@@')
@@ -383,18 +383,17 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
             # currently, vdf only exists for settlement anyway.
             vdf = vdf_1[vdf_1.time == ts]
-            for index in pdf.index:
+            # if settlement data, pass in the entire dataframe. if not, pass in each individual timestamp. 
+            datapoints = [pdf] if 'intraday' not in pdf.datatype.unique() else [pdf.iloc[i] for i in pdf.index]
+            for pdf_ts in datapoints:
                 # get the current row and variables
-                pdf_ts = pdf[pdf.index == index]
                 datatype = pdf_ts.datatype.values[0]
                 uid = pdf_ts.underlying_id.values[0]
                 # OHLC case: if the UID is not in the portfolio, skip.
                 if uid not in pf.get_unique_uids():
                     continue
-
                 val = pdf_ts.price.values[0]
                 diff = 0
-
                 if ohlc:
                     # since OHLC timestamps are set after reorder,
                     # this is required to select settlement vols only
@@ -403,17 +402,13 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 lp = pf.hedger.last_hedgepoints[uid]
                 print('===================== time: ' +
                       str(pdf_ts.time.values[0]) + ' =====================')
-                print('index: ', index)
 
+                print('%s price move to %s for uid last hedged at %s' % (datatype, val, lp))
                 if datatype == 'intraday':
-                    dailyhedges.append(
-                        {'date': date, 'time': ts, 'uid': uid, 'hedge point': val})
-
-                    print('valid price move to ' + str(val) +
-                          ' for uid last hedged at ' + str(lp))
-                elif datatype == 'settlement':
-                    print('settlement price move to ' + str(val) +
-                          ' for uid last hedged at ' + str(lp))
+                    dailyhedges.append({'date': date, 
+                                        'time': ts, 
+                                        'uid': uid, 
+                                        'hedge point': val})
 
                 pf.assign_hedger_dataframes(vdf, pdf_ts)
 
@@ -553,7 +548,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         # testing: remove after.
         try:
             init_ttms = np.array(pf.OTC_options[0].get_ttms())*365
-            print('ttms before rebalance: ', init_ttms)
+        #     print('ttms before rebalance: ', init_ttms)
         except IndexError:
             print('portfolio is empty!')
             print('pf: ', pf)
@@ -572,7 +567,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         print("==================================================================")
         try:
             final_ttms = np.array(pf.OTC_options[0].get_ttms())*365
-            print('ttms after rebalance: ', final_ttms)
+            # print('ttms after rebalance: ', final_ttms)
         except IndexError as e:
             print('portfolio is empty!')
 
@@ -897,7 +892,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
             pf, cost, fts = handle_barriers(
                 voldf, pdf, ft, val, pf, date)
             barrier_futures.extend(fts)
-            print('updating price to ' + str(val))
+            # print('updating price to ' + str(val))
             ft.update_price(val)
 
         # index error would occur only if data is missing.
@@ -924,6 +919,8 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
             except IndexError:
                 ft.update_price(ft.get_price())
     pf.refresh()    
+
+    print('uid price dict before exercise: ', pf.uid_price_dict())
     exercise_profit, pf, exercised, exercise_futures = handle_exercise(
         pf, brokerage, slippage)
 
@@ -934,13 +931,13 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
     # if price_updated:
     pf.refresh()
     # removing expiries
-    print('ttms before removing expiries: ', np.array(pf.OTC_options[0].get_ttms()) * 365)
+    # print('ttms before removing expiries: ', np.array(pf.OTC_options[0].get_ttms()) * 365)
 
     print('pf value: ', pf.compute_value())
 
     pf.remove_expired()
     # refresh after handling expiries.
-    print('ttms after removing expiries: ', np.array(pf.OTC_options[0].get_ttms()) * 365)
+    # print('ttms after removing expiries: ', np.array(pf.OTC_options[0].get_ttms()) * 365)
     pf.refresh()
     print('pf value: ', pf.compute_value())
 
