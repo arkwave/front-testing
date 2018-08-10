@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   arkwave
-# @Last Modified time: 2018-08-07 17:37:31
+# @Last Modified time: 2018-08-10 10:34:54
 
 ################################ imports ###################################
 # general imports
@@ -16,7 +16,7 @@ from collections import OrderedDict
 from pandas.tseries.offsets import BDay
 
 # user defined imports
-from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites, assign_hedge_objects, compute_market_minus, mark_to_vols
+from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites, assign_hedge_objects, compute_market_minus, mark_to_vols, hedge_all_deltas
 from .prep_data import reorder_ohlc_data, granularize
 from .calc import _compute_value, get_vol_at_strike
 from .signals import apply_signal
@@ -197,6 +197,9 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # constructing/assigning hedge objects #
     book = True if mode in ('HBPS', 'HBPB') else False
     pf = assign_hedge_objects(pf, book=book, slippage=slippage)
+
+    print('slippage dict: ', pf.get_hedger().s)
+
     # initial timestep, because previous day's settlements were used to construct
     # the portfolio.
     # get the init diff and timestep
@@ -206,8 +209,10 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     print('init diff: ', init_diff)
     print('initial ttms: ', np.array(pf.OTC_options[0].get_ttms())*365)
     pf.timestep(init_diff * timestep)
+    # pf.remove_expired()
+    pf = hedge_all_deltas(pf, pricedata)
     init_val = pf.compute_value()
-    print('initial ttms: ', np.array(pf.OTC_options[0].get_ttms())*365)
+    print('post init ttms: ', np.array(pf.OTC_options[0].get_ttms())*365)
 
     # print('sim_start BOD init_value: ', init_val)
     # assign book vols; defaults to initialization date.
@@ -314,12 +319,9 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         print('ttms: ', np.array(pf.OTC_options[0].get_ttms()) * 365)
         print("==========================================================")
 
-        log_pf = copy.deepcopy(pf)
         dailypnl = 0
         dailygamma = 0
         dailyvega = 0
-        # price_changes = {}
-        latest_price = {}
         exercise_futures = []
         barrier_futures = []
 
@@ -374,6 +376,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         dailyhedges = []
         for ts in unique_ts:
             pdf = pdf_1[pdf_1.time == ts]
+            print('pdf: ', pdf)
             if ohlc:
                 print('@@@@@@@@@@@@@@@ OHLC STEP GRANULARIZING @@@@@@@@@@@@@@@@')
                 init_pdf, pdf, data_order = reorder_ohlc_data(pdf, pf)
@@ -498,7 +501,6 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             print('total = gamma + vega: ', dailypnl, dailyvega + dailygamma)
 
     # Step 5: Apply signal
-        
         if signals is not None:
             print("========================= SIGNALS ==========================")
             relevant_signals = signals[signals.value_date == date]
@@ -511,7 +513,6 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
     # Step 6: rolling over portfolio and hedges if required.
         # simple case
-
         if mode == 'HSPS':
             print('HSPS Mode... hedging basis settlements')
             h_vdf = settle_vols
@@ -686,7 +687,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # Step 13: Logging relevant output to csv
     ##########################################################################
         print("========================= LOG WRITING  ==========================")
-        dailylog = write_log(log_pf, pf, drawdown_limit, date, dailypnl, dailynet, grosspnl, netpnl, dailygamma, 
+        dailylog = write_log(pf, drawdown_limit, date, dailypnl, dailynet, grosspnl, netpnl, dailygamma, 
                              gammapnl, dailyvega, vegapnl, roll_hedged, data_order, num_days,
                              highest_value, net_cumul_values, breakevens, dailypnl, dailycost)
         loglist.extend(dailylog)
@@ -863,8 +864,12 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
     exercise_profit = 0
     barrier_profit = 0
 
+    # print('pdf: ', pdf)
+
     if voldf.empty:
         print("Volatility Dataframe is empty!")
+
+    print('voldf date: ', voldf.value_date.unique())
 
     # # 1) sanity checks
     # if pf.empty():
@@ -877,21 +882,27 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
     for ft in pf.get_all_futures():
         pdt = ft.get_product()
         uid = ft.get_uid()
-        try:
+        # try:
             # case: flat price.
-            if flat_price:
-                continue
-            else:
+        if flat_price:
+            continue
+        else:
+            try:
                 val = pdf[(pdf.pdt == pdt) &
                           (pdf.underlying_id == uid)].price.values[0]
-                pf, cost, fts = handle_barriers(
-                    voldf, pdf, ft, val, pf, date)
-                barrier_futures.extend(fts)
-                ft.update_price(val)
+            except IndexError as e:
+                print('inputs: ', pdt, uid)
+                print('pdf: ', pdf)
+                raise ValueError("Something broke in feed price step.") from e
+            pf, cost, fts = handle_barriers(
+                voldf, pdf, ft, val, pf, date)
+            barrier_futures.extend(fts)
+            print('updating price to ' + str(val))
+            ft.update_price(val)
 
         # index error would occur only if data is missing.
-        except IndexError:
-            ft.update_price(ft.get_price())
+        # except IndexError:
+        #     ft.update_price(ft.get_price())
 
     # handling pnl arising from barrier futures.
     if barrier_futures:
@@ -912,7 +923,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
             # index error would occur only if data is missing.
             except IndexError:
                 ft.update_price(ft.get_price())
-                    
+    pf.refresh()    
     exercise_profit, pf, exercised, exercise_futures = handle_exercise(
         pf, brokerage, slippage)
 
@@ -924,13 +935,15 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
     pf.refresh()
     # removing expiries
     print('ttms before removing expiries: ', np.array(pf.OTC_options[0].get_ttms()) * 365)
+
+    print('pf value: ', pf.compute_value())
+
     pf.remove_expired()
     # refresh after handling expiries.
     print('ttms after removing expiries: ', np.array(pf.OTC_options[0].get_ttms()) * 365)
     pf.refresh()
+    print('pf value: ', pf.compute_value())
 
-    # TODO: Need to re-implement the sanity checks for when portfolio needs
-    # to be cleaned out.
     # sanity check: if no active options, close out entire portfolio.
     if not pf.OTC_options:
         print('all options have expired - removing hedge futures')
@@ -979,6 +992,10 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
             gamma_pnl = (intermediate_val + total_profit) - init_val
     else:
         print('pnl calc: not exercised case')
+        print('intermediate_val: ', intermediate_val)
+        print('init val: ', init_val)
+        print('total_profit: ', total_profit)
+
         gamma_pnl = (intermediate_val + total_profit -
                      init_val) if intermediate_val != 0 else 0
         print('gamma pnl: ', gamma_pnl)
@@ -995,9 +1012,8 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
         # update option attributes by feeding in vol.
         for op in pf.get_all_options():
             # info reqd: strike, order, product, tau
-            strike, product, tau = op.K, op.product, op.tau
+            strike = op.K
             bvol2, b_vol, strike_vol = None, None, None
-            cpi = 'C' if op.char == 'call' else 'P'
             # interpolate or round? currently rounding, interpolation easy.
             ticksize = multipliers[op.get_product()][-2]
             # get strike corresponding to closest available ticksize.
@@ -1005,10 +1021,11 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
             vid = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
 
             try:
-                val = voldf[(voldf.pdt == product) & (voldf.strike == strike) &
-                            (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
-                df_tau = min(val.tau, key=lambda x: abs(x - tau))
-                strike_vol = val[val.tau == df_tau].vol.values[0]
+                # val = voldf[(voldf.pdt == product) & (voldf.strike == strike) &
+                #             (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
+                # strike_vol = val.vol.values[0]
+                strike_vol = get_vol_at_strike(voldf[voldf.vol_id == vid], strike)
+
             except (IndexError, ValueError):
                 print('### VOLATILITY DATA MISSING ###')
                 strike_vol = op.vol
@@ -1016,15 +1033,16 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
             try:
                 if op.barrier is not None:
                     barlevel = op.ki if op.ki is not None else op.ko
-                    b_val = voldf[(voldf.pdt == product) & (voldf.strike == barlevel) &
-                                  (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
-                    df_tau = min(b_val.tau, key=lambda x: abs(x - tau))
-                    b_vol = val[val.tau == df_tau].vol.values[0]
-
+                    # b_val = voldf[(voldf.pdt == product) & (voldf.strike == barlevel) &
+                    #               (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
+                    # print('inputs: ', product, barlevel, vid, cpi)
+                    # b_vol = b_val.vol.values[0]
+                    b_vol = get_vol_at_strike(voldf[voldf.vol_id == vid], barlevel)
+                    # print('bvol: ', b_vol)
                 # case to update the barrier vol of the tick-wide digital. 
                 if op.barrier == 'euro':
                     assert op.dbarrier is not None 
-                    bvol2 = get_vol_at_strike(voldf, op.dbarrier)
+                    bvol2 = get_vol_at_strike(voldf[voldf.vol_id == vid], op.dbarrier)
 
             except (IndexError, ValueError):
                 print('### BARRIER VOLATILITY DATA MISSING ###')
@@ -1035,6 +1053,8 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
             op.update_greeks(vol=strike_vol, bvol=b_vol, bvol2=bvol2)
 
         pf.refresh()
+
+    print('pf after feed: ', pf)
 
     vega_pnl = pf.compute_value() - intermediate_val if intermediate_val != 0 else 0
     return pf, gamma_pnl, vega_pnl, total_profit, exercise_futures, barrier_futures
@@ -1216,6 +1236,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
     tobeadded = []
     for op in all_ops:
         # bullet case
+        print('handle_exercise - future price: ', op.get_underlying().get_price())
         ttm = op.tau if op.is_bullet() else min(op.get_ttms())
         # print('ttm: ', np.array(op.get_ttms()) * 365)
         # print('exercise: ', op.exercise())
@@ -1571,7 +1592,8 @@ def contract_roll(pf, op, vdf, pdf, date, flag, slippage=None):
             num_ticks = pdt_ticks[min([x for x in pdt_ticks], key=lambda x: abs(x - op.lots))]
         else:
             num_ticks = slippage
-        cost += num_ticks * op_ticksize[newop.get_product()] * multipliers[newop.get_product()][-1]
+        print('contract_roll - num_ticks of slippage: ', num_ticks)
+        cost += 2 * num_ticks * op_ticksize[newop.get_product()] * multipliers[newop.get_product()][-1]
 
     return pf, cost, newop, op, iden
 
@@ -1639,10 +1661,8 @@ def rebalance(vdf, pdf, pf, buckets=None, brokerage=None, slippage=None,
         hedge_engine = pf.get_hedger()
         # initial boolean check
         done_hedging = hedge_engine.satisfied()
-
         # hedging non-delta greeks.
         while (not done_hedging and hedge_count < 3):
-            # insert the actual business of hedging here.
             for flag in pf.hedge_params:
                 if flag == 'gamma':
                     fee = hedge_engine.apply('gamma')
@@ -1700,7 +1720,6 @@ def rebalance(vdf, pdf, pf, buckets=None, brokerage=None, slippage=None,
                         fee = hedge_engine.apply('theta')
                         cost += fee
                         hedge_engine.refresh()
-
                 hedge_count += 1
                 done_hedging = hedge_engine.satisfied()
                 print('dep hedges satisfied: ', done_hedging)
@@ -1990,7 +2009,7 @@ def delta_roll(pf, op, roll_val, vdf, pdf, flag, slippage=None,
             num_ticks = pdt_ticks[min([x for x in pdt_ticks], key=lambda x: abs(x - op.lots))]
         else:
             num_ticks = slippage
-
+        print('delta_roll - num_ticks of slippage: ', num_ticks)
         cost += num_ticks * op_ticksize[newop.get_product()] * multipliers[newop.get_product()][-1]
 
     # case: hedging is being done basis book vols. need to calculate premium difference when
@@ -2070,7 +2089,7 @@ def check_roll_status(pf):
     return all([i for i in bool_list])
 
 
-def write_log(log_pf, pf, drawdown_limit, date, dailpnl, dailynet, grosspnl, netpnl, dailygamma, 
+def write_log(pf, drawdown_limit, date, dailpnl, dailynet, grosspnl, netpnl, dailygamma, 
               gammapnl, dailyvega, vegapnl, roll_hedged, data_order, num_days,
               highest_value, net_cumul_values, breakevens, dailypnl, dailycost):
     """Summary
@@ -2101,10 +2120,10 @@ def write_log(log_pf, pf, drawdown_limit, date, dailpnl, dailynet, grosspnl, net
         TYPE: Description
     """
     loglist = []
-    call_vega = sum([op.vega for op in log_pf.get_all_options()
+    call_vega = sum([op.vega for op in pf.get_all_options()
                      if op.K >= op.underlying.get_price()])
 
-    put_vega = sum([op.vega for op in log_pf.get_all_options()
+    put_vega = sum([op.vega for op in pf.get_all_options()
                     if op.K < op.underlying.get_price()])
 
     if drawdown_limit is not None:
@@ -2114,7 +2133,7 @@ def write_log(log_pf, pf, drawdown_limit, date, dailpnl, dailynet, grosspnl, net
 
     settlement_prices = pf.uid_price_dict()
     # option specific information
-    for op in log_pf.get_all_options():
+    for op in pf.get_all_options():
         op_value = op.get_price()
         # pos = 'long' if not op.shorted else 'short'
         char = op.char
@@ -2128,10 +2147,10 @@ def write_log(log_pf, pf, drawdown_limit, date, dailpnl, dailynet, grosspnl, net
         underlying_id = op.get_uid()
         ftprice = settlement_prices[underlying_id]
 
-        dic = log_pf.get_net_greeks()
+        dic = pf.get_net_greeks()
         d, g, t, v = dic[pdt][ftmth]
 
-        breakeven = log_pf.hedger.breakeven[pdt][ftmth]
+        breakeven = pf.breakeven()[pdt][ftmth]
         breakevens.append(breakeven)
 
         # fix logging to take into account BOD to BOD convention.

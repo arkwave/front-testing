@@ -175,6 +175,8 @@ class Portfolio:
         return self.families
 
     def refresh(self):
+        for op in self.get_all_options():
+            op.update()
         if not self.families:
             self.update_sec_by_month(None, 'OTC', update=True)
             self.update_sec_by_month(None, 'hedge', update=True)

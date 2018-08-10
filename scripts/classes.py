@@ -187,7 +187,7 @@ class Option:
         string += ' | dbarrier - %s | ' % self.dbarrier  
         string += 'bvol2 - ' + str(self.bvol2) if self.bvol2 is not None else 'None' 
         string += ' | '
-        string += ' len_ttms - %s | ' % len(self.dailies)
+        string += ' len_ttms - %s | ' % len(self.dailies) if self.dailies is not None else '0'
         string += ' | strike type: ' + str(self.strike_type) + ' '
         string += '>>'
         return string
