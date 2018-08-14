@@ -1,61 +1,69 @@
 import numpy as np
 import pandas as pd
 from scripts.fetch_data import grab_data
-from scripts.util import create_barrier_option, create_vanilla_option, create_underlying
+from scripts.util import create_barrier_option, create_vanilla_option, create_underlying, hedge_all_deltas, create_straddle
 from scripts.portfolio import Portfolio
 from scripts.simulation import run_simulation
 from collections import OrderedDict 
 from scripts.prep_data import handle_dailies
-
-seed = 7
-np.random.seed(seed)
+from sqlalchemy import create_engine
+# seed = 7
+# np.random.seed(seed)
 
 
 pdts = ['KC']
-contract = ['Z8']
-start = '2018-07-13'
-end = '2018-07-16'
+# contract = ['Z8']
+start = '2018-05-30'
+end = '2018-06-08'
+volid = 'KC  Z8.Z8'
+hedge_vid = 'KC  N8.N8'
 vdf, pdf, edf = grab_data(pdts, start, end)
+up_bar = 125
+down_bar = 115
+strike = 120
 
-ecuo = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'call', 120, False, 
-                             'euro', 'up', bullet=False, ko=130, 
+
+# pdf['time'] = pd.to_datetime(pdf['time']).dt.time
+# vdf['time'] = pd.to_datetime(vdf['time']).dt.time
+
+ecuo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
+                             'euro', 'up', bullet=False, ko=up_bar, 
                              lots=1)
-ecui = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'call', 120, False, 
-                             'euro', 'up', bullet=False, ki=130, 
+ecui = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
+                             'euro', 'up', bullet=False, ki=up_bar, 
                              lots=1)
-epdo = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'put', 120, False, 
-                             'euro', 'down', bullet=False, ko=115, 
+epdo = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
+                             'euro', 'down', bullet=False, ko=down_bar, 
                              lots=1)
-epdi = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'put', 120, False, 
-                             'euro', 'down', bullet=False, ki=115, 
+epdi = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
+                             'euro', 'down', bullet=False, ki=down_bar, 
                              lots=1)
-cuo = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'call', 120, False, 
-                             'amer', 'up', bullet=False, ko=130, 
+cuo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
+                             'amer', 'up', bullet=False, ko=up_bar, 
                              lots=1)
-cui = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'call', 120, False, 
-                             'amer', 'up', bullet=False, ki=130, 
+cui = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
+                             'amer', 'up', bullet=False, ki=up_bar, 
                              lots=1)
-cdo = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'call', 120, False, 
-                             'amer', 'down', bullet=False, ko=115, 
+cdo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
+                             'amer', 'down', bullet=False, ko=down_bar, 
                              lots=1)
-cdi = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'call', 120, False, 
-                             'amer', 'down', bullet=False, ki=115, 
+cdi = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
+                             'amer', 'down', bullet=False, ki=down_bar, 
                              lots=1)
-puo = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'put', 120, False, 
-                             'amer', 'up', bullet=False, ko=130, 
+puo = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
+                             'amer', 'up', bullet=False, ko=up_bar, 
                              lots=1)
-pui = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'put', 120, False, 
-                             'amer', 'up', bullet=False, ki=130, 
+pui = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
+                             'amer', 'up', bullet=False, ki=up_bar, 
                              lots=1)
-pdo = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'put', 120, False, 
-                             'amer', 'down', bullet=False, ko=115, 
+pdo = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
+                             'amer', 'down', bullet=False, ko=down_bar, 
                              lots=1)
-pdi = create_barrier_option(vdf, pdf, 'KC  Z8.Z8', 'put', 120, False, 
-                             'amer', 'down', bullet=False, ki=115, 
+pdi = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
+                             'amer', 'down', bullet=False, ki=down_bar, 
                              lots=1)
 
 ops = [ecuo, ecui, epdo, epdi, cuo, cui, cdo, cdi, puo, pui, pdo, pdi]
-
 
 print('============================')
 print('future price: ', ecuo.get_underlying().get_price())
@@ -64,65 +72,41 @@ print('Upper barrier vol: ', ecuo.bvol)
 print('Upper digital: ', ecuo.bvol2)
 print('Lower barrier vol: ', epdi.bvol)
 print('Lower digital: ', epdi.bvol2)
+print('num ops: ', len(ecuo.get_ttms()))
 print('============================')
 
 
-# ops = [ecuo]
+# for op in ops:
+#     print('-------------------------------------------------')
+#     print(op)
+#     print('market: ', op.get_price())
+#     delta, gamma, theta, vega = op.greeks()
+#     print('num_ops: ', len(op.get_ttms()))
+#     print('delta: ', delta)
+#     print('gamma: ', gamma)
+#     print('theta: ', theta)
+#     print('vega: ', vega)
 
-# print('initial ttms: ', np.array(ecuo.get_ttms()) * 365)
-# ecuo.update_tau(1/365)
-# print('final ttms: ', np.array(ecuo.get_ttms()) * 365)
 
-for op in ops:
-    # print('init ttms:')
-    # print(np.array(op.get_ttms()) * 365)
-    op.update_tau(1/365)
-    op.update()
-    # print('final ttms:')
-    # print(np.array(op.get_ttms()) * 365)
-    print('-'*30)
-    print(op)
-    print('num ops: ', len([x for x in op.get_ttms() if not np.isclose(x, 0)]))
-    print('FV: ', op.get_price())
-    print('delta: ', op.delta)
-    print('gamma: ', op.gamma)
-    print('theta: ', op.theta)
-    print('vega: ', op.vega)
-    print('----------------------')
+# # specify the hedging parameters
+gen_hedges = OrderedDict({'delta': [['static', 0, 1]]})
+# # hedge_dict_1 = OrderedDict({'vega': [['bound', (3800, 4200), 1, 'straddle', 
+# #                                       'strike', 'atm', 'uid']]})
+pf = Portfolio(gen_hedges, name='test', roll=True, ttm_tol=5)
+pf.add_security([ecuo], 'OTC')
 
-# print('-'*30)
-# print("t = 0")
-# print('num ops: ', len(op))
-# print('FV: ', sum([o.get_price() for o in op])/len(op))
-# print('delta: ', sum([o.greeks()[0] for o in op]))
-# print('gamma: ', sum([o.greeks()[1] for o in op]))
-# print('theta: ', sum([o.greeks()[2] for o in op]))
-# print('vega: ', sum([o.greeks()[3] for o in op]))
-# print('-'*30)
+# zeroing deltas
+pf = hedge_all_deltas(pf, pdf)
 
-# specify the hedging parameters
-# gen_hedges = OrderedDict({'delta': [['static', 0, 1]]})
-# hedge_dict_1 = OrderedDict({'gamma': [['bound', (3800, 4200), 1, 'straddle', 
-#                                        'strike', 'atm', 'uid']]})
-# pf = Portfolio(hedge_dict_1, name='test')
-# pf.add_security(op, 'OTC')
+# vega = pf.get_net_greeks()['KC']['Z8'][-1]
+# shorted = True if vega > 0 else False
 
-# # zeroing deltas
-# dic = pf.get_net_greeks()
-# hedge_fts = []
-# for pdt in dic:
-#     for mth in dic[pdt]:
-#         # get the delta value. 
-#         delta = round(dic[pdt][mth][0])
-#         shorted = True if delta > 0 else False
-#         delta = abs(delta) 
-#         ft, ftprice = create_underlying(pdt, mth, pdf, shorted=shorted, lots=delta)
-#         hedge_fts.append(ft)
+# # create the hedge options 
+# hedge_ops = create_straddle(hedge_vid, vdf, pdf, pd.to_datetime(start), 
+#                             shorted, strike='atm', greek='vega', greekval=round(vega, -2))
+# pf.add_security(hedge_ops, 'hedge')
 
-# if hedge_fts:
-#     pf.add_security(hedge_fts, 'hedge')
-
-# print(pf)
-
-# results = run_simulation(vdf, pdf, pf, flat_vols=True, plot_results=False)
-# plot_output(results[0])
+print(pf)
+# print('relevant prices: ', pdf[pdf.underlying_id.isin(pf.get_unique_uids())])
+results = run_simulation(vdf, pdf, pf, plot_results=False, slippage=2, 
+                         roll_hedges_only=True, same_month_exception=True)
