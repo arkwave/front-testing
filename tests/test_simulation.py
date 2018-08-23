@@ -14,7 +14,7 @@ from scripts.classes import Option, Future
 from scripts.portfolio import Portfolio
 from scripts.simulation import hedge_delta_roll, check_roll_status, \
     handle_exercise, contract_roll, roll_over, delta_roll, hedge_delta_roll
-from scripts.util import create_straddle, combine_portfolios, create_vanilla_option, create_composites, create_underlying
+from scripts.util import create_straddle, combine_portfolios, create_vanilla_option, create_composites, create_underlying, hedge_all_deltas
 from collections import OrderedDict
 import numpy as np
 import pandas as pd
@@ -55,11 +55,11 @@ def generate_portfolio(flag):
         'K7', ordering=2)
 
     op3 = Option(300, 0.473972602739726, 'call', 0.14464169782291536,
-                 ft3, 'amer', short, 'N7',  direc='up', barrier='amer', bullet=False,
+                 ft3, 'amer', short, 'N7',  direc='up', barrier='amer', bullet=True,
                  ko=350, ordering=2)
 
     op4 = Option(330, 0.473972602739726, 'put', 0.18282926924909026,
-                 ft4, 'amer', short, 'N7', direc='down', barrier='amer', bullet=False,
+                 ft4, 'amer', short, 'N7', direc='down', barrier='amer', bullet=True,
                  ki=280, ordering=2)
     op5 = Option(
         320, 0.473972602739726, 'put', 0.8281728247909962, ft5, 'amer', short,
@@ -1013,3 +1013,156 @@ def test_roll_over_full():
     # assert len(qc_hedges['H8'][1]) == 1
 
     # print('===============================================================')
+
+
+def test_roll_over_hedges_only():
+    # print('================= TEST: CLOSING OUT DELTAS =================')
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+
+    # creation info
+    date = pdf.value_date.min()
+    r_vdf = vdf[vdf.value_date == date]
+    r_pdf = pdf[pdf.value_date == date]
+
+    # modifying portfolio
+    pf = copy.deepcopy(pf_comp)
+    # create_composites(pf.get_all_options())
+    
+    cc_pf = [fam for fam in pf.get_families() if
+             fam.get_unique_products() == set(['CC'])][0]
+    ccops2 = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+                             True, 'atm', greek='theta', greekval=5000)
+    cc_pf.add_security(ccops2, 'hedge')
+    cc_pf.roll = True
+    cc_pf.ttm_tol = (ccops[0].tau * 365) + 1
+
+    qc_pf = [fam for fam in pf.get_families() if
+             fam.get_unique_products() == set(['QC'])][0]
+    qcops2 = create_straddle('QC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+                             True, 'atm', greek='theta', greekval=5000)
+    qc_pf.add_security(qcops2, 'hedge')
+    qc_pf.roll = True
+    qc_pf.ttm_tol = (qcops[0].tau * 365) + 1
+    pf.refresh()
+
+    # initializing the futures to zero out deltas.
+    cc_delta = int(pf.net_greeks['CC']['Z7'][0])
+    cc_shorted = False if cc_delta < 0 else True
+    qc_delta = int(pf.net_greeks['QC']['Z7'][0])
+    qc_shorted = False if qc_delta < 0 else True
+
+    ccft, _ = create_underlying(
+        'CC', 'Z7', r_pdf, date, lots=cc_delta, shorted=cc_shorted)
+    qcft, _ = create_underlying(
+        'QC', 'Z7', r_pdf, date, lots=qc_delta, shorted=qc_shorted)
+
+    pf.add_security([ccft, qcft], 'hedge')
+    pf.refresh()
+
+    print('pf pre rollover: ', pf)
+    pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date, hedges_only=True)
+    pf.refresh()
+    print('pf post rollover: ', pf)
+    
+    assert 'QC' in pf.hedges 
+    assert 'H8' in pf.hedges['QC']
+    assert 'QC' in pf.OTC 
+    assert 'Z7' in pf.OTC['QC']
+
+    cc_hedges = pf.hedges['CC']
+    assert 'Z7' not in cc_hedges
+    assert 'H8' in cc_hedges
+    assert 'Z7' in pf.OTC['CC']
+
+
+def test_roll_over_same_month_exception():
+    # print('================= TEST: CLOSING OUT DELTAS =================')
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+
+    # creation info
+    date = pdf.value_date.min()
+    r_vdf = vdf[vdf.value_date == date]
+    r_pdf = pdf[pdf.value_date == date]
+
+    print(r_vdf.vol_id.unique())
+
+    # modifying portfolio
+    cc_pf = copy.deepcopy(pf_simple)
+    # # create_composites(pf.get_all_options())
+    
+    ccops2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(start_date),
+                             True, 'atm', greek='theta', greekval=5000)
+    cc_pf.add_security(ccops2, 'hedge')
+    cc_pf.roll = True
+    cc_pf.ttm_tol = (ccops2[0].tau * 365) + 1
+    cc_pf.refresh()
+
+    # zero out all deltas. 
+    cc_pf = hedge_all_deltas(cc_pf, pdf)
+    cc_pf.refresh()
+
+    # case 1: roll hedges from U to Z. U delta should be closed out as well. 
+    cc_pf, cost, _ = roll_over(cc_pf, r_vdf, r_pdf, date, hedges_only=True, same_month_exception=True)
+    cc_pf.refresh()
+    print('pf post rollover: ', cc_pf)
+
+    assert 'U7' not in cc_pf.hedges['CC']
+    assert 'Z7' in cc_pf.hedges['CC']
+    u7_fts = [x for x in cc_pf.get_all_futures() if x.get_month() == 'U7']
+    assert len(u7_fts) == 0 
+
+
+    # case 2: hedges are already Z7, and so same month exception should kick in and no rolls should occur.
+    cc_pf, cost, _ = roll_over(cc_pf, r_vdf, r_pdf, date, hedges_only=True, same_month_exception=True)
+    cc_pf.refresh()
+    print('pf post rollover: ', cc_pf)
+
+    assert 'Z7' in cc_pf.hedges['CC']
+
+
+def test_roll_over_same_month_exception_ttm_version():
+    # print('================= TEST: CLOSING OUT DELTAS =================')
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+
+    # creation info
+    date = pdf.value_date.min()
+    r_vdf = vdf[vdf.value_date == date]
+    r_pdf = pdf[pdf.value_date == date]
+
+    print(r_vdf.vol_id.unique())
+
+    # modifying portfolio
+    cc_pf = copy.deepcopy(pf_simple)
+    # # create_composites(pf.get_all_options())
+    
+    ccops2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(start_date),
+                             True, 'atm', greek='theta', greekval=5000)
+    cc_pf.add_security(ccops2, 'hedge')
+    cc_pf.roll = True
+    cc_pf.ttm_tol = 20
+    cc_pf.refresh()
+
+    # zero out all deltas. 
+    cc_pf = hedge_all_deltas(cc_pf, pdf)
+    cc_pf.refresh()
+
+    to_step = (round(ccops2[0].tau*365) - 20)/365 
+
+    cc_pf.timestep(to_step)
+    # case 1: roll hedges from U to Z. U delta should be closed out as well. 
+    cc_pf, cost, _ = roll_over(cc_pf, r_vdf, r_pdf, date, hedges_only=True, same_month_exception=True)
+    cc_pf.refresh()
+    print('pf post rollover: ', cc_pf)
+    assert 'U7' not in cc_pf.hedges['CC']
+    assert 'Z7' in cc_pf.hedges['CC']
+    u7_fts = [x for x in cc_pf.get_all_futures() if x.get_month() == 'U7']
+    assert len(u7_fts) == 0 
+
+    to_step = (round(ccops[0].tau * 365) - 19)/365
+    cc_pf.timestep(to_step)
+    cc_pf.refresh()
+    # case 2: hedges are already Z7, and so same month exception should kick in and no rolls should occur.
+    cc_pf, cost, _ = roll_over(cc_pf, r_vdf, r_pdf, date, hedges_only=True, same_month_exception=True)
+    print('pf post rollover: ', cc_pf)
+    assert 'Z7' in cc_pf.hedges['CC']
+    assert 'Z7' in cc_pf.OTC['CC']

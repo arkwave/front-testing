@@ -99,12 +99,14 @@ class Option:
     def __init__(self, strike, tau, char, vol, underlying, payoff, shorted,
                  month, direc=None, barrier=None, lots=1000, bullet=True,
                  ki=None, ko=None, rebate=0, ordering=1e5, settlement='futures', 
-                 bvol=None, bvol2=None):
+                 bvol=None, bvol2=None, dailies=None):
         self.month = month
         self.barrier = barrier
         self.payoff = payoff
         self.underlying = underlying
         self.bullet = bullet  # daily = list of bullets.
+        self.dailies = dailies
+        # get the ttm list of all constituent daily options if this option is daily.
         self.lots = lots
         self.desc = 'option'
         self.ki = ki
@@ -123,8 +125,6 @@ class Option:
             product = self.underlying.get_product() 
             ticksize = multipliers[product][2]
             barlevel = ki if ki is not None else ko
-            # print(barlevel, mult, ticksize)
-
             self.dbarrier = barlevel + mult * ticksize
 
         self.direc = direc
@@ -134,7 +134,7 @@ class Option:
         self.vol = vol
         self.r = 0
         self.shorted = shorted
-        self.price = self.compute_price()
+        self.price = self.get_price()
         self.ordering = ordering
         self.init_greeks()
         self.active = self.check_active()
@@ -144,6 +144,7 @@ class Option:
         self.settlement = settlement
         self.strike_type = 'callstrike' if self.K >= self.underlying.get_price() else 'putstrike'
         self.partners = set()
+        self.prev_dailies = None 
 
     def __str__(self):
         string = '<<'
@@ -168,6 +169,7 @@ class Option:
             if self.direc == 'down':
                 string += 'DO'
             string += ' ' + str(self.ko)
+        # price = self.get_price()
         string += ' S ' if self.shorted else ' L '
         string += str(self.underlying.get_price())
         string += ' | lots - ' + str(int(self.lots)) + ' |'
@@ -177,8 +179,12 @@ class Option:
         string += ' delta - ' + str(abs(self.delta / self.lots)) + ' |'
         string += ' vol - ' + str(self.vol) + ' |'
         string += ' bvol - '
-        string += str(self.bvol) if self.bvol is not None else 'None'
-        string += ' bvol2 - ' + str(self.bvol2) if self.bvol2 is not None else 'None' + ' |'
+        string += str(self.bvol) if self.bvol is not None else 'None' 
+        string += ' | '
+        string += ' | dbarrier - %s | ' % self.dbarrier  
+        string += 'bvol2 - ' + str(self.bvol2) if self.bvol2 is not None else 'None' 
+        string += ' | '
+        string += ' len_ttms - %s | ' % len(self.dailies) if self.dailies is not None else '0'
         string += ' | strike type: ' + str(self.strike_type) + ' '
         string += '>>'
         return string
@@ -215,6 +221,15 @@ class Option:
         if name == 'theta':
             return self.theta
 
+    def get_ttms(self):
+        return self.dailies
+
+    def set_ttms(self, lst):
+        self.dailies = lst 
+
+    def is_bullet(self):
+        return self.bullet
+
     def check_active(self):
         """Checks to see if this option object is active, i.e. if it has any value/contributes greeks. 
         Cases are as follows:
@@ -247,22 +262,29 @@ class Option:
         if self.ki:
             # all knockin options contribute greeks/have value until expiry.
             active = True if not expired else False
-            if self.direc == 'up':
+            if self.direc == 'up':        
                 self.knockedin = True if (s >= self.ki) else False
             if self.direc == 'down':
                 self.knockedin = True if (s <= self.ki) else False
-            if self.knockedin:
-                self.ki, self.ko, self.barrier, self.direc = None, None, None, None
+            # if AKI is hit, set to vanilla parameters.
+            if self.barrier == 'amer':    
+                if self.knockedin:
+                    self.ki, self.ko, self.barrier, self.direc = None, None, None, None
+
         if self.ko:
             if self.barrier == 'amer':
                 # american up and out
                 if self.direc == 'up':
-                    active = False if s >= self.ko else True
-                    self.knockedout = not active
+                    active = False if s >= self.ko else True    
                 # american down and out
                 if self.direc == 'down':
                     active = False if s <= self.ko else True
-                    self.knockedout = not active
+                self.knockedout = not active
+                # if knocked out, remove all elements from self.dailies
+                if self.knockedout:
+                    self.dailies = []
+                    self.expired = True
+
             # european knockout are active until expiry.
             elif self.barrier == 'euro':
                 active = True if not expired else False
@@ -337,29 +359,41 @@ class Option:
         active = self.check_active()
         self.active = active
         if active:
-            sigma = vol
-            b_sigma = bvol
-            if vol is None:
-                sigma = self.vol
-            if bvol is None:
-                b_sigma = self.bvol
-            if bvol2 is None:
-                b_sigma2 = self.bvol2
-
+            sigma = vol if vol is not None else self.vol
+            b_sigma = bvol if bvol is not None else self.bvol 
+            b_sigma2 = bvol2 if bvol2 is not None else self.bvol2
+            
             product = self.get_product()
             s = self.underlying.get_price()
-            delta, gamma, theta, vega = \
-                _compute_greeks(self.char, self.K, self.tau, sigma,
-                                s, self.r, product, self.payoff,
-                                self.lots, ki=self.ki, ko=self.ko,
-                                barrier=self.barrier, direction=self.direc,
-                                order=self.ordering, bvol=b_sigma, bvol2=b_sigma2,
-                                dbarrier=self.dbarrier)
-            # account for shorting
-            if self.shorted:
-                delta, gamma, theta, vega = -delta, -gamma, -theta, -vega
 
-            self.delta, self.gamma, self.theta, self.vega = delta, gamma, theta, vega
+            d, g, t, v = 0,0,0,0 
+            ttms = [self.tau] if self.bullet else self.dailies 
+
+            # print('b_sigma: ', b_sigma)
+            # print('b_sigma2: ', b_sigma2)
+
+            for tau in ttms:
+                delta, gamma, theta, vega = \
+                    _compute_greeks(self.char, self.K, tau, sigma,
+                                    s, self.r, product, self.payoff,
+                                    self.lots, ki=self.ki, ko=self.ko,
+                                    barrier=self.barrier, direction=self.direc,
+                                    order=self.ordering, bvol=b_sigma, bvol2=b_sigma2,
+                                    dbarrier=self.dbarrier)
+                # account for shorting
+                if self.shorted:
+                    delta, gamma, theta, vega = -delta, -gamma, -theta, -vega
+
+                d += delta 
+                g += gamma 
+                t += theta 
+                v += vega 
+                # if tau == 0:
+                #     # print("Zero TTM detected; printing greeks")
+                #     print(delta, gamma, theta, vega)
+                #     print('lots: ', self.lots)
+
+            self.delta, self.gamma, self.theta, self.vega = d, g, t, v
 
             self.vol = sigma
             self.bvol = b_sigma
@@ -387,40 +421,46 @@ class Option:
     def compute_price(self):
         from .calc import _compute_value
         # computes the value of this structure from relevant information.
+        ttms = [self.tau] if self.bullet else self.dailies 
         s = self.underlying.get_price()
         product = self.underlying.get_product()
-        val = _compute_value(self.char, self.tau, self.vol, self.K, s, self.r,
-                             self.payoff, ki=self.ki, ko=self.ko, barrier=self.barrier,
-                             d=self.direc, product=product, bvol=self.bvol, 
-                             bvol2=self.bvol2, dbarrier=self.dbarrier)
+        val = 0 
+        for tau in ttms:
+            val += _compute_value(self.char, tau, self.vol, self.K, s, self.r,
+                                  self.payoff, ki=self.ki, ko=self.ko, barrier=self.barrier,
+                                  d=self.direc, product=product, bvol=self.bvol, 
+                                  bvol2=self.bvol2, dbarrier=self.dbarrier)
+        # handle the edge case where self.ttms is empty in the event of a daily KO
+        val = val/len(ttms) if val != 0 else 0 
         self.price = val
         return val
 
     def get_price(self):
-        # check for expiry case
-        if self.tau <= 0 or np.isclose(self.tau, 0):
-            mult = -1 if self.shorted else 1
-            s = self.underlying.get_price()
-            k = self.K
-            if self.char == 'call':
-                val = max(s - k, 0)
-            elif self.char == 'put':
-                val = max(k - s, 0)
-            return mult * val
-        # not expired; check if active.
+        active = self.check_active()
+        self.active = active
+        if self.active:
+            price = self.compute_price()
+            self.price = price
+            return self.price
         else:
-            active = self.check_active()
-            self.active = active
-            if self.active:
-                price = self.compute_price()
-                self.price = price
-                return self.price
-            else:
-                return 0
+            return 0
 
     def update_tau(self, diff):
         self.tau -= diff
-
+        if not self.bullet:
+            if diff >= 0:
+                self.prev_dailies = self.dailies 
+                self.dailies = [x - diff if x-diff > 0 else 0 
+                                for x in self.dailies] 
+            else:
+                # this is only ever called when reversing a timestep. 
+                if self.prev_dailies is not None:
+                    self.dailies = self.prev_dailies 
+                    self.prev_dailies = None 
+                    
+    def remove_expired_dailies(self):
+        self.dailies = [x for x in self.dailies if not np.isclose(x, 0)]
+        
     def get_product(self):
         return self.underlying.get_product()
 
@@ -441,45 +481,70 @@ class Option:
         active = self.check_active()
         # degenerate case: knocked out.
         if self.knockedout:
-            return None
+            return -1
         self.active = active
-        # print('active: ', active)
         if active:
             s = self.underlying.get_price()
+            # vanilla option case. 
             # at the money
             if self.K == s:
                 return 0
+            # call 
             if self.char == 'call':
-                # ITM
-                if self.K < s:
-                    return 1
-                # OTM
-                else:
-                    return -1
+                if self.barrier is None:
+                    return 1 if self.K < s else -1
+                # KO barrier case. 
+                if self.ko is not None:
+                    if self.knockedout:
+                        return -1
+                    else:
+                        return 1 if self.K < s else -1
+                # KI case.
+                if self.ki is not None:
+                    if self.knockedin:
+                        return 1 if self.K < s else -1
+                    else:
+                        return -1 
+
             elif self.char == 'put':
-                # print('putop')
-                # print(self.K, s)
-                # ITM
-                if self.K > s:
-                    return 1
-                # OTM
-                else:
-                    return -1
+                if self.barrier is None:
+                    return 1 if self.K > s else -1
+                # KO barrier case. 
+                if self.ko is not None:
+                    if self.knockedout:
+                        return -1
+                    else:
+                        return 1 if self.K > s else -1
+                # KI case.
+                if self.ki is not None:
+                    if self.knockedin:
+                        return 1 if self.K > s else -1
+                    else:
+                        return -1 
         else:
-            # print('hit none case')
-            return -np.inf
+            return -1
 
     def update(self):
         self.update_greeks()
-        self.price = self.compute_price()
+        self.price = self.get_price()
         self.strike_type = 'callstrike' if self.K >= self.underlying.get_price() else 'putstrike'
 
     def zero_option(self):
+        # check to see if the option is in the money. 
         self.delta, self.gamma, self.theta, self.vega = 0, 0, 0, 0
-
+        if self.exercise():
+            if self.char == 'call' and self.K < self.underlying.get_price():
+                self.delta = 1 if not self.shorted else -1 
+            if self.char == 'put' and self.K > self.underlying.get_price():
+                self.delta = -1 if not self.shorted else 1
+            self.delta *= self.lots 
+        
     def check_expired(self):
-        ret = True if (np.isclose(self.tau, 0) or self.tau <=
-                       0) else False
+        if self.bullet:
+            ret = True if (np.isclose(self.tau, 0) or self.tau <=
+                           0) else False
+        else:
+            ret = True if not self.dailies else False
         self.expired = ret
         return ret
 

@@ -49,9 +49,9 @@ def generate_portfolio():
     op2 = Option(
         29, 0.2156100288506942, 'call', 0.45176132048500206, ft2, 'amer', False, 'Z7')
     op3 = Option(30, 0.21534276294769317, 'call', 0.14464169782291536,
-                 ft3, 'amer', True, 'Z7',  direc='up', barrier='amer', bullet=False, ko=35)
+                 ft3, 'amer', True, 'Z7',  direc='up', barrier='amer', bullet=True, ko=35)
     op4 = Option(33, 0.22365510948646386, 'put', 0.18282926924909026,
-                 ft4, 'amer', False, 'Z7', direc='down', barrier='amer', bullet=False, ki=28)
+                 ft4, 'amer', False, 'Z7', direc='down', barrier='amer', bullet=True, ki=28)
     op5 = Option(
         32, 0.010975090692443346, 'put', 0.8281728247909962, ft5, 'amer', True, 'Z7')
 

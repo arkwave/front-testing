@@ -143,9 +143,7 @@ class Portfolio:
         otcops = [op.__str__() for op in self.OTC_options]
         otcft = [op.__str__() for op in self.OTC_futures]
         hedgeops = [op.__str__() for op in self.hedge_options]
-        hedgeft = [op.__str__() for op in self.hedge_futures]
         nets = self.net_greeks
-
         ft_dic = {}
         for product in self.net_greeks:
             if product not in ft_dic:
@@ -153,13 +151,14 @@ class Portfolio:
             for mth in self.net_greeks[product]:
                 if mth not in ft_dic[product]:
                     ft_dic[product][mth] = []
-                otc_ftpos = sum([x.lots for x in self.OTC_futures if x.get_product(
-                ) == product and x.get_month() == mth])
-                hedge_ftpos = sum([x.lots for x in self.hedge_futures if x.get_product(
-                ) == product and x.get_month() == mth])
-                ft_dic[product][mth].extend([otc_ftpos, hedge_ftpos])
-        # otcs = self.OTC
-        # hedges = self.hedges
+                longs = sum([x.lots for x in self.OTC_futures + self.hedge_futures
+                             if x.get_product() == product and 
+                             x.get_month() == mth and 
+                             not x.shorted])
+                shorts = sum([x.lots for x in self.OTC_futures + self.hedge_futures
+                              if x.get_product() == product and 
+                              x.get_month() == mth and x.shorted])
+                ft_dic[product][mth] = longs - shorts
 
         r_dict = {'OTC Options': otcops,
                   'OTC Futures': otcft,
@@ -176,6 +175,8 @@ class Portfolio:
         return self.families
 
     def refresh(self):
+        for op in self.get_all_options():
+            op.update()
         if not self.families:
             self.update_sec_by_month(None, 'OTC', update=True)
             self.update_sec_by_month(None, 'hedge', update=True)
@@ -259,6 +260,11 @@ class Portfolio:
             bool: True if empty, false otherwise.
         """
         return (len(self.OTC) == 0) and (len(self.hedges) == 0)
+
+    def ops_empty(self):
+        """Checks to see if there are any OTC options left; called in rebalance in simulation.
+        """
+        return len(self.OTC_options) == 0
 
     def init_sec_by_month(self, iden):
         """Initializing method that creates the relevant futures list,
@@ -448,6 +454,11 @@ class Portfolio:
             # vanilla/knockin case
             if sec.check_expired():
                 explist['OTC'].append(sec)
+
+            # case: daily options that have 0 in their ttm lists.
+            if not sec.is_bullet():
+                sec.remove_expired_dailies()
+                
         for sec in self.hedge_options:
             # handling barrier case.
             if sec.barrier == 'amer':
@@ -456,14 +467,6 @@ class Portfolio:
 
             elif sec.check_expired():
                 explist['hedge'].append(sec)
-
-        # for ft in self.OTC_futures:
-        #     if ft.check_expired():
-        #         explist['OTC'].append(ft)
-
-        # for ft in self.hedge_futures:
-        #     if ft.check_expired():
-        #         explist['hedge'].append(ft)
 
         self.remove_security(explist['hedge'], 'hedge')
         self.remove_security(explist['OTC'], 'OTC')
@@ -794,6 +797,21 @@ class Portfolio:
             lst = [x for x in lst if x.get_month() == mth]
         return lst
 
+    def get_hedge_options(self, pdt=None, mth=None):
+        """Returns hedge options. If pdt and month are specified, these
+        are used to select and return the options.
+        
+        Args:
+            pdt (None, optional): filters for this product. 
+            mth (None, optional): filters for this month.
+        """
+        lst = self.hedge_options 
+        if pdt is not None:
+            lst = [x for x in lst if x.get_product() == pdt]
+        if mth is not None:
+            lst = [x for x in lst if x.get_month() == mth]
+        return lst 
+
     def get_underlying(self):
         """Returns a list of all futures objects that are the underlying
         of some option in the portfolio. 
@@ -1005,10 +1023,13 @@ class Portfolio:
             gammas = []
             for mth in dic[pdt]:
                 gamma, theta = abs(dic[pdt][mth][1]), abs(dic[pdt][mth][2])
-                thetas.append(theta)
-                gammas.append(gamma)
-                bes[pdt][mth] = (((2.8*theta)/gamma) ** 0.5) / \
-                    multipliers[pdt][0]
+                if np.isclose(gamma, 0) or np.isclose(theta, 0):
+                    bes[pdt][mth] = 0 
+                else:
+                    thetas.append(theta)
+                    gammas.append(gamma)
+                    bes[pdt][mth] = (((2.8*theta)/gamma) ** 0.5) / \
+                        multipliers[pdt][0]
 
         return bes
 

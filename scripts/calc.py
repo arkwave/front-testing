@@ -117,8 +117,10 @@ def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None,
         TYPE: price of option based on inputs passed in. 
     '''
     # expiry case
-    if tau <= 0:
-        return max(s-K, 0) if char == 'call' else max(K-s, 0)
+    if tau <= 0 or np.isclose(tau, 0):
+        val = max(s-K, 0) if char == 'call' else max(K-s, 0)
+        # print('t = 0 intrinsic value: ', val)
+        return val
     # vanilla option case
     if barrier is None:
         # currently american == european since it's never optimal to exercise
@@ -568,10 +570,13 @@ def digital_greeks(char, k, dbar, tau, vol, vol2, s, r, product, payoff, lots):
     Returns:
         tuple: delta, gamma, theta, vega.
     """
-    d1, g1, t1, v1 = _compute_greeks(
-        char, dbar, tau, vol2, s, r, product, payoff, lots)
-    d2, g2, t2, v2 = _compute_greeks(
-        char, k, tau, vol, s, r, product, payoff, lots)
+    try:
+        d1, g1, t1, v1 = _compute_greeks(char, dbar, tau, vol2, s, r, 
+                                         product, payoff, lots)
+        d2, g2, t2, v2 = _compute_greeks(char, k, tau, vol, s, r, 
+                                         product, payoff, lots)
+    except TypeError as e:
+        raise TypeError(char, dbar, tau, vol2, s, r, k, vol)
 
     d, g, t, v = d1-d2, g1-g2, t1-t2, v1-v2
     return d, g, t, v
@@ -676,8 +681,12 @@ def _euro_vanilla_greeks(char, K, tau, vol, s, r, product, lots):
         if char == 'put':
             delta = -1 if K >= s else 0
         return delta, theta, gamma, vega
-    d1 = (log(s/K) + (r + 0.5 * (vol ** 2))*tau) / \
-        (vol * sqrt(tau))
+    try:
+        d1 = (log(s/K) + (r + 0.5 * (vol ** 2))*tau) / \
+            (vol * sqrt(tau))
+    except ValueError as e:
+        inputs = {'spot': s, 'strike': K, 'vol': vol, 'tau': tau}
+        raise ValueError("Error in inputs: ", inputs) from e 
     # d2 = d1 - vol*(sqrt(tau))
     gamma1 = norm.pdf(d1)/(s*vol*sqrt(tau))
     vega1 = s * exp(r*tau) * norm.pdf(d1) * sqrt(tau)
@@ -757,21 +766,21 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction,
     delta = (del1 - del2)/(2*change_spot)
 
     # computing gamma
-    # del3 = _barrier_amer(char, tau, vol, k, s,
-    #                      r, payoff, direction, ki, ko)
-    # gamma = (del1 - 2*del3 + del2) / ((change_spot**2))
+    del3 = _barrier_amer(char, tau, vol, k, s,
+                         r, payoff, direction, ki, ko)
+    gamma = (del1 - 2*del3 + del2) / ((change_spot**2))
 
-    g1 = _barrier_amer(char, tau, vol, k, s+(change_spot),
-                       r, payoff, direction, ki, ko)
-    g2 = _barrier_amer(char, tau, vol, k, max(0, s - change_spot),
-                       r, payoff, direction, ki, ko)
-    g3 = _barrier_amer(char, tau, vol, k, s,
-                       r, payoff, direction, ki, ko)
-    g4 = _barrier_amer(char, tau, vol, k, s + 2*change_spot,
-                       r, payoff, direction, ki, ko)
-    g5 = _barrier_amer(char, tau, vol, k, max(0, s - 2*change_spot),
-                       r, payoff, direction, ki, ko)
-    gamma = (-g5 + 16*g2 - 30*g3 + 16*g1 - g4)/(12*(change_spot**2))
+    # g1 = _barrier_amer(char, tau, vol, k, s+(change_spot),
+    #                    r, payoff, direction, ki, ko)
+    # g2 = _barrier_amer(char, tau, vol, k, max(0, s - change_spot),
+    #                    r, payoff, direction, ki, ko)
+    # g3 = _barrier_amer(char, tau, vol, k, s,
+    #                    r, payoff, direction, ki, ko)
+    # g4 = _barrier_amer(char, tau, vol, k, s + 2*change_spot,
+    #                    r, payoff, direction, ki, ko)
+    # g5 = _barrier_amer(char, tau, vol, k, max(0, s - 2*change_spot),
+    #                    r, payoff, direction, ki, ko)
+    # gamma = (-g5 + 16*g2 - 30*g3 + 16*g1 - g4)/(12*(change_spot**2))
 
     # computing vega
     v1 = _barrier_amer(char, tau, vol+change_vol, k, s, r,
@@ -1034,7 +1043,7 @@ def get_vol_at_strike(df, strike):
         vol = df[df.strike == strike].vol.values[0]
 
     except IndexError:
-        print('calc.get_vol_at_strike - desired strike not in df. Interpolating...')
+        # print('calc.get_vol_at_strike - desired strike not in df. Interpolating...')
         # interpolation step
         df = df.sort_values(by='strike')
         # print('strike, strikes in df: ', strike, df.strike.unique())

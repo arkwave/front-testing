@@ -104,31 +104,3 @@ def test_find_cdist():
     assert pr.find_cdist('X7', 'H9', all_mths) == 7
     assert pr.find_cdist('X7', 'Z8', all_mths) == 6
     assert pr.find_cdist('X7', 'Z9', all_mths) == 11
-
-
-def test_daily_to_bullets():
-    ft1 = Future('H7', 30, 'C')
-    op1 = Option(
-        35, 0.05106521860205984, 'call', 0.4245569263291844, ft1, 'amer', False, 'Z7')
-    op2 = Option(
-        35, 0.05106521860205984, 'call', 0.4245569263291844, ft1, 'amer', False, 'Z7', bullet=False)
-    dic1 = {'hedge': [], 'OTC': [op1]}
-    dic2 = {'hedge': [], 'OTC': [op2]}
-    # applying function
-    sim_start = pd.to_datetime(vdf.value_date.min())
-    # print('simstart: ', sim_start)
-    ret1 = pr.handle_dailies(dic1, sim_start)
-    ret2 = pr.handle_dailies(dic2, sim_start)
-
-    assert len(ret1) == 2
-    assert len(ret1['OTC']) == 1
-    # try:
-    assert len(ret2['OTC']) == 13
-    # except AssertionError:
-    #     print('actual len: ', len(ret2['OTC']))
-    #     print('desired: ', 13)
-
-
-def test_granularize():
-    # create a sample dataframe that has random values.
-    pass

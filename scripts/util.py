@@ -2,17 +2,18 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   RMS08
-# @Last Modified time: 2018-05-29 10:17:58
+# @Last Modified time: 2018-08-20 14:47:51
 
 from .portfolio import Portfolio
 from .classes import Future, Option
-from .prep_data import find_cdist, handle_dailies
+from .prep_data import find_cdist
 import pandas as pd
 import numpy as np
 import copy
 import os
 from .calc import compute_strike_from_delta, get_vol_from_delta, get_vol_at_strike
 import sys
+from pandas.tseries.offsets import BDay
 
 multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 1, 400],
@@ -93,7 +94,7 @@ def create_underlying(pdt, ftmth, pdf, date=None, flag='settlement', ftprice=Non
     # datatype = 'settlement' if settlement else 'intraday'
     flag = 'settlement' if flag == 'eod' else flag
     uid = pdt + '  ' + ftmth
-    date = date if date is not None else pdf.value_date.min()
+    date = date if date is not None else min(pdf.value_date)
     if ftprice is None:
         try:
             ftprice = pdf[(pdf.underlying_id == uid) &
@@ -148,6 +149,7 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
             2. 'greekval' - the sizing. 
             3. 'tau' - specified custom time to maturity in years. 
             4. 'breakeven' - specified custom breakeven. vol will be scaled accordingly. 
+            5. 'expiry_date' - option expiry date. defaults to the expiry date in the dataframes entered.
 
     Returns:
         object: Option created according to the parameters passed in. 
@@ -166,7 +168,7 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
         raise ValueError(
             'neither delta nor strike passed in; aborting construction.')
 
-    lots_req = lots if lots is not None else 1000
+    lots_req = lots if lots is not None else 1
 
     # naming conventions
     ftmth = volid.split('.')[1]
@@ -175,7 +177,10 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     cpi = 'C' if char == 'call' else 'P'
 
     # get min start date for debugging
-    min_start_date = min(vdf[vdf.pdt == pdt].value_date)
+    try:
+        min_start_date = min(vdf[vdf.vol_id == volid].value_date)
+    except ValueError as e:
+        raise ValueError("Inputs: ", vdf, volid)
 
     date = min_start_date if (date is None or min_start_date > date) else date
 
@@ -191,8 +196,13 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     if strike == 'atm':
         strike = round(round(ftprice / ticksize) * ticksize, 2)
 
-    # get tau
+    # get tau and expiry date. 
     try:
+        expiry_date = pd.to_datetime(vdf[(vdf.value_date == date) &
+                                         (vdf.vol_id == volid)].expdate.values[0])
+        if 'expiry_date' in kwargs and kwargs['expiry_date'] is not None:
+            expiry_date = kwargs['expiry_date']
+            tau = (pd.to_datetime(expiry_date) - date).days/365
         if 'tau' in kwargs and kwargs['tau'] is not None:
             print('tau in kwargs')
             tau = kwargs['tau']
@@ -203,7 +213,7 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
         print('debug_1: ', vdf[vdf.value_date == date])
         print('debug_2: ', vdf[vdf.vol_id == volid])
         raise IndexError(
-            'util.create_vanilla_option - cannot find ttm in dataset. Inputs are: ', date, volid) from e
+            'util.create_vanilla_option - cannot find ttm/expdate in dataset. Inputs are: ', date, volid) from e
 
     # case: want to create an option with a specific breakeven. given price,
     # compute the vol
@@ -247,17 +257,28 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
         strike = compute_strike_from_delta(
             None, delta1=delta, vol=vol, s=ft.get_price(), char=char, pdt=ft.get_product(), tau=tau)
 
+    dailies = None
+    # handling bullet vs daily
+    if not bullet:
+        date += BDay(1)
+        # print('Tau-implied expdate: ', date + tst)
+        # print('Actual expdate: ', expiry_date)
+        # expiry_date += BDay(1)
+        dailies = []
+        # step = 3 if date.dayofweek == 4 else 1 
+        dx = pd.to_datetime(date)
+        incl = 1
+        while dx <= expiry_date:
+            exptime = ((dx - date).days + incl)/365
+            dailies.append(exptime)
+            step = 3 if dx.dayofweek == 4 else 1 
+            dx += pd.Timedelta(str(step) + ' days')
+        # print('daily ttms: ', np.array(dailies)*365)
+        
     # specifying option with information gathered thus far.
     newop = Option(strike, tau, char, vol, ft, payoff, shorted,
                    opmth, lots=lots_req, ordering=ft.get_ordering(),
-                   bullet=bullet)
-
-    # handling bullet vs daily
-    if not bullet:
-        tmp = {'OTC': [newop]}
-        ops = handle_dailies(tmp, date)
-        ops = ops['OTC']
-        return ops
+                   bullet=bullet, dailies=dailies)
 
     # handling additional greek requirements for options.
     pdt = ft.get_product()
@@ -293,9 +314,10 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
 # month, direc=None, barrier=None, lots=1000, bullet=True, ki=None,
 # ko=None, rebate=0, ordering=1e5, settlement='futures')
 
-def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriertype,
-                          direction, ki, ko, bullet, expiry=None, rebate=0, payoff='amer', 
-                          lots=None, vol=None, bvol=None, bvol2=None, ref=None):
+def create_barrier_option(vdf, pdf, volid, char, strike, shorted, barriertype, direction, 
+                          bullet=None, ki=None, ko=None, date=None, rebate=0, 
+                          payoff='amer', lots=None, vol=None, bvol=None, bvol2=None, ref=None,
+                          **kwargs):
     """Helper method that creates barrier options. 
     
     Args:
@@ -330,12 +352,15 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
         tau (None, optional): ttm of the option in years. 
     
     """
-    print('util.create_barrier_option - inputs: ',
-          volid, char, shorted, lots, strike, vol, bvol, bvol2)
+    # print('util.create_barrier_option - inputs: ',
+    #       volid, char, shorted, lots, strike, vol, bvol, bvol2)
 
+    date = vdf.value_date.min() if date is None else date
     # if delta is None and strike is None:
     #     raise ValueError(
     #         'neither delta nor strike passed in; aborting construction.')
+
+    lots_req = lots if lots is not None else 1
 
     # naming conventions
     ftmth = volid.split('.')[1]
@@ -345,15 +370,20 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
 
     # get tau
     try:
-        # case: expiry is explicitly specified. 
-        if expiry is not None:
-            tau = ((expiry - date).days) / 365
+        expiry_date = pd.to_datetime(vdf[(vdf.value_date == date) &
+                                         (vdf.vol_id == volid)].expdate.values[0])
+        if 'expiry_date' in kwargs and kwargs['expiry_date'] is not None:
+            expiry_date = kwargs['expiry_date']
+            tau = (pd.to_datetime(expiry_date) - date).days/365
+        if 'tau' in kwargs and kwargs['tau'] is not None:
+            print('tau in kwargs')
+            tau = kwargs['tau']
         else:
             tau = vdf[(vdf.value_date == date) &
                       (vdf.vol_id == volid)].tau.values[0]
     except IndexError as e:
         raise IndexError(
-            'util.create_barrier_option - cannot find tau given inpits: ', date, volid) from e
+            'util.create_barrier_option - cannot find tau/expdate given inputs: ', date, volid) from e
 
     # defaults to one lot per day to account for daily case. 
     lots_req = lots if lots is not None else 1
@@ -382,11 +412,6 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
         # get vol
         try:
             vol = get_vol_at_strike(rvols, strike)
-            # vol = vdf[(vdf.value_date == date) &
-            #           (vdf.vol_id == volid) &
-            #           (vdf.call_put_id == cpi) &
-            #           (vdf.strike == strike)].vol.values[0]
-            print('strike vol: ', vol)
         except IndexError as e:
             raise IndexError(
                 'util.create_barrier_option - strike not found, input: ', date, volid, cpi, strike)
@@ -396,43 +421,42 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, date, barriert
     if bvol is None:
         try:
             bvol = get_vol_at_strike(rvols, barlevel)
-            print('bvol: ', bvol)
+            # print('bvol: ', bvol)
         except IndexError as e:
             raise IndexError(
                 'util.create_barrier_option - bvol not found. inputs are: ', date, volid, cpi, barlevel) from e
 
     # get bvol2 if necessary for european barriers. 
     if barriertype == 'euro':
-        if bvol2 is None:
-            ticksize = multipliers[pdt][-3]
-            print('ticksize: ', ticksize)
-            digistrike = barlevel - ticksize if direction == 'up' else barlevel + ticksize
-            try:
-                bvol2 = get_vol_at_strike(rvols, digistrike)
-                print('digistrike vol: ', bvol2)
-            except IndexError as e:
-                raise IndexError(
-                    'util.create_barrier_option - digistrike vol not found. inputs are: ', date, volid, cpi, digistrike) from e
+        ticksize = multipliers[pdt][-3]
+        # print('ticksize: ', ticksize)
+        digistrike = barlevel - ticksize if direction == 'up' else barlevel + ticksize
+        try:
+            bvol2 = get_vol_at_strike(rvols, digistrike)
+            # print('digistrike vol: ', bvol2)
+        except IndexError as e:
+            raise IndexError(
+                'util.create_barrier_option - digistrike vol not found. inputs are: ', date, volid, cpi, digistrike) from e
+    
+    dailies = None
+    # handling bullet vs daily
+    if not bullet:
+        date += BDay(1)
+        # expiry_date -= BDay(1)
+        dailies = []
+        # step = 3 if date.dayofweek == 4 else 1 
+        dx = pd.to_datetime(date)
+        incl = 1
+        while dx <= expiry_date:
+            exptime = ((dx - date).days + incl)/365
+            dailies.append(exptime)
+            step = 3 if dx.dayofweek == 4 else 1 
+            dx += pd.Timedelta(str(step) + ' days')
 
-    print('---------------------------------')
-    print('vol used: ', vol)
-    print('bvol used: ', bvol)
-    print('bvol2 used: ', bvol2)
-    print('spot used: ', ftprice, ref)
-    print('daily option: ', not bullet)
-    print('----------------------------------')
     op1 = Option(strike, tau, char, vol, ft, payoff, shorted, opmth,
                  direc=direction, barrier=barriertype, lots=lots_req,
                  bullet=bullet, ki=ki, ko=ko, rebate=rebate, ordering=ft.get_ordering(), 
-                 bvol=bvol, bvol2=bvol2)
-
-    # handling bullet vs daily
-    
-    if not bullet:
-        tmp = {'OTC': [op1]}
-        ops = handle_dailies(tmp, date)
-        ops = ops['OTC']
-        return ops
+                 bvol=bvol, bvol2=bvol2, dailies=dailies)
 
     return op1
 
@@ -903,6 +927,35 @@ def close_out_deltas(pf, dtc):
     return pf, cost
 
 
+def hedge_all_deltas(pf, pdf):
+    """Helper function that delta hedges each future-month combo in a portfolio. 
+    
+    Args:
+        pf (TYPE): Portfolio with specified hedging parameters.
+        pdf (TYPE): Dataframe of settlement prices. 
+    
+    Returns:
+        TYPE: Description
+    """
+    dic = pf.get_net_greeks()
+    hedge_fts = []
+    for pdt in dic:
+        for mth in dic[pdt]:
+            # get the delta value. 
+            print('raw value: ', dic[pdt][mth][0])
+            delta = round(abs(dic[pdt][mth][0]))
+            print('delta: ', delta)
+            shorted = True if delta > 0 else False
+            # delta = abs(delta) 
+            ft, ftprice = create_underlying(pdt, mth, pdf, shorted=shorted, lots=delta)
+            print('ft: ', ft)
+            hedge_fts.append(ft)
+    if hedge_fts:
+        pf.add_security(hedge_fts, 'hedge')
+
+    return pf
+
+
 def create_composites(lst):
     """Helper method that assigns to every option in list every other option as a 'partner'.
 
@@ -1108,24 +1161,25 @@ def volids_from_ci(date_range, product, ci):
     return dates_to_volid
 
 
-def assign_hedge_objects(pf, vdf=None, pdf=None, book=False):
+def assign_hedge_objects(pf, vdf=None, pdf=None, book=False, slippage=None):
     """Helper method that generates and relates a portfolio object 
     with the the Hedger object calibrated to pf.hedge_params. 
-
+    
     Args:
         pf (TYPE): Portfolio object.
         vdf (dataframe, optional): dataframe of volatilities. 
         pdf (dataframe, optional): dataframe of prices 
         book (bool, optional): True if hedging is done basis book vols, False otherwise.
-
+        slippage (None, optional): either flat value for slippage or dictionary of lots -> slippage ticks
+    
     Returns:
         object: Portfolio object with Hedger constructed and assigned.
-
+    
     """
     # case: simple portfolio.
     from .hedge import Hedge
     # print('assign_hedge_objects - init pf: ', pf)
-    hedger = Hedge(pf, pf.hedge_params, vdf=vdf, pdf=pdf, book=book)
+    hedger = Hedge(pf, pf.hedge_params, vdf=vdf, pdf=pdf, book=book, slippage=slippage)
     # print('assign_hedge_objects - after creating hedge object: ', pf)
     pf.hedger = hedger
     # print('assign_hedge_objects - after assigning hedger: ', pf)
