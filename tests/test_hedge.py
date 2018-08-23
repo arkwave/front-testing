@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-08-11 19:24:36
-# @Last Modified by:   arkwave
-# @Last Modified time: 2018-03-28 20:34:57
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-08-23 12:53:22
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -317,9 +317,13 @@ def test_add_hedges():
     engine = Hedge(pf, pf.hedge_params, r_vdf, r_pdf)
     assert not engine.satisfied()
     data = engine.params['theta']
+
+    print('data: ', data)
+
     # shorted = True because want to bring from -10,000 -> -5000
-    ops = engine.add_hedges(data, True, 'CC  Z7.Z7', 'theta', 5250, 'Z7')
+    ops, cost = engine.add_hedges(data, True, 'CC  Z7.Z7', 'theta', 5250, 'Z7')
     assert len(ops) == 2
+    print('ops: ', ops)
     total_theta = sum([op.theta for op in ops])
     assert total_theta > 5235
     assert total_theta < 5265
@@ -331,15 +335,6 @@ def test_add_hedges():
     # testing exp repr
     pf = copy.deepcopy(pfcc)
 
-    # trivial case: exp repr
-    cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],
-                   'theta': [['bound', (9000, 11000), 1, 'straddle',
-                              'strike', 'atm', (0, 20, 40, 60, 80), 'exp']]}
-    pf.hedge_params = cc_hedges_c
-    engine = Hedge(pf, pf.hedge_params, r_vdf, r_pdf)
-    data = engine.params['theta']
-    ops = engine.add_hedges(data, False, 'CC  Z7.Z7', 'theta', 0, 'Z7')
-    assert not ops
 
     # # exp case: bring theta down to -5000 from -10000 --> short straddles.
     # cc_hedges_c = {'delta': [['roll', 50, 1, (-10, 10)]],

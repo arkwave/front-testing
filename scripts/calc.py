@@ -837,7 +837,7 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction,
     # print(tau, vol, k, s, r, direction, ki, ko, lots, bvol, bvol2, dbarrier)
 
     if dbarrier is None: 
-        print('dbarrier is None; computing')
+        # print('dbarrier is None; computing')
         barlevel = ki if ki is not None else ko
         ticksize = multipliers[product][-3]
         dbarrier = barlevel - ticksize if direction == 'up' else barlevel + ticksize

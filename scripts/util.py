@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   RMS08
-# @Last Modified time: 2018-08-20 14:47:51
+# @Last Modified time: 2018-08-23 12:44:53
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -405,8 +405,8 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, barriertype, d
 
     # Case 1 : Vol is None, but strike is specified.
 
-    print('vol is None: ', vol is None)
-    print('bvol is None: ', bvol is None)
+    # print('vol is None: ', vol is None)
+    # print('bvol is None: ', bvol is None)
 
     if vol is None and strike is not None:
         # get vol
