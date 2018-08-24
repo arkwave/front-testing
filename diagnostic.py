@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from scripts.fetch_data import grab_data
-from scripts.util import create_barrier_option, create_vanilla_option, create_underlying, hedge_all_deltas, create_straddle
+from scripts.util import create_barrier_option, create_vanilla_option, create_underlying, hedge_all_deltas, create_straddle, assign_hedge_objects
 from scripts.portfolio import Portfolio
 from scripts.simulation import run_simulation
 from collections import OrderedDict 
@@ -89,24 +89,30 @@ print('============================')
 
 
 # # specify the hedging parameters
-gen_hedges = OrderedDict({'delta': [['static', 0, 1]]})
-# # hedge_dict_1 = OrderedDict({'vega': [['bound', (3800, 4200), 1, 'straddle', 
-# #                                       'strike', 'atm', 'uid']]})
-pf = Portfolio(gen_hedges, name='test', roll=True, ttm_tol=5)
+# gen_hedges = OrderedDict({'delta': [['static', 0, 1]]})
+hedge_dict_1 = OrderedDict({'delta': [['static', 0, 1]],
+                            'vega':  [['bound', (3800, 4200), 1, 'straddle', 
+                                       'strike', 'atm', 'uid']]})
+
+pf = Portfolio(hedge_dict_1, name='test', roll=True, ttm_tol=5)
 pf.add_security([ecuo], 'OTC')
 
 # zeroing deltas
 pf = hedge_all_deltas(pf, pdf)
 
-# vega = pf.get_net_greeks()['KC']['Z8'][-1]
-# shorted = True if vega > 0 else False
+pf = assign_hedge_objects(pf, vdf=vdf, pdf=pdf, book=False, auto_volid=True)
 
-# # create the hedge options 
-# hedge_ops = create_straddle(hedge_vid, vdf, pdf, pd.to_datetime(start), 
-#                             shorted, strike='atm', greek='vega', greekval=round(vega, -2))
-# pf.add_security(hedge_ops, 'hedge')
+vega = pf.get_net_greeks()['KC']['Z8'][-1]
+shorted = True if vega > 0 else False
+
+# create the hedge options 
+hedge_ops = create_straddle(hedge_vid, vdf, pdf, pd.to_datetime(start), 
+                            shorted, strike='atm', greek='vega', greekval=round(vega))
+pf.add_security(hedge_ops, 'hedge')
 
 print(pf)
+
+engine = pf.get_hedger()
 # print('relevant prices: ', pdf[pdf.underlying_id.isin(pf.get_unique_uids())])
-results = run_simulation(vdf, pdf, pf, plot_results=False, slippage=2, 
-                         roll_hedges_only=True, same_month_exception=True)
+# results = run_simulation(vdf, pdf, pf, plot_results=False, slippage=2, 
+#                          roll_hedges_only=True, same_month_exception=True)

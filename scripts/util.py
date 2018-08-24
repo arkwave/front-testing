@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   RMS08
-# @Last Modified time: 2018-08-23 12:44:53
+# @Last Modified time: 2018-08-24 13:23:18
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -1161,7 +1161,7 @@ def volids_from_ci(date_range, product, ci):
     return dates_to_volid
 
 
-def assign_hedge_objects(pf, vdf=None, pdf=None, book=False, slippage=None):
+def assign_hedge_objects(pf, vdf=None, pdf=None, book=False, slippage=None, auto_volid=False):
     """Helper method that generates and relates a portfolio object 
     with the the Hedger object calibrated to pf.hedge_params. 
     
@@ -1171,6 +1171,7 @@ def assign_hedge_objects(pf, vdf=None, pdf=None, book=False, slippage=None):
         pdf (dataframe, optional): dataframe of prices 
         book (bool, optional): True if hedging is done basis book vols, False otherwise.
         slippage (None, optional): either flat value for slippage or dictionary of lots -> slippage ticks
+        auto_volid (bool, optional): Description
     
     Returns:
         object: Portfolio object with Hedger constructed and assigned.
@@ -1179,7 +1180,7 @@ def assign_hedge_objects(pf, vdf=None, pdf=None, book=False, slippage=None):
     # case: simple portfolio.
     from .hedge import Hedge
     # print('assign_hedge_objects - init pf: ', pf)
-    hedger = Hedge(pf, pf.hedge_params, vdf=vdf, pdf=pdf, book=book, slippage=slippage)
+    hedger = Hedge(pf, pf.hedge_params, vdf=vdf, pdf=pdf, book=book, slippage=slippage, auto_volid=auto_volid)
     # print('assign_hedge_objects - after creating hedge object: ', pf)
     pf.hedger = hedger
     # print('assign_hedge_objects - after assigning hedger: ', pf)
@@ -1189,7 +1190,7 @@ def assign_hedge_objects(pf, vdf=None, pdf=None, book=False, slippage=None):
     # case: composite portfolio
     if pf.families:
         for fa in pf.families:
-            hedger = Hedge(fa, fa.hedge_params, vdf=vdf, pdf=pdf, book=book)
+            hedger = Hedge(fa, fa.hedge_params, vdf=vdf, pdf=pdf, book=book, auto_volid=auto_volid)
             fa.hedger = hedger
             fa.hedger.update_hedgepoints()
 
