@@ -13,8 +13,8 @@ from scripts.fetch_data import grab_data
 from scripts.classes import Option, Future
 from scripts.portfolio import Portfolio
 from scripts.simulation import hedge_delta_roll, check_roll_status, \
-    handle_exercise, contract_roll, roll_over, delta_roll, hedge_delta_roll
-from scripts.util import create_straddle, combine_portfolios, create_vanilla_option, create_composites, create_underlying, hedge_all_deltas
+    handle_exercise, contract_roll, roll_over, delta_roll
+from scripts.util import create_straddle, combine_portfolios, create_vanilla_option, create_composites, create_underlying, hedge_all_deltas, assign_hedge_objects
 from collections import OrderedDict
 import numpy as np
 import pandas as pd
@@ -171,7 +171,6 @@ def comp_portfolio(refresh=False):
     # create one simple and one complex portfolio.
     pf_simple = Portfolio(cc_hedges_s, name='cc_simple')
     pf_simple.add_security(ccops, 'OTC')
-
     pfcc = Portfolio(cc_hedges_c, name='cc_comp')
     pfcc.add_security(ccops, 'OTC')
     pfqc = Portfolio(qc_hedges, name='qc_comp')
@@ -179,6 +178,17 @@ def comp_portfolio(refresh=False):
 
     pf_comp = combine_portfolios(
         [pfcc, pfqc], hedges=gen_hedges, refresh=refresh, name='full')
+
+    pf_simple = assign_hedge_objects(pf_simple, vdf=vdf, pdf=pdf)
+    pfcc = assign_hedge_objects(pfcc, vdf=vdf, pdf=pdf)
+    pfqc = assign_hedge_objects(pfqc, vdf=vdf, pdf=pdf)
+    pf_comp = assign_hedge_objects(pf_comp, vdf=vdf, pdf=pdf)
+
+    assert pf_simple.get_hedger() is not None
+    assert pfcc.get_hedger() is not None
+    assert pfqc.get_hedger() is not None
+    assert pf_comp.get_hedger() is not None
+
 
     return pf_simple, pf_comp, ccops, qcops, pfcc, pfqc
 
@@ -451,21 +461,19 @@ def test_rollover_no_product_simple_split():
     r_pdf = pdf[pdf.value_date == date]
     ttm_tol = ccops[0].tau * 365
     # simple portfolio: checking composites in different families
-
     pf1 = Portfolio(None, name='pf1')
-
     pf2 = Portfolio(None, name='pf2')
     pf1.add_security([ccops[0]], 'OTC')
     pf1.ttm_tol = ttm_tol + 1
     pf1.roll = True
-    # print('pf1: ', pf1)
     pf2.add_security([ccops[1]], 'OTC')
     pf = combine_portfolios([pf1, pf2], name='pf', refresh=True)
+
+    pf1 = assign_hedge_objects(pf1, vdf=vdf, pdf=pdf)
+    pf2 = assign_hedge_objects(pf2, vdf=vdf, pdf=pdf)
+    pf = assign_hedge_objects(pf, vdf=vdf, pdf=pdf)
+
     pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
-
-    # print('pf: ', pf)
-
-    # try:
     assert 'H8' in pf.OTC['CC']
     assert 'H8' in pf.get_net_greeks()['CC']
     assert 'H8' in pf1.OTC['CC']
@@ -556,6 +564,11 @@ def test_rollover_no_product_split():
     pf2.add_security([ccops[1], qcops[1]], 'OTC')
 
     pf = combine_portfolios([pf1, pf2], name='pf', refresh=True)
+
+    pf1 = assign_hedge_objects(pf1, vdf=vdf, pdf=pdf)
+    pf2 = assign_hedge_objects(pf2, vdf=vdf, pdf=pdf)
+    pf = assign_hedge_objects(pf, vdf=vdf, pdf=pdf)
+
     pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date)
 
     # check that greeks are appropriately updated in overall pf
@@ -832,6 +845,10 @@ def test_roll_composite_partners():
     pf_q.add_security(qops2, 'OTC')
 
     pf = combine_portfolios([pf_q, pf_c], hedges=gen_hedges)
+
+    pf_c = assign_hedge_objects(pf_c, vdf=vdf, pdf=pdf)
+    pf_q = assign_hedge_objects(pf_q, vdf=vdf, pdf=pdf)
+    pf = assign_hedge_objects(pf, vdf=vdf, pdf=pdf)
 
     pf.name = 'all'
     pf_c.name = 'cc_pf'

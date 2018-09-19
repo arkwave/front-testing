@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   RMS08
-# @Last Modified time: 2018-08-24 13:23:18
+# @Last Modified by:   arkwave
+# @Last Modified time: 2018-09-19 16:45:08
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -1161,7 +1161,7 @@ def volids_from_ci(date_range, product, ci):
     return dates_to_volid
 
 
-def assign_hedge_objects(pf, vdf=None, pdf=None, book=False, slippage=None, auto_volid=False):
+def assign_hedge_objects(pf, vdf=None, pdf=None, book=False, slippage=None, auto_volid=True, vid_dict=None):
     """Helper method that generates and relates a portfolio object 
     with the the Hedger object calibrated to pf.hedge_params. 
     
@@ -1171,16 +1171,26 @@ def assign_hedge_objects(pf, vdf=None, pdf=None, book=False, slippage=None, auto
         pdf (dataframe, optional): dataframe of prices 
         book (bool, optional): True if hedging is done basis book vols, False otherwise.
         slippage (None, optional): either flat value for slippage or dictionary of lots -> slippage ticks
-        auto_volid (bool, optional): Description
+        auto_volid (bool, optional): Determines if vol_ids used to hedge greeks are automatically determined or specified. 
+        vid_dict (dict, optional): If auto_volid is False, initial vol_ids used to hedge greeks must be specified. 
     
     Returns:
         object: Portfolio object with Hedger constructed and assigned.
     
+    Raises:
+        AssertionError: Raised if auto_volid is disabled but no dictionary is passed in. 
+    
     """
+    if not auto_volid:
+        try:
+            assert vid_dict is not None 
+        except AssertionError as e:
+            raise AssertionError("Auto-vol_id detection is off, but no vid_dict was specified.")
+
     # case: simple portfolio.
     from .hedge import Hedge
     # print('assign_hedge_objects - init pf: ', pf)
-    hedger = Hedge(pf, pf.hedge_params, vdf=vdf, pdf=pdf, book=book, slippage=slippage, auto_volid=auto_volid)
+    hedger = Hedge(pf, pf.hedge_params, vdf=vdf, pdf=pdf, book=book, slippage=slippage, auto_volid=auto_volid, vid_dict=vid_dict)
     # print('assign_hedge_objects - after creating hedge object: ', pf)
     pf.hedger = hedger
     # print('assign_hedge_objects - after assigning hedger: ', pf)
@@ -1190,7 +1200,7 @@ def assign_hedge_objects(pf, vdf=None, pdf=None, book=False, slippage=None, auto
     # case: composite portfolio
     if pf.families:
         for fa in pf.families:
-            hedger = Hedge(fa, fa.hedge_params, vdf=vdf, pdf=pdf, book=book, auto_volid=auto_volid)
+            hedger = Hedge(fa, fa.hedge_params, vdf=vdf, pdf=pdf, book=book, auto_volid=auto_volid, vid_dict=vid_dict)
             fa.hedger = hedger
             fa.hedger.update_hedgepoints()
 
@@ -1280,5 +1290,33 @@ def compute_market_minus(pf, vdf):
     return mm, val
 
 
-def print_inputs(**kwargs):
-    pass
+def hedging_volid_handler(pf, old_vid, new_vid):
+    """Helper function that determines if the Hedger associated with this portfolio
+    uses a manually specified vol_id for hedging all greeks, or if the vol_ids are 
+    automatically determined from the dataset. 
+    
+    If manually specified, and the vol_id in question is being contract rolled, it updates
+    the self.mappings dictionary in the hedger to use this new vol_id to hedge the greek 
+    in question from this point onwards.
+    
+    Args:
+        pf (Portfolio): The portfolio being hedged
+        old_vid (str): vol_id being rolled
+        new_vid (str): vol_id being rolled into. 
+    
+    Returns:
+        TYPE: The Portfolio object, with the requisite vol_id changed if necessary.
+    """
+    # base case: hedger automatically determines volids. nothing done, just return. 
+    engine = pf.get_hedger()     
+    assert engine is not None
+    if engine.auto_detect_volids():
+        return pf  
+    # case: manual specification is on. vol_id check needs to happen. 
+    else:
+        dic = engine.get_volid_hedge_mappings()
+        for greek in dic: 
+            for uid in dic[greek]:
+                if dic[greek][uid] == old_vid:
+                    dic[greek][uid] = new_vid 
+        return pf  

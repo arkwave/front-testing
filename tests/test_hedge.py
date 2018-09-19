@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-08-11 19:24:36
-# @Last Modified by:   RMS08
-# @Last Modified time: 2018-08-23 12:53:22
+# @Last Modified by:   arkwave
+# @Last Modified time: 2018-09-19 17:02:19
 
 from collections import OrderedDict
 from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
@@ -60,9 +60,18 @@ def comp_portfolio(refresh=True):
     pfcc.add_security(ccops, 'OTC')
     pfqc = Portfolio(qc_hedges, name='qc_comp')
     pfqc.add_security(qcops, 'OTC')
-
     pf_comp = combine_portfolios(
         [pfcc, pfqc], hedges=gen_hedges, refresh=refresh, name='full')
+
+    pf_simple = assign_hedge_objects(pf_simple, vdf=vdf, pdf=pdf)
+    pfcc = assign_hedge_objects(pfcc, vdf=vdf, pdf=pdf)
+    pfqc = assign_hedge_objects(pfqc, vdf=vdf, pdf=pdf)
+    pf_comp = assign_hedge_objects(pf_comp, vdf=vdf, pdf=pdf)
+
+    assert pf_simple.get_hedger() is not None
+    assert pfcc.get_hedger() is not None
+    assert pfqc.get_hedger() is not None
+    assert pf_comp.get_hedger() is not None
 
     return pf_simple, pf_comp, ccops, qcops, pfcc, pfqc
 
@@ -1116,6 +1125,7 @@ def test_is_relevant_price_move_static():
 
     # assign hedge objects and create copy
     pf = copy.deepcopy(pf_comp)
+    print('pf_simple: ', pf)
     pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf)
 
     # print('pf.hedger.hedgpoints: ', pf.hedger.last_hedgepoints)
@@ -1133,3 +1143,28 @@ def test_is_relevant_price_move_static():
     assert engine.is_relevant_price_move('CC  Z7', ccprice + 10)[0]
     assert not engine.is_relevant_price_move('QC  Z7', qcprice + 5)[0]
     assert engine.is_relevant_price_move('QC  Z7', qcprice + 10)[0]
+
+
+def test_auto_volid_params():
+    vals = {'CC  Z7': 10, 'QC  Z7': 10}
+    gen_hedges = OrderedDict({'delta': [['static', 0, 1],
+                                        ['intraday', 'static', vals]]})
+
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    pf_comp.hedge_params = gen_hedges
+
+    # assign hedge objects and create copy
+    pf = copy.deepcopy(pfcc)
+    pf = assign_hedge_objects(pf, vdf=r_vdf, pdf=r_pdf, auto_volid=False, 
+                              vid_dict = {'vega': {('CC', 'Z7'): 'CC  K7.K7'}})
+
+    # case 1: for both products, moves are less than static value.
+    engine = pf.get_hedger()
+    assert not engine.auto_volid
+    assert engine.vid_dict is not None
+    print(engine.mappings)
+
+    assert engine.mappings == {'vega': {('CC', 'Z7'):'CC  K7.K7'}}
+
+    # perform a contract roll, and check that the hedging vid is updated. 
+    # assert 1 == 0

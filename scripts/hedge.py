@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   RMS08
-# @Last Modified time: 2018-08-24 13:34:16
+# @Last Modified by:   arkwave
+# @Last Modified time: 2018-09-19 16:31:36
 
 import pandas as pd
 import pprint
@@ -63,7 +63,7 @@ class Hedge:
     def __init__(self, portfolio, hedges, vdf=None, pdf=None,
                  buckets=None, brokerage=None, slippage=None,
                  book=False, settlements=None,
-                 auto_volid=True):
+                 auto_volid=True, vid_dict=None):
         """Constructor. Initializes a hedge object subject to the following parameters.
         
         Args:
@@ -81,6 +81,7 @@ class Hedge:
             valid inputs are 'exp' for greeks-by-expiry and 'uid' for greeks by underlying.
         
         """
+        self.vid_dict = vid_dict
         self.auto_volid = auto_volid
         self.settlements = settlements
         self.book = book
@@ -121,6 +122,12 @@ class Hedge:
                   'date': self.date}
 
         return str(pprint.pformat(r_dict))
+
+    def auto_detect_volids(self):
+        return self.auto_volid
+
+    def get_volid_hedge_mappings(self):
+        return self.mappings
 
     def get_hedgeparser(self):
         return self.hedgeparser
@@ -423,8 +430,19 @@ class Hedge:
                     
         # case: vol_id is specified per greek to be hedged
         else:
-            pass
+            # check vid_dict and the format. 
+            assert self.vid_dict is not None
+            for el in self.vid_dict:
+                assert type(el) == str
+                assert el in {'delta', 'gamma', 'theta', 'vega'}
+                assert type(self.vid_dict[el]) == dict
+                for comb in self.vid_dict[el]:
+                    assert type(comb) == tuple 
+                    assert type(self.vid_dict[el][comb]) == str 
 
+            self.mappings.update(self.vid_dict.copy())
+            print('aut_volid_false - mappings: ', self.mappings)
+            
     def get_bucket(self, val, buckets=None):
         """Helper method that gets the bucket associated with a given value according to self.buckets.
 

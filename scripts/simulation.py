@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   RMS08
-# @Last Modified time: 2018-08-23 12:41:05
+# @Last Modified by:   arkwave
+# @Last Modified time: 2018-09-19 16:37:37
 
 
 ################################ imports ###################################
@@ -17,7 +17,7 @@ from collections import OrderedDict
 from pandas.tseries.offsets import BDay
 
 # user defined imports
-from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites, assign_hedge_objects, compute_market_minus, mark_to_vols, hedge_all_deltas
+from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites, assign_hedge_objects, compute_market_minus, mark_to_vols, hedge_all_deltas, hedging_volid_handler
 from .prep_data import reorder_ohlc_data, granularize
 from .calc import _compute_value, get_vol_at_strike
 from .signals import apply_signal
@@ -1555,6 +1555,7 @@ def contract_roll(pf, op, vdf, pdf, date, flag, slippage=None):
     # identifying deltas to close
     iden = (pdt, ftmth, ftprice)
 
+    # TODO: figure out if this affects rolling into serial months. Guessing it does.
     # creating the new options object - getting the tau and vol
     new_vol_id = pdt + '  ' + new_ft_month + '.' + new_ft_month
     lots = op.lots
@@ -1580,6 +1581,9 @@ def contract_roll(pf, op, vdf, pdf, date, flag, slippage=None):
     pf.add_security([newop], flag)
 
     pf.refresh()
+
+    # insert function to handle handling of vol_id mappings if they are manually specified. 
+    pf = hedging_volid_handler(pf, op.get_vol_id(), new_vol_id)
 
     if slippage is not None:
         if type(slippage) == dict:

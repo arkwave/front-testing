@@ -8,7 +8,7 @@ Description    : File contains tests for the Portfolio class methods in portfoli
 
 """
 import pandas as pd
-from scripts.util import create_straddle, combine_portfolios, create_underlying
+from scripts.util import create_straddle, combine_portfolios, create_underlying, assign_hedge_objects
 from scripts.fetch_data import grab_data
 from scripts.portfolio import Portfolio
 from scripts.classes import Option, Future
@@ -530,6 +530,16 @@ def comp_portfolio(refresh=False):
 
     pf_comp = combine_portfolios(
         [pfcc, pfqc], hedges=gen_hedges, refresh=refresh, name='full')
+
+    pf_simple = assign_hedge_objects(pf_simple, vdf=vdf, pdf=pdf)
+    pfcc = assign_hedge_objects(pfcc, vdf=vdf, pdf=pdf)
+    pfqc = assign_hedge_objects(pfqc, vdf=vdf, pdf=pdf)
+    pf_comp = assign_hedge_objects(pf_comp, vdf=vdf, pdf=pdf)
+
+    assert pf_simple.get_hedger() is not None
+    assert pfcc.get_hedger() is not None
+    assert pfqc.get_hedger() is not None
+    assert pf_comp.get_hedger() is not None
 
     return pf_simple, pf_comp, ccops, qcops, pfcc, pfqc
 
