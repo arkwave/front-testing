@@ -102,15 +102,15 @@ pf = hedge_all_deltas(pf, pdf)
 
 pf = assign_hedge_objects(pf, vdf=vdf, pdf=pdf, book=False, auto_volid=True)
 
-vega = pf.get_net_greeks()['KC']['Z8'][-1]
-shorted = True if vega > 0 else False
+theta = pf.get_net_greeks()['KC']['Z8'][-2]
+shorted = False if theta > 0 else True
 
 # create the hedge options 
 hedge_ops = create_straddle(hedge_vid, vdf, pdf, pd.to_datetime(start), 
-                            shorted, strike='atm', greek='vega', greekval=round(vega))
+                            shorted, strike='atm', greek='theta', greekval=round(theta))
 pf.add_security(hedge_ops, 'hedge')
 
-print(pf)
+print(pf.get_aggregated_greeks())
 
 engine = pf.get_hedger()
 # print('relevant prices: ', pdf[pdf.underlying_id.isin(pf.get_unique_uids())])
