@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   RMS08
-# @Last Modified time: 2018-09-21 11:48:14
+# @Last Modified time: 2018-09-21 17:44:33
 
 import pandas as pd
 import pprint
@@ -481,8 +481,8 @@ class Hedge:
         if self.desc == 'uid':
             return self.uid_hedges_satisfied()
 
-        elif self.desc == 'exp':
-            return self.exp_hedges_satisfied()
+        elif self.desc == 'agg':
+            return self.agg_hedges_satisfied()
 
     def uid_hedges_satisfied(self):
         """Helper method that ascertains if all entries in net_greeks satisfy
@@ -545,7 +545,8 @@ class Hedge:
         # print('--- done checking uid hedges satisfied ---')
         return True
 
-    def exp_hedges_satisfied(self):
+    #TODO: finish this
+    def agg_hedges_satisfied(self):
         """Helper method that checks if greeks according to expiry
              representation are adequately hedged.
 
@@ -556,7 +557,7 @@ class Hedge:
         strs = {'delta': 0, 'gamma': 1, 'theta': 2, 'vega': 3}
         self.pf.update_sec_by_month(None, 'OTC', update=True)
         self.pf.update_sec_by_month(None, 'hedge', update=True)
-        self.greek_repr = self.pf.greeks_by_exp(self.buckets)
+        self.greek_repr = self.pf.get_aggregated_greeks()
         net_greeks = self.greek_repr
         tst = self.hedges.copy()
         conditions = []

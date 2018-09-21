@@ -1261,7 +1261,14 @@ def test_rollover_hedge_volids_advanced():
     pf.add_security(cc_hedge, 'hedge')
     pf.add_security(qc_hedge, 'hedge')
 
+    print(pf)
+
+    pf = hedge_all_deltas(pf, r_pdf)
+    pf.refresh()
+
     print(pf.get_aggregated_greeks())
+
+    # print(pf)
 
     # pf.roll = True 
     # pf.ttm_tol = 40
