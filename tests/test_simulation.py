@@ -189,7 +189,6 @@ def comp_portfolio(refresh=False):
     assert pfqc.get_hedger() is not None
     assert pf_comp.get_hedger() is not None
 
-
     return pf_simple, pf_comp, ccops, qcops, pfcc, pfqc
 
 
@@ -1183,3 +1182,112 @@ def test_roll_over_same_month_exception_ttm_version():
     print('pf post rollover: ', cc_pf)
     assert 'Z7' in cc_pf.hedges['CC']
     assert 'Z7' in cc_pf.OTC['CC']
+
+
+def test_rollover_hedge_volids():
+    pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+
+    # creation info
+    date = pdf.value_date.min()
+    r_vdf = vdf[vdf.value_date == date]
+    r_pdf = pdf[pdf.value_date == date]
+
+    print(r_vdf.vol_id.unique())
+
+    # modifying portfolio
+    cc_pf = copy.deepcopy(pfcc)
+    # # create_composites(pf.get_all_options())
+    
+    # add hedges to portfolio. 
+    ccops2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(start_date),
+                             True, 'atm', greek='theta', greekval=5000)
+    cc_pf.add_security(ccops2, 'hedge')
+    cc_pf.roll = True
+    cc_pf.ttm_tol = 40
+    cc_pf.refresh()
+
+    # manually change the parameters to use U7.U7 to hedge. 
+    engine = cc_pf.get_hedger() 
+    engine.set_auto_detect(False)
+    vid_dict = {'theta': {('CC', 'Z7'): 'CC  U7.U7'}}
+    engine.set_volid_hedge_mappings(vid_dict)
+    assert not engine.auto_detect_volids()
+    print(engine.auto_detect_volids())
+    # check to ensure that parameters have been properly passed. 
+    try:
+        assert engine.get_volid_hedge_mappings() == vid_dict
+    except AssertionError as e:
+        raise AssertionError(vid_dict, engine.get_volid_hedge_mappings())
+    assert engine.vid_dict is not None
+    cc_pf.refresh()
+
+    # now roll everything. the vol_id associated with hedging theta should now be CC  Z7.Z7
+    cc_pf, cost, _ = roll_over(cc_pf, r_vdf, r_pdf, date, hedges_only=True, same_month_exception=True)
+    dic = engine.get_volid_hedge_mappings() 
+    print(dic)
+    try:
+        assert dic['theta'][('CC', 'Z7')] == 'CC  Z7.Z7'
+    except AssertionError as e:
+        raise AssertionError("manually specified vol_id was not correctly rolled.") from e 
+
+
+def test_rollover_hedge_volids_advanced():
+    # creation info
+    date = pdf.value_date.min()
+    r_vdf = vdf[vdf.value_date == date]
+    r_pdf = pdf[pdf.value_date == date]
+
+    # create requisite structures. 
+    ccops = create_straddle('CC  H8.H8', vdf, pdf, pd.to_datetime(start_date),
+                                False, 'atm', greek='theta', greekval=10000)
+    qcops = create_straddle('QC  H8.H8', vdf, pdf, pd.to_datetime(start_date),
+                            False, 'atm', greek='theta', greekval=10000)
+    # create the hedges.
+    gen_hedges = {'delta': [['static', 'zero', 1], 
+                             ['roll', 50, 1, (-10, 10)]],
+                   'theta': [['bound', (9000, 11000), 1, 'straddle',
+                              'strike', 'atm', 'uid']]}
+    
+    # contains both CC and QC options
+    pf = Portfolio(gen_hedges, name='cc_simple')
+    pf.add_security(ccops, 'OTC')
+    pf.add_security(qcops, 'OTC')
+
+    # create the hedging CC options
+    cc_hedge = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(start_date),
+                                True, 'atm', greek='theta', greekval=10000)
+    qc_hedge = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(start_date),
+                                True, 'atm', greek='theta', greekval=10000)
+    pf.add_security(cc_hedge, 'hedge')
+    pf.add_security(qc_hedge, 'hedge')
+
+    print(pf.get_aggregated_greeks())
+
+    # pf.roll = True 
+    # pf.ttm_tol = 40
+
+    # # create the right kind of Hedge object/ 
+    # vid_dict = {'theta': {('CC', 'H8'): 'CC  U7.U7', 
+    #                       ('QC', 'H8'): 'QC  U7.U7'}
+    #             }
+    # pf = assign_hedge_objects(pf, vdf=vdf, pdf=pdf, auto_volid=False, vid_dict=vid_dict)
+    
+    # # check to see that U7 is rolled to Z7 and not to H8.
+    # pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date, hedges_only=True, same_month_exception=True)
+    
+    # engine = pf.get_hedger()
+    # dic = engine.get_volid_hedge_mappings()
+    # # CC should change, QC remains the same 
+    # assert dic['theta'][('CC', 'H8')] == 'CC  Z7.Z7'
+    # assert dic['theta'][('QC', 'H8')] == 'QC  U7.U7'
+
+    # # step the portfolio forward in time 
+    # pf.timestep(20/365)
+    # pf, cost, _ = roll_over(pf, r_vdf, r_pdf, date, hedges_only=True, same_month_exception=True)
+    # engine = pf.get_hedger()
+    # dic = engine.get_volid_hedge_mappings()
+    # # CC should change, QC remains the same 
+    # assert dic['theta'][('CC', 'H8')] == 'CC  Z7.Z7'
+    # assert dic['theta'][('QC', 'H8')] == 'QC  Z7.Z7'
+
+

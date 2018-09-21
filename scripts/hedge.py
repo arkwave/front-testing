@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   arkwave
-# @Last Modified time: 2018-09-19 16:31:36
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-09-21 11:48:14
 
 import pandas as pd
 import pprint
@@ -126,8 +126,17 @@ class Hedge:
     def auto_detect_volids(self):
         return self.auto_volid
 
+    def set_auto_detect(self, auto):
+        self.auto_volid = auto 
+
     def get_volid_hedge_mappings(self):
         return self.mappings
+
+    def set_volid_hedge_mappings(self, dic):
+        self.mappings = {}
+        self.vid_dict = dic
+        self.calibrate_all()
+        assert self.vid_dict is not None
 
     def get_hedgeparser(self):
         return self.hedgeparser
@@ -315,8 +324,12 @@ class Hedge:
         2) desc = 'uid' -> _calibrate generates a dictionary mapping product/underlying month
             to a vol_id, dependent on any ttm multipliers passed in.
         """
+        # print('entering calibrate')
+        # print('self.hedges: ', self.hedges)
         for flag in self.hedges:
+            # print('flag: ', flag)
             if flag != 'delta':
+                # print('calibrating %s' % flag)
                 self._calibrate(flag)
 
     def _calibrate(self, flag, selection_criteria='median', buckets=None):
@@ -366,6 +379,9 @@ class Hedge:
             self.greek_repr = self.pf.get_aggregated_greeks() 
             net = self.greek_repr.copy() 
 
+        # print('------')
+        # print('calibrate - auto_volid: ', self.auto_volid)
+        # print('------')
         # case: vol_id is auto-detected. 
         if self.auto_volid:
             for product in net:
@@ -439,9 +455,12 @@ class Hedge:
                 for comb in self.vid_dict[el]:
                     assert type(comb) == tuple 
                     assert type(self.vid_dict[el][comb]) == str 
-
+            # print('---1---')
+            # print(self.vid_dict)
             self.mappings.update(self.vid_dict.copy())
-            print('aut_volid_false - mappings: ', self.mappings)
+            # print('---2---')
+            # print(self.mappings)
+            # print('aut_volid_false - mappings: ', self.mappings)
             
     def get_bucket(self, val, buckets=None):
         """Helper method that gets the bucket associated with a given value according to self.buckets.
@@ -518,7 +537,7 @@ class Hedge:
                     if (greeks[index] > utol) or \
                             (greeks[index] < ltol):
                         # print(str(cond) + ' failed')
-                        print(greeks[index], ltol, utol)
+                        # print(greeks[index], ltol, utol)
                         # print('--- done checking uid hedges satisfied ---')
                         return False
 
@@ -724,16 +743,16 @@ class Hedge:
                         print('scripts.hedge - book vol case: cannot find vol: ',
                               op.get_vol_id(), cpi, op.K)
                         settle_vol = op.vol
-                    print(op.get_vol_id() + ' settle_vol: ', settle_vol)
-                    print('op.book vol: ', op.vol)
+                    # print(op.get_vol_id() + ' settle_vol: ', settle_vol)
+                    # print('op.book vol: ', op.vol)
                     true_value = _compute_value(op.char, op.tau, settle_vol, op.K,
                                                 op.underlying.get_price(), 0, 'amer', ki=op.ki,
                                                 ko=op.ko, barrier=op.barrier, d=op.direc,
                                                 product=op.get_product(), bvol=op.bvol)
-                    print('op value basis settlements: ', true_value)
+                    # print('op value basis settlements: ', true_value)
                     pnl_mult = multipliers[op.get_product()][-1]
                     diff = (true_value - op.get_price()) * op.lots * pnl_mult
-                    print('diff: ', diff)
+                    # print('diff: ', diff)
                     cost += diff
 
         return cost
@@ -809,7 +828,7 @@ class Hedge:
                 pdt, mth = uid.split()
                 if pdt in mults and mth in mults[pdt]:
                     be_mult = mults[pdt][mth]
-                    print('pdt, mth, mult: ', pdt, mth, be_mult)
+                    # print('pdt, mth, mult: ', pdt, mth, be_mult)
                 else:
                     be_mult = 1
                 comp_val = self.breakeven[pdt][mth] * be_mult
@@ -846,10 +865,10 @@ class Hedge:
         ft = None
         net_greeks = self.pf.get_net_greeks()
         tobehedged = {}
-        print('last hedgepoints: ', self.last_hedgepoints)
+        # print('last hedgepoints: ', self.last_hedgepoints)
         # case: intraday data
         if intraday:
-            print('intraday hedging case')
+            # print('intraday hedging case')
             curr_prices = self.pf.uid_price_dict()
             for uid in self.pf.get_unique_uids():
                 pdt, mth = uid.split()
@@ -864,24 +883,24 @@ class Hedge:
         else:
             tobehedged = net_greeks
 
-        print('tobehedged: ', tobehedged)
-        print('-------- Entering HedgeParser Logic ---------')
+        # print('tobehedged: ', tobehedged)
+        # print('-------- Entering HedgeParser Logic ---------')
         target_flag = 'intraday' if intraday else 'eod'
 
         hedge_ratios = self.get_hedge_ratios(target_flag)
 
-        print('hedge_ratios: ', hedge_ratios)
-        print('--------- End HedgeParser Logic -------------')
+        # print('hedge_ratios: ', hedge_ratios)
+        # print('--------- End HedgeParser Logic -------------')
         for product in tobehedged:
             for month in tobehedged[product]:
                 uid = product + '  ' + month
-                print('delta hedging ' + uid)
+                # print('delta hedging ' + uid)
                 target = self.params['delta'][target_flag]['target']
                 delta = net_greeks[product][month][0] * hedge_ratios[uid]
                 delta_diff = delta - target
                 shorted = True if delta_diff > 0 else False
                 num_lots_needed = abs(round(delta_diff))
-                print('num_lots_needed: ', num_lots_needed)
+                # print('num_lots_needed: ', num_lots_needed)
                 ft = None
                 if num_lots_needed == 0:
                     print('no hedging required for ' + product +
