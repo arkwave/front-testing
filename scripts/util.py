@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2018-09-19 16:45:08
+# @Last Modified time: 2018-09-24 10:27:14
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -938,14 +938,16 @@ def hedge_all_deltas(pf, pdf):
         TYPE: Description
     """
     dic = pf.get_net_greeks()
+    print('dic: ',  dic)
     hedge_fts = []
     for pdt in dic:
         for mth in dic[pdt]:
             # get the delta value. 
+            delta = dic[pdt][mth][0]
+            shorted = True if delta > 0 else False
             print('raw value: ', dic[pdt][mth][0])
             delta = round(abs(dic[pdt][mth][0]))
             print('delta: ', delta)
-            shorted = True if delta > 0 else False
             # delta = abs(delta) 
             ft, ftprice = create_underlying(pdt, mth, pdf, shorted=shorted, lots=delta)
             print('ft: ', ft)

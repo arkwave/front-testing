@@ -1048,8 +1048,6 @@ class Portfolio:
             for fa in self.families:
                 fa.hedger.update_dataframes(vdf, pdf, settles=settles)
 
-        print('hedger dataframes updated!')
-
     def get_hedger(self):
         return self.hedger
 

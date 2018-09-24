@@ -2,10 +2,10 @@
 # @Author: arkwave
 # @Date:   2017-08-11 19:24:36
 # @Last Modified by:   arkwave
-# @Last Modified time: 2018-09-19 17:02:19
+# @Last Modified time: 2018-09-24 16:02:52
 
 from collections import OrderedDict
-from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects
+from scripts.util import create_straddle, combine_portfolios, assign_hedge_objects, hedge_all_deltas
 from scripts.portfolio import Portfolio
 from scripts.fetch_data import grab_data
 from scripts.hedge import Hedge
@@ -1166,5 +1166,68 @@ def test_auto_volid_params():
 
     assert engine.mappings == {'vega': {('CC', 'Z7'):'CC  K7.K7'}}
 
-    # perform a contract roll, and check that the hedging vid is updated. 
-    # assert 1 == 0
+
+def test_agg_params_processed():
+    # pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
+    hedge_dic = {'delta': [['static', 0, 1],
+                           ['roll', 50, 1, (-10, 10)]],
+                 'theta': [['bound', (-1000, 1000), 1, 0.5, 'years', 'straddle',
+                            'strike', 'atm', 'agg']]}
+
+    ccops = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+                            False, 'atm', greek='theta', greekval=10000)
+    pfcc = Portfolio(hedge_dic, name='cc_comp')
+    pfcc.add_security(ccops, 'OTC')
+    pfcc = assign_hedge_objects(pfcc, vdf=vdf, pdf=pdf)
+    pfcc = hedge_all_deltas(pfcc, pdf)
+    engine = pfcc.get_hedger()
+
+    # check basic parameter passing.
+    to_test = engine.params.copy()
+    # delta should be zeroed at EOD. 
+    assert to_test['delta']['eod']['target'] == 0
+    assert to_test['theta']['kind'] == 'straddle'
+    assert to_test['theta']['spec'] == 'atm'
+    assert to_test['theta']['spectype'] == 'strike'
+    assert to_test['theta']['tau_val'] == 0.5
+    assert to_test['theta']['tau_desc'] == 'years'
+    
+    assert engine.mappings['theta'] == {('CC', 'Z7'): 'CC  Z7.Z7'}
+
+
+def test_agg_hedge_satisfied():
+    hedge_dic = {'delta': [['static', 0, 1],
+                           ['roll', 50, 1, (-10, 10)]],
+                 'theta': [['bound', (-1000, 1000), 1, 0.5, 'years', 'straddle',
+                            'strike', 'atm', 'agg']]}
+
+    ccops = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+                            False, 'atm', greek='theta', greekval=10000)
+    pfcc = Portfolio(hedge_dic, name='cc_comp')
+    pfcc.add_security(ccops, 'OTC')
+
+    # create the vid_dict and set auto_detect to false. 
+    vid_dict = {'theta': {('CC', 'Z7'): 'CC  U7.U7'}}
+    pfcc = assign_hedge_objects(pfcc, vdf=vdf, pdf=pdf, auto_volid=False, vid_dict=vid_dict)
+    pfcc = hedge_all_deltas(pfcc, pdf)
+    engine = pfcc.get_hedger()
+
+    assert not engine.satisfied()
+
+    # now add the hedges.
+    engine.apply('theta')
+    engine.apply('delta')
+
+    print(pfcc)
+
+    # check that U7 is present in the portfolio.
+    assert 'U7' in pfcc.hedges['CC']
+    # check the numerical value. 
+    agg = pfcc.get_aggregated_greeks() 
+
+    print(agg)
+
+    assert agg['CC'][2] < 100
+    assert agg['CC'][2] > -100
+    # now check if the engine detects it as being satisfied. 
+    assert engine.satisfied()

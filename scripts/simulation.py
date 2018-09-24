@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   RMS08
-# @Last Modified time: 2018-09-21 16:16:00
+# @Last Modified by:   arkwave
+# @Last Modified time: 2018-09-24 16:47:44
 
 
 ################################ imports ###################################
@@ -554,7 +554,6 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
             print('portfolio is empty!')
             print('pf: ', pf)
             print('pf.empty: ', pf.empty())
-
 
     # Step 7: Hedge - bring greek levels across portfolios (and families) into
     # line with target levels using specified vols/prices.

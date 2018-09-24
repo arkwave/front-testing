@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   RMS08
-# @Last Modified time: 2018-09-21 17:44:33
+# @Last Modified by:   arkwave
+# @Last Modified time: 2018-09-24 16:02:14
 
 import pandas as pd
 import pprint
@@ -235,12 +235,11 @@ class Hedge:
                 desc = r_conds[-1]
                 desc == 'uid' if desc is None else desc
 
-                # FIXME: replace this with the appropriate aggregation conditions
                 if desc == 'agg':
-                    params[flag]['kind'] = r_conds[-5]
-                    params[flag]['spectype'] = r_conds[-4]
-                    params[flag]['spec'] = r_conds[-3]
-                    if len(r_conds) == 10:
+                    params[flag]['kind'] = r_conds[-4]
+                    params[flag]['spectype'] = r_conds[-3]
+                    params[flag]['spec'] = r_conds[-2]
+                    if len(r_conds) == 9:
                         if r_conds[4] == 'days':
                             params[flag]['tau_val'] = r_conds[3] / 365
                             params[flag]['tau_desc'] = 'days'
@@ -250,7 +249,7 @@ class Hedge:
                         elif r_conds[4] == 'ratio':
                             params[flag]['tau_val'] = r_conds[3]
                             params[flag]['tau_desc'] = 'ratio'
-
+ 
                 elif desc == 'uid':
                     params[flag]['kind'] = r_conds[-4]
                     params[flag]['spectype'] = r_conds[-3]
@@ -368,7 +367,7 @@ class Hedge:
         # first case: greeks by underlying (regular thing we're used to)
         if self.desc == 'uid':
             self.greek_repr = self.pf.get_net_greeks()
-            net = self.pf.get_net_greeks()
+            
             # assert not self.vdf.empty
 
         # second case: aggregated greeks. 
@@ -377,12 +376,7 @@ class Hedge:
         # 2. use the right TTM option to hedge - current method of specifying a ttm will work.
         elif self.desc == 'agg': 
             self.greek_repr = self.pf.get_aggregated_greeks() 
-            net = self.greek_repr.copy() 
-
-        # print('------')
-        # print('calibrate - auto_volid: ', self.auto_volid)
-        # print('------')
-        # case: vol_id is auto-detected. 
+        net = self.pf.get_net_greeks()
         if self.auto_volid:
             for product in net:
                 product = product.strip()
@@ -519,7 +513,7 @@ class Hedge:
                     c = cond[1]
                     tup = (strs[greek], c)
                     conditions.append(tup)
-        # bound_and_static = True
+
         for pdt in net_greeks:
             for month in net_greeks[pdt]:
                 greeks = net_greeks[pdt][month]
@@ -532,17 +526,11 @@ class Hedge:
                         tmp = ltol
                         ltol = -utol
                         utol = -tmp
-                    # print('scripts.hedge.check_uid_hedges: inputs - ',
-                    #       greeks[index], ltol, utol)
                     if (greeks[index] > utol) or \
                             (greeks[index] < ltol):
-                        # print(str(cond) + ' failed')
-                        # print(greeks[index], ltol, utol)
-                        # print('--- done checking uid hedges satisfied ---')
+
                         return False
 
-        # rolls_satisfied = check_roll_hedges(pf, hedges)
-        # print('--- done checking uid hedges satisfied ---')
         return True
 
     #TODO: finish this
@@ -555,8 +543,6 @@ class Hedge:
             hedges (TYPE): Description
         """
         strs = {'delta': 0, 'gamma': 1, 'theta': 2, 'vega': 3}
-        self.pf.update_sec_by_month(None, 'OTC', update=True)
-        self.pf.update_sec_by_month(None, 'hedge', update=True)
         self.greek_repr = self.pf.get_aggregated_greeks()
         net_greeks = self.greek_repr
         tst = self.hedges.copy()
@@ -566,33 +552,31 @@ class Hedge:
             for cond in conds:
                 # static bound case
                 if cond[0] == 'static':
-                    val = self.params[greek]['target']
+                    val = self.params[greek]['eod']['target']
                     ltol, utol = val - 1, val + 1
                     conditions.append((strs[greek], (ltol, utol)))
                 elif cond[0] == 'bound':
                     c = cond[1]
                     tup = (strs[greek], c)
                     conditions.append(tup)
-
-        for pdt in net_greeks:
-            for exp in net_greeks[pdt]:
-                ops = net_greeks[pdt][exp][0]
-                greeks = net_greeks[pdt][exp][1:]
-                if ops:
-                    for cond in conditions:
-                        ltol, utol = cond[1]
-                        index = cond[0]
-                        # sanity check: if greek is negative, flip the sign of the bounds
-                        # in the case of gamma/theta/vega
-                        if greeks[index] < 0 and index != 0:
-                            tmp = ltol
-                            ltol = -utol
-                            utol = -tmp
-                        if (greeks[index] > utol) or \
-                                (greeks[index] < ltol):
-
-                            return False
-        # rolls_satisfied = check_roll_hedges(pf, hedges)
+        print('conditions: ', conditions)
+        for pdt in net_greeks:    
+            greeks = net_greeks[pdt]            
+            for cond in conditions:
+                ltol, utol = cond[1]
+                index = cond[0]
+                print('greek: ', greeks[index])
+                print('ltol, utol: ', ltol, utol)
+                # sanity check: if greek is negative, flip the sign of the bounds
+                # in the case of gamma/theta/vega
+                if greeks[index] < 0 and index != 0:
+                    tmp = ltol
+                    ltol = -utol
+                    utol = -tmp
+                if (greeks[index] > utol) or \
+                        (greeks[index] < ltol):
+                    return False
+    # rolls_satisfied = check_roll_hedges(pf, hedges)
         return True
 
     def refresh(self):
@@ -655,37 +639,41 @@ class Hedge:
             fee = self.hedge_delta(intraday=intraday)
             return fee
 
-        for product in self.greek_repr:
-            for loc in self.greek_repr[product]:
-                fulldata = self.greek_repr[product][loc]
-                # case: options included in greek repr
-                if len(fulldata) == 5:
-                    ops = fulldata[0]
-                    data = fulldata[1:]
-                else:
+        if self.desc == 'uid':
+            for product in self.greek_repr:
+                for mth in self.greek_repr[product]:
+                    fulldata = self.greek_repr[product][mth]
                     data = fulldata
-                greekval = data[ind]
-
-                # sanity check in the case of nonzero lower bound and exp
-                # hedging
-                if len(fulldata) == 5 and len(ops) == 0:
-                    # print('no options present for this exp; skipping.')
-                    continue
-
+                    greekval = data[ind]
+                    if hedge_type == 'bound':
+                        bounds = relevant_conds[1]
+                        target = (bounds[1] + bounds[0]) / 2
+                        # case: bounds are exceeded.
+                        if abs(greekval) < bounds[0] or abs(greekval) > bounds[1]:
+                            cost += self.hedge(flag, product, mth, greekval, target)
+                        else:
+                            continue
+                    elif hedge_type == 'static':
+                        val = self.params[flag]['target']
+                        cost += self.hedge(flag, product, mth, greekval, val)
+        # case: aggregated greeks. in this case, iterate directly over the mappings passed in
+        # to get the vol_id used to hedge this particular product.  
+        if self.desc == 'agg':
+            data = self.mappings[flag]
+            for product, mth in data:
+                # hedge_id = data[(pdt, mth)]
+                greekval = self.greek_repr[product][ind]
                 if hedge_type == 'bound':
                     bounds = relevant_conds[1]
                     target = (bounds[1] + bounds[0]) / 2
                     # case: bounds are exceeded.
                     if abs(greekval) < bounds[0] or abs(greekval) > bounds[1]:
-                        cost += self.hedge(flag, product,
-                                           loc, greekval, target)
+                        cost += self.hedge(flag, product, mth, greekval, target)
                     else:
                         continue
-
                 elif hedge_type == 'static':
                     val = self.params[flag]['target']
-                    cost += self.hedge(flag, product, loc, greekval, val)
-
+                    cost += self.hedge(flag, product, mth, greekval, val)
         return cost
 
     def hedge(self, flag, product, loc, greekval, target):
@@ -723,7 +711,7 @@ class Hedge:
 
         # adding the hedge structures.
         ops, cost = self.add_hedges(data, shorted, hedge_id, flag,
-                                    reqd_val, loc, settlements=self.settlements)
+                                    reqd_val,settlements=self.settlements)
 
         self.refresh()
 
@@ -965,7 +953,7 @@ class Hedge:
 
         return shorted
 
-    def add_hedges(self, data, shorted, hedge_id, flag, greekval, loc, settlements=None):
+    def add_hedges(self, data, shorted, hedge_id, flag, greekval, settlements=None):
         """Helper method that checks the type of hedge structure specified, and creates/adds
         the requisite amount.
 
@@ -1076,7 +1064,7 @@ class Hedge:
 
         except IndexError:
             product = hedge_id.split()[0]
-            print(product + ' ' + str(loc) +
+            print(product + ' ' + str(hedge_id) +
                   ' price and/or vol data does not exist. skipping...')
 
         return ops, cost 
