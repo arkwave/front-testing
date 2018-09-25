@@ -18,8 +18,8 @@ end = '2018-06-08'
 volid = 'KC  Z8.Z8'
 hedge_vid = 'KC  N8.N8'
 vdf, pdf, edf = grab_data(pdts, start, end)
-up_bar = 125
-down_bar = 115
+up_bar = 145
+down_bar = 95
 strike = 120
 
 
@@ -63,6 +63,8 @@ pdi = create_barrier_option(vdf, pdf, volid, 'put', strike, False,
                              'amer', 'down', bullet=False, ki=down_bar, 
                              lots=1)
 
+dc = create_vanilla_option(vdf, pdf, volid, 'call', False, lots=1, strike='atm', bullet=False)
+
 ops = [ecuo, ecui, epdo, epdi, cuo, cui, cdo, cdi, puo, pui, pdo, pdi]
 
 print('============================')
@@ -76,43 +78,35 @@ print('num ops: ', len(ecuo.get_ttms()))
 print('============================')
 
 
-# for op in ops:
-#     print('-------------------------------------------------')
-#     print(op)
-#     print('market: ', op.get_price())
-#     delta, gamma, theta, vega = op.greeks()
-#     print('num_ops: ', len(op.get_ttms()))
-#     print('delta: ', delta)
-#     print('gamma: ', gamma)
-#     print('theta: ', theta)
-#     print('vega: ', vega)
-
-
 # # specify the hedging parameters
 # gen_hedges = OrderedDict({'delta': [['static', 0, 1]]})
 hedge_dict_1 = OrderedDict({'delta': [['static', 0, 1]],
-                            'vega':  [['bound', (3800, 4200), 1, 'straddle', 
-                                       'strike', 'atm', 'uid']]})
+                            'theta':  [['bound', (-100, 100), 1, 'straddle', 
+                                        'strike', 'atm', 'agg']]})
 
+vid_dict = {'theta': {('KC', 'Z8'): hedge_vid}}
 pf = Portfolio(hedge_dict_1, name='test', roll=True, ttm_tol=5)
-pf.add_security([ecuo], 'OTC')
 
-# zeroing deltas
+# add security to be hedged. 
+pf.add_security([dc], 'OTC')
+
+# assign hedge objects. 
+pf = assign_hedge_objects(pf, vdf=vdf, pdf=pdf, book=False, auto_volid=False, vid_dict=vid_dict)
+
+print('auto_volid: ', pf.get_hedger().auto_detect_volids())
+
+# hedge the greeks passed into vid_dict 
+for flag in vid_dict:
+    pf.get_hedger().apply(flag)
+
+# hedge all deltas introduced by hedging other greeks
 pf = hedge_all_deltas(pf, pdf)
-
-pf = assign_hedge_objects(pf, vdf=vdf, pdf=pdf, book=False, auto_volid=True)
-
-theta = pf.get_net_greeks()['KC']['Z8'][-2]
-shorted = False if theta > 0 else True
-
-# create the hedge options 
-hedge_ops = create_straddle(hedge_vid, vdf, pdf, pd.to_datetime(start), 
-                            shorted, strike='atm', greek='theta', greekval=round(theta))
-pf.add_security(hedge_ops, 'hedge')
-
+assert pf.get_hedger().satisfied()
 print(pf.get_aggregated_greeks())
 
-engine = pf.get_hedger()
-# print('relevant prices: ', pdf[pdf.underlying_id.isin(pf.get_unique_uids())])
-# results = run_simulation(vdf, pdf, pf, plot_results=False, slippage=2, 
-#                          roll_hedges_only=True, same_month_exception=True)
+# print('pf: ', pf)
+print('auto_volid: ', pf.get_hedger().auto_detect_volids())
+
+# # print('relevant prices: ', pdf[pdf.underlying_id.isin(pf.get_unique_uids())])
+results = run_simulation(vdf, pdf, pf, plot_results=False, slippage=2, 
+                         roll_hedges_only=True, same_month_exception=True)

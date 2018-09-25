@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   arkwave
-# @Last Modified time: 2018-09-24 16:02:14
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-09-25 16:19:34
 
 import pandas as pd
 import pprint
@@ -704,7 +704,9 @@ class Hedge:
 
         # grab the vol_id associated with this greek/product/localizer.
         hedge_id = self.mappings[flag][(product, loc)]
+        print('mappings: ', self.mappings)
 
+        print('hedging portfolio %s with %s' % (flag, hedge_id))
         # sanity check: if no vol_id, not due for hedging --> return .
         if not hedge_id:
             return 0

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2018-09-24 10:27:14
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-09-25 16:53:01
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -1312,13 +1312,21 @@ def hedging_volid_handler(pf, old_vid, new_vid):
     # base case: hedger automatically determines volids. nothing done, just return. 
     engine = pf.get_hedger()     
     assert engine is not None
+    print('---------- entering hedging volid_handler ----------')
     if engine.auto_detect_volids():
+        print('auto-detection of volids is on. exiting...')
+        print('------------- volid handling completed ------------')
         return pf  
     # case: manual specification is on. vol_id check needs to happen. 
     else:
         dic = engine.get_volid_hedge_mappings()
+        
         for greek in dic: 
+            print('greek: ', greek)
             for uid in dic[greek]:
+                print('uid: ', uid)
                 if dic[greek][uid] == old_vid:
+                    print('%s found mapped to %s, being rolled to %s' % (old_vid, uid, new_vid))
                     dic[greek][uid] = new_vid 
+        print('------------- volid handling completed ------------')
         return pf  

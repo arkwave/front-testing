@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2018-09-24 16:47:44
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-09-25 17:08:45
 
 
 ################################ imports ###################################
@@ -197,7 +197,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     ########################################
     # constructing/assigning hedge objects #
     book = True if mode in ('HBPS', 'HBPB') else False
-    pf = assign_hedge_objects(pf, book=book, slippage=slippage)
+    # pf = assign_hedge_objects(pf, book=book, slippage=slippage)
 
     print('slippage dict: ', pf.get_hedger().s)
 
@@ -211,7 +211,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # print('initial ttms: ', np.array(pf.OTC_options[0].get_ttms())*365)
     pf.timestep(init_diff * timestep)
     # pf.remove_expired()
-    pf = hedge_all_deltas(pf, pricedata)
+    # pf = hedge_all_deltas(pf, pricedata)
     init_val = pf.compute_value()
     # print('post init ttms: ', np.array(pf.OTC_options[0].get_ttms())*365)
 
@@ -262,6 +262,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         flat_vols = False
 
     print('flatvols: ', flat_vols)
+    print('auto detect volids: ', pf.get_hedger().auto_detect_volids())
     ###################################################
 
     for i in range(len(date_range)):
@@ -518,6 +519,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
         print("=========================== ROLLOVER ============================")
         roll_vdf = settle_vols if remark_on_roll else h_vdf
+        print('auto_detect vol_ids: ', pf.get_hedger().auto_detect_volids())
 
         pf, cost, all_deltas = roll_over(pf, roll_vdf, settle_prices, date, brokerage=brokerage,
                                          slippage=slippage, hedges_only=roll_hedges_only, 
