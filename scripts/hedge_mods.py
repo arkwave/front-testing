@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-11-29 19:56:16
-# @Last Modified by:   arkwave
-# @Last Modified time: 2017-12-29 17:39:57
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-09-25 09:57:35
 import pprint
 from abc import ABC, abstractmethod
 import numpy as np
@@ -314,15 +314,15 @@ class TrailingStop(HedgeModifier):
             run_deltas returns false because trailing stops are hit, where monitoring is inactive. 
         """
         # first: update the prices.
-        print('price dict: ', price_dict)
-        print('>>>> TrailingStop: old params pre-update <<<<')
-        print(self.__str__())
-        print('>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<')
+        # print('price dict: ', price_dict)
+        # print('>>>> TrailingStop: old params pre-update <<<<')
+        # print(self.__str__())
+        # print('>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<')
         self.update_current_level(price_dict, uid=uid)
 
-        print('>>>> TrailingStop: New Params post-update <<<<')
-        print(self.__str__())
-        print('>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<')
+        # print('>>>> TrailingStop: New Params post-update <<<<')
+        # print(self.__str__())
+        # print('>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<')
 
         if self.get_active(uid=uid):
             # case: trailingstop got hit. neutralize all.
