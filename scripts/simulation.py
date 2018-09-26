@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   RMS08
-# @Last Modified time: 2018-09-25 17:08:45
+# @Last Modified time: 2018-09-26 11:05:17
 
 
 ################################ imports ###################################
@@ -1371,15 +1371,15 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, hedges_only=Fal
             composites = []
 
             # case: roll if ttm threshold is breached or roll_all is triggered.
-            print('op.tau: ', op.tau * 365)
+            # print('op.tau: ', op.tau * 365)
             needtoroll = (((round(op.tau * 365) <= fa.ttm_tol) or
                            np.isclose(op.tau, fa.ttm_tol/365)) or
                           roll_all)
 
-            print('tolerance breached: ', round(op.tau * 365) <= fa.ttm_tol)
-            print('op.tau: ', op.tau * 365)
-            print('fa ttm tol: ', fa.ttm_tol)
-            print('ttm close: ', np.isclose(op.tau, fa.ttm_tol/365))
+            # print('tolerance breached: ', round(op.tau * 365) <= fa.ttm_tol)
+            # print('op.tau: ', op.tau * 365)
+            # print('fa ttm tol: ', fa.ttm_tol)
+            # print('ttm close: ', np.isclose(op.tau, fa.ttm_tol/365))
 
             # final check in the case of same_month_exception 
             if same_month_exception:
@@ -1387,7 +1387,7 @@ def roll_over(pf, vdf, pdf, date, brokerage=None, slippage=None, hedges_only=Fal
                     print('same month exception triggered')
                     needtoroll = False
 
-            print('needtoroll: ', needtoroll)
+            # print('needtoroll: ', needtoroll)
             if needtoroll:
                 print('rolling option ' + str(op) + ' from ' + flag)
                 toberemoved.append(op)

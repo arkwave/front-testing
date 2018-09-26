@@ -770,18 +770,6 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction,
                          r, payoff, direction, ki, ko)
     gamma = (del1 - 2*del3 + del2) / ((change_spot**2))
 
-    # g1 = _barrier_amer(char, tau, vol, k, s+(change_spot),
-    #                    r, payoff, direction, ki, ko)
-    # g2 = _barrier_amer(char, tau, vol, k, max(0, s - change_spot),
-    #                    r, payoff, direction, ki, ko)
-    # g3 = _barrier_amer(char, tau, vol, k, s,
-    #                    r, payoff, direction, ki, ko)
-    # g4 = _barrier_amer(char, tau, vol, k, s + 2*change_spot,
-    #                    r, payoff, direction, ki, ko)
-    # g5 = _barrier_amer(char, tau, vol, k, max(0, s - 2*change_spot),
-    #                    r, payoff, direction, ki, ko)
-    # gamma = (-g5 + 16*g2 - 30*g3 + 16*g1 - g4)/(12*(change_spot**2))
-
     # computing vega
     v1 = _barrier_amer(char, tau, vol+change_vol, k, s, r,
                        payoff, direction, ki, ko)
