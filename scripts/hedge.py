@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   RMS08
-# @Last Modified time: 2018-09-25 16:19:34
+# @Last Modified by:   arkwave
+# @Last Modified time: 2018-10-01 17:14:28
 
 import pandas as pd
 import pprint
@@ -1057,10 +1057,8 @@ class Hedge:
                         num_ticks = self.s
                     print('greek hedge - num_ticks: ', num_ticks)
                     cost += num_ticks * op_ticksize[op.get_product()] * multipliers[op.get_product()][-1]
-
                 if self.b:
                     cost += self.b * sum([op.lots for op in ops])
-
             print('adding options: ', len(ops) > 0)
             self.pf.add_security(list(ops), 'hedge')
 

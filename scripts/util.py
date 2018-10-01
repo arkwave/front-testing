@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
-# @Last Modified by:   RMS08
-# @Last Modified time: 2018-09-25 16:53:01
+# @Last Modified by:   arkwave
+# @Last Modified time: 2018-10-01 17:03:25
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -1202,7 +1202,7 @@ def assign_hedge_objects(pf, vdf=None, pdf=None, book=False, slippage=None, auto
     # case: composite portfolio
     if pf.families:
         for fa in pf.families:
-            hedger = Hedge(fa, fa.hedge_params, vdf=vdf, pdf=pdf, book=book, auto_volid=auto_volid, vid_dict=vid_dict)
+            hedger = Hedge(fa, fa.hedge_params, vdf=vdf, pdf=pdf, book=book, slippage=slippage, auto_volid=auto_volid, vid_dict=vid_dict)
             fa.hedger = hedger
             fa.hedger.update_hedgepoints()
 

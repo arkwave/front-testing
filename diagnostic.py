@@ -22,6 +22,7 @@ vdf, pdf, edf = grab_data(pdts, start, end)
 up_bar = 145
 down_bar = 95
 strike = 120
+slippage = 1e6
 
 
 # pdf['time'] = pd.to_datetime(pdf['time']).dt.time
@@ -69,18 +70,18 @@ dc = create_vanilla_option(vdf, pdf, volid, 'call', False, lots=1, strike='atm',
 ops = [ecuo, ecui, epdo, epdi, cuo, cui, cdo, cdi, puo, pui, pdo, pdi, dc]
 
 
-for op in ops:
-    print('--------------------')
-    print('Processing %s \n' % op)
-    t = time.clock() 
-    newval = op.compute_price()
-    dt = time.clock() - t
-    print('Pricing: ', dt)
-    t2 = time.clock()
-    x = op.update_greeks(vol=op.vol, bvol=op.bvol, bvol2=op.bvol2)
-    dt2 = time.clock() - t2 
-    print('Greeks: ', dt2)
-    print('--------------------')
+# for op in ops:
+#     print('--------------------')
+#     print('Processing %s \n' % op)
+#     t = time.clock() 
+#     newval = op.compute_price()
+#     dt = time.clock() - t
+#     print('Pricing: ', dt)
+#     t2 = time.clock()
+#     x = op.update_greeks(vol=op.vol, bvol=op.bvol, bvol2=op.bvol2)
+#     dt2 = time.clock() - t2 
+#     print('Greeks: ', dt2)
+#     print('--------------------')
 
 
 # print('============================')
@@ -94,36 +95,35 @@ for op in ops:
 # print('============================')
 
 
-# # # specify the hedging parameters
-# # gen_hedges = OrderedDict({'delta': [['static', 0, 1]]})
-# hedge_dict_1 = OrderedDict({'delta': [['static', 0, 1]],
-#                             'theta':  [['bound', (-100, 100), 1, 'straddle', 
-#                                         'strike', 'atm', 'agg']]})
+# # specify the hedging parameters
+# gen_hedges = OrderedDict({'delta': [['static', 0, 1]]})
+hedge_dict_1 = OrderedDict({'delta': [['static', 0, 1]],
+                            'theta':  [['bound', (-100, 100), 1, 'straddle', 
+                                        'strike', 'atm', 'agg']]})
 
-# vid_dict = {'theta': {('KC', 'Z8'): hedge_vid}}
-# pf = Portfolio(hedge_dict_1, name='test', roll=True, ttm_tol=5)
+vid_dict = {'theta': {('KC', 'Z8'): hedge_vid}}
+pf = Portfolio(hedge_dict_1, name='test', roll=True, ttm_tol=5)
 
-# # add security to be hedged. 
-# pf.add_security([dc], 'OTC')
+# add security to be hedged. 
+pf.add_security([dc], 'OTC')
 
-# # assign hedge objects. 
-# pf = assign_hedge_objects(pf, vdf=vdf, pdf=pdf, book=False, auto_volid=False, vid_dict=vid_dict)
+# assign hedge objects. 
+pf = assign_hedge_objects(pf, vdf=vdf, pdf=pdf, book=False, auto_volid=False, vid_dict=vid_dict, slippage=slippage)
 
-# print('auto_volid: ', pf.get_hedger().auto_detect_volids())
+print('auto_volid: ', pf.get_hedger().auto_detect_volids())
 
-# # hedge the greeks passed into vid_dict 
-# for flag in vid_dict:
-#     pf.get_hedger().apply(flag)
+# hedge the greeks passed into vid_dict 
+for flag in vid_dict:
+    pf.get_hedger().apply(flag)
 
-# # hedge all deltas introduced by hedging other greeks
-# pf = hedge_all_deltas(pf, pdf)
-# assert pf.get_hedger().satisfied()
-# print(pf.get_aggregated_greeks())
+# hedge all deltas introduced by hedging other greeks
+pf = hedge_all_deltas(pf, pdf)
+assert pf.get_hedger().satisfied()
+print(pf.get_aggregated_greeks())
 
-# # print('pf: ', pf)
-# print('auto_volid: ', pf.get_hedger().auto_detect_volids())
+# print('pf: ', pf)
+print('auto_volid: ', pf.get_hedger().auto_detect_volids())
 
-# # # print('relevant prices: ', pdf[pdf.underlying_id.isin(pf.get_unique_uids())])
-# results = run_simulation(vdf, pdf, pf, plot_results=False, slippage=2, 
-#                          roll_hedges_only=True, same_month_exception=True)
-
+# # print('relevant prices: ', pdf[pdf.underlying_id.isin(pf.get_unique_uids())])
+results = run_simulation(vdf, pdf, pf, plot_results=False, slippage=slippage, 
+                         roll_hedges_only=True, same_month_exception=True)
