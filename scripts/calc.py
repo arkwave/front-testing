@@ -758,6 +758,10 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction,
     # change_tau = 1/(24/365)
     # computing delta
     # char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0
+
+    init = _barrier_amer(char, tau, vol, k, s, 
+                         r, payoff, direction, ki, ko)
+
     del1 = _barrier_amer(char, tau, vol, k, s+change_spot,
                          r, payoff, direction, ki, ko)
     del2 = _barrier_amer(char, tau, vol,
@@ -766,8 +770,7 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction,
     delta = (del1 - del2)/(2*change_spot)
 
     # computing gamma
-    del3 = _barrier_amer(char, tau, vol, k, s,
-                         r, payoff, direction, ki, ko)
+    del3 = init 
     gamma = (del1 - 2*del3 + del2) / ((change_spot**2))
 
     # computing vega
@@ -780,8 +783,7 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction,
     vega = (v1 - v2)/(2*change_vol) if tau > 0 else 0
 
     # computing theta
-    t1 = _barrier_amer(char, tau, vol, k, s, r,
-                       payoff, direction, ki, ko)
+    t1 = init 
     ctau = 0.0001 if tau-change_tau <= 0 else tau-change_tau
     t2 = _barrier_amer(char, ctau, vol, k, s, r,
                        payoff, direction, ki, ko)

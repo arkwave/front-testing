@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2018-10-01 17:03:25
+# @Last Modified time: 2018-10-03 14:20:23
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -375,7 +375,9 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, barriertype, d
         if 'expiry_date' in kwargs and kwargs['expiry_date'] is not None:
             expiry_date = kwargs['expiry_date']
             tau = (pd.to_datetime(expiry_date) - date).days/365
-        if 'tau' in kwargs and kwargs['tau'] is not None:
+            # print('expiry date present. tau: ', tau)
+            # print('expiry_date, tau: ', expiry_date)
+        elif 'tau' in kwargs and kwargs['tau'] is not None:
             print('tau in kwargs')
             tau = kwargs['tau']
         else:
@@ -453,6 +455,7 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, barriertype, d
             step = 3 if dx.dayofweek == 4 else 1 
             dx += pd.Timedelta(str(step) + ' days')
 
+    # print('tau: ', tau)
     op1 = Option(strike, tau, char, vol, ft, payoff, shorted, opmth,
                  direc=direction, barrier=barriertype, lots=lots_req,
                  bullet=bullet, ki=ki, ko=ko, rebate=rebate, ordering=ft.get_ordering(), 

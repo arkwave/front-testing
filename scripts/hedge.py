@@ -2,7 +2,7 @@
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
 # @Last Modified by:   arkwave
-# @Last Modified time: 2018-10-01 17:14:28
+# @Last Modified time: 2018-10-02 15:57:42
 
 import pandas as pd
 import pprint
@@ -879,6 +879,7 @@ class Hedge:
         target_flag = 'intraday' if intraday else 'eod'
 
         hedge_ratios = self.get_hedge_ratios(target_flag)
+        added = None
 
         # print('hedge_ratios: ', hedge_ratios)
         # print('--------- End HedgeParser Logic -------------')
@@ -911,11 +912,20 @@ class Hedge:
                         self.last_hedgepoints[
                             ft.get_uid()] = ft.get_price()
                         self.pf.add_security([ft], 'hedge')
+                        added = ft
+        if added is not None:
+            if self.s is not None:        
+                if type(self.s) == dict:
+                    pdt_ticks = self.s[added.get_product()] 
+                    num_ticks = pdt_ticks[min([x for x in pdt_ticks], key=lambda x: abs(x - added.lots))]
+                else:
+                    num_ticks = self.s
 
-        if self.s:
-            pass
-        if self.b:
-            pnl -= self.b * ft.lots
+                print('delta hedge - num_ticks: ', num_ticks)
+                pnl -= num_ticks * multipliers[added.get_product()][-3] * multipliers[added.get_product()][-1]
+
+            if self.b is not None:
+                pnl -= self.b * ft.lots
 
         return pnl
 
