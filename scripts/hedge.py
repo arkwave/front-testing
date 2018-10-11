@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   arkwave
-# @Last Modified time: 2018-10-02 15:57:42
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-10-10 16:29:06
 
 import pandas as pd
 import pprint
@@ -290,7 +290,6 @@ class Hedge:
                                             'ratio': ratio}
             if desc is None:
                 desc = 'uid'
-
         return desc, params
 
     # TODO: update this if more intraday conditions come into play later. for now, this just
@@ -306,15 +305,12 @@ class Hedge:
         Returns:
             object: TrailingStop instance 
         """
-        # print('intraday conds: dic - ', dic)
         if 'tstop' in dic:
-            # print('-------- Creating TrailingStop Object ---------')
             tstop_obj = TrailingStop(self.entry_levels, dic[
                                      'tstop'], self.pf, self.last_hedgepoints, self)
             self.intraday_conds = tstop_obj
             assert self.intraday_conds is not None
-            # print('------------ TrailingStop Created -------------')
-
+           
     def calibrate_all(self):
         """Calibrates hedge object to all non-delta hedges. calibrate does one of the following things:
         1) if hedge_engine is initialized with desc='exp', calibrate generates a
@@ -323,12 +319,8 @@ class Hedge:
         2) desc = 'uid' -> _calibrate generates a dictionary mapping product/underlying month
             to a vol_id, dependent on any ttm multipliers passed in.
         """
-        # print('entering calibrate')
-        # print('self.hedges: ', self.hedges)
         for flag in self.hedges:
-            # print('flag: ', flag)
             if flag != 'delta':
-                # print('calibrating %s' % flag)
                 self._calibrate(flag)
 
     def _calibrate(self, flag, selection_criteria='median', buckets=None):
@@ -358,7 +350,6 @@ class Hedge:
         to hedge the deltas from a W Q6.U6 option.
 
         """
-        # print('-+-+-+- calibrating ' + flag + ' -+-+-+-')
         net = {}
         ttm = None
 
@@ -376,6 +367,7 @@ class Hedge:
         # 2. use the right TTM option to hedge - current method of specifying a ttm will work.
         elif self.desc == 'agg': 
             self.greek_repr = self.pf.get_aggregated_greeks() 
+        
         net = self.pf.get_net_greeks()
         if self.auto_volid:
             for product in net:
@@ -389,14 +381,14 @@ class Hedge:
                     month = month.strip()
                     uid = product + '  ' + month
                     df = df[df.underlying_id == uid]
-                    data = net[product][month]
+                    data2 = net[product][month]
                     loc = (product, month)
                     if df.empty:
                         if flag not in self.mappings:
                             self.mappings[flag] = {}
                         self.mappings[flag][loc] = False
                         continue
-                    if not data or (data == [0, 0, 0, 0]):
+                    if not data2 or (data2 == [0, 0, 0, 0]):
                         continue
                     # grab max possible ttm (i.e. ttm of the same month option)
                     try:
@@ -449,12 +441,7 @@ class Hedge:
                 for comb in self.vid_dict[el]:
                     assert type(comb) == tuple 
                     assert type(self.vid_dict[el][comb]) == str 
-            # print('---1---')
-            # print(self.vid_dict)
             self.mappings.update(self.vid_dict.copy())
-            # print('---2---')
-            # print(self.mappings)
-            # print('aut_volid_false - mappings: ', self.mappings)
             
     def get_bucket(self, val, buckets=None):
         """Helper method that gets the bucket associated with a given value according to self.buckets.
@@ -489,7 +476,6 @@ class Hedge:
         Returns:
             Boolean: indicating if the hedges are all satisfied or not.
         """
-        # print('--- checking uid hedges satisfied ---')
         self.pf.update_sec_by_month(None, 'OTC', update=True)
         self.pf.update_sec_by_month(None, 'hedge', update=True)
         strs = {'delta': 0, 'gamma': 1, 'theta': 2, 'vega': 3}
@@ -501,7 +487,6 @@ class Hedge:
         conditions = []
         for greek in tst:
             conds = tst[greek]
-            # print('conds: ', conds)
             for cond in conds:
                 # static bound case
                 if cond[0] == 'static':
@@ -509,7 +494,6 @@ class Hedge:
                     ltol, utol = (val - 1, val + 1)
                     conditions.append((strs[greek], (ltol, utol)))
                 elif cond[0] == 'bound':
-                    # print('to be literal eval-ed: ', hedges[greek][1])
                     c = cond[1]
                     tup = (strs[greek], c)
                     conditions.append(tup)
@@ -559,14 +543,11 @@ class Hedge:
                     c = cond[1]
                     tup = (strs[greek], c)
                     conditions.append(tup)
-        print('conditions: ', conditions)
         for pdt in net_greeks:    
             greeks = net_greeks[pdt]            
             for cond in conditions:
                 ltol, utol = cond[1]
                 index = cond[0]
-                print('greek: ', greeks[index])
-                print('ltol, utol: ', ltol, utol)
                 # sanity check: if greek is negative, flip the sign of the bounds
                 # in the case of gamma/theta/vega
                 if greeks[index] < 0 and index != 0:
@@ -584,10 +565,8 @@ class Hedge:
         to ascertain hedges have been satisfied.
         """
         self.pf.refresh()
-        # print('scripts.hedge - pre-refresh greek repr: ', self.greek_repr)
         for flag in self.hedges:
             if flag != 'delta':
-                # print('refreshing ' + flag)
                 self._calibrate(flag)
 
         # sanity check: case where delta is the only hedge, and greek repr
@@ -610,7 +589,6 @@ class Hedge:
             TYPE: Description
         """
         # base case: flag not in hedges
-        # print('======= applying ' + flag + ' hedge =========')
         if flag not in self.hedges:
             print(
                 flag + ' hedge is not specified in hedging logic for family ' + self.pf.name)
@@ -621,7 +599,7 @@ class Hedge:
         ind = indices[flag]
 
         conds = self.hedges[flag]
-        # print('conds: ', conds)
+        
         isbounds = [conds[i] for i in range(len(conds))
                     if conds[i][0] == 'bound']
         isstatic = [conds[i] for i in range(len(conds))
@@ -704,8 +682,7 @@ class Hedge:
 
         # grab the vol_id associated with this greek/product/localizer.
         hedge_id = self.mappings[flag][(product, loc)]
-        print('mappings: ', self.mappings)
-
+        
         print('hedging portfolio %s with %s' % (flag, hedge_id))
         # sanity check: if no vol_id, not due for hedging --> return .
         if not hedge_id:
@@ -895,8 +872,8 @@ class Hedge:
                 # print('num_lots_needed: ', num_lots_needed)
                 ft = None
                 if num_lots_needed == 0:
-                    print('no hedging required for ' + product +
-                          '  ' + month + '; hedge point not updated.')
+                    # print('no hedging required for ' + product +
+                    #       '  ' + month + '; hedge point not updated.')
                     continue
                 else:
                     try:
@@ -940,7 +917,7 @@ class Hedge:
                          static value/breakeven the hedge was put in at. as such, the magnitude of the price
                          move we care about is precisely diff. 
         """
-        print('handling OHLC PnL for ' + str(ft) + ' with diff of ' + str(diff))
+        
         pnl_mult = multipliers[ft.get_product()][-1]
         shorted = -1 if ft.shorted else 1
 
@@ -988,15 +965,13 @@ class Hedge:
         ops = None
         try:
 
-            # print(data['kind'], data['spectype'], data['spec'])
             if data['kind'] == 'straddle':
                 if data['spectype'] == 'strike':
                     strike = data['spec']
                 ops = create_straddle(hedge_id, hedge_vols, self.pdf, self.date,
                                       shorted, strike=strike, greek=flag, greekval=greekval)
                 gv = greekval if not shorted else -greekval
-                # print('added straddle with ' + str(gv) + ' ' + str(flag))
-
+            
             elif data['kind'] == 'strangle':
                 strike1, strike2, delta1, delta2, c_delta = None, None, None, None, None
 
@@ -1015,8 +990,7 @@ class Hedge:
                                       shorted, chars=['call', 'put'],
                                       strike=[strike1, strike2],
                                       delta=[delta1, delta2], greek=flag, greekval=greekval)
-                # print('added strangle: ' + str([str(op) for op in ops]))
-
+            
             elif data['kind'] == 'call':
                 dval, strike = None, None
                 if data['spectype'] == 'delta':
@@ -1031,8 +1005,7 @@ class Hedge:
                                            greek=flag, greekval=greekval)
                 ops = [op]
                 gv = greekval if not shorted else -greekval
-                # print('added call with ' + str(gv) + ' ' + str(flag))
-
+            
             elif data['kind'] == 'put':
                 dval, strike = None, None
                 if data['spectype'] == 'delta':
@@ -1046,13 +1019,10 @@ class Hedge:
                                            greek=flag, greekval=greekval)
                 ops = [op]
                 gv = greekval if not shorted else -greekval
-                # print('added call with ' + str(gv) + ' ' + str(flag))
-
+            
             # sanity check
             for op in ops:
                 if op.lots < 1:
-                    # print('lots req < 1; ' + flag +
-                    #       ' is within bounds. skipping hedging.')
                     return []
 
             # computing cost of hedges

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2018-10-01 17:14:54
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-10-10 16:30:24
 
 
 ################################ imports ###################################
@@ -17,7 +17,7 @@ from collections import OrderedDict
 from pandas.tseries.offsets import BDay
 
 # user defined imports
-from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites, assign_hedge_objects, compute_market_minus, mark_to_vols, hedge_all_deltas, hedging_volid_handler
+from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites, assign_hedge_objects, compute_market_minus, mark_to_vols, hedge_all_deltas, hedging_volid_handler, blockPrint, enablePrint
 from .prep_data import reorder_ohlc_data, granularize
 from .calc import _compute_value, get_vol_at_strike
 from .signals import apply_signal
@@ -125,7 +125,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                    end_date=None, brokerage=None, slippage=None, signals=None,
                    plot_results=True, drawdown_limit=None, mode='HSPS', mkt_minus=1e7,
                    ohlc=False, remark_on_roll=False, remark_at_end=False,
-                   roll_hedges_only=False, same_month_exception=False):
+                   roll_hedges_only=False, same_month_exception=False, verbose=True):
     """
     Each run of the simulation consists of the following steps:
         > for each day:
@@ -170,6 +170,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                   :  if delta-rolling is attempted on an option's partner, but that partner belongs to a non-existent family. 
     
     """
+    if not verbose:
+        blockPrint()
 
     ##### timers #####
     e1 = time.clock()
@@ -442,17 +444,17 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 dailygamma += gamma_pnl
                 dailyvega += vega_pnl
 
-                print('pf before adding bar fts/ex fts: ', pf)
+                # print('pf before adding bar fts/ex fts: ', pf)
 
                 # Detour: add in exercise & barrier futures if required.
-                if exercise_futures:
-                    print('adding exercise futures')
-                    pf.add_security(exercise_futures, 'OTC')
-                    print('pf: ', pf)
+                # if exercise_futures:
+                #     print('adding exercise futures')
+                #     pf.add_security(exercise_futures, 'OTC')
+                    # print('pf: ', pf)
 
-                if barrier_futures:
-                    print('adding barrier futures')
-                    pf.add_security(barrier_futures, 'hedge')
+                # if barrier_futures:
+                #     print('adding barrier futures')
+                    # pf.add_security(barrier_futures, 'hedge')
 
                 # check: if type is settlement, defer EOD delta hedging to
                 # rebalance function.
@@ -749,6 +751,9 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     print('################# Portfolio: ###################')
     print(pf)
 
+    if not verbose:
+        enablePrint()
+
     print('SIMULATION COMPLETE. PRINTING RELEVANT OUTPUT... [7/7]')
 
     print('##################### PNL: #####################')
@@ -860,6 +865,9 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
     exercise_futures = []
     exercise_profit = 0
     barrier_profit = 0
+    price_change = {}
+    vol_change = {}
+    bvolchange = {}
 
     # print('pdf: ', pdf)
 
@@ -894,8 +902,12 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
             pf, cost, fts = handle_barriers(
                 voldf, pdf, ft, val, pf, date)
             barrier_futures.extend(fts)
+            pchange = val - ft.get_price() 
+
             # print('updating price to ' + str(val))
             ft.update_price(val)
+            if ft.get_uid() not in price_change:
+                price_change[ft.get_uid()] = pchange
 
         # index error would occur only if data is missing.
         # except IndexError:
@@ -927,21 +939,12 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
         pf, brokerage, slippage)
 
     total_profit = exercise_profit + barrier_profit
-    # print('total_profit: ', total_profit)
+    print('barrier + exercise profit: ', total_profit)
 
     # refresh portfolio after price updates.
-    # if price_updated:
     pf.refresh()
-    # removing expiries
-    # print('ttms before removing expiries: ', np.array(pf.OTC_options[0].get_ttms()) * 365)
-
-    print('pf value: ', pf.compute_value())
-
     pf.remove_expired()
-    # refresh after handling expiries.
-    # print('ttms after removing expiries: ', np.array(pf.OTC_options[0].get_ttms()) * 365)
     pf.refresh()
-    print('pf value: ', pf.compute_value())
 
     # sanity check: if no active options, close out entire portfolio.
     if not pf.OTC_options:
@@ -978,7 +981,6 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
 
     # calculating gamma pnl
     intermediate_val = pf.compute_value()
-    # print('intermediate value: ', intermediate_val)
     if exercised:
         # case: portfolio is empty after data feed step (i.e. expiries and
         # associated deltas closed)
@@ -1053,7 +1055,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
 
         pf.refresh()
 
-    print('pf after feed: ', pf)
+    # print('pf after feed: ', pf)
 
     vega_pnl = pf.compute_value() - intermediate_val if intermediate_val != 0 else 0
     return pf, gamma_pnl, vega_pnl, total_profit, exercise_futures, barrier_futures
@@ -1261,8 +1263,10 @@ def handle_exercise(pf, brokerage=None, slippage=None):
                 product = op.get_product()
                 pnl_mult = multipliers[product][-1]
                 ftprice, strike = op.get_underlying().get_price(), op.K
-                oppnl = op.lots * abs(ftprice - strike) * pnl_mult
-                print('profit on this exercise: ', oppnl)
+                oppnl = op.lots * (ftprice - strike) * pnl_mult if op.char == 'call' else op.lots * (strike - ftprice) * pnl_mult
+                if op.shorted: 
+                    oppnl = -oppnl
+                print('profit/loss on this exercise: ', oppnl)
                 print("------------------------------")
                 profit += oppnl
                 exercised = True
@@ -2147,8 +2151,8 @@ def write_log(pf, drawdown_limit, date, dailpnl, dailynet, grosspnl, netpnl, dai
         underlying_id = op.get_uid()
         ftprice = settlement_prices[underlying_id]
 
-        dic = pf.get_net_greeks()
-        d, g, t, v = dic[pdt][ftmth]
+        dic = pf.get_aggregated_greeks()
+        d, g, t, v = dic[pdt]
 
         breakeven = pf.breakeven()[pdt][ftmth]
         breakevens.append(breakeven)

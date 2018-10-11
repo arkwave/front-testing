@@ -172,7 +172,8 @@ class Option:
         # price = self.get_price()
         string += ' S ' if self.shorted else ' L '
         string += str(self.underlying.get_price())
-        string += ' | lots - ' + str(int(self.lots)) + ' |'
+        mult = -1 if self.shorted else 1 
+        string += ' | lots - ' + str(int(self.lots*mult)) + ' |'
         string += ' ttm - ' + str(round(self.tau * 365)) + ' |'
         string += ' order - [c_' + str(self.ordering) + '] |'
         string += ' price - ' + str(self.price) + ' |'
@@ -188,6 +189,10 @@ class Option:
         string += ' | strike type: ' + str(self.strike_type) + ' '
         string += '>>'
         return string
+
+    def set_strike(self, strike):
+        self.K = strike
+        self.update()
 
     def set_partners(self, ops):
         self.partners = ops
@@ -220,6 +225,13 @@ class Option:
             return self.gamma 
         if name == 'theta':
             return self.theta
+
+    def get_m2m(self):
+        mult = -1 if self.shorted else 1
+        if self.is_bullet():
+            return self.lots * self.get_price() * multipliers[self.product][-1] * mult
+        else:
+            return self.lots * multipliers[self.product][-1] * (self.get_price() * len(self.get_ttms())) * mult
 
     def get_ttms(self):
         return self.dailies
