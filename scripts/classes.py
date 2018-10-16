@@ -229,9 +229,9 @@ class Option:
     def get_m2m(self):
         mult = -1 if self.shorted else 1
         if self.is_bullet():
-            return self.lots * self.get_price() * multipliers[self.product][-1] * mult
+            return self.lots * self.price * multipliers[self.product][-1] * mult
         else:
-            return self.lots * multipliers[self.product][-1] * (self.get_price() * len(self.get_ttms())) * mult
+            return self.lots * multipliers[self.product][-1] * (self.price * len(self.get_ttms())) * mult
 
     def get_ttms(self):
         return self.dailies
@@ -325,19 +325,25 @@ class Option:
         from .calc import _compute_greeks
         # initializes relevant greeks. only used once, when initializing Option
         # object.
+        delta, gamma, theta, vega = 0, 0, 0, 0
         product = self.get_product()
         # print(product)
         s = self.underlying.get_price()
         # print(s)
         try:
-            assert self.tau > 0
-            delta, gamma, theta, vega = \
-                _compute_greeks(self.char, self.K, self.tau, self.vol,
-                                s, self.r, product, self.payoff, self.lots,
-                                ki=self.ki, ko=self.ko, barrier=self.barrier,
-                                direction=self.direc, order=self.ordering,
-                                bvol=self.bvol, bvol2=self.bvol2, 
-                                dbarrier=self.dbarrier)
+            ttms = [self.tau] if self.bullet else self.dailies
+            for ttm in ttms:
+                d, g, t, v = \
+                    _compute_greeks(self.char, self.K, self.tau, self.vol,
+                                    s, self.r, product, self.payoff, self.lots,
+                                    ki=self.ki, ko=self.ko, barrier=self.barrier,
+                                    direction=self.direc, order=self.ordering,
+                                    bvol=self.bvol, bvol2=self.bvol2, 
+                                    dbarrier=self.dbarrier)
+                delta += d
+                gamma += g 
+                theta += t 
+                vega += v     
         except TypeError as e:
             print('char: ', self.char)
             print('strike: ', self.K)
@@ -400,10 +406,6 @@ class Option:
                 g += gamma 
                 t += theta 
                 v += vega 
-                # if tau == 0:
-                #     # print("Zero TTM detected; printing greeks")
-                #     print(delta, gamma, theta, vega)
-                #     print('lots: ', self.lots)
 
             self.delta, self.gamma, self.theta, self.vega = d, g, t, v
 

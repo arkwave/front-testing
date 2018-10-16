@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   RMS08
-# @Last Modified time: 2018-10-10 16:30:24
+# @Last Modified by:   arkwave
+# @Last Modified time: 2018-10-15 11:42:00
 
 
 ################################ imports ###################################
@@ -447,14 +447,11 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 # print('pf before adding bar fts/ex fts: ', pf)
 
                 # Detour: add in exercise & barrier futures if required.
-                # if exercise_futures:
-                #     print('adding exercise futures')
-                #     pf.add_security(exercise_futures, 'OTC')
-                    # print('pf: ', pf)
-
-                # if barrier_futures:
-                #     print('adding barrier futures')
-                    # pf.add_security(barrier_futures, 'hedge')
+                if exercise_futures:
+                    pf.add_security(exercise_futures, 'OTC')
+                    
+                if barrier_futures:
+                    pf.add_security(barrier_futures, 'hedge')
 
                 # check: if type is settlement, defer EOD delta hedging to
                 # rebalance function.
