@@ -736,7 +736,6 @@ class Portfolio:
         self.remove_security(toberemoved, flag)
         self.add_security(tobeadded, flag)
 
-    # TODO: aggregate all greeks across months
     def get_aggregated_greeks(self):
         dic = self.get_net_greeks().copy() 
         agg = {}

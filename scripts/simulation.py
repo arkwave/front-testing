@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
-# @Last Modified by:   arkwave
-# @Last Modified time: 2018-10-15 11:42:00
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-10-19 16:33:42
 
 
 ################################ imports ###################################
@@ -17,7 +17,8 @@ from collections import OrderedDict
 from pandas.tseries.offsets import BDay
 
 # user defined imports
-from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites, assign_hedge_objects, compute_market_minus, mark_to_vols, hedge_all_deltas, hedging_volid_handler, blockPrint, enablePrint
+from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites
+from .util import compute_market_minus, mark_to_vols, hedging_volid_handler, blockPrint, enablePrint
 from .prep_data import reorder_ohlc_data, granularize
 from .calc import _compute_value, get_vol_at_strike
 from .signals import apply_signal
@@ -320,6 +321,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         print("========================= INIT ==========================")
         print('Portfolio before any ops pf:', pf)
         print('init val BOD: ', init_val)
+        log_pf = copy.deepcopy(pf)
         # print('ttms: ', np.array(pf.OTC_options[0].get_ttms()) * 365)
         print("==========================================================")
 
@@ -421,7 +423,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                 # NOTE: currently, exercising happens as soon as moneyness is triggered.
                 # This should not be much of an issue since exercise is never
                 # actually reached.
-                pf, gamma_pnl, vega_pnl, exercise_barrier_profit, exercise_futures, barrier_futures \
+
+                pf, gamma_pnl, vega_pnl, exercise_barrier_profit, exercise_futures, barrier_futures, price_change, vol_change, \
                     = feed_data(vdf, pdf_ts, pf, init_val, flat_vols=flat_vols, flat_price=flat_price)
 
                 print("==================== PNL & BARR/EX =====================")
@@ -683,9 +686,9 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     # Step 13: Logging relevant output to csv
     ##########################################################################
         print("========================= LOG WRITING  ==========================")
-        dailylog = write_log(pf, drawdown_limit, date, dailypnl, dailynet, grosspnl, netpnl, dailygamma, 
+        dailylog = write_log(log_pf, drawdown_limit, date, dailypnl, dailynet, grosspnl, netpnl, dailygamma, 
                              gammapnl, dailyvega, vegapnl, roll_hedged, data_order, num_days,
-                             highest_value, net_cumul_values, breakevens, dailypnl, dailycost)
+                             highest_value, net_cumul_values, breakevens, dailypnl, dailycost, vol_change, price_change)
         loglist.extend(dailylog)
         print("========================= END LOG WRITING ==========================")
 
@@ -1048,6 +1051,10 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
                 bvol2 = op.bvol2 
             # print('bvol: ', b_vol)
             # print('bvol2: ', bvol2)
+            vol_change = save_vol_change(op.vol, strike_vol, vol_change)
+            vol_change = save_vol_change(op.bvol, b_vol, vol_change)
+            vol_change = save_vol_change(op.bvol2, bvol2, vol_change)
+
             op.update_greeks(vol=strike_vol, bvol=b_vol, bvol2=bvol2)
 
         pf.refresh()
@@ -1055,7 +1062,16 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
     # print('pf after feed: ', pf)
 
     vega_pnl = pf.compute_value() - intermediate_val if intermediate_val != 0 else 0
-    return pf, gamma_pnl, vega_pnl, total_profit, exercise_futures, barrier_futures
+    return pf, gamma_pnl, vega_pnl, total_profit, exercise_futures, barrier_futures, price_change, vol_change
+
+
+def save_vol_change(op, new_vol, vol_change_dic):
+    volid = op.get_vol_id() 
+    vol_change = new_vol - op.vol
+    if volid not in vol_change_dic:
+        vol_change_dic[volid] = {} 
+    vol_change_dic[volid][op.K] = vol_change
+    return vol_change
 
 
 # TODO: Streamline this so that it calls comp functions and doesn't create new objects. 
@@ -1586,7 +1602,20 @@ def contract_roll(pf, op, vdf, pdf, date, flag, slippage=None):
 
     # insert function to handle handling of vol_id mappings if they are manually specified. 
     pf = hedging_volid_handler(pf, op.get_vol_id(), new_vol_id)
+    engine = pf.get_hedger()
 
+    # check to see if vega slippage is a parameter.
+    if engine.has_vol_slippage():
+        vol_slippage = engine.get_vol_slippage() 
+        if type(vol_slippage) == dict:
+            pdt_ticks = vol_slippage[op.get_product()] 
+            num_ticks = pdt_ticks[min([x for x in pdt_ticks], key=lambda x: abs(x - op.lots))]
+        else:
+            num_ticks = vol_slippage
+        print('contract_roll - vega slippage: ', num_ticks)
+        cost += 2 * num_ticks * abs(newop.get_greek('vega'))
+
+    # handle tick slippage if present. 
     if slippage is not None:
         if type(slippage) == dict:
             pdt_ticks = slippage[op.get_product()] 
@@ -1663,7 +1692,7 @@ def rebalance(vdf, pdf, pf, buckets=None, brokerage=None, slippage=None,
         # initial boolean check
         done_hedging = hedge_engine.satisfied()
         # hedging non-delta greeks.
-        while (not done_hedging and hedge_count < 3):
+        while (not done_hedging and hedge_count < 1):
             for flag in pf.hedge_params:
                 if flag == 'gamma':
                     fee = hedge_engine.apply('gamma')
@@ -1706,7 +1735,7 @@ def rebalance(vdf, pdf, pf, buckets=None, brokerage=None, slippage=None,
             done_hedging = hedge_engine.satisfied()
 
             # hedging non-delta greeks.
-            while (not done_hedging and hedge_count < 3):
+            while (not done_hedging and hedge_count < 1):
                 # insert the actual business of hedging here.
                 for flag in dep.hedge_params:
                     if flag == 'gamma':
@@ -2092,7 +2121,7 @@ def check_roll_status(pf):
 
 def write_log(pf, drawdown_limit, date, dailpnl, dailynet, grosspnl, netpnl, dailygamma, 
               gammapnl, dailyvega, vegapnl, roll_hedged, data_order, num_days,
-              highest_value, net_cumul_values, breakevens, dailypnl, dailycost):
+              highest_value, net_cumul_values, breakevens, dailypnl, dailycost, vol_change, price_change):
     """Summary
     
     Args:
@@ -2121,11 +2150,6 @@ def write_log(pf, drawdown_limit, date, dailpnl, dailynet, grosspnl, netpnl, dai
         TYPE: Description
     """
     loglist = []
-    call_vega = sum([op.vega for op in pf.get_all_options()
-                     if op.K >= op.underlying.get_price()])
-
-    put_vega = sum([op.vega for op in pf.get_all_options()
-                    if op.K < op.underlying.get_price()])
 
     if drawdown_limit is not None:
         drawdown_val = net_cumul_values[-1] - highest_value
@@ -2137,59 +2161,52 @@ def write_log(pf, drawdown_limit, date, dailpnl, dailynet, grosspnl, netpnl, dai
     for op in pf.get_all_options():
         op_value = op.get_price()
         # pos = 'long' if not op.shorted else 'short'
-        char = op.char
         oplots = -op.lots if op.shorted else op.lots
         opvol = op.vol
         strike = op.K
-        pdt, ftmth, opmth = op.get_product(), op.get_month(), op.get_op_month()
         vol_id = op.get_vol_id()
         tau = round(op.tau * 365)
-        where = 'OTC' if op in pf.OTC_options else 'hedge'
+        
         underlying_id = op.get_uid()
         ftprice = settlement_prices[underlying_id]
+        dvol = vol_change[op.get_vol_id()][op.K]
+        dprice = price_change[op.get_uid()]
 
         dic = pf.get_aggregated_greeks()
-        d, g, t, v = dic[pdt]
+        d, g, t, v = dic[op.get_product()]
 
-        breakeven = pf.breakeven()[pdt][ftmth]
-        breakevens.append(breakeven)
+        # breakeven = pf.breakeven()[pdt][ftmth]
+        # breakevens.append(breakeven)
 
         # fix logging to take into account BOD to BOD convention.
-        lst = [date, vol_id, underlying_id, char, where, tau, op_value, oplots,
-               ftprice, strike, opvol, dailypnl, dailynet, grosspnl, netpnl,
-               dailygamma, gammapnl, dailyvega, vegapnl, roll_hedged, d, g, t, v,
-               data_order, num_days, breakeven]
+        lst = [date, vol_id, tau, op_value, oplots, ftprice, strike, opvol, 
+               dailypnl, dailynet, grosspnl, netpnl, dailygamma, gammapnl, 
+               dailyvega, vegapnl, d, g, t, v, num_days, dvol, dprice]
 
-        cols = ['value_date', 'vol_id', 'underlying_id', 'call/put', 'otc/hedge',
-                'ttm', 'option_value', 'option_lottage', 'px_settle',
-                'strike', 'vol', 'eod_pnl_gross', 'eod_pnl_net', 'cu_pnl_gross',
-                'cu_pnl_net', 'eod_gamma_pnl', 'cu_gamma_pnl', 'eod_vega_pnl',
-                'cu_vega_pnl', 'delta_rolled', 'net_delta', 'net_gamma', 'net_theta',
-                'net_vega', 'data order', 'timestep', 'breakeven']
+        cols = ['value_date', 'vol_id', 'ttm', 'option_value', 'option_lottage', 
+                'px_settle', 'strike', 'vol', 'eod_pnl_gross', 'eod_pnl_net', 
+                'cu_pnl_gross','cu_pnl_net', 'eod_gamma_pnl', 'cu_gamma_pnl', 
+                'eod_vega_pnl','cu_vega_pnl', 'net_delta', 'net_gamma', 'net_theta',
+                'net_vega', 'timestep', 'vol_change', 'price_change']
 
-        adcols = ['pdt', 'ft_month', 'op_month', 'delta', 'gamma', 'theta',
-                  'vega', 'net_call_vega', 'net_put_vega', 'b/s']
+        adcols = ['op_delta', 'op_gamma', 'op_theta',
+                  'op_vega', 'txn_costs']
 
         if op.barrier is not None:
             barlevel = op.ki if op.ki is not None else op.ko
-            bvol = op.bvol
             knockedin = op.knockedin
             knockedout = op.knockedout
-            lst.extend([barlevel, bvol, knockedin, knockedout])
-            cols.extend(['barlevel', 'barrier_vol',
-                         'knockedin', 'knockedout'])
+            bvol_change = vol_change[op.get_vol_id()][barlevel]
 
-        if drawdown_limit is not None:
-            lst.extend([drawdown_val, drawdown_pct])
-            cols.extend(['drawdown', 'drawdown_pct'])
-
+            lst.extend([barlevel, bvol_change, knockedin, knockedout])
+            cols.extend(['barlevel', 'bvol_change','knockedin', 'knockedout'])
+            
         cols.extend(adcols)
 
         # getting net greeks
         delta, gamma, theta, vega = op.greeks()
 
-        lst.extend([pdt, ftmth, opmth, delta, gamma, theta,
-                    vega, call_vega, put_vega, dailycost])
+        lst.extend([delta, gamma, theta, vega, dailycost])
 
         l_dic = OrderedDict(zip(cols, lst))
         loglist.append(l_dic)

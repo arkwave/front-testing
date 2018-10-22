@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   RMS08
-# @Last Modified time: 2018-10-10 16:29:06
+# @Last Modified by:   arkwave
+# @Last Modified time: 2018-10-18 14:07:13
 
 import pandas as pd
 import pprint
@@ -63,7 +63,7 @@ class Hedge:
     def __init__(self, portfolio, hedges, vdf=None, pdf=None,
                  buckets=None, brokerage=None, slippage=None,
                  book=False, settlements=None,
-                 auto_volid=True, vid_dict=None):
+                 auto_volid=True, vid_dict=None, vega_slippage=None):
         """Constructor. Initializes a hedge object subject to the following parameters.
         
         Args:
@@ -78,7 +78,9 @@ class Hedge:
             settlements (dataframe, optional): dataframe of settlement vols. 
             auto_volid (bool, optional): Determines if the vol_id used to hedge a particular greek 
                                          is auto-detected based on the dataset. 
-            valid inputs are 'exp' for greeks-by-expiry and 'uid' for greeks by underlying.
+            vid_dict (dict, optional): mappings of vol_id to u
+            vega_slippage (dict, optional): Description
+            valid inputs are 'agg' for aggregated greeks and 'uid' for greeks by underlying.
         
         """
         self.vid_dict = vid_dict
@@ -87,6 +89,7 @@ class Hedge:
         self.book = book
         self.b = brokerage
         self.s = slippage
+        self.vega_slippage = vega_slippage
         self.mappings = {}
         self.greek_repr = {}
         self.vdf = vdf
@@ -122,6 +125,12 @@ class Hedge:
                   'date': self.date}
 
         return str(pprint.pformat(r_dict))
+
+    def has_vol_slippage(self):
+        return self.vega_slippage is not None 
+
+    def get_vol_slippage(self):
+        return self.vega_slippage
 
     def auto_detect_volids(self):
         return self.auto_volid
@@ -572,7 +581,7 @@ class Hedge:
         # sanity check: case where delta is the only hedge, and greek repr
         # hence doesn't get updated (in fact gets wiped on refresh.)
         if self.greek_repr == {}:
-            self.greek_repr = self.pf.get_net_greeks()
+            self.greek_repr = self.pf.get_net_greeks() if self.desc == 'uid' else self.pf.get_aggregated_greeks()
 
         # self.done = self.satisfied()
 
@@ -638,9 +647,13 @@ class Hedge:
         # to get the vol_id used to hedge this particular product.  
         if self.desc == 'agg':
             data = self.mappings[flag]
+            self.greek_repr = self.pf.get_aggregated_greeks()
+            # print('greek repr: ', self.greek_repr)
             for product, mth in data:
                 # hedge_id = data[(pdt, mth)]
                 greekval = self.greek_repr[product][ind]
+                # print('flag, greekval: ', flag, greekval)
+
                 if hedge_type == 'bound':
                     bounds = relevant_conds[1]
                     target = (bounds[1] + bounds[0]) / 2
@@ -680,6 +693,8 @@ class Hedge:
 
         reqd_val = abs(reqd_val)
 
+        print('flag, required: ', flag, reqd_val)
+
         # grab the vol_id associated with this greek/product/localizer.
         hedge_id = self.mappings[flag][(product, loc)]
         
@@ -694,7 +709,6 @@ class Hedge:
 
         self.refresh()
 
-        # computing slippage/brokerage if required.
         if ops:
             # case: hedging is being done basis book vols. In this case,
             # the difference in premium paid must be computed basis settlement
@@ -960,6 +974,8 @@ class Hedge:
             Option objects: the option objects used to hedge the greek. 
 
         """
+        # print(shorted, hedge_id, flag, greekval)
+
         # designate the dataframes to be used for hedging.
         hedge_vols = settlements if self.book else self.vdf
         ops = None
@@ -1029,18 +1045,19 @@ class Hedge:
             if ops:
                 cost = sum([op.get_price() for op in ops])
                 op = ops[0]
-                if self.s is not None:
-                    if type(self.s) == dict:
-                        pdt_ticks = self.s[op.get_product()] 
+                if self.vega_slippage is not None:
+                    if type(self.vega_slippage) == dict:
+                        pdt_ticks = self.vega_slippage[op.get_product()] 
                         num_ticks = pdt_ticks[min([x for x in pdt_ticks], key=lambda x: abs(x - op.lots))]
                     else:
                         num_ticks = self.s
-                    print('greek hedge - num_ticks: ', num_ticks)
-                    cost += num_ticks * op_ticksize[op.get_product()] * multipliers[op.get_product()][-1]
+                    print('greek hedge - vol %% slippage: ', num_ticks)
+                    cost += abs(num_ticks) * abs(op.get_greek('vega'))
                 if self.b:
                     cost += self.b * sum([op.lots for op in ops])
             print('adding options: ', len(ops) > 0)
-            self.pf.add_security(list(ops), 'hedge')
+            self.pf.add_security(ops, 'hedge')
+            # print('pf after adding hedges: ', self.pf)
 
         except IndexError:
             product = hedge_id.split()[0]

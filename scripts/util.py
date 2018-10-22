@@ -2,7 +2,7 @@
 # @Author: arkwave
 # @Date:   2017-05-19 20:56:16
 # @Last Modified by:   arkwave
-# @Last Modified time: 2018-10-03 14:20:23
+# @Last Modified time: 2018-10-17 15:46:06
 
 from .portfolio import Portfolio
 from .classes import Future, Option
@@ -1166,7 +1166,7 @@ def volids_from_ci(date_range, product, ci):
     return dates_to_volid
 
 
-def assign_hedge_objects(pf, vdf=None, pdf=None, book=False, slippage=None, auto_volid=True, vid_dict=None):
+def assign_hedge_objects(pf, vdf=None, pdf=None, book=False, slippage=None, auto_volid=True, vid_dict=None, vega_slippage=None):
     """Helper method that generates and relates a portfolio object 
     with the the Hedger object calibrated to pf.hedge_params. 
     
@@ -1178,6 +1178,7 @@ def assign_hedge_objects(pf, vdf=None, pdf=None, book=False, slippage=None, auto
         slippage (None, optional): either flat value for slippage or dictionary of lots -> slippage ticks
         auto_volid (bool, optional): Determines if vol_ids used to hedge greeks are automatically determined or specified. 
         vid_dict (dict, optional): If auto_volid is False, initial vol_ids used to hedge greeks must be specified. 
+        vega_slippage (None, optional): Description
     
     Returns:
         object: Portfolio object with Hedger constructed and assigned.
@@ -1195,7 +1196,8 @@ def assign_hedge_objects(pf, vdf=None, pdf=None, book=False, slippage=None, auto
     # case: simple portfolio.
     from .hedge import Hedge
     # print('assign_hedge_objects - init pf: ', pf)
-    hedger = Hedge(pf, pf.hedge_params, vdf=vdf, pdf=pdf, book=book, slippage=slippage, auto_volid=auto_volid, vid_dict=vid_dict)
+    hedger = Hedge(pf, pf.hedge_params, vdf=vdf, pdf=pdf, book=book, slippage=slippage, 
+                   auto_volid=auto_volid, vid_dict=vid_dict, vega_slippage=vega_slippage)
     # print('assign_hedge_objects - after creating hedge object: ', pf)
     pf.hedger = hedger
     # print('assign_hedge_objects - after assigning hedger: ', pf)
@@ -1205,7 +1207,8 @@ def assign_hedge_objects(pf, vdf=None, pdf=None, book=False, slippage=None, auto
     # case: composite portfolio
     if pf.families:
         for fa in pf.families:
-            hedger = Hedge(fa, fa.hedge_params, vdf=vdf, pdf=pdf, book=book, slippage=slippage, auto_volid=auto_volid, vid_dict=vid_dict)
+            hedger = Hedge(fa, fa.hedge_params, vdf=vdf, pdf=pdf, book=book, slippage=slippage, 
+                           auto_volid=auto_volid, vid_dict=vid_dict, vega_slippage=vega_slippage)
             fa.hedger = hedger
             fa.hedger.update_hedgepoints()
 
