@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Ananth
 # @Date:   2017-07-20 18:26:26
-# @Last Modified by:   arkwave
-# @Last Modified time: 2018-10-18 14:07:13
+# @Last Modified by:   RMS08
+# @Last Modified time: 2018-10-25 15:46:00
 
 import pandas as pd
 import pprint
@@ -331,6 +331,7 @@ class Hedge:
         for flag in self.hedges:
             if flag != 'delta':
                 self._calibrate(flag)
+        # print('mappings: ', self.mappings)
 
     def _calibrate(self, flag, selection_criteria='median', buckets=None):
         """Helper method that constructs the hedging parameters based on
@@ -424,7 +425,8 @@ class Hedge:
 
                     closest_tau_val = min(df.tau, key=lambda x: abs(x - ttm))
                     vol_ids = df[(df.underlying_id == uid) &
-                                 (df.tau == closest_tau_val)].vol_id.values
+                                 (df.tau == closest_tau_val)].vol_id.unique()
+                    # print('hedge._calibrate - vol_id / flag: ', vol_ids, flag)
 
                     # select the closest opmth/ftmth combination
                     split = [x.split()[1] for x in vol_ids]
@@ -984,8 +986,8 @@ class Hedge:
             if data['kind'] == 'straddle':
                 if data['spectype'] == 'strike':
                     strike = data['spec']
-                ops = create_straddle(hedge_id, hedge_vols, self.pdf, self.date,
-                                      shorted, strike=strike, greek=flag, greekval=greekval)
+                ops = create_straddle(hedge_id, hedge_vols, self.pdf,
+                                      shorted, strike=strike, greek=flag, greekval=greekval, date=self.date)
                 gv = greekval if not shorted else -greekval
             
             elif data['kind'] == 'strangle':

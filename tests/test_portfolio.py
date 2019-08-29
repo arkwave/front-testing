@@ -32,6 +32,9 @@ pdts = ['QC', 'CC']
 # grabbing data
 vdf, pdf, edf = grab_data(pdts, start_date, end_date,
                           write_dump=False)
+# print(vdf.value_date.min())
+# print(start_date)
+# assert 1 == 0
 
 
 def generate_portfolio():
@@ -499,9 +502,9 @@ def test_compute_ordering():
 
 def comp_portfolio(refresh=False):
     # creating the options.
-    ccops = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    ccops = create_straddle('CC  Z7.Z7', vdf, pdf,
                             False, 'atm', greek='theta', greekval=10000)
-    qcops = create_straddle('QC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    qcops = create_straddle('QC  Z7.Z7', vdf, pdf,
                             True, 'atm', greek='theta', greekval=10000)
     # create the hedges.
     gen_hedges = OrderedDict({'delta': [['static', 'zero', 1]]})
@@ -707,8 +710,8 @@ def test_adding_to_composites():
 
     # print('============== first add ==================')
     # second test: add an option to pfqc, check if it is updated in pf.
-    qc_straddle = create_straddle('QC  Z7.Z7', r_vdf, r_pdf, date,
-                                  True, 'atm', greek='theta', greekval=2000)
+    qc_straddle = create_straddle('QC  Z7.Z7', r_vdf, r_pdf,
+                                  True, 'atm', greek='theta', greekval=2000, date=date)
     qc_pf.add_security(qc_straddle, 'OTC')
 
     pf.refresh()
@@ -933,7 +936,7 @@ def test_rollovers_OTC_representation_simple():
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(True)
 
     pf = copy.deepcopy(pfcc)
-    cchedges = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    cchedges = create_straddle('CC  Z7.Z7', vdf, pdf,
                                True, 'atm', greek='theta', greekval=5000)
     pf.add_security(cchedges, 'hedge')
 
@@ -983,8 +986,8 @@ def test_refresh_securities_diff_pdts():
     qc_pf = [fam for fam in pf.get_families() if
              fam.get_unique_products() == set(['QC'])][0]
 
-    ccops2 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf, date,
-                             True, 'atm', greek='theta', greekval=5000)
+    ccops2 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf,
+                             True, 'atm', greek='theta', greekval=5000, date=date)
 
     cc_pf.add_security(ccops2, 'OTC')
 
@@ -1034,12 +1037,12 @@ def test_refresh_securities_same_pdts():
     pf1 = Portfolio(cc_hedges_c, name='cc_1')
     pf2 = Portfolio(cc_hedges_c, name='cc_2')
 
-    straddle1 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf, date,
-                                True, 'atm', greek='theta', greekval=5000)
-    straddle2 = create_straddle('CC  H8.H8', r_vdf, r_pdf, date,
-                                True, 'atm', greek='theta', greekval=5000)
-    straddle3 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf, date,
-                                False, 'atm', greek='theta', greekval=2500)
+    straddle1 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf,
+                                True, 'atm', greek='theta', greekval=5000, date=date)
+    straddle2 = create_straddle('CC  H8.H8', r_vdf, r_pdf,
+                                True, 'atm', greek='theta', greekval=5000, date=date)
+    straddle3 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf,
+                                False, 'atm', greek='theta', greekval=2500, date=date)
 
     pf1.add_security(straddle1, 'OTC')
     pf1.add_security(straddle3, 'hedge')
@@ -1114,8 +1117,8 @@ def test_add_futures_comp():
     r_pdf = pdf[pdf.value_date == date]
     cc_pf = [fam for fam in pf.get_families() if fam.name == 'cc_comp'][0]
 
-    cchedges = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
-                               True, 'atm', greek='theta', greekval=5000)
+    cchedges = create_straddle('CC  Z7.Z7', vdf, pdf,
+                               True, 'atm', greek='theta', greekval=5000, date=date)
     cc_pf.add_security(cchedges, 'hedge')
 
     # # print('ccpf pre-refresh: ', cc_pf)
@@ -1165,8 +1168,8 @@ def test_rollovers_OTC_representation_comp_no_fts():
     cc_pf = [fam for fam in pf.families
              if fam.get_unique_products() == set(['CC'])][0]
 
-    cchedges = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
-                               True, 'atm', greek='theta', greekval=5000)
+    cchedges = create_straddle('CC  Z7.Z7', vdf, pdf,
+                               True, 'atm', greek='theta', greekval=5000, date=date)
 
     cc_pf.add_security(cchedges, 'hedge')
 
@@ -1212,8 +1215,8 @@ def test_rollovers_OTC_representation_comp_fts():
     cc_pf = [fam for fam in pf.families
              if fam.get_unique_products() == set(['CC'])][0]
 
-    cchedges = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
-                               True, 'atm', greek='theta', greekval=5000)
+    cchedges = create_straddle('CC  Z7.Z7', vdf, pdf,
+                               True, 'atm', greek='theta', greekval=5000, date=date)
 
     cc_pf.add_security(cchedges, 'hedge')
     # setting roll conditions for this particular family.

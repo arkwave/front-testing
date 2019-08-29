@@ -2,7 +2,7 @@
 # @Author: Ananth Ravi Kumar
 # @Date:   2017-03-07 21:31:13
 # @Last Modified by:   RMS08
-# @Last Modified time: 2018-10-19 16:33:42
+# @Last Modified time: 2018-10-31 16:54:49
 
 
 ################################ imports ###################################
@@ -17,8 +17,8 @@ from collections import OrderedDict
 from pandas.tseries.offsets import BDay
 
 # user defined imports
-from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites
-from .util import compute_market_minus, mark_to_vols, hedging_volid_handler, blockPrint, enablePrint
+from .util import create_underlying, create_vanilla_option, close_out_deltas, create_composites, blockPrint, enablePrint
+from .util import compute_market_minus, mark_to_vols, hedging_volid_handler
 from .prep_data import reorder_ohlc_data, granularize
 from .calc import _compute_value, get_vol_at_strike
 from .signals import apply_signal
@@ -228,8 +228,11 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
     date_range = date_range[1:]
     ########################################
 
-    ############## Bookkeeping #############
-    pricedata.time = pd.to_datetime(pricedata.time).dt.time
+    ############## Bookkeeping #############    
+    try:
+        pricedata.time = pd.to_datetime(pricedata.time).dt.time
+    except TypeError as e:
+        print('time in pricedata is already in the right format.')
     voldata.loc[voldata.datatype == 'settlement', 'time'] = datetime.time.max
     pricedata.loc[pricedata.datatype == 'settlement', 'time'] = datetime.time.max
     ########################################
@@ -550,15 +553,6 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
 
         pf.assign_hedger_dataframes(h_vdf, settle_prices, settles=settle_vols)
 
-        # testing: remove after.
-        try:
-            init_ttms = np.array(pf.OTC_options[0].get_ttms())*365
-        #     print('ttms before rebalance: ', init_ttms)
-        except IndexError:
-            print('portfolio is empty!')
-            print('pf: ', pf)
-            print('pf.empty: ', pf.empty())
-
     # Step 7: Hedge - bring greek levels across portfolios (and families) into
     # line with target levels using specified vols/prices.
         print("========================= REBALANCE ==========================")
@@ -569,14 +563,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         print('rebalance cost: ', cost)
         dailycost += cost
         print("==================================================================")
-        try:
-            final_ttms = np.array(pf.OTC_options[0].get_ttms())*365
-            # print('ttms after rebalance: ', final_ttms)
-        except IndexError as e:
-            print('portfolio is empty!')
-
-        assert np.array_equal(init_ttms, final_ttms)
-
+        
     # Step 8: compute market minuses, isolate if end of sim.
         mm, diff = compute_market_minus(pf, settle_vols)
         print('market minuses for the day: ', mm, diff)
@@ -1029,6 +1016,8 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
 
             except (IndexError, ValueError):
                 print('### VOLATILITY DATA MISSING ###')
+                print(op)
+                print('###############################')
                 strike_vol = op.vol
 
             try:
@@ -1051,9 +1040,9 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
                 bvol2 = op.bvol2 
             # print('bvol: ', b_vol)
             # print('bvol2: ', bvol2)
-            vol_change = save_vol_change(op.vol, strike_vol, vol_change)
-            vol_change = save_vol_change(op.bvol, b_vol, vol_change)
-            vol_change = save_vol_change(op.bvol2, bvol2, vol_change)
+            vol_change = save_vol_change(op, strike_vol, vol_change, 'strike')
+            vol_change = save_vol_change(op, b_vol, vol_change, 'bvol')
+            vol_change = save_vol_change(op, bvol2, vol_change, 'bvol2')
 
             op.update_greeks(vol=strike_vol, bvol=b_vol, bvol2=bvol2)
 
@@ -1065,13 +1054,26 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
     return pf, gamma_pnl, vega_pnl, total_profit, exercise_futures, barrier_futures, price_change, vol_change
 
 
-def save_vol_change(op, new_vol, vol_change_dic):
+def save_vol_change(op, new_vol, vol_change_dic, flag):
     volid = op.get_vol_id() 
-    vol_change = new_vol - op.vol
+    if flag == 'strike':
+        old_vol = op.vol 
+        strike = op.K 
+    elif flag == 'bvol':
+        old_vol = op.bvol 
+        strike = op.ki if op.ki is not None else op.ko 
+    elif flag == 'bvol2':
+        old_vol = op.bvol2
+        strike = op.ki if op.ki is not None else op.ko
+    try:
+        vol_change = new_vol - old_vol
+    except TypeError as e:
+        vol_change = 0
+
     if volid not in vol_change_dic:
         vol_change_dic[volid] = {} 
-    vol_change_dic[volid][op.K] = vol_change
-    return vol_change
+    vol_change_dic[volid][strike] = vol_change * 100
+    return vol_change_dic
 
 
 # TODO: Streamline this so that it calls comp functions and doesn't create new objects. 
@@ -2169,7 +2171,7 @@ def write_log(pf, drawdown_limit, date, dailpnl, dailynet, grosspnl, netpnl, dai
         
         underlying_id = op.get_uid()
         ftprice = settlement_prices[underlying_id]
-        dvol = vol_change[op.get_vol_id()][op.K]
+        dvol = vol_change[op.get_vol_id()][op.K] if vol_change else 0
         dprice = price_change[op.get_uid()]
 
         dic = pf.get_aggregated_greeks()

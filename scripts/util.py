@@ -18,7 +18,7 @@ from pandas.tseries.offsets import BDay
 multipliers = {
     'LH':  [22.046, 18.143881, 0.025, 1, 400],
     'LSU': [1, 50, 0.1, 10, 50],
-    'QC': [1.2153, 10, 1, 25, 12.153],
+    'QC':  [1.2153, 10, 1, 25, 12.153],
     'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
     'CC':  [1, 10, 1, 50, 10],
     'CT':  [22.046, 22.679851, 0.01, 1, 500],
@@ -32,7 +32,7 @@ multipliers = {
     'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
     'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
     'COM': [1.0604, 50, 0.25, 2.5, 53.02],
-    'CA': [1.0604, 50, 0.25, 1, 53.02],
+    'CA':  [1.0604, 50, 0.25, 1, 53.02],
     'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
 }
 
@@ -52,30 +52,30 @@ decade = 10
 # assignment.
 contract_mths = {
 
-    'LH':  ['G', 'J', 'K', 'M', 'N', 'Q', 'V', 'Z'],
+    'LH': ['G', 'J', 'K', 'M', 'N', 'Q', 'V', 'Z'],
     'LSU': ['H', 'K', 'Q', 'V', 'Z'],
     'QC': ['H', 'K', 'N', 'U', 'Z'],
-    'SB':  ['H', 'K', 'N', 'V'],
-    'CC':  ['H', 'K', 'N', 'U', 'Z'],
-    'CT':  ['H', 'K', 'N', 'Z'],
-    'KC':  ['H', 'K', 'N', 'U', 'Z'],
-    'W':   ['H', 'K', 'N', 'U', 'Z'],
-    'S':   ['F', 'H', 'K', 'N', 'Q', 'U', 'X'],
-    'C':   ['H', 'K', 'N', 'U', 'Z'],
-    'BO':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
-    'LC':  ['G', 'J', 'M', 'Q', 'V', 'Z'],
+    'SB': ['H', 'K', 'N', 'V'],
+    'CC': ['H', 'K', 'N', 'U', 'Z'],
+    'CT': ['H', 'K', 'N', 'Z'],
+    'KC': ['H', 'K', 'N', 'U', 'Z'],
+    'W': ['H', 'K', 'N', 'U', 'Z'],
+    'S': ['F', 'H', 'K', 'N', 'Q', 'U', 'X'],
+    'C': ['H', 'K', 'N', 'U', 'Z'],
+    'BO': ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
+    'LC': ['G', 'J', 'M', 'Q', 'V', 'Z'],
     'LRC': ['F', 'H', 'K', 'N', 'U', 'X'],
-    'KW':  ['H', 'K', 'N', 'U', 'Z'],
-    'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
+    'KW': ['H', 'K', 'N', 'U', 'Z'],
+    'SM': ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
     'COM': ['G', 'K', 'Q', 'X'],
     'CA': ['H', 'K', 'U', 'Z'],
-    'MW':  ['H', 'K', 'N', 'U', 'Z']
+    'MW': ['H', 'K', 'N', 'U', 'Z']
 }
 
 
 def create_underlying(pdt, ftmth, pdf, date=None, flag='settlement', ftprice=None, shorted=False, lots=None):
-    """Utility method that creates the underlying future object 
-        given a product, month, price data and date. 
+    """Utility method that creates the underlying future object
+        given a product, month, price data and date.
 
     Args:
         pdt (TYPE): product (e.g. 'S')
@@ -127,7 +127,8 @@ def create_underlying(pdt, ftmth, pdf, date=None, flag='settlement', ftprice=Non
 
 def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
                           payoff='amer', lots=None, delta=None,
-                          strike=None, vol=None, bullet=True, **kwargs):
+                          strike=None, vol=None, bullet=True, ftprice=None, 
+                          **kwargs):
     """Utility method that creates an option from the info passed in.
          Each option is instantiated with its own future underlying object. 
 
@@ -177,17 +178,18 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     cpi = 'C' if char == 'call' else 'P'
 
     # get min start date for debugging
-    try:
-        min_start_date = min(vdf[vdf.vol_id == volid].value_date)
-    except ValueError as e:
-        raise ValueError("Inputs: ", vdf, volid)
+    if date is None:
+        try:
+            min_start_date = min(vdf[vdf.vol_id == volid].value_date)
+        except ValueError as e:
+            raise ValueError("Inputs: ", vdf, volid)
 
-    date = min_start_date if (date is None or min_start_date > date) else date
+        date = min_start_date if (date is None or min_start_date > date) else date
 
     # create the underlying future
     ft_shorted = shorted if char == 'call' else not shorted
     # print('util.create_vanilla_option - pdf.columns: ', pdf.columns)
-    ft, ftprice = create_underlying(pdt, ftmth, pdf, date,
+    ft, ftprice = create_underlying(pdt, ftmth, pdf, date, ftprice=ftprice,
                                     shorted=ft_shorted, lots=lots)
 
     ticksize = multipliers[pdt][-2]
@@ -198,17 +200,16 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
 
     # get tau and expiry date. 
     try:
-        expiry_date = pd.to_datetime(vdf[(vdf.value_date == date) &
-                                         (vdf.vol_id == volid)].expdate.values[0])
         if 'expiry_date' in kwargs and kwargs['expiry_date'] is not None:
             expiry_date = kwargs['expiry_date']
-            tau = (pd.to_datetime(expiry_date) - date).days/365
-        if 'tau' in kwargs and kwargs['tau'] is not None:
+            tau = (pd.to_datetime(expiry_date) - date).days / 365
+        elif 'tau' in kwargs and kwargs['tau'] is not None:
             print('tau in kwargs')
             tau = kwargs['tau']
         else:
             tau = vdf[(vdf.value_date == date) &
                       (vdf.vol_id == volid)].tau.values[0]
+            expiry_date = date + pd.Timedelta(str(round(tau * 365)) + ' days')
     except IndexError as e:
         print('debug_1: ', vdf[vdf.value_date == date])
         print('debug_2: ', vdf[vdf.vol_id == volid])
@@ -219,7 +220,7 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     # compute the vol
     if 'breakeven' in kwargs and kwargs['breakeven'] is not None:
         # pnl_mult = multipliers[pdt][-1]
-        vol = ((252**0.5) * kwargs['breakeven'])/(ftprice)
+        vol = ((252**0.5) * kwargs['breakeven']) / (ftprice)
 
     # Case 1 : Vol is None, but strike is specified.
     elif vol is None and strike is not None:
@@ -240,7 +241,7 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
     # Case 2: Option construction is basis delta. vol and strike are None.
     elif vol is None and strike is None:
         try:
-            delta = delta/100
+            delta = delta / 100
             vol = get_vol_from_delta(
                 delta, vdf, pdf, volid, char, shorted, date)
             strike = compute_strike_from_delta(None, delta1=delta, vol=vol, s=ft.get_price(),
@@ -269,12 +270,11 @@ def create_vanilla_option(vdf, pdf, volid, char, shorted, date=None,
         dx = pd.to_datetime(date)
         incl = 1
         while dx <= expiry_date:
-            exptime = ((dx - date).days + incl)/365
+            exptime = ((dx - date).days + incl) / 365
             dailies.append(exptime)
             step = 3 if dx.dayofweek == 4 else 1 
             dx += pd.Timedelta(str(step) + ' days')
         # print('daily ttms: ', np.array(dailies)*365)
-        
     # specifying option with information gathered thus far.
     newop = Option(strike, tau, char, vol, ft, payoff, shorted,
                    opmth, lots=lots_req, ordering=ft.get_ordering(),
@@ -402,8 +402,8 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, barriertype, d
     # filter out the relevant vol surface. 
     if vol is None or bvol is None:
         rvols = vdf[(vdf.value_date == date) &
-                           (vdf.vol_id == volid) &
-                           (vdf.call_put_id == cpi)]
+                    (vdf.vol_id == volid) &
+                    (vdf.call_put_id == cpi)]
 
     # Case 1 : Vol is None, but strike is specified.
 
@@ -787,7 +787,7 @@ def create_skew(volid, vdf, pdf, date, shorted, delta, **kwargs):
     return ops
 
 
-def create_straddle(volid, vdf, pdf, date, shorted, strike, pf=None, **kwargs):
+def create_straddle(volid, vdf, pdf, shorted, strike, date=None, pf=None, **kwargs):
     """Utility function that creates straddle given dataframes and arguments.
 
     Args:
@@ -930,7 +930,7 @@ def close_out_deltas(pf, dtc):
     return pf, cost
 
 
-def hedge_all_deltas(pf, pdf):
+def hedge_all_deltas(pf, pdf, ftprice=None, date=None):
     """Helper function that delta hedges each future-month combo in a portfolio. 
     
     Args:
@@ -941,7 +941,7 @@ def hedge_all_deltas(pf, pdf):
         TYPE: Description
     """
     dic = pf.get_net_greeks()
-    print('dic: ',  dic)
+    print('dic: ', dic)
     hedge_fts = []
     for pdt in dic:
         for mth in dic[pdt]:
@@ -952,8 +952,8 @@ def hedge_all_deltas(pf, pdf):
             delta = round(abs(dic[pdt][mth][0]))
             print('delta: ', delta)
             # delta = abs(delta) 
-            ft, ftprice = create_underlying(pdt, mth, pdf, shorted=shorted, lots=delta)
-            print('ft: ', ft)
+            ft, ftprice = create_underlying(pdt, mth, pdf, date=date, 
+                                            shorted=shorted, lots=delta, ftprice=ftprice)
             hedge_fts.append(ft)
     if hedge_fts:
         pf.add_security(hedge_fts, 'hedge')

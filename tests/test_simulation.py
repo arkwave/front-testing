@@ -148,9 +148,9 @@ def test_feed_data_updates():
 
 def comp_portfolio(refresh=False):
     # creating the options.
-    ccops = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    ccops = create_straddle('CC  Z7.Z7', vdf, pdf,
                             False, 'atm', greek='theta', greekval=10000)
-    qcops = create_straddle('QC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    qcops = create_straddle('QC  Z7.Z7', vdf, pdf,
                             True, 'atm', greek='theta', greekval=10000)
     # create the hedges.
     gen_hedges = OrderedDict({'delta': [['static', 'zero', 1]]})
@@ -773,7 +773,7 @@ def test_roll_over_hedge_options():
     create_composites(pf.get_all_options())
     cc_pf = [fam for fam in pf.get_families() if
              fam.get_unique_products() == set(['CC'])][0]
-    ccops2 = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    ccops2 = create_straddle('CC  Z7.Z7', vdf, pdf,
                              True, 'atm', greek='theta', greekval=5000)
     cc_pf.add_security(ccops2, 'hedge')
 
@@ -890,9 +890,9 @@ def test_roll_product_hedges():
         assert len(op.partners) == 3
 
     # creating and adding hedges.
-    ccops2 = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    ccops2 = create_straddle('CC  Z7.Z7', vdf, pdf,
                              True, 'atm', greek='theta', greekval=5000)
-    qcops2 = create_straddle('QC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    qcops2 = create_straddle('QC  Z7.Z7', vdf, pdf,
                              True, 'atm', greek='theta', greekval=5000)
 
     pfcc1.add_security(ccops2, 'hedge')
@@ -949,7 +949,7 @@ def test_roll_product_hedges2():
         assert len(op.partners) == 3
 
     # add QC hedges.
-    qcops2 = create_straddle('QC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    qcops2 = create_straddle('QC  Z7.Z7', vdf, pdf,
                              True, 'atm', greek='theta', greekval=5000)
 
     pfqc1.add_security(qcops2, 'hedge')
@@ -994,7 +994,7 @@ def test_roll_over_full():
     cc_pf = [fam for fam in pf.get_families() if
              fam.get_unique_products() == set(['CC'])][0]
 
-    ccops2 = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    ccops2 = create_straddle('CC  Z7.Z7', vdf, pdf,
                              True, 'atm', greek='theta', greekval=5000)
     cc_pf.add_security(ccops2, 'hedge')
     cc_pf.roll = True
@@ -1046,7 +1046,7 @@ def test_roll_over_hedges_only():
     
     cc_pf = [fam for fam in pf.get_families() if
              fam.get_unique_products() == set(['CC'])][0]
-    ccops2 = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    ccops2 = create_straddle('CC  Z7.Z7', vdf, pdf,
                              True, 'atm', greek='theta', greekval=5000)
     cc_pf.add_security(ccops2, 'hedge')
     cc_pf.roll = True
@@ -1054,7 +1054,7 @@ def test_roll_over_hedges_only():
 
     qc_pf = [fam for fam in pf.get_families() if
              fam.get_unique_products() == set(['QC'])][0]
-    qcops2 = create_straddle('QC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    qcops2 = create_straddle('QC  Z7.Z7', vdf, pdf,
                              True, 'atm', greek='theta', greekval=5000)
     qc_pf.add_security(qcops2, 'hedge')
     qc_pf.roll = True
@@ -1106,7 +1106,7 @@ def test_roll_over_same_month_exception():
     cc_pf = copy.deepcopy(pf_simple)
     # # create_composites(pf.get_all_options())
     
-    ccops2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(start_date),
+    ccops2 = create_straddle('CC  U7.U7', vdf, pdf,
                              True, 'atm', greek='theta', greekval=5000)
     cc_pf.add_security(ccops2, 'hedge')
     cc_pf.roll = True
@@ -1151,7 +1151,7 @@ def test_roll_over_same_month_exception_ttm_version():
     cc_pf = copy.deepcopy(pf_simple)
     # # create_composites(pf.get_all_options())
     
-    ccops2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(start_date),
+    ccops2 = create_straddle('CC  U7.U7', vdf, pdf,
                              True, 'atm', greek='theta', greekval=5000)
     cc_pf.add_security(ccops2, 'hedge')
     cc_pf.roll = True
@@ -1199,7 +1199,7 @@ def test_rollover_hedge_volids():
     # # create_composites(pf.get_all_options())
     
     # add hedges to portfolio. 
-    ccops2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(start_date),
+    ccops2 = create_straddle('CC  U7.U7', vdf, pdf,
                              True, 'atm', greek='theta', greekval=5000)
     cc_pf.add_security(ccops2, 'hedge')
     cc_pf.roll = True
@@ -1238,9 +1238,9 @@ def test_rollover_hedge_volids_advanced():
     r_pdf = pdf[pdf.value_date == date]
 
     # create requisite structures. 
-    ccops = create_straddle('CC  H8.H8', vdf, pdf, pd.to_datetime(start_date),
+    ccops = create_straddle('CC  H8.H8', vdf, pdf,
                                 False, 'atm', greek='theta', greekval=10000)
-    qcops = create_straddle('QC  H8.H8', vdf, pdf, pd.to_datetime(start_date),
+    qcops = create_straddle('QC  H8.H8', vdf, pdf,
                             False, 'atm', greek='theta', greekval=10000)
     # create the hedges.
     gen_hedges = {'delta': [['static', 'zero', 1], 
@@ -1254,9 +1254,9 @@ def test_rollover_hedge_volids_advanced():
     pf.add_security(qcops, 'OTC')
 
     # create the hedging CC options
-    cc_hedge = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(start_date),
+    cc_hedge = create_straddle('CC  U7.U7', vdf, pdf,
                                 True, 'atm', greek='theta', greekval=10000)
-    qc_hedge = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(start_date),
+    qc_hedge = create_straddle('QC  U7.U7', vdf, pdf,
                                 True, 'atm', greek='theta', greekval=10000)
     pf.add_security(cc_hedge, 'hedge')
     pf.add_security(qc_hedge, 'hedge')

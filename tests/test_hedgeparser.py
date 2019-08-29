@@ -33,9 +33,9 @@ r_pdf = pdf[pdf.value_date == min(pdf.value_date)]
 
 def comp_portfolio(refresh=True):
     # creating the options.
-    ccops = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    ccops = create_straddle('CC  Z7.Z7', vdf, pdf,
                             False, 'atm', greek='theta', greekval=10000)
-    qcops = create_straddle('QC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    qcops = create_straddle('QC  Z7.Z7', vdf, pdf,
                             True, 'atm', greek='theta', greekval=10000)
     # create the hedges.
     gen_hedges = OrderedDict({'delta': [['static', 0, 1]]})

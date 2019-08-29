@@ -13,6 +13,8 @@ import copy
 import numpy as np
 import pandas as pd
 
+
+
 ############## variables ###########
 yr = 2017
 start_date = '2017-07-01'
@@ -27,14 +29,15 @@ pdf.value_date = pd.to_datetime(pdf.value_date)
 
 r_vdf = vdf[vdf.value_date == min(vdf.value_date)]
 r_pdf = pdf[pdf.value_date == min(pdf.value_date)]
+
 ####################################
 
 
 def comp_portfolio(refresh=True):
     # creating the options.
-    ccops = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    ccops = create_straddle('CC  Z7.Z7', vdf, pdf,
                             False, 'atm', greek='theta', greekval=10000)
-    qcops = create_straddle('QC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    qcops = create_straddle('QC  Z7.Z7', vdf, pdf,
                             True, 'atm', greek='theta', greekval=10000)
     # create the hedges.
     gen_hedges = OrderedDict({'delta': [['static', 0, 1]]})
@@ -74,6 +77,8 @@ def comp_portfolio(refresh=True):
     assert pf_comp.get_hedger() is not None
 
     return pf_simple, pf_comp, ccops, qcops, pfcc, pfqc
+
+# tst = comp_portfolio()
 
 
 def test_process_hedges():
@@ -179,10 +184,10 @@ def test_process_hedges():
     # assert engine5.buckets == [0, 20, 40, 60, 80]
 
 
-# NOTE: this test needs to be expanded to check for short-dated options.
-# at the moment, results are trivial.
-def test_calibrate():
-    pass
+# # NOTE: this test needs to be expanded to check for short-dated options.
+# # at the moment, results are trivial.
+# def test_calibrate():
+#     pass
 
 
 def test_hedge_delta():
@@ -1174,7 +1179,7 @@ def test_agg_params_processed():
                  'theta': [['bound', (-1000, 1000), 1, 0.5, 'years', 'straddle',
                             'strike', 'atm', 'agg']]}
 
-    ccops = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    ccops = create_straddle('CC  Z7.Z7', vdf, pdf,
                             False, 'atm', greek='theta', greekval=10000)
     pfcc = Portfolio(hedge_dic, name='cc_comp')
     pfcc.add_security(ccops, 'OTC')
@@ -1201,7 +1206,7 @@ def test_agg_hedge_satisfied():
                  'theta': [['bound', (-1000, 1000), 1, 0.5, 'years', 'straddle',
                             'strike', 'atm', 'agg']]}
 
-    ccops = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    ccops = create_straddle('CC  Z7.Z7', vdf, pdf,
                             False, 'atm', greek='theta', greekval=10000)
     pfcc = Portfolio(hedge_dic, name='cc_comp')
     pfcc.add_security(ccops, 'OTC')

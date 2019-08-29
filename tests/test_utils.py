@@ -74,9 +74,9 @@ def test_create_skew():
 
 def comp_portfolio(refresh=False):
     # creating the options.
-    ccops = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    ccops = create_straddle('CC  Z7.Z7', vdf, pdf,
                             False, 'atm', greek='theta', greekval=10000)
-    qcops = create_straddle('QC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    qcops = create_straddle('QC  Z7.Z7', vdf, pdf,
                             True, 'atm', greek='theta', greekval=10000)
     # create the hedges.
     gen_hedges = OrderedDict({'delta': [['static', 'zero', 1]]})
@@ -114,7 +114,7 @@ def test_transfer_dict():
     pf_simple, pf_comp, ccops, qcops, pfcc, pfqc = comp_portfolio(refresh=True)
 
     # check the edge cases.
-    newstrad = create_straddle('CC  Z7.Z7', vdf, pdf, pd.to_datetime(start_date),
+    newstrad = create_straddle('CC  Z7.Z7', vdf, pdf,
                                False, 'atm', greek='theta', greekval=5000)
 
     dic = pf_simple.OTC
@@ -154,12 +154,12 @@ def test_merge_dicts_updates():
     pf1 = Portfolio(cc_hedges_c, name='cc_1')
     pf2 = Portfolio(cc_hedges_c, name='cc_2')
 
-    straddle1 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf, date,
-                                True, 'atm', greek='theta', greekval=5000)
-    straddle2 = create_straddle('CC  H8.H8', r_vdf, r_pdf, date,
-                                True, 'atm', greek='theta', greekval=5000)
-    straddle3 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf, date,
-                                False, 'atm', greek='theta', greekval=2500)
+    straddle1 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf,
+                                True, 'atm', greek='theta', greekval=5000, date=date)
+    straddle2 = create_straddle('CC  H8.H8', r_vdf, r_pdf,
+                                True, 'atm', greek='theta', greekval=5000, date=date)
+    straddle3 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf,
+                                False, 'atm', greek='theta', greekval=2500, date=date)
 
     pf1.add_security(straddle1, 'OTC')
     pf1.add_security(straddle3, 'hedge')
@@ -228,12 +228,12 @@ def test_merge_dicts_with_hedges():
     pf1 = Portfolio(cc_hedges_c, name='cc_1')
     pf2 = Portfolio(cc_hedges_c, name='cc_2')
 
-    straddle1 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf, date,
-                                True, 'atm', greek='theta', greekval=5000)
-    straddle2 = create_straddle('CC  H8.H8', r_vdf, r_pdf, date,
-                                True, 'atm', greek='theta', greekval=5000)
-    straddle3 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf, date,
-                                False, 'atm', greek='theta', greekval=2500)
+    straddle1 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf,
+                                True, 'atm', greek='theta', greekval=5000, date=date)
+    straddle2 = create_straddle('CC  H8.H8', r_vdf, r_pdf,
+                                True, 'atm', greek='theta', greekval=5000, date=date)
+    straddle3 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf,
+                                False, 'atm', greek='theta', greekval=2500, date=date)
 
     pf1.add_security(straddle1, 'OTC')
     pf1.add_security(straddle3, 'hedge')
@@ -294,12 +294,12 @@ def test_merge_dicts_OTC():
     pf1 = Portfolio(cc_hedges_c, name='cc_1')
     pf2 = Portfolio(cc_hedges_c, name='cc_2')
 
-    straddle1 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf, date,
-                                True, 'atm', greek='theta', greekval=5000)
-    straddle2 = create_straddle('CC  H8.H8', r_vdf, r_pdf, date,
-                                True, 'atm', greek='theta', greekval=5000)
-    straddle3 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf, date,
-                                False, 'atm', greek='theta', greekval=2500)
+    straddle1 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf,
+                                True, 'atm', greek='theta', greekval=5000, date=date)
+    straddle2 = create_straddle('CC  H8.H8', r_vdf, r_pdf,
+                                True, 'atm', greek='theta', greekval=5000, date=date)
+    straddle3 = create_straddle('CC  Z7.Z7', r_vdf, r_pdf,
+                                False, 'atm', greek='theta', greekval=2500, date=date)
 
     pf1.add_security(straddle1, 'OTC')
     pf1.add_security(straddle3, 'hedge')
@@ -360,8 +360,8 @@ def test_merge_lists():
 
     # create one portfolio, add a CC H8.H8 straddle
     pf1 = Portfolio(cc_hedges_c, name='cc_1')
-    straddle2 = create_straddle('CC  H8.H8', r_vdf, r_pdf, date,
-                                True, 'atm', greek='theta', greekval=5000)
+    straddle2 = create_straddle('CC  H8.H8', r_vdf, r_pdf,
+                                True, 'atm', greek='theta', greekval=5000,date=date)
     pf1.add_security(straddle2, 'OTC')
 
     # create a second portfolio, add a CC  H8.H8 future that would zero out deltas of the
@@ -412,11 +412,9 @@ def test_merge_lists():
 
 def test_combine_portfolios_basic():
 
-    cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
-        start_date), False, 'atm', greek='vega', greekval=20000)
+    cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, False, 'atm', greek='vega', greekval=20000)
 
-    qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(
-        start_date), True, 'atm', greek='vega', greekval=20000)
+    qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, True, 'atm', greek='vega', greekval=20000)
 
     pf1 = Portfolio(None)
     pf1.add_security([qc1, qc2], 'OTC')
@@ -473,11 +471,9 @@ def test_combine_portfolios_basic():
 
 def test_combine_portfolios_containment():
 
-    cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
-        start_date), False, 'atm', greek='vega', greekval=20000)
+    cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, False, 'atm', greek='vega', greekval=20000)
 
-    qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(
-        start_date), True, 'atm', greek='vega', greekval=20000)
+    qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, True, 'atm', greek='vega', greekval=20000)
 
     pf1 = Portfolio(None)
     pf1.add_security([qc1, qc2], 'OTC')
@@ -530,11 +526,9 @@ def test_combine_portfolios_containment():
 
 def test_combine_portfolios_lists_vs_sets():
 
-    cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
-        start_date), False, 'atm', greek='vega', greekval=20000)
+    cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, False, 'atm', greek='vega', greekval=20000)
 
-    qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(
-        start_date), True, 'atm', greek='vega', greekval=20000)
+    qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, True, 'atm', greek='vega', greekval=20000)
 
     pf1 = Portfolio(None)
     pf1.add_security([qc1, qc2], 'OTC')
@@ -555,11 +549,9 @@ def test_combine_portfolios_lists_vs_sets():
 
 
 def test_combine_portfolios_check_families():
-    cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
-        start_date), False, 'atm', greek='vega', greekval=20000)
+    cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, False, 'atm', greek='vega', greekval=20000)
 
-    qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(
-        start_date), True, 'atm', greek='vega', greekval=20000)
+    qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, True, 'atm', greek='vega', greekval=20000)
 
     pf1 = Portfolio(None)
     pf1.add_security([qc1, qc2], 'OTC')
@@ -574,8 +566,7 @@ def test_combine_portfolios_check_families():
 def test_merge_dicts_list_case():
     d1 = {'Z7': [set(), set(), 0, 0, 0, 0]}
     d2 = {'H8': [set(), set(), 0, 0, 0, 0]}
-    cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
-        start_date), False, 'atm', greek='vega', greekval=20000)
+    cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, False, 'atm', greek='vega', greekval=20000)
 
     d1['Z7'][0].add(cc1)
     d1['Z7'][0].add(cc2)
@@ -586,8 +577,7 @@ def test_merge_dicts_list_case():
         d1['Z7'][4] += x.theta
         d1['Z7'][5] += x.vega
 
-    qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(
-        start_date), True, 'atm', greek='vega', greekval=20000)
+    qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, True, 'atm', greek='vega', greekval=20000)
 
     d2['H8'][0].add(qc1)
     d2['H8'][0].add(qc2)
@@ -628,8 +618,7 @@ def test_merge_dicts_list_case():
 def test_merge_dicts_edge_case():
     d1 = {'Z7': [set(), set(), 0, 0, 0, 0]}
     d2 = {'H8': [set(), set(), 0, 0, 0, 0]}
-    cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, pd.to_datetime(
-        start_date), False, 'atm', greek='vega', greekval=20000)
+    cc1, cc2 = create_straddle('CC  U7.U7', vdf, pdf, False, 'atm', greek='vega', greekval=20000)
 
     d1['Z7'][0].add(cc1)
     d1['Z7'][0].add(cc2)
@@ -640,8 +629,7 @@ def test_merge_dicts_edge_case():
         d1['Z7'][4] += x.theta
         d1['Z7'][5] += x.vega
 
-    qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, pd.to_datetime(
-        start_date), True, 'atm', greek='vega', greekval=20000)
+    qc1, qc2 = create_straddle('QC  U7.U7', vdf, pdf, True, 'atm', greek='vega', greekval=20000)
 
     d2['H8'][0].add(qc1)
     d2['H8'][0].add(qc2)
