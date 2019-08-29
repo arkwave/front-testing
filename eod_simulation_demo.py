@@ -132,20 +132,20 @@ if __name__ == "__main__":
 
         # specify the hedging parameters
         gen_hedges = OrderedDict({'delta': [['static', 0, 1]]})
-        hedge_dict_1 = OrderedDict({'gamma': [['bound', (3800, 4200), 1, 'straddle', 
-                                               'strike', 'atm', 'uid']]})
+        # hedge_dict_1 = OrderedDict({'gamma': [['bound', (3800, 4200), 1, 'straddle', 
+        #                                        'strike', 'atm', 'uid']]})
 
-        hedge_dict_2 = OrderedDict({'gamma': [['bound', (2000, 2400), 1, 'straddle', 
-                                               'strike', 'atm', 'uid']]})
+        # hedge_dict_2 = OrderedDict({'gamma': [['bound', (2000, 2400), 1, 'straddle', 
+        #                                        'strike', 'atm', 'uid']]})
 
-        pf1 = Portfolio(hedge_dict_1, name='test')
-        pf1.add_security([u_option], 'OTC')
+        pf = Portfolio(gen_hedges, name='test')
+        # pf1.add_security([u_option], 'OTC')
 
-        pf2 = Portfolio(hedge_dict_2, name='test')
-        pf2.add_security([z_option], 'OTC')
+        # pf2 = Portfolio(hedge_dict_2, name='test')
+        # pf2.add_security([z_option], 'OTC')
 
-        pf = combine_portfolios([pf1, pf2], hedges=gen_hedges, refresh=True, name='full')
-
+        # pf = combine_portfolios([pf1, pf2], hedges=gen_hedges, refresh=True, name='full')
+        pf.add_security([z_option], 'OTC')
         # zeroing deltas
         dic = pf.get_net_greeks()
         hedge_fts = []
@@ -163,5 +163,7 @@ if __name__ == "__main__":
 
         print(pf)
 
+        # results = run_simulation(vdf, pdf, pf, flat_vols=True, plot_results=False)
+
         results = run_simulation(vdf, pdf, pf, flat_vols=True, plot_results=False)
-        plot_output(results[0])
+        # plot_output(results[0])
