@@ -941,16 +941,14 @@ def hedge_all_deltas(pf, pdf, ftprice=None, date=None):
         TYPE: Description
     """
     dic = pf.get_net_greeks()
-    print('dic: ', dic)
+    # print('dic: ', dic)
     hedge_fts = []
     for pdt in dic:
         for mth in dic[pdt]:
             # get the delta value. 
             delta = dic[pdt][mth][0]
             shorted = True if delta > 0 else False
-            print('raw value: ', dic[pdt][mth][0])
             delta = round(abs(dic[pdt][mth][0]))
-            print('delta: ', delta)
             # delta = abs(delta) 
             ft, ftprice = create_underlying(pdt, mth, pdf, date=date, 
                                             shorted=shorted, lots=delta, ftprice=ftprice)
