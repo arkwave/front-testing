@@ -15,6 +15,7 @@ import numpy as np
 from .prep_data import match_to_signals, get_min_start_date, clean_data, sanity_check
 from .global_vars import main_direc
 from joblib import Parallel, delayed
+import getpass
 
 contract_mths = {
 
@@ -60,19 +61,16 @@ def pull_settlement_data(pdt, start_date=None, end_date=None, write_dump=False,
     print('starting clock..')
     t = time.clock()
 
-    user = 'sumit'
-    password = 'Olam1234'
-
-    # user = input('DB Username: ')
-    # password = input('DB Password: ')
-
+    user = getpass.getuser()
+    password = getpass.getpass()
+    engine_url = input("DB Url: ")
+    
     if isinstance(start_date, pd.Timestamp):
         start_date = start_date.strftime('%Y-%m-%d')
     if isinstance(end_date, pd.Timestamp):
         end_date = end_date.strftime('%Y-%m-%d')
 
-    engine = create_engine('postgresql://' + user + ':' + password +
-                           '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+    engine = create_engine('postgresql://' + user + ':' + password + '@' + engine_url)
     connection = engine.connect()
 
     query = "select security_id, settlement_date, future_settlement_value, option_expiry_date,implied_vol \
@@ -501,10 +499,10 @@ def pull_expdata():
     Args:
         pdts (TYPE): Description
     """
-    user = 'sumit'
-    password = 'Olam1234'
-    engine = create_engine('postgresql://' + user + ':' + password +
-                           '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+    user = getpass.getuser()
+    password = getpass.getpass()
+    engine_url = input("DB Url: ")
+    engine = create_engine('postgresql://' + user + ':' + password + '@' + engine_url)
     connection = engine.connect()
 
     init_query = 'select vol_id, expiry_date from public.table_opera_option_expiry'
@@ -609,10 +607,10 @@ def _pull_intraday_data(pdt, start_date=None, end_date=None, filepath='', contra
     #     '_intraday_data.csv'
     else:
         print('cleaned file for ' + pdt + ' does not exist, pulling.')
-        user = 'sumit'
-        password = 'Olam1234'
-        engine = create_engine('postgresql://' + user + ':' + password +
-                               '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+        user = getpass.getuser()
+        password = getpass.getpass()
+        engine_url = input("DB Url: ")
+        engine = create_engine('postgresql://' + user + ':' + password + '@' + engine_url)
         connection = engine.connect()
         print('constructing query...')
         # offset = 1 if pdt in overnight_pdts else 0
@@ -729,10 +727,10 @@ def pull_ohlc_data(pdts, start_date, end_date, writepath='C:/Users/' + main_dire
         df.time = pd.to_datetime(df.time).dt.time
 
     else:
-        user = 'sumit'
-        password = 'Olam1234'
-        engine = create_engine('postgresql://' + user + ':' + password +
-                               '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+        user = getpass.getuser()
+        password = getpass.getpass()
+        engine_url = input("DB Url: ")
+        engine = create_engine('postgresql://' + user + ':' + password + '@' + engine_url)
         connection = engine.connect()
         print('constructing query...')
         query = construct_ohlc_query(
@@ -846,10 +844,10 @@ def extend_data(pdt, start_date, end_date, last_pulled):
 
 
 def fetch_exchange_timings():
-    user = 'sumit'
-    password = 'Olam1234'
-    engine = create_engine('postgresql://' + user + ':' + password +
-                           '@gmoscluster.cpmqxvu2gckx.us-west-2.redshift.amazonaws.com:5439/analyticsdb')
+    user = getpass.getuser()
+    password = getpass.getpass()
+    engine_url = input("DB Url: ")
+    engine = create_engine('postgresql://' + user + ':' + password + '@' + engine_url)
     connection = engine.connect()
     query = 'select * from public.bbg_exchange_timings'
     df = pd.read_sql_query(query, connection)
