@@ -2,7 +2,7 @@
 General-purpose module that simulates the behavior of a portfolio subject to a variety of constraints and strategies.
 
 ## Overview:
-This module allows arbitrarily complex portfolios to be run through historical price/vol series of variable length. Can be used in conjunction with the `Volgraphix` UI also in this org. repo, but functions can be called and run independently as well. The position is run through the historic data, and the outputs (cumulative PnL, gamma PnL, vega PnL, daily PnL and future prices) are plotted using Plotly.  
+This module allows arbitrarily complex portfolios to be run through historical price/vol series of variable length. The position is run through the historic data, and the outputs (cumulative PnL, gamma PnL, vega PnL, daily PnL and future prices) are plotted using Plotly.  
 
 ## Requirements:
 1. Python > 3.x
