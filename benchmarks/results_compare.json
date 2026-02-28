@@ -1,0 +1,121 @@
+{
+  "vanilla_pricing": {
+    "100": {
+      "python_us": 1815.991,
+      "rust_us": 2.464,
+      "speedup": 736.96
+    },
+    "1000": {
+      "python_us": 1841.166,
+      "rust_us": 2.445,
+      "speedup": 753.12
+    },
+    "10000": {
+      "python_us": 1672.353,
+      "rust_us": 2.383,
+      "speedup": 701.7
+    }
+  },
+  "amer_barrier_pricing": {
+    "100": {
+      "python_us": 2214.439,
+      "rust_us": 2.761,
+      "speedup": 802.09
+    },
+    "1000": {
+      "python_us": 2237.576,
+      "rust_us": 2.676,
+      "speedup": 836.18
+    },
+    "10000": {
+      "python_us": 2279.048,
+      "rust_us": 2.693,
+      "speedup": 846.26
+    }
+  },
+  "euro_barrier_pricing": {
+    "100": {
+      "python_us": 1447.233,
+      "rust_us": 15.179,
+      "speedup": 95.35
+    },
+    "1000": {
+      "python_us": 1438.847,
+      "rust_us": 1.667,
+      "speedup": 863.37
+    },
+    "10000": {
+      "python_us": 1442.577,
+      "rust_us": 1.665,
+      "speedup": 866.23
+    }
+  },
+  "vanilla_greeks": {
+    "100": {
+      "python_us": 1828.225,
+      "rust_us": 3.503,
+      "speedup": 521.92
+    },
+    "1000": {
+      "python_us": 1851.837,
+      "rust_us": 3.444,
+      "speedup": 537.65
+    },
+    "10000": {
+      "python_us": 1834.21,
+      "rust_us": 3.366,
+      "speedup": 544.91
+    }
+  },
+  "amer_barrier_greeks": {
+    "100": {
+      "python_us": 13415.766,
+      "rust_us": 9.669,
+      "speedup": 1387.54
+    },
+    "1000": {
+      "python_us": 13392.708,
+      "rust_us": 9.456,
+      "speedup": 1416.31
+    },
+    "10000": {
+      "python_us": 13740.098,
+      "rust_us": 9.557,
+      "speedup": 1437.75
+    }
+  },
+  "euro_barrier_greeks": {
+    "100": {
+      "python_us": 1467.223,
+      "rust_us": 3.527,
+      "speedup": 415.94
+    },
+    "1000": {
+      "python_us": 1477.656,
+      "rust_us": 2.117,
+      "speedup": 697.91
+    },
+    "10000": {
+      "python_us": 1445.155,
+      "rust_us": 2.079,
+      "speedup": 695.17
+    }
+  },
+  "iv_solver": {
+    "100": {
+      "python_us": 1315.938,
+      "rust_us": 1.232,
+      "speedup": 1068.42
+    },
+    "1000": {
+      "python_us": 1304.328,
+      "rust_us": 0.997,
+      "speedup": 1308.69
+    },
+    "10000": {
+      "python_us": 1315.406,
+      "rust_us": 1.028,
+      "speedup": 1279.81
+    }
+  }
+}

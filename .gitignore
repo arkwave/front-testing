@@ -7,3 +7,5 @@ results/
 Corn HS - Figures/
 Cotton Skew - Figures/
 *.xlsx
+rust_calc/target/
+.venv/
