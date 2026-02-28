@@ -14,6 +14,127 @@ This guide is in three parts:
 
 ---
 
+# Part 0: Glossary of Terms
+
+These terms appear throughout the guide. Refer back here when you hit one.
+
+### Python / CPython internals
+
+**CPython**: The standard Python interpreter. Written in C. When people say
+"Python is slow," they mean CPython's execution model.
+
+**Bytecode**: Python source is compiled to bytecode (`.pyc` files) -- a
+low-level instruction set for CPython's virtual machine. Each bytecode
+instruction (like `BINARY_ADD`, `LOAD_FAST`, `CALL_FUNCTION`) is interpreted
+one at a time by a C function called `_PyEval_EvalFrameDefault`.
+
+**PyObject**: Every value in Python is a `PyObject*` -- a pointer to a
+heap-allocated C struct. A Python float (`PyFloatObject`) is 24 bytes on the
+heap: 8 bytes for the reference count, 8 bytes for the type pointer (pointing
+to `PyFloat_Type`), and 8 bytes for the actual `double` value. This is called
+**boxing** -- wrapping a simple value in a heap object.
+
+**Reference counting**: CPython tracks how many references point to each
+PyObject. Every time you assign a variable, pass an argument, or return a
+value, CPython increments the refcount (`Py_INCREF`). When a reference goes
+away, it decrements (`Py_DECREF`). When the count hits zero, the object is
+freed. This happens on *every single operation* -- even `a + b` increfs the
+result and decrefs the operands.
+
+**MRO (Method Resolution Order)**: When Python looks up a method like
+`norm.cdf()`, it searches through a chain of classes. For scipy's `norm`, the
+MRO is: `norm_gen` -> `rv_continuous` -> `rv_generic` -> `object`. Python walks
+this chain in order until it finds `cdf`. The `cdf` method lives on
+`rv_continuous` (two levels up). This lookup involves dictionary searches at
+each level. The MRO is computed once per class using C3 linearization, but the
+actual attribute lookup still traverses it at runtime unless cached by CPython's
+type attribute cache (which has limited slots and can miss).
+
+**Frame object**: Every Python function call creates a `PyFrameObject` -- a
+C struct (~400+ bytes) that holds the local variables array, the value stack
+(for intermediate computations), a pointer to the bytecode, line number info
+for tracebacks, and the exception state. This is allocated on the heap (or
+from a free-list in CPython 3.11+) for every single function call, even
+`A_B(...)` which does one line of math.
+
+**GIL (Global Interpreter Lock)**: A mutex that prevents multiple threads from
+executing Python bytecode simultaneously. Irrelevant for our single-threaded
+benchmarks, but it means Python can't parallelize CPU-bound work across threads.
+
+**pymalloc**: CPython's small-object allocator. Instead of calling the OS
+`malloc` for every 24-byte float, pymalloc maintains pools of fixed-size
+memory blocks. Faster than malloc, but still ~10-20 CPU cycles per allocation
+(vs zero in Rust where floats live in registers).
+
+### Rust / LLVM internals
+
+**LLVM**: The compiler backend that Rust uses. Rust's compiler (`rustc`)
+translates your `.rs` code into LLVM IR (intermediate representation), then
+LLVM optimizes it and generates native machine code. LLVM is the same backend
+used by Clang (C/C++ compiler), Swift, and others. It's extremely good at
+optimization.
+
+**Inlining**: When the compiler replaces a function call with the function's
+body at the call site. If `a_b()` is 5 lines of math, inlining pastes those
+5 lines directly into `barrier_amer_inner()`, eliminating the call/return
+overhead entirely. LLVM does this aggressively -- it will inline through
+multiple levels, effectively flattening `greeks -> barrier_amer -> a_b ->
+norm_cdf` into one continuous block of machine instructions.
+
+**Dead code elimination**: After inlining, LLVM can see that (for example)
+`char` is always `OptionChar::Call` within a particular code path. The
+`OptionChar::Put` branches can never execute, so LLVM deletes them entirely.
+They generate zero machine code.
+
+**Common subexpression elimination (CSE)**: If the same computation appears
+multiple times (e.g., `(h/s).powf(2.0 * mu)` in both `C` and `D` terms),
+LLVM computes it once and reuses the result.
+
+**Register allocation**: x86-64 CPUs have 16 SSE registers (`xmm0`-`xmm15`)
+that each hold one `f64`. LLVM maps your variables to these registers. When
+you write `let d1 = (s/k).ln() + ...`, `d1` lives in (say) `xmm3` -- not on
+the heap, not even on the stack. Accessing a register takes 0 cycles (it's
+just a wire). Accessing L1 cache takes 4 cycles. Accessing the heap takes
+10-100+ cycles depending on cache level.
+
+**`#[pyfunction]`**: A pyo3 macro that generates the glue code to make a Rust
+function callable from Python. It handles: extracting arguments from Python
+objects, converting types, calling your Rust function, and wrapping the result
+back into a Python object. This is the FFI (Foreign Function Interface)
+boundary.
+
+### Financial math terms
+
+**N(x)**: The standard normal cumulative distribution function (CDF). The
+probability that a standard normal random variable is less than x.
+`N(0) = 0.5`, `N(1.96) ≈ 0.975`, `N(-inf) = 0`, `N(+inf) = 1`.
+
+**n(x)**: The standard normal probability density function (PDF).
+`n(x) = (1/sqrt(2*pi)) * exp(-x^2/2)`. The bell curve. Always positive.
+
+**erfc**: The complementary error function. `erfc(x) = 1 - erf(x)`. Related
+to the normal CDF by: `N(x) = 0.5 * erfc(-x / sqrt(2))`. This is how both
+scipy and statrs actually compute `norm.cdf` internally.
+
+**phi**: +1 for call options, -1 for put options. A sign convention that lets
+you write one formula for both.
+
+**eta**: +1 for down barriers, -1 for up barriers. Another sign convention.
+
+**mu**: `(b - sigma^2/2) / sigma^2` where `b` is cost of carry (0 for
+futures). The drift-adjusted parameter used in the reflection principle.
+For your code with b=0: `mu = -1/2`.
+
+**lambda**: `sqrt(mu^2 + 2*r/sigma^2)`. Used in the F term (first-passage-time
+distribution for the knock-out rebate). When r=0 (as in your tests):
+`lambda = |mu| = 0.5`.
+
+**dpo (distance per option)**: `abs(K - barrier) / ticksize`. The number of
+ticks between strike and barrier. Used in European barrier pricing to scale
+the digital option correction.
+
+---
+
 # Part 1: The Financial Math
 
 ## 1.1 Black-Scholes-Merton: `_bsm_euro` (calc.py:144)
@@ -114,21 +235,83 @@ Combined with call/put and up/down, this gives 8 types:
 Espen Haug ("The Complete Guide to Option Pricing Formulas") derives closed-form
 prices using the **reflection principle** for Brownian motion.
 
-The key mathematical trick: for every path that crosses the barrier from above
-and ends at some value S_T, there exists a "reflected" path starting from H^2/S
-that ends at the same S_T without crossing. The probability of crossing can be
-computed by counting these reflected paths.
+### The reflection principle -- building intuition from scratch
 
-Because the underlying has drift (it's not a pure random walk), the reflection
-isn't exact -- you need a correction factor `(H/S)^(2*mu)` where:
+Forget options for a moment. Imagine a drunk person walking on a number line,
+starting at position x = 5. Each step is random: +1 or -1 with equal
+probability. You want to know: what's the probability they hit x = 0 (the
+"barrier") at some point AND end up at position x = 3 after 100 steps?
+
+**The reflection trick**: For every path that goes 5 -> ... -> hits 0 -> ... -> 3,
+there is a MIRROR path that starts at -5 (the reflection of 5 through 0) and
+goes -5 -> ... -> 3, WITHOUT ever needing to hit 0. Why? Because the path
+from 5 that hits 0 can be "reflected" at the moment it touches 0 -- everything
+before the touch is mirrored, everything after stays the same. The two paths
+are in one-to-one correspondence.
+
+So: P(start at 5, hit 0, end at 3) = P(start at -5, end at 3).
+
+The second probability is easy to compute because it's just a random walk
+from -5 to 3 -- no barrier condition to worry about.
+
+**Now apply this to stock prices**: Replace the random walk with geometric
+Brownian motion (log-normal stock prices). The barrier is at price H, the
+stock starts at S. The "reflected" starting point isn't `-S` -- because
+we're working in log-space, the reflection of `ln(S)` through `ln(H)` is:
 
 ```
-mu = (b - sigma^2/2) / sigma^2     (drift adjustment)
-b = 0                               (cost of carry, zero for futures)
+reflected = 2*ln(H) - ln(S) = ln(H^2/S)
 ```
 
-This gives `mu = -0.5` when b=0. The reflection weight `(H/S)^(-1) = S/H`
-adjusts for the drift difference between the original and reflected paths.
+So the reflected starting price is `H^2/S`. If S = 100 and H = 80, the
+reflected start is 80^2/100 = 64. Geometrically: 64 is to 80 as 80 is to
+100 (same ratio, 0.8x).
+
+**The drift problem**: There's a catch. Stock prices have drift -- they tend
+to go up (or down) on average. A pure random walk is symmetric, so reflection
+works perfectly. But a drifted walk isn't symmetric: paths going up are more
+likely than paths going down (or vice versa). When you reflect a drifted path,
+the reflected path has the WRONG drift.
+
+To fix this, you multiply by a correction factor:
+
+```
+(H/S)^(2*mu)    where mu = (b - sigma^2/2) / sigma^2
+```
+
+This is a **Radon-Nikodym derivative** -- it reweights the reflected paths to
+account for the drift difference. Think of it as: "reflected paths have the
+wrong probability distribution, so we multiply each one by a correction weight
+to make the probabilities right."
+
+For your code with b = 0 (futures):
+```
+mu = (0 - sigma^2/2) / sigma^2 = -1/2
+```
+So `(H/S)^(2*mu) = (H/S)^(-1) = S/H`. If S = 100 and H = 80, the correction
+is 100/80 = 1.25. Reflected paths are scaled up by 25% because the drift makes
+barrier-crossing slightly less likely than a driftless walk would suggest.
+
+### How this becomes the A-F terms
+
+Each Haug helper term is one piece of this reflection decomposition:
+
+- **A, B** = "direct" terms (no reflection). They compute the option value
+  using paths that go directly from S to the terminal value, as if no barrier
+  exists. They look exactly like BSM because they ARE BSM, just evaluated at
+  different reference points (strike K for A, barrier H for B).
+
+- **C, D** = "reflected" terms. They compute the option value using paths
+  starting from the reflected point H^2/S. The factor `(H/S)^(2*mu)` is the
+  drift correction. They have the same structure as A and B but with the y
+  variables (which use the reflected log-price `ln(H^2/(S*K))`) instead of
+  the x variables.
+
+- **E** = correction for rebates paid at expiry. Uses both direct and
+  reflected probabilities to get the probability of barrier-touching.
+
+- **F** = correction for rebates paid at first touch. Uses the first-passage-
+  time distribution (when does the path first hit H?), which involves lambda.
 
 ### The six helper terms (calc.py:1265-1289)
 
@@ -923,3 +1106,172 @@ This is the difference between:
 
 The `scripts/calc_rs.py` wrapper preserves the exact same Python API.
 Callers don't know or care that Rust is doing the work.
+
+---
+
+# Part 6: How Much Is the Compiler Compensating for Bad Code?
+
+This is a fair question. The honest answer: **a lot -- but the "bad code" is
+inherent to Python, not something you wrote wrong.**
+
+## What a "well-structured" Python version would look like
+
+You could try to make `calc.py` faster without Rust:
+
+### Attempt 1: Replace `scipy.stats.norm.cdf` with `math.erfc`
+
+```python
+from math import erfc, sqrt
+
+def fast_norm_cdf(x):
+    return 0.5 * erfc(-x / sqrt(2))
+```
+
+This skips the entire scipy framework (MRO lookup, array wrapping,
+broadcasting, argument validation). You'd go from ~4us to ~0.2us per call.
+
+**Estimated speedup: 10-20x** on the `norm.cdf`-heavy functions.
+
+This is real and you should probably do it even with the Rust port available.
+The scipy overhead is genuinely unnecessary for scalar calls.
+
+### Attempt 2: Use enums (or ints) instead of strings
+
+```python
+CALL, PUT = 0, 1
+UP, DOWN = 0, 1
+
+def _barrier_amer(char_int, tau, vol, k, s, r, payoff, direction_int, ki, ko):
+    if char_int == CALL:  # integer comparison, ~10ns vs ~80ns for strings
+        ...
+```
+
+**Estimated speedup: ~1.02x**. String comparison isn't a big cost center.
+Not worth the readability loss.
+
+### Attempt 3: Inline the helper functions manually
+
+Instead of calling `A_B('A', ...)`, `A_B('B', ...)`, `C_D('C', ...)`, etc.,
+paste the math directly into `_barrier_amer`:
+
+```python
+def _barrier_amer(char, tau, vol, k, s, r, ...):
+    # ... compute x1, x2, y1, y2, z ...
+
+    # Inline A (was: A = A_B('A', phi, b, r, x1, x2, tau, vol, s, k))
+    A = phi * s * exp((b-r)*tau) * norm_cdf(phi*x1) \
+        - phi * k * exp(-r*tau) * norm_cdf(phi*x1 - phi*vol*sqrt_tau)
+
+    # Inline B
+    B = phi * s * exp((b-r)*tau) * norm_cdf(phi*x2) \
+        - phi * k * exp(-r*tau) * norm_cdf(phi*x2 - phi*vol*sqrt_tau)
+
+    # ... etc for C, D, E, F ...
+```
+
+**Estimated speedup: ~1.15x**. Saves 6 function calls per `_barrier_amer`
+invocation (36 across all 6 calls in greeks), but function call overhead is
+only ~5% of total time.
+
+### Attempt 4: NumPy vectorization
+
+```python
+import numpy as np
+from scipy.special import ndtr  # raw normal CDF, no framework
+
+def barrier_amer_batch(chars, taus, vols, ks, ss, rs, ...):
+    # Compute all x1, x2, y1, y2, z as arrays
+    x1 = np.log(ss/ks) / (vols * np.sqrt(taus)) + (1 + mu) * vols * np.sqrt(taus)
+    # ... all vectorized ...
+    A = phi * ss * np.exp((b-rs)*taus) * ndtr(phi*x1) - ...
+```
+
+This is the "proper" way to make Python numeric code fast -- push loops into
+C/Fortran via NumPy. **Estimated speedup: 50-200x** for batch operations.
+
+BUT: it only works for batches of options with the same structure. The
+16-branch decision tree means you need to separate options into groups by
+char/direction/ki-vs-ko before vectorizing. And in your backtesting engine,
+you call `_compute_greeks` per option, per timestep -- the loop is in
+`classes.py`, not in `calc.py`. Restructuring the entire calling pattern for
+vectorization is a major architectural change.
+
+### Attempt 5: Cython / Numba
+
+```python
+@numba.njit
+def _bsm_euro(option_int, tau, vol, K, s, r):
+    # ... same math but with type annotations ...
+```
+
+Numba JIT-compiles Python functions to machine code using LLVM (the same
+backend Rust uses!). **Estimated speedup: 200-500x** for individual functions.
+
+This is the closest Python-native equivalent to the Rust port. The caveats:
+- Numba doesn't support classes, most of scipy, or complex Python features
+- Debugging JIT-compiled code is harder
+- Compilation happens at runtime (cold start penalty)
+- You're still writing Python syntax, just restricted Python
+
+## So what IS the compiler compensating for?
+
+Here's the honest breakdown of the 1,438x speedup:
+
+| Factor | Speedup | Is this "compiler magic"? | Could Python fix it? |
+|--------|---------|---------------------------|----------------------|
+| scipy.stats framework overhead | ~200x | No -- this is scipy being generic when you need specific | Yes: use `math.erfc` directly |
+| Interpreter dispatch (bytecode vs native) | ~50-100x | Yes -- LLVM compiles to native, CPython interprets | Partially: Numba/Cython |
+| Function inlining | ~3-5x | Yes -- LLVM's inliner | No: Python can't inline at runtime |
+| Boxing (heap f64 vs register f64) | ~2-3x | Yes -- Rust's type system enables this | No: fundamental to CPython's object model |
+| Dead code elimination | ~1.5-2x | Yes -- LLVM removes untaken branches | No: Python's dynamism prevents this |
+| Reference counting | ~1.2-1.5x | Rust has no GC/refcount | No: fundamental to CPython |
+
+The factors multiply: 200 * 3 * 2 * 1.5 * 1.3 ≈ **2,340x** (theoretical max,
+actual is 1,438x because not all factors apply uniformly).
+
+### The bottom line
+
+**~200x of the 1,438x is "your code called scipy wrong."** You're using a
+distribution-framework method (`norm.cdf`) for a simple math operation. If
+you replaced `norm.cdf(x)` with `0.5 * erfc(-x / 1.4142135)` in the Python
+code, you'd get 10-20x faster immediately.
+
+**~7x is "Python's interpreter and object model."** Boxing every float on the
+heap, reference counting, bytecode dispatch. No amount of Python restructuring
+fixes this -- it's baked into CPython.
+
+**~1.5-3x is "LLVM is really smart."** Inlining, CSE, dead code elimination,
+register allocation, instruction scheduling. These are genuine compiler
+optimizations that Python's interpreter fundamentally cannot do because it
+doesn't know the types or control flow until runtime.
+
+### What you'd get with perfect Python optimization
+
+If you did everything -- `math.erfc`, manual inlining, integer enums, pre-
+computed common subexpressions:
+
+```
+Original Python:     13,740 us
+Optimized Python:    ~700 us    (20x faster)
+Rust:                ~9.5 us    (1,438x faster than original, ~74x faster than optimized)
+```
+
+That remaining ~74x gap is the irreducible cost of Python's runtime model vs.
+compiled native code. The interpreter loop, the boxing, the refcounting -- no
+amount of clever Python can eliminate those. That's what Rust (or C, or
+Fortran, or any compiled language) fundamentally gives you.
+
+### So was the Rust port worth it vs. just fixing the Python?
+
+**Yes, for two reasons:**
+
+1. The 74x gap between optimized Python and Rust is still enormous for a hot
+   path that runs per-option, per-timestep, per-day in a backtester. At
+   10,000 options x 252 days x 365 TTM steps, that's 921 million calls.
+   At 700us each: 179 hours. At 9.5us each: 2.4 hours.
+
+2. The optimized Python version would be harder to maintain. Manual inlining
+   makes the code fragile. Using `math.erfc` instead of `norm.cdf` loses
+   readability. The Rust version is actually CLEANER than the optimized
+   Python would be -- enums are better than strings, the type system catches
+   bugs, and you get the performance for free.
