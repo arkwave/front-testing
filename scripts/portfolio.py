@@ -10,42 +10,14 @@ Description    : Script contains implementation of the Portfolio class,
 
 """
 
-from timeit import default_timer as timer
 from operator import add
 import pprint
 import numpy as np
 from collections import deque
 import copy
+from .constants import multipliers, RANDOM_SEED, BREAKEVEN_FACTOR
 
-
-# Dictionary of multipliers for greeks/pnl calculation.
-# format  =  'product' : [dollar_mult, lot_mult, futures_tick,
-# options_tick, pnl_mult]
-
-multipliers = {
-    'LH':  [22.046, 18.143881, 0.025, 1, 400],
-    'LSU': [1, 50, 0.1, 10, 50],
-    'QC': [1.2153, 10, 1, 25, 12.153],
-    'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
-    'CC':  [1, 10, 1, 50, 10],
-    'CT':  [22.046, 22.679851, 0.01, 1, 500],
-    'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
-    'W':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'S':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'C':   [0.393678571428571, 127.007166832986, 0.25, 10, 50],
-    'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
-    'LC':  [22.046, 18.143881, 0.025, 1, 400],
-    'LRC': [1, 10, 1, 50, 10],
-    'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
-    'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
-    'COM': [1.0604, 50, 0.25, 2.5, 53.02],
-    'CA': [1.0604, 50, 0.25, 1, 53.02],
-    'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
-}
-
-
-seed = 7
-np.random.seed(seed)
+np.random.seed(RANDOM_SEED)
 
 # TODO: Abstract away reliance on greeks by month; should be able to
 # accept any other convention as well.

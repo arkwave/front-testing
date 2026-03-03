@@ -29,85 +29,13 @@ import datetime
 ###########################################################################
 ######################## initializing variables ###########################
 ###########################################################################
-# Dictionary of multipliers for greeks/pnl calculation.
-# format  =  'product' : [dollar_mult, lot_mult, futures_tick,
-# options_tick, pnl_mult]
+from .constants import (multipliers, op_ticksize, contract_mths,
+                        month_to_sym, sym_to_month, DECADE, TIMESTEP,
+                        RANDOM_SEED)
 
-multipliers = {
-
-    'LH':  [22.046, 18.143881, 0.025, 1, 400],
-    'LSU': [1, 50, 0.1, 10, 50],
-    'QC': [1.2153, 10, 1, 25, 12.153],
-    'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
-    'CC':  [1, 10, 1, 50, 10],
-    'CT':  [22.046, 22.679851, 0.01, 1, 500],
-    'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
-    'W':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'S':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'C':   [0.393678571428571, 127.007166832986, 0.25, 10, 50],
-    'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
-    'LC':  [22.046, 18.143881, 0.025, 1, 400],
-    'LRC': [1, 10, 1, 50, 10],
-    'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
-    'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
-    'COM': [1.0604, 50, 0.25, 2.5, 53.02],
-    'CA': [1.0604, 50, 0.25, 1, 53.02],
-    'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
-}
-
-op_ticksize = {
-
-    'QC': 1,
-    'CC': 1,
-    'SB': 0.01,
-    'LSU': 0.05,
-    'KC': 0.01,
-    'DF': 1,
-    'CT': 0.01,
-    'C': 0.125,
-    'S': 0.125,
-    'SM': 0.05,
-    'BO': 0.005,
-    'W': 0.125,
-    'MW': 0.125,
-    'KW': 0.125
-}
-
-contract_mths = {
-
-    'LH':  ['G', 'J', 'K', 'M', 'N', 'Q', 'V', 'Z'],
-    'LSU': ['H', 'K', 'Q', 'V', 'Z'],
-    'QC': ['H', 'K', 'N', 'U', 'Z'],
-    'SB':  ['H', 'K', 'N', 'V'],
-    'CC':  ['H', 'K', 'N', 'U', 'Z'],
-    'CT':  ['H', 'K', 'N', 'Z'],
-    'KC':  ['H', 'K', 'N', 'U', 'Z'],
-    'W':   ['H', 'K', 'N', 'U', 'Z'],
-    'S':   ['F', 'H', 'K', 'N', 'Q', 'U', 'X'],
-    'C':   ['H', 'K', 'N', 'U', 'Z'],
-    'BO':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
-    'LC':  ['G', 'J', 'M', 'Q', 'V' 'Z'],
-    'LRC': ['F', 'H', 'K', 'N', 'U', 'X'],
-    'KW':  ['H', 'K', 'N', 'U', 'Z'],
-    'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
-    'COM': ['G', 'K', 'Q', 'X'],
-    'CA': ['H', 'K', 'U', 'Z'],
-    'MW':  ['H', 'K', 'N', 'U', 'Z']
-}
-
-
-# Dictionary mapping month to symbols and vice versa
-month_to_sym = {1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
-                7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'}
-sym_to_month = {'F': 1, 'G': 2, 'H': 3, 'J': 4, 'K': 5,
-                'M': 6, 'N': 7, 'Q': 8, 'U': 9, 'V': 10, 'X': 11, 'Z': 12}
-decade = 10
-
-
-# passage of time
-timestep = 1 / 365
-seed = 7
-np.random.seed(seed)
+decade = DECADE
+timestep = TIMESTEP
+np.random.seed(RANDOM_SEED)
 
 ########################################################################
 ########################################################################
@@ -175,8 +103,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         blockPrint()
 
     ##### timers #####
-    e1 = time.clock()
-    t = time.clock()
+    e1 = time.perf_counter()
+    t = time.perf_counter()
     ##################
 
     ########### initializing pnl variables ###########
@@ -731,7 +659,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                                 'signal']],
                        on=['value_date', 'vol_id'])
 
-    elapsed = time.clock() - t
+    elapsed = time.perf_counter() - t
 
     print('Time elapsed: ', elapsed)
 
@@ -766,7 +694,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         print('Max Drawdown [net]: ', min(np.diff(net_daily_values)))
 
     # time elapsed 2 #
-    e2 = time.clock() - e1
+    e2 = time.perf_counter() - e1
     print('SIMULATION RUNTIME: ', e2)
 
     print('######################################################')
@@ -1241,7 +1169,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
     if pf.empty() or pf.ops_empty():
         return 0, pf, False, []
     exercised = False
-    # t = time.clock()
+    # t = time.perf_counter()
     profit = 0
     tol = 1/365
     # handle options exercise
@@ -1290,7 +1218,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
     # print('handle_exercise - tobeadded: ', [str(x) for x in tobeadded])
     # print('handle_exercise - options exercised: ', exercised)
     # print('handle_exercise - net exercise profit: ', profit)
-    # print('handle exercise time: ', time.clock() - t)
+    # print('handle exercise time: ', time.perf_counter() - t)
     return profit, pf, exercised, tobeadded
 
 

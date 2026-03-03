@@ -47,33 +47,7 @@ from scipy.stats import norm
 import numpy as np
 from scipy.interpolate import interp1d
 import copy
-
-
-# Dictionary of multipliers for greeks/pnl calculation.
-# format  =  'product' : [dollar_mult, lot_mult, futures_tick,
-# options_tick, pnl_mult]
-
-# TODO: read this in during prep_data
-multipliers = {
-    'LH':  [22.046, 18.143881, 0.025, 1, 400],
-    'LSU': [1, 50, 0.1, 10, 50],
-    'QC': [1.2153, 10, 1, 25, 12.153],
-    'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
-    'CC':  [1, 10, 1, 50, 10],
-    'CT':  [22.046, 22.679851, 0.01, 1, 500],
-    'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
-    'W':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'S':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'C':   [0.393678571428571, 127.007166832986, 0.25, 10, 50],
-    'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
-    'LC':  [22.046, 18.143881, 0.025, 1, 400],
-    'LRC': [1, 10, 1, 50, 10],
-    'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
-    'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
-    'COM': [1.0604, 50, 0.25, 2.5, 53.02],
-    'CA': [1.0604, 50, 0.25, 1, 53.02],
-    'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
-}
+from .constants import multipliers, RANDOM_SEED
 
 # TODO: Include brokerage for options/futures, and bid-ask spread for options.
 # TODO: Bid-ask for options will vary depending on configuration. i.e. <
@@ -81,8 +55,7 @@ multipliers = {
 # spreads.
 # filepath = 'data_loc.txt'
 
-seed = 7
-np.random.seed(seed)
+np.random.seed(RANDOM_SEED)
 
 #####################################################################
 ##################### Option pricing formulas #######################
