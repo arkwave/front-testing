@@ -33,40 +33,40 @@ def create_test_suite():
     put = create_vanilla_option(vdf, pdf, volid, 'put', False, lots=1, 
                                 bullet=False, strike=strike)
     ecuo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
-                                 'euro', 'up', bullet=False, ko=up_bar, 
+                                 'euro', 'up', bullet=False, knock_out=up_bar,
                                  lots=1)
     ecui = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
-                                 'euro', 'up', bullet=False, ki=up_bar, 
+                                 'euro', 'up', bullet=False, knock_in=up_bar,
                                  lots=1)
     epdo = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
-                                 'euro', 'down', bullet=False, ko=down_bar, 
+                                 'euro', 'down', bullet=False, knock_out=down_bar,
                                  lots=1)
     epdi = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
-                                 'euro', 'down', bullet=False, ki=down_bar, 
+                                 'euro', 'down', bullet=False, knock_in=down_bar,
                                  lots=1)
     cuo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
-                                'amer', 'up', bullet=False, ko=up_bar, 
+                                'amer', 'up', bullet=False, knock_out=up_bar,
                                 lots=1)
     cui = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
-                                'amer', 'up', bullet=False, ki=up_bar, 
+                                'amer', 'up', bullet=False, knock_in=up_bar,
                                 lots=1)
     cdo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
-                                'amer', 'down', bullet=False, ko=down_bar, 
+                                'amer', 'down', bullet=False, knock_out=down_bar,
                                 lots=1)
     cdi = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
-                                'amer', 'down', bullet=False, ki=down_bar, 
+                                'amer', 'down', bullet=False, knock_in=down_bar,
                                 lots=1)
     puo = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
-                                'amer', 'up', bullet=False, ko=up_bar, 
+                                'amer', 'up', bullet=False, knock_out=up_bar,
                                 lots=1)
     pui = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
-                                'amer', 'up', bullet=False, ki=up_bar, 
+                                'amer', 'up', bullet=False, knock_in=up_bar,
                                 lots=1)
     pdo = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
-                                'amer', 'down', bullet=False, ko=down_bar, 
+                                'amer', 'down', bullet=False, knock_out=down_bar,
                                 lots=1)
     pdi = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
-                                'amer', 'down', bullet=False, ki=down_bar, 
+                                'amer', 'down', bullet=False, knock_in=down_bar,
                                 lots=1)
     ops = {'call': call, 'put': put, 'ecuo': ecuo, 'ecui': ecui, 'epdo': epdo, 
            'epdi': epdi, 'cuo': cuo, 'cui': cui, 'cdo': cdo, 'cdi': cdi, 
@@ -79,7 +79,7 @@ def create_test_suite():
 def test_euro_knockin():
     #### ECUI test ####
     ecui = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
-                                 'euro', 'up', bullet=False, ki=up_bar, 
+                                 'euro', 'up', bullet=False, knock_in=up_bar,
                                  lots=1)
 
     # option should be active, not expired, OTM, not knockedin. 
@@ -120,7 +120,7 @@ def test_euro_knockin():
 
     #### EPDI test ####
     epdi = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
-                                 'euro', 'down', bullet=False, ki=down_bar, 
+                                 'euro', 'down', bullet=False, knock_in=down_bar,
                                  lots=1)
     assert epdi.check_active()
     assert not epdi.check_expired()
@@ -161,7 +161,7 @@ def test_euro_knockin():
 def test_euro_knockout():
     #### ECUO Test ####
     ecuo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
-                                 'euro', 'up', bullet=False, ko=up_bar, 
+                                 'euro', 'up', bullet=False, knock_out=up_bar,
                                  lots=1)
     # option should be active, not expired, OTM, not knockedout. 
     assert ecuo.check_active()
@@ -202,7 +202,7 @@ def test_euro_knockout():
 
     #### Test EPDO ####
     epdo = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
-                                 'euro', 'down', bullet=False, ko=down_bar, 
+                                 'euro', 'down', bullet=False, knock_out=down_bar,
                                  lots=1)
     # option should be active, not expired, ITM, not knockedout 
     assert epdo.check_active()
@@ -232,7 +232,7 @@ def test_euro_knockout():
 
 def test_cui():
     cui = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
-                                'amer', 'up', bullet=False, ki=up_bar, 
+                                'amer', 'up', bullet=False, knock_in=up_bar,
                                 lots=1)
     assert cui.moneyness() == -1
     assert not cui.exercise()
@@ -275,7 +275,7 @@ def test_cui():
 
 def test_pui():
     pui = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
-                                'amer', 'up', bullet=False, ki=up_bar, 
+                                'amer', 'up', bullet=False, knock_in=up_bar,
                                 lots=1)
     assert pui.moneyness() == -1
     assert not pui.exercise()
@@ -321,7 +321,7 @@ def test_pui():
 
 def test_cdi():
     cdi = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
-                                'amer', 'down', bullet=False, ki=down_bar, 
+                                'amer', 'down', bullet=False, knock_in=down_bar,
                                 lots=1)
     assert cdi.moneyness() == -1
     assert not cdi.exercise()
@@ -367,7 +367,7 @@ def test_cdi():
 
 def test_pdi():
     pdi = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
-                                'amer', 'down', bullet=False, ki=down_bar, 
+                                'amer', 'down', bullet=False, knock_in=down_bar,
                                 lots=1)
     assert pdi.moneyness() == -1
     assert not pdi.exercise()
@@ -404,7 +404,7 @@ def test_pdi():
 
 def test_cuo():
     cuo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
-                                'amer', 'up', bullet=False, ko=up_bar, 
+                                'amer', 'up', bullet=False, knock_out=up_bar,
                                 lots=1)
     assert cuo.moneyness() == -1
     assert not cuo.exercise()
@@ -434,7 +434,7 @@ def test_cuo():
 
 def test_cdo():
     cdo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
-                                'amer', 'down', bullet=False, ko=down_bar, 
+                                'amer', 'down', bullet=False, knock_out=down_bar,
                                 lots=1)
 
     assert cdo.moneyness() == -1
@@ -465,7 +465,7 @@ def test_cdo():
 
 def test_puo():
     puo = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
-                                'amer', 'up', bullet=False, ko=up_bar, 
+                                'amer', 'up', bullet=False, knock_out=up_bar,
                                 lots=1)
     assert puo.moneyness() == 1
     assert puo.exercise()
@@ -495,7 +495,7 @@ def test_puo():
 
 def test_pdo():
     pdo = create_barrier_option(vdf, pdf, volid, 'put', strike, False, 
-                                'amer', 'down', bullet=False, ko=down_bar, 
+                                'amer', 'down', bullet=False, knock_out=down_bar,
                                 lots=1)
     assert pdo.moneyness() == 1
     assert pdo.exercise()
@@ -525,7 +525,7 @@ def test_pdo():
 
 def test_remove_expired():
     cdo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
-                                'amer', 'down', bullet=False, ko=down_bar, 
+                                'amer', 'down', bullet=False, knock_out=down_bar,
                                 lots=1)
     assert all([x > 0 for x in cdo.get_ttms()])
     init_len = len(cdo.get_ttms())
@@ -538,7 +538,7 @@ def test_remove_expired():
 
 def test_expiry():
     cdo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
-                                'amer', 'down', bullet=False, ko=down_bar, 
+                                'amer', 'down', bullet=False, knock_out=down_bar,
                                 lots=1)
     assert not cdo.check_expired() 
     cdo.update_tau(1 / 365)
@@ -562,7 +562,7 @@ def test_expiry():
 
 def test_reverse_timestep():
     cdo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
-                                'amer', 'down', bullet=False, ko=down_bar, 
+                                'amer', 'down', bullet=False, knock_out=down_bar,
                                 lots=1)
     init_ttms = deepcopy(cdo.get_ttms())
     # print('init_ttms: ', np.array(init_ttms)*365)
@@ -580,7 +580,7 @@ def test_reverse_timestep():
     assert np.array_equal(new_ttms, init_ttms)
 
     cdo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
-                                'amer', 'down', bullet=False, ko=down_bar, 
+                                'amer', 'down', bullet=False, knock_out=down_bar,
                                 lots=1)
     init_ttms = deepcopy(cdo.get_ttms())
     cdo.update_tau(2 / 365)
@@ -605,7 +605,7 @@ def test_reverse_timestep():
         raise AssertionError from e
 
     cdo = create_barrier_option(vdf, pdf, volid, 'call', strike, False, 
-                                'amer', 'down', bullet=False, ko=down_bar, 
+                                'amer', 'down', bullet=False, knock_out=down_bar,
                                 lots=1)
     init_ttms = deepcopy(cdo.get_ttms())
     # print('init :', np.array(init_ttms) * 365)

@@ -916,8 +916,8 @@ class Portfolio:
             all_ops = [op for op in all_ops if op.get_product() == pdt]
         if not all_ops:
             return 0, 0
-        call_op_vega = sum([op.vega for op in all_ops if op.char == 'call'])
-        put_op_vega = sum([op.vega for op in all_ops if op.char == 'put'])
+        call_op_vega = sum([op.vega for op in all_ops if op.option_type =='call'])
+        put_op_vega = sum([op.vega for op in all_ops if op.option_type =='put'])
 
         return call_op_vega, put_op_vega
 

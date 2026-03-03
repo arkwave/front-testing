@@ -680,21 +680,21 @@ class Hedge:
             if self.book:
                 for op in ops:
                     try:
-                        cpi = 'C' if op.char == 'call' else 'P'
+                        cpi = 'C' if op.option_type == 'call' else 'P'
                         df = self.settlements
                         settle_vol = df[(df.vol_id == op.get_vol_id()) &
                                         (df.call_put_id == cpi) &
-                                        (df.strike == op.K)].vol.values[0]
+                                        (df.strike == op.strike)].vol.values[0]
                     except IndexError as e:
                         print('scripts.hedge - book vol case: cannot find vol: ',
-                              op.get_vol_id(), cpi, op.K)
+                              op.get_vol_id(), cpi, op.strike)
                         settle_vol = op.vol
                     # print(op.get_vol_id() + ' settle_vol: ', settle_vol)
                     # print('op.book vol: ', op.vol)
-                    true_value = _compute_value(op.char, op.tau, settle_vol, op.K,
-                                                op.underlying.get_price(), 0, 'amer', ki=op.ki,
-                                                ko=op.ko, barrier=op.barrier, d=op.direc,
-                                                product=op.get_product(), bvol=op.bvol)
+                    true_value = _compute_value(op.option_type, op.tau, settle_vol, op.strike,
+                                                op.underlying.get_price(), 0, 'amer', knock_in=op.knock_in,
+                                                knock_out=op.knock_out, barrier=op.barrier, d=op.direction,
+                                                product=op.get_product(), barrier_vol=op.barrier_vol)
                     # print('op value basis settlements: ', true_value)
                     pnl_mult = multipliers[op.get_product()][-1]
                     diff = (true_value - op.get_price()) * op.lots * pnl_mult

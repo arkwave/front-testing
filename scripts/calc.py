@@ -62,42 +62,16 @@ np.random.seed(RANDOM_SEED)
 #####################################################################
 
 
-def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None,
-                   barrier=None, d=None, product=None, bvol=None, bvol2=None,
-                   dbarrier=None):
-    '''Wrapper function that computes value of option.
-    
-    Outputs: Price of the option
-    
-    Args:
-        char (str): call/put
-        tau (float): ttm in years
-        vol (float): vol
-        K (float): strike
-        s (float): spot
-        r (float): interest rate
-        payoff (str): american/european option. irrelevant param. 
-        ki (float, optional): knock-in barrier level. 
-        ko (float, optional): knock out barrier level
-        barrier (str, optional): barrier type (american or euro)
-        d (str, optional): direction (up or donw)
-        product (str, optional): product
-        bvol (float, optional): barrier volatility
-        bvol2 (float, optional): digital barrier vol
-        dbarrier (float, optional): digital barrier. 
-    
-    Returns:
-        TYPE: price of option based on inputs passed in. 
-    '''
+def _compute_value(char, tau, vol, K, s, r, payoff, knock_in=None,
+                   knock_out=None, barrier=None, d=None, product=None,
+                   barrier_vol=None, barrier_vol2=None, dbarrier=None):
+    '''Wrapper function that computes value of option.'''
     # expiry case
     if tau <= 0 or np.isclose(tau, 0):
         val = max(s-K, 0) if char == 'call' else max(K-s, 0)
-        # print('t = 0 intrinsic value: ', val)
         return val
     # vanilla option case
     if barrier is None:
-        # currently american == european since it's never optimal to exercise
-        # before expiry.
         if payoff == 'amer':
             return _bsm_euro(char, tau, vol, K, s, r)
         elif payoff == 'euro':
@@ -105,10 +79,13 @@ def _compute_value(char, tau, vol, K, s, r, payoff, ki=None, ko=None,
     # barrier option case
     else:
         if barrier == 'amer':
-            return _barrier_amer(char, tau, vol, K, s, r, payoff, d, ki, ko)
+            return _barrier_amer(char, tau, vol, K, s, r, payoff, d,
+                                 knock_in, knock_out)
         elif barrier == 'euro':
             return _barrier_euro(char, tau, vol, K, s, r, payoff, d,
-                                 ki, ko, product, bvol=bvol, bvol2=bvol2, 
+                                 knock_in, knock_out, product,
+                                 barrier_vol=barrier_vol,
+                                 barrier_vol2=barrier_vol2,
                                  dbarrier=dbarrier)
 
 
@@ -193,8 +170,8 @@ def get_barrier_vol(df, tau, call_put_id, barlevel, vol_id):
 # NOTE: Currently follows implementation taken from PnP Excel source code,
 # and so only accounts for ECUI, ECUO, EPDI, EPDO options.
 def _barrier_euro(char, tau, vol, k, s, r, payoff, direction,
-                  ki, ko, product, rebate=0, bvol=None, bvol2=None, 
-                  dbarrier=None):
+                  knock_in, knock_out, product, rebate=0,
+                  barrier_vol=None, barrier_vol2=None, dbarrier=None):
     """ Pricing model for options with European barriers.
 
     Inputs:
@@ -217,35 +194,31 @@ def _barrier_euro(char, tau, vol, k, s, r, payoff, direction,
     1) Price
 
     """
-    barlevel = ki if ki else ko
-    
-    if dbarrier is None: 
-        # print('dbarrier is None; computing')
-        barlevel = ki if ki is not None else ko
+    barlevel = knock_in if knock_in else knock_out
+
+    if dbarrier is None:
+        barlevel = knock_in if knock_in is not None else knock_out
         ticksize = multipliers[product][-3]
         dbarrier = barlevel - ticksize if direction == 'up' else barlevel + ticksize
 
-    # case when barrier vol is not in vol surface; raise error.
-    # if bvol is None:
-    #     raise ValueError('Improper Data: Barrier vol not on vol surface.')
     ticksize = multipliers[product][2]
     dpo = abs(k - barlevel)/ticksize
-    if ko:
+    if knock_out:
         c1 = _compute_value(char, tau, vol, k, s, r, payoff)
-        c2 = _compute_value(char, tau, bvol, barlevel, s, r, payoff)
-        # digital_option(char, tau, vol, dbarvol, k, dbar, s, r, payoff, product)
-        c3 = digital_option(char, tau, bvol, bvol2, barlevel, dbarrier,
-                            s, r, payoff, product) * dpo
+        c2 = _compute_value(char, tau, barrier_vol, barlevel, s, r, payoff)
+        c3 = digital_option(char, tau, barrier_vol, barrier_vol2, barlevel,
+                            dbarrier, s, r, payoff, product) * dpo
         val = c1 - c2 - c3
-    elif ki:
-        c1 = _compute_value(char, tau, bvol, barlevel, s, r, payoff)
-        c2 = dpo * digital_option(char, tau, bvol, bvol2, barlevel, 
-                                  dbarrier, s, r, payoff, product)
+    elif knock_in:
+        c1 = _compute_value(char, tau, barrier_vol, barlevel, s, r, payoff)
+        c2 = dpo * digital_option(char, tau, barrier_vol, barrier_vol2,
+                                  barlevel, dbarrier, s, r, payoff, product)
         val = c1 + c2
     return val
 
 
-def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0):
+def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, knock_in,
+                  knock_out, rebate=0):
     """ Pricing model for options with american barrers. Currently, payoff is assumed to 
         be European; consequently _compute_value defaults to computing 
         the value of a European vanilla option.
@@ -278,7 +251,7 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0):
     b = 0
     mu = (b - ((vol**2)/2))/(vol**2)
     lambd = sqrt(mu**2 + 2*r/vol**2)
-    h = ki if ki else ko
+    h = knock_in if knock_in else knock_out
 
     x1 = log(s/k)/(vol * sqrt(tau)) + (1 + mu)*vol*sqrt(tau)
     x2 = log(s/h)/(vol * sqrt(tau)) + (1 + mu)*vol*sqrt(tau)
@@ -299,109 +272,109 @@ def _barrier_amer(char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0):
     if char == 'call':
         if direction == 'up':
             # call up in
-            if ki:
-                if s >= ki:
+            if knock_in:
+                if s >= knock_in:
                     return _compute_value(char, tau, vol, k, s, r, payoff)
-                elif s < ki and k >= ki and tau > 0:
+                elif s < knock_in and k >= knock_in and tau > 0:
                     return A + E
-                elif s < ki and k >= ki and tau == 0:
+                elif s < knock_in and k >= knock_in and tau == 0:
                     return 0
-                elif s < ki and k < ki and tau > 0:
+                elif s < knock_in and k < knock_in and tau > 0:
                     return B - C + D + E
-                elif s < ki and k < ki and tau == 0:
+                elif s < knock_in and k < knock_in and tau == 0:
                     return 0
             # call_up_out
-            if ko:
-                if s >= ko:
+            if knock_out:
+                if s >= knock_out:
                     return rebate * exp(-r*tau)
-                elif s < ko and k >= ko and tau > 0:
+                elif s < knock_out and k >= knock_out and tau > 0:
                     return F
-                elif s < ko and k >= ko and tau == 0:
+                elif s < knock_out and k >= knock_out and tau == 0:
                     return _compute_value(char, tau, vol, k, s, r, payoff)
-                elif s < ko and k < ko and tau > 0:
+                elif s < knock_out and k < knock_out and tau > 0:
                     return A - B + C - D + F
-                elif s < ko and k < ko and tau == 0:
+                elif s < knock_out and k < knock_out and tau == 0:
                     return _compute_value(char, tau, vol, k, s, r, payoff)
 
         if direction == 'down':
-            if ki:
+            if knock_in:
                 # call_down_in
-                if s <= ki:
+                if s <= knock_in:
                     return _compute_value(char, tau, vol, k, s, r, payoff)
-                elif s > ki and k >= ki and tau > 0:
+                elif s > knock_in and k >= knock_in and tau > 0:
                     return C + E
-                elif s > ki and k >= ki and tau == 0:
+                elif s > knock_in and k >= knock_in and tau == 0:
                     return 0
-                elif s > ki and k < ki and tau > 0:
+                elif s > knock_in and k < knock_in and tau > 0:
                     return A - B + D + E
-                elif s > ki and k < ki and tau == 0:
+                elif s > knock_in and k < knock_in and tau == 0:
                     return 0
-            if ko:
+            if knock_out:
                 # call_down_out
-                if s < ko:
+                if s < knock_out:
                     return rebate*exp(-r*tau)
-                elif s > ko and k >= ko and tau > 0:
+                elif s > knock_out and k >= knock_out and tau > 0:
                     return A - C + F
-                elif s > ko and k >= ko and tau == 0:
+                elif s > knock_out and k >= knock_out and tau == 0:
                     return _compute_value(char, tau, vol, k, s, r, payoff)
-                elif s > ko and k < ko and tau > 0:
+                elif s > knock_out and k < knock_out and tau > 0:
                     return B - D + F
-                elif s > ko and k < ko and tau == 0:
+                elif s > knock_out and k < knock_out and tau == 0:
                     return _compute_value(char, tau, vol, k, s, r, payoff)
 
     # put options
     elif char == 'put':
         if direction == 'up':
-            if ki:
+            if knock_in:
                 # put_up_in
-                if s >= ki:
+                if s >= knock_in:
                     return _compute_value(char, tau, vol, k, s, r, payoff)
-                elif s < ki and k >= ki and tau > 0:
+                elif s < knock_in and k >= knock_in and tau > 0:
                     return A - B + D + E
-                elif s < ki and k >= ki and tau == 0:
+                elif s < knock_in and k >= knock_in and tau == 0:
                     return 0
-                elif s < ki and k < ki and tau > 0:
+                elif s < knock_in and k < knock_in and tau > 0:
                     return C + E
-                elif s < ki and k < ki and tau == 0:
+                elif s < knock_in and k < knock_in and tau == 0:
                     return 0
-            if ko:
+            if knock_out:
                 # put_up_out
-                if s >= ko:
+                if s >= knock_out:
                     return rebate * exp(-r*tau)
-                elif s < ko and k >= ko and tau > 0:
+                elif s < knock_out and k >= knock_out and tau > 0:
                     return B - D + F
-                elif s < ko and k >= ko and tau == 0:
+                elif s < knock_out and k >= knock_out and tau == 0:
                     return _compute_value(char, tau, vol, k, s, r, payoff)
-                elif s < ko and k < ko and tau > 0:
+                elif s < knock_out and k < knock_out and tau > 0:
                     return A - C + F
-                elif s < ko and k < ko and tau == 0:
+                elif s < knock_out and k < knock_out and tau == 0:
                     return _compute_value(char, tau, vol, k, s, r, payoff)
 
         if direction == 'down':
-            if ki:
+            if knock_in:
                 # put_down_in
-                if s <= ki:
+                if s <= knock_in:
                     return _compute_value(char, tau, vol, k, s, r, payoff)
-                elif s > ki and k >= ki and tau > 0:
+                elif s > knock_in and k >= knock_in and tau > 0:
                     return B - C + D + E
-                elif s > ki and k >= ki and tau == 0:
+                elif s > knock_in and k >= knock_in and tau == 0:
                     return 0
-                elif s > ki and k < ki and tau > 0:
+                elif s > knock_in and k < knock_in and tau > 0:
                     return A + E
-                elif s > ki and k < ki and tau == 0:
+                elif s > knock_in and k < knock_in and tau == 0:
                     return 0
 
-            if ko:
+            if knock_out:
                 # put_down_out
-                if s <= ko:
+                if s <= knock_out:
                     return rebate * exp(-r*tau)
-                elif s > ko and k > ko and tau > 0:
+                elif s > knock_out and k > knock_out and tau > 0:
                     return A - B + C - D + F
-                elif s > ko and k > ko and tau == 0:
+                elif s > knock_out and k > knock_out and tau == 0:
                     return _compute_value(char, tau, vol, k, s, r, payoff)
-                elif s > ko and k < ko and tau > 0:
+                elif s > knock_out and k < knock_out and tau > 0:
                     return F
-                elif s > ko and k < ko and tau == 0:
+                elif s > knock_out and k < knock_out and tau == 0:
                     return _compute_value(char, tau, vol, k, s, r, payoff)
 
 ##########################################################################
@@ -561,70 +534,38 @@ def digital_greeks(char, k, dbar, tau, vol, vol2, s, r, product, payoff, lots):
 ##################### Greek-related formulas ################################
 #############################################################################
 def _compute_greeks(char, K, tau, vol, s, r, product, payoff, lots,
-                    ki=None, ko=None, barrier=None, direction=None, 
-                    order=None, bvol=None, bvol2=None, dbarrier=None):
-    """ Wrapper method. Filters for the necessary condition, and feeds 
-    inputs to the relevant computational engine. Computes the greeks of
-    various option profiles. Currently, american and european greeks and
-     pricing are assumed to be the same.
+                    knock_in=None, knock_out=None, barrier=None,
+                    direction=None, order=None, barrier_vol=None,
+                    barrier_vol2=None, dbarrier=None):
+    '''Wrapper that computes greeks for various option profiles.'''
 
-    Inputs:  1) char   : call or put
-             2) K      : strike
-             3) tau    : time to expiry
-             4) vol    : volatility (sigma)
-             5) s      : price of underlying
-             6) r      : interest
-             7) product: underlying commodity.
-             8) payoff : american or european option.
-             9) lots   : number of lots.
-             10) barrier: american or european barrier.
-             11) ki    : knockin barrier level
-             12) ko    : knockout barrier level
-             13) direction : direction (up or down)
-             14) order : 
-             15) bvol  :
-             16) bvol2 : vol of the digital barrier used in european barrier pricing. 
-             17) dbarrier: digital barrier used in european barrier pricing. 
-
-    Outputs: 1) delta  : dC/dS
-             2) gamma  : d^2C/dS^2
-             3) theta  : dC/dt
-             4) vega   : dC/dvol
-    """
-
-    # european options
     if tau == 0:
-        # print('tau == 0 case')
         gamma, theta, vega = 0, 0, 0
         if char == 'call':
-            # in the money
             delta = 1 if K < s else 0
         if char == 'put':
             delta = -1 if K > s else 0
         return delta, gamma, theta, vega
     if payoff == 'euro' or payoff == 'amer':
-        # vanilla case
         if barrier is None:
-            # print('vanilla case')
             return _euro_vanilla_greeks(
                 char, K, tau, vol, s, r, product, lots)
         elif barrier == 'amer':
-            # print('amer barrier case')
-            # greeks for european options with american barrier.
             return _euro_barrier_amer_greeks(char, tau, vol, K, s, r, payoff,
-                                             direction, product, ki, ko, lots)
+                                             direction, product, knock_in,
+                                             knock_out, lots)
         elif barrier == 'euro':
-            # print('euro barrier case')
-            # greeks for european options with european barrier.
-            if dbarrier is None: 
-                # print('dbarrier is None; computing')
-                barlevel = ki if ki is not None else ko
+            if dbarrier is None:
+                barlevel = knock_in if knock_in is not None else knock_out
                 ticksize = multipliers[product][-3]
                 dbarrier = barlevel - ticksize if direction == 'up' else barlevel + ticksize
 
             return _euro_barrier_euro_greeks(char, tau, vol, K, s, r, payoff,
-                                             direction, product, ki, ko, lots,
-                                             order=order, bvol=bvol, bvol2=bvol2, 
+                                             direction, product, knock_in,
+                                             knock_out, lots,
+                                             order=order,
+                                             barrier_vol=barrier_vol,
+                                             barrier_vol2=barrier_vol2,
                                              dbarrier=dbarrier)
 
 
@@ -702,7 +643,7 @@ def _amer_vanilla_greeks(char, K, tau, vol, s, r, product, lots):
 
 
 def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction,
-                              product, ki, ko, lots, rebate=0):
+                              product, knock_in, knock_out, lots, rebate=0):
     """Computes greeks of european options with american barriers. 
 
     Args:
@@ -732,14 +673,14 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction,
     # computing delta
     # char, tau, vol, k, s, r, payoff, direction, ki, ko, rebate=0
 
-    init = _barrier_amer(char, tau, vol, k, s, 
-                         r, payoff, direction, ki, ko)
+    init = _barrier_amer(char, tau, vol, k, s,
+                         r, payoff, direction, knock_in, knock_out)
 
     del1 = _barrier_amer(char, tau, vol, k, s+change_spot,
-                         r, payoff, direction, ki, ko)
+                         r, payoff, direction, knock_in, knock_out)
     del2 = _barrier_amer(char, tau, vol,
                          k, max(0, s-change_spot),
-                         r, payoff, direction, ki, ko)
+                         r, payoff, direction, knock_in, knock_out)
     delta = (del1 - del2)/(2*change_spot)
 
     # computing gamma
@@ -748,18 +689,18 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction,
 
     # computing vega
     v1 = _barrier_amer(char, tau, vol+change_vol, k, s, r,
-                       payoff, direction, ki, ko)
+                       payoff, direction, knock_in, knock_out)
     tvol = max(0, vol - change_vol)
 
     v2 = _barrier_amer(char, tau, tvol, k, s, r,
-                       payoff, direction, ki, ko)
+                       payoff, direction, knock_in, knock_out)
     vega = (v1 - v2)/(2*change_vol) if tau > 0 else 0
 
     # computing theta
     t1 = init 
     ctau = 0.0001 if tau-change_tau <= 0 else tau-change_tau
     t2 = _barrier_amer(char, ctau, vol, k, s, r,
-                       payoff, direction, ki, ko)
+                       payoff, direction, knock_in, knock_out)
     theta = (t2 - t1)/change_tau if tau > 0 else 0
     # scaling greeks to retrieve dollar value.
     delta, gamma, theta, vega = greeks_scaled(
@@ -769,54 +710,26 @@ def _euro_barrier_amer_greeks(char, tau, vol, k, s, r, payoff, direction,
 
 # NOTE: follows PnP implementation. Only supports ECUO, ECUI, EPDO, EPDI
 def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction,
-                              product, ki, ko, lots, order=None, rebate=0, bvol=None,
-                              bvol2=None, dbarrier=None):
-    """Computes greeks of european options with american barriers. 
-    
-    Args:
-        char (str): Call or Put.
-        tau (double): time to expiry in years
-        vol (float): strike volatility
-        k (double): strike
-        s (double): price of underlying_id
-        r (double): interest rate
-        payoff (str): american or european exercise. 'amer' or 'euro.'
-        direction (str): direction of the barrier. 'up' or 'down'
-        product (str): underlying product. eg: 'C'
-        ki (double): knock-in value.
-        ko (double): knock-out value
-        lots (double): number of lots.
-        order (int, optional): C1 C2 etc. 
-        rebate (int, optional): payback if option fails to knock in / knocks out.
-        bvol (None, optional): barrier
-        bvol2 (TYPE, optional): Description
-        dbarrier (TYPE, optional): Description
-    
-    Returns:
-        delta, gamma, theta, vega: greeks of this instrument.
-    """
-    barlevel = ki if ki else ko
+                              product, knock_in, knock_out, lots, order=None,
+                              rebate=0, barrier_vol=None, barrier_vol2=None,
+                              dbarrier=None):
+    '''Computes greeks of european options with european barriers.'''
+    barlevel = knock_in if knock_in else knock_out
 
-    # print(tau, vol, k, s, r, direction, ki, ko, lots, bvol, bvol2, dbarrier)
-
-    if dbarrier is None: 
-        # print('dbarrier is None; computing')
-        barlevel = ki if ki is not None else ko
+    if dbarrier is None:
+        barlevel = knock_in if knock_in is not None else knock_out
         ticksize = multipliers[product][-3]
         dbarrier = barlevel - ticksize if direction == 'up' else barlevel + ticksize
 
-    # case when barrier vol is not in vol surface; raise error.
-    # if bvol is None:
-    #     raise ValueError('Improper Data: Barrier vol not on vol surface.')
     ticksize = multipliers[product][2]
     dpo = abs(k - barlevel) / ticksize
-    if ko:
+    if knock_out:
         g1 = np.array(_compute_greeks(
             char, k, tau, vol, s, r, product, payoff, lots))
         g2 = np.array(_compute_greeks(
-            char, barlevel, tau, bvol, s, r, product, payoff, lots))
-        # digital_greeks(char, k, dbar, tau, vol, vol2, s, r, product, payoff, lots):
-        g3 = np.array(digital_greeks(char, barlevel, dbarrier, tau, bvol, bvol2, 
+            char, barlevel, tau, barrier_vol, s, r, product, payoff, lots))
+        g3 = np.array(digital_greeks(char, barlevel, dbarrier, tau,
+                                     barrier_vol, barrier_vol2,
                                      s, r, product, payoff, lots)) * dpo
         greeks = g1 - g2 - g3
         d = greeks[0]
@@ -824,11 +737,12 @@ def _euro_barrier_euro_greeks(char, tau, vol, k, s, r, payoff, direction,
         t = greeks[2]
         v = greeks[3]
 
-    elif ki:
+    elif knock_in:
         g1 = np.array(_compute_greeks(
-            char, barlevel, tau, bvol, s, r, product, payoff, lots))
+            char, barlevel, tau, barrier_vol, s, r, product, payoff, lots))
         g2 = dpo * \
-            np.array(digital_greeks(char, barlevel, dbarrier, tau, bvol, bvol2,
+            np.array(digital_greeks(char, barlevel, dbarrier, tau,
+                                    barrier_vol, barrier_vol2,
                                     s, r, product, payoff, lots))
         greeks = g1 + g2
         d = greeks[0]
@@ -882,7 +796,7 @@ def compute_strike_from_delta(option, delta1=None, vol=None, s=None, tau=None, c
     delta = 1e-5 if delta == 0 else delta
     delta = 0.99 if delta == 1 else delta
     # find strike corresponding to this delta in prev_date data
-    char = option.char if option else char
+    char = option.option_type if option else char
     D = norm.ppf(delta) if char == 'call' else -norm.ppf(delta)
     if np.isnan(D):
         print('[dvol 2] D IS NAN')

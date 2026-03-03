@@ -407,9 +407,9 @@ def create_barrier_option(vdf, pdf, volid, char, strike, shorted, barriertype, d
 
     # print('tau: ', tau)
     op1 = Option(strike, tau, char, vol, ft, payoff, shorted, opmth,
-                 direc=direction, barrier=barriertype, lots=lots_req,
-                 bullet=bullet, ki=ki, ko=ko, rebate=rebate, ordering=ft.get_ordering(), 
-                 bvol=bvol, bvol2=bvol2, dailies=dailies)
+                 direction=direction, barrier=barriertype, lots=lots_req,
+                 bullet=bullet, knock_in=ki, knock_out=ko, rebate=rebate, ordering=ft.get_ordering(),
+                 barrier_vol=bvol, barrier_vol2=bvol2, dailies=dailies)
 
     return op1
 
@@ -471,11 +471,11 @@ def create_butterfly(char, volid, vdf, pdf, date, shorted, **kwargs):
 
     mid_op2 = create_vanilla_option(
         vdf, pdf, volid, char, not shorted, date, delta=mid_delta, strike=mid_strike, lots=lot3)
-    print('mid strikes: ', mid_op1.K, mid_op2.K)
+    print('mid strikes: ', mid_op1.strike, mid_op2.strike)
 
     if dist is not None:
-        lower_strike = mid_op2.K - dist
-        upper_strike = mid_op2.K + dist
+        lower_strike = mid_op2.strike - dist
+        upper_strike = mid_op2.strike + dist
 
     lower_op = create_vanilla_option(
         vdf, pdf, volid, char, shorted, date, strike=lower_strike, lots=lot1)
@@ -732,7 +732,7 @@ def create_skew(volid, vdf, pdf, date, shorted, delta, **kwargs):
 
     for op in ops:
         print('util.create_skew - strike, char, short: ',
-              op.K, op.char, op.shorted)
+              op.strike, op.option_type, op.shorted)
 
     return ops
 
@@ -1194,15 +1194,15 @@ def mark_to_vols(pfx, vdf, dup=False, pdt=None):
     for op in ops:
         ticksize = multipliers[op.get_product()][-2]
         vid = op.get_vol_id()
-        cpi = 'C' if op.char == 'call' else 'P'
-        strike = round(round(op.K / ticksize) * ticksize, 2)
+        cpi = 'C' if op.option_type == 'call' else 'P'
+        strike = round(round(op.strike / ticksize) * ticksize, 2)
         try:
             vol = vdf[(vdf.vol_id == vid) &
                       (vdf.call_put_id == cpi) &
                       (vdf.strike == strike)].vol.values[0]
         except IndexError as e:
             print("scripts.util.mark_to_vols: cannot find vol with inputs ",
-                  vid, cpi, op.K, strike)
+                  vid, cpi, op.strike, strike)
             print('scripts.mark_to_vols: debug1 = ', vdf[(vdf.vol_id == vid)])
             print('scripts.mark_to_vols: debug2 = ', vdf[(vdf.vol_id == vid) &
                                                          (vdf.call_put_id == cpi)])
@@ -1229,8 +1229,8 @@ def compute_market_minus(pf, vdf):
     for op in newpf.get_all_options():
         ticksize = multipliers[op.get_product()][-2]
         vid = op.get_vol_id()
-        cpi = 'C' if op.char == 'call' else 'P'
-        strike = round(round(op.K / ticksize) * ticksize, 2)
+        cpi = 'C' if op.option_type == 'call' else 'P'
+        strike = round(round(op.strike / ticksize) * ticksize, 2)
         try:
             vol = vdf[(vdf.vol_id == vid) &
                       (vdf.call_put_id == cpi) &
@@ -1239,7 +1239,7 @@ def compute_market_minus(pf, vdf):
 
         except IndexError:
             print('scripts.calc.market_minus - data not found. ',
-                  vid, cpi, op.K, strike)
+                  vid, cpi, op.strike, strike)
             print('date: ', vdf.value_date.unique())
     val = pf.compute_value() - newpf.compute_value()
     mm = abs(val)

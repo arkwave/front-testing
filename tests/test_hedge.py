@@ -343,7 +343,7 @@ def test_add_hedges():
     assert total_theta < 5265
     assert engine.satisfied()
     chars = set(['call', 'put'])
-    actchars = set([op.char for op in ops])
+    actchars = set([op.option_type for op in ops])
     assert actchars == chars
 
     # testing exp repr
