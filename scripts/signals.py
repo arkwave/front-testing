@@ -206,7 +206,7 @@ def liquidate_position(pf, vol_id, char, greek, greekval, signal,
     pdt = vol_id.split()[0]
     opmth = vol_id.split()[1].split('.')[0]
     ftmth = vol_id.split()[1].split('.')[1]
-    relevant_ops = deque([x for x in pf.OTC_options if x.char == char and
+    relevant_ops = deque([x for x in pf.OTC_options if x.option_type == char and
                           x.get_product() == pdt and x.get_month() == ftmth and
                           x.get_op_month() == opmth])
     index = indices[greek]
@@ -305,7 +305,7 @@ def liquidate_position(pf, vol_id, char, greek, greekval, signal,
     ftmth = vol_id.split()[1].split('.')[1]
     print('vol_id, pdt, opmth, ftmth, char: ', vol_id, pdt, opmth, ftmth, char)
     new_ops = deque([x for x in pf.OTC_options if
-                     (x.char == char and x.get_product() == pdt and
+                     (x.option_type == char and x.get_product() == pdt and
                       x.get_month() == ftmth and x.get_op_month() == opmth)])
 
     print('ops after liquidation: ', str([str(x) for x in new_ops]))
@@ -334,7 +334,7 @@ def close_position(pf, vol_id, char):
     opmth = vol_id.split()[1].split('.')[0]
     ftmth = vol_id.split()[1].split('.')[1]
     ops = [x for x in pf.OTC_options if x.get_product() == pdt and
-           x.get_month() == ftmth and x.get_op_month() == opmth and x.char == char]
+           x.get_month() == ftmth and x.get_op_month() == opmth and x.option_type == char]
 
     for op in ops:
         cost += op.get_price() if op.shorted else -op.get_price()
@@ -394,7 +394,7 @@ def add_position(pf, signal, vdf, pdf, vol_id, char, strike, date,
         print('signals.add_position - maintain flag triggered.')
         desired_level = abs(newpos) * greekval
         relevant_ops = [x for x in pf.OTC_options if x.get_product() == pdt and 
-                        x.get_month() == ftmth and x.get_op_month() == opmth and x.char == char]
+                        x.get_month() == ftmth and x.get_op_month() == opmth and x.option_type == char]
         current_level = abs(sum([op.greeks()[index] for op in relevant_ops]))
         print('signals.add_position - current_level: ', current_level)
         print('signals.add_position - desired_level: ', desired_level)
@@ -419,7 +419,7 @@ def add_position(pf, signal, vdf, pdf, vol_id, char, strike, date,
     # debug statements:
     pf.add_security(tobeadded, 'OTC')
     relevant_ops = [x for x in pf.OTC_options if x.get_product() == pdt and 
-                    x.get_month() == ftmth and x.get_op_month() == opmth and x.char == char]
+                    x.get_month() == ftmth and x.get_op_month() == opmth and x.option_type == char]
     current_level = sum([op.greeks()[index] for op in relevant_ops])
 
     print('new current level: ', current_level)
@@ -451,7 +451,7 @@ def maintain_position(pf, pdf, vdf, vol_id, char, strike, pos, lots,
     pdt = vol_id.split()[0]
     opmth = vol_id.split()[1].split('.')[0]
     ftmth = vol_id.split()[1].split('.')[1]
-    relevant_ops = [x for x in pf.OTC_options if x.char == char and
+    relevant_ops = [x for x in pf.OTC_options if x.option_type == char and
                     x.get_product() == pdt and x.get_month() == ftmth and 
                     x.get_op_month() == opmth]
     index = indices[greek]
@@ -488,7 +488,7 @@ def maintain_position(pf, pdf, vdf, vol_id, char, strike, pos, lots,
         pf, cost = add_position(pf, sig, vdf, pdf, vol_id, char, strike, date,
                                 np.nan, greek, diff, slippage=slippage, brokerage=brokerage)
         # sanity checking.
-        new_ops = [x for x in pf.OTC_options if x.char == char and
+        new_ops = [x for x in pf.OTC_options if x.option_type == char and
                    x.get_product() == pdt and x.get_month() == ftmth and 
                    x.get_op_month() == opmth]
 

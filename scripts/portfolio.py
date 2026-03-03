@@ -10,42 +10,14 @@ Description    : Script contains implementation of the Portfolio class,
 
 """
 
-from timeit import default_timer as timer
 from operator import add
 import pprint
 import numpy as np
 from collections import deque
 import copy
+from .constants import multipliers, RANDOM_SEED, BREAKEVEN_FACTOR
 
-
-# Dictionary of multipliers for greeks/pnl calculation.
-# format  =  'product' : [dollar_mult, lot_mult, futures_tick,
-# options_tick, pnl_mult]
-
-multipliers = {
-    'LH':  [22.046, 18.143881, 0.025, 1, 400],
-    'LSU': [1, 50, 0.1, 10, 50],
-    'QC': [1.2153, 10, 1, 25, 12.153],
-    'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
-    'CC':  [1, 10, 1, 50, 10],
-    'CT':  [22.046, 22.679851, 0.01, 1, 500],
-    'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
-    'W':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'S':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'C':   [0.393678571428571, 127.007166832986, 0.25, 10, 50],
-    'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
-    'LC':  [22.046, 18.143881, 0.025, 1, 400],
-    'LRC': [1, 10, 1, 50, 10],
-    'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
-    'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
-    'COM': [1.0604, 50, 0.25, 2.5, 53.02],
-    'CA': [1.0604, 50, 0.25, 1, 53.02],
-    'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
-}
-
-
-seed = 7
-np.random.seed(seed)
+np.random.seed(RANDOM_SEED)
 
 # TODO: Abstract away reliance on greeks by month; should be able to
 # accept any other convention as well.
@@ -168,6 +140,19 @@ class Portfolio:
 
         return str(pprint.pformat(r_dict))
 
+    def _get_position_lists(self, flag):
+        """Returns (options_list, futures_list, positions_dict) for the given flag.
+
+        Args:
+            flag (str): 'OTC' or 'hedge'
+
+        Returns:
+            tuple: (options deque, futures list, positions dict)
+        """
+        if flag == 'OTC':
+            return self.OTC_options, self.OTC_futures, self.OTC
+        return self.hedge_options, self.hedge_futures, self.hedges
+
     def set_families(self, lst):
         self.families = lst
 
@@ -239,14 +224,14 @@ class Portfolio:
             lots (TYPE): list of lot values, where lots[i] corresponds
                         to the new lot value of sec[i]
         """
-        ops = self.OTC_options if flag == 'OTC' else self.hedge_futures
+        ops = self.OTC_options if flag == 'OTC' else self.hedge_options
         fts = self.OTC_futures if flag == 'OTC' else self.hedge_futures
         for s in sec:
             # sanity checks: make sure the security is present in the relevant
             # list selected by flag
-            if s.desc == 'Option' and s not in ops:
+            if s.desc == 'option' and s not in ops:
                 raise ValueError('This option is not in the portfolio.')
-            elif s.desc == 'Future' and s not in fts:
+            elif s.desc == 'future' and s not in fts:
                 raise ValueError('This future is not in the portfolio.')
             else:
                 s.update_lots(lots[sec.index(s)])
@@ -277,28 +262,19 @@ class Portfolio:
         Returns:
             None: Initializes the relevant data structures.
         """
-        # initialize dictionaries based on whether securities are OTC or
-        # hedge.
-        if iden == 'OTC':
-            op = self.OTC_options
-            ft = self.OTC_futures
-            dic = self.OTC
-        elif iden == 'hedge':
-            op = self.hedge_options
-            ft = self.hedge_futures
-            dic = self.hedges
+        op, ft, dic = self._get_position_lists(iden)
 
         # add in options
         for sec in op:
             month = sec.get_month()
             prod = sec.get_product()
             if prod not in dic:
-                dict[prod] = {}
+                dic[prod] = {}
             if month not in dic[prod]:
                 dic[prod][month] = [set([sec]), set(), 0, 0, 0, 0]
             else:
                 dic[prod][month][0].add(sec)
-            self.update_greeks_by_month(prod, month, sec, True)
+            self.update_greeks_by_month(prod, month, sec, True, iden)
         # add in futures
         for sec in ft:
             month = sec.get_month()
@@ -311,74 +287,30 @@ class Portfolio:
                 dic[prod][month][1].add(sec)
 
     def compute_net_greeks(self):
-        ''' Computes net greeks organized hierarchically according to product and
-         month. Updates net_greeks by using OTC and hedges. '''
+        """Computes net greeks organized by product and month.
+        Net greeks = OTC greeks + hedge greeks for each product-month."""
 
         final_dic = {}
-        common_products = set(self.OTC.keys()) & set(
-            self.hedges.keys())
-        OTC_products_unique = set(self.OTC.keys()) - common_products
-        hedge_products_unique = set(self.hedges.keys()) - common_products
+        all_products = set(self.OTC.keys()) | set(self.hedges.keys())
 
-        # print('OTCs: ', self.OTC)
-        # print('hedges: ', self.hedges)
+        for product in all_products:
+            final_dic[product] = {}
+            otc_data = self.OTC.get(product, {})
+            hedge_data = self.hedges.get(product, {})
+            all_months = set(otc_data.keys()) | set(hedge_data.keys())
 
-        # dealing with common products
-        for product in common_products:
-            # checking existence.
-            if product not in final_dic:
-                final_dic[product] = {}
-            # instantiating variables to make it neater.
-            OTCdata = self.OTC[product]
-            hedgedata = self.hedges[product]
-            common_months = set(OTCdata.keys()) & set(
-                hedgedata.keys())
-            # finding unique months within this product.
-            OTC_unique_mths = set(
-                OTCdata.keys()) - common_months
-            hedges_unique_mths = set(
-                hedgedata.keys()) - common_months
-            # dealing with common months
-            for month in common_months:
-                OTC_greeks = OTCdata[month][2:]
-                # print('DEBUG: OTC greeks: ', OTC_greeks)
-                hedge_greeks = hedgedata[month][2:]
-                net = list(map(add, OTC_greeks, hedge_greeks))
-                final_dic[product][month] = net
-            # dealing with non overlapping months
-            for month in OTC_unique_mths:
-                # checking if month has options.
-                if OTCdata[month][0]:
-                    final_dic[product][month] = OTCdata[month][2:]
-            for month in hedges_unique_mths:
-                # checking if month has options.
-                if hedgedata[month][0]:
-                    final_dic[product][month] = hedgedata[month][2:]
+            for month in all_months:
+                otc_greeks = otc_data[month][2:] if month in otc_data else [0, 0, 0, 0]
+                hedge_greeks = hedge_data[month][2:] if month in hedge_data else [0, 0, 0, 0]
+                # only include month if it has options in at least one side
+                has_otc_options = month in otc_data and otc_data[month][0]
+                has_hedge_options = month in hedge_data and hedge_data[month][0]
+                if has_otc_options or has_hedge_options:
+                    final_dic[product][month] = list(map(add, otc_greeks, hedge_greeks))
 
-        # dealing with non-overlapping products
-        for product in OTC_products_unique:
-            data = self.OTC[product]
-            # checking existence
-            if product not in final_dic:
-                final_dic[product] = {}
-            # iterating over all months corresponding to non-overlapping
-            # product for which we have OTC positions
-            for month in data:
-                # checking if month has options.
-                if data[month][0]:
-                    final_dic[product][month] = data[month][2:]
-
-        for product in hedge_products_unique:
-            data = self.hedges[product]
-            # checking existence
-            if product not in final_dic:
-                final_dic[product] = {}
-            # iterating over all months corresponding to non-overlapping
-            # product for which we have hedge positions.
-            for month in data:
-                # checking if month has options.
-                if data[month][0]:
-                    final_dic[product][month] = data[month][2:]
+            # remove empty products
+            if not final_dic[product]:
+                del final_dic[product]
 
         self.net_greeks = final_dic
 
@@ -386,19 +318,11 @@ class Portfolio:
         # adds a security into the portfolio, and updates relevant lists and
         # adjusts greeks of the portfolio.
 
-        if flag == 'OTC':
-            op = self.OTC_options
-            ft = self.OTC_futures
-        elif flag == 'hedge':
-            op = self.hedge_options
-            ft = self.hedge_futures
+        op, ft, _ = self._get_position_lists(flag)
 
         for sec in security:
             if sec.get_desc() == 'option':
-                try:
-                    op.append(sec)
-                except UnboundLocalError:
-                    print('flag: ', flag)
+                op.append(sec)
             elif sec.get_desc() == 'future':
                 ft.append(sec)
 
@@ -408,21 +332,14 @@ class Portfolio:
     def remove_security(self, security, flag):
         # removes a security from the portfolio, updates relevant list and
         # adjusts greeks of the portfolio.
-        if flag == 'OTC':
-            op = self.OTC_options
-            ft = self.OTC_futures
-        elif flag == 'hedge':
-            op = self.hedge_options
-            ft = self.hedge_futures
+        op, ft, _ = self._get_position_lists(flag)
         self.toberemoved.extend(security)
-        # if not listonly:
         self.update_sec_by_month(False, flag)
         for sec in security:
             if sec.get_desc() == 'option':
                 op.remove(sec)
             elif sec.get_desc() == 'future':
                 ft.remove(sec)
-                # return -1
         if self.families:
             for sec in security:
                 if sec.get_desc() == 'option':
@@ -487,16 +404,8 @@ class Portfolio:
         Notes: this method does 90% of all the heavy lifting in the portfolio
             class. Don't mess with this unless you know EXACTLY what each part is doing.
         '''
-        if flag == 'OTC':
-            dic = self.OTC
-            op = self.OTC_options
-            ft = self.OTC_futures
-            other = self.hedges
-        elif flag == 'hedge':
-            dic = self.hedges
-            op = self.hedge_options
-            ft = self.hedge_futures
-            other = self.OTC
+        op, ft, dic = self._get_position_lists(flag)
+        other = self.hedges if flag == 'OTC' else self.OTC
 
         # adding/removing security to portfolio
         if update is None:
@@ -769,15 +678,8 @@ class Portfolio:
         return dic
 
     def get_securities(self, flag):
-        if flag == 'OTC':
-            op = self.OTC_options
-            ft = self.OTC_futures
-        else:
-            op = self.hedge_options
-            ft = self.hedge_futures
-        lst1 = op.copy()
-        lst2 = ft.copy()
-        return (lst1, lst2)
+        op, ft, _ = self._get_position_lists(flag)
+        return (op.copy(), ft.copy())
 
     def get_all_options(self, pdt=None, mth=None):
         """Gets all options, hedge and OTC
@@ -944,8 +846,8 @@ class Portfolio:
             all_ops = [op for op in all_ops if op.get_product() == pdt]
         if not all_ops:
             return 0, 0
-        call_op_vega = sum([op.vega for op in all_ops if op.char == 'call'])
-        put_op_vega = sum([op.vega for op in all_ops if op.char == 'put'])
+        call_op_vega = sum([op.vega for op in all_ops if op.option_type =='call'])
+        put_op_vega = sum([op.vega for op in all_ops if op.option_type =='put'])
 
         return call_op_vega, put_op_vega
 
@@ -1027,7 +929,7 @@ class Portfolio:
                 else:
                     thetas.append(theta)
                     gammas.append(gamma)
-                    bes[pdt][mth] = (((2.8*theta)/gamma) ** 0.5) / \
+                    bes[pdt][mth] = (((BREAKEVEN_FACTOR*theta)/gamma) ** 0.5) / \
                         multipliers[pdt][0]
 
         return bes

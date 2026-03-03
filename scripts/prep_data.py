@@ -27,67 +27,15 @@ from collections import OrderedDict
 import copy
 import datetime as dt
 import os
-seed = 7
-np.random.seed(seed)
+from .constants import (multipliers, contract_mths, month_to_sym, sym_to_month,
+                        RANDOM_SEED, DECADE)
+
+np.random.seed(RANDOM_SEED)
 
 # setting pandas warning levels
 pd.options.mode.chained_assignment = None
 
-# Dictionary mapping month to symbols and vice versa
-month_to_sym = {1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
-                7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'}
-sym_to_month = {'F': 1, 'G': 2, 'H': 3, 'J': 4, 'K': 5,
-                'M': 6, 'N': 7, 'Q': 8, 'U': 9, 'V': 10, 'X': 11, 'Z': 12}
-decade = 10
-
-# specifies the filepath for the read-in file.
-# filepath = 'portfolio_specs.txt'
-
-# details contract months for each commodity. used in the continuation
-# assignment.
-contract_mths = {
-
-    'LH':  ['G', 'J', 'K', 'M', 'N', 'Q', 'V', 'Z'],
-    'LSU': ['H', 'K', 'Q', 'V', 'Z'],
-    'QC': ['H', 'K', 'N', 'U', 'Z'],
-    'SB':  ['H', 'K', 'N', 'V'],
-    'CC':  ['H', 'K', 'N', 'U', 'Z'],
-    'CT':  ['H', 'K', 'N', 'Z'],
-    'KC':  ['H', 'K', 'N', 'U', 'Z'],
-    'W':   ['H', 'K', 'N', 'U', 'Z'],
-    'S':   ['F', 'H', 'K', 'N', 'Q', 'U', 'X'],
-    'C':   ['H', 'K', 'N', 'U', 'Z'],
-    'BO':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
-    'LC':  ['G', 'J', 'M', 'Q', 'V', 'Z'],
-    'LRC': ['F', 'H', 'K', 'N', 'U', 'X'],
-    'KW':  ['H', 'K', 'N', 'U', 'Z'],
-    'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
-    'COM': ['G', 'K', 'Q', 'X'],
-    'CA': ['H', 'K', 'U', 'Z'],
-    'MW':  ['H', 'K', 'N', 'U', 'Z']
-}
-
-
-multipliers = {
-    'LH':  [22.046, 18.143881, 0.025, 1, 400],
-    'LSU': [1, 50, 0.1, 10, 50],
-    'QC': [1.2153, 10, 1, 25, 12.153],
-    'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
-    'CC':  [1, 10, 1, 50, 10],
-    'CT':  [22.046, 22.679851, 0.01, 1, 500],
-    'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
-    'W':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'S':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'C':   [0.393678571428571, 127.007166832986, 0.25, 10, 50],
-    'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
-    'LC':  [22.046, 18.143881, 0.025, 1, 400],
-    'LRC': [1, 10, 1, 50, 10],
-    'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
-    'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
-    'COM': [1.0604, 50, 0.25, 2.5, 53.02],
-    'CA': [1.0604, 50, 0.25, 1, 53.02],
-    'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
-}
+decade = DECADE
 
 
 ###############################################################
@@ -401,9 +349,9 @@ def prep_portfolio(voldata, pricedata, filepath=None, spec=None):
                     bvoldata, f_name, tau, volflag, barlevel, ordering)
 
             opt = Option(strike, tau, char, vol, underlying,
-                         payoff, shorted=shorted, month=opmth, direc=direc,
+                         payoff, shorted=shorted, month=opmth, direction=direc,
                          barrier=barriertype, lots=lots, bullet=bullet,
-                         ki=ki, ko=ko, ordering=ordering, bvol=bvol)
+                         knock_in=ki, knock_out=ko, ordering=ordering, barrier_vol=bvol)
 
             oplist[flag].append(opt)
 
@@ -472,21 +420,21 @@ def handle_dailies(dic, sim_start):
                 # print(len(taus))
 
                 strike, char, vol, underlying, payoff, shorted, month, ordering, lots, settlement \
-                    = params['strike'], params['char'], params['vol'], params['underlying'], \
+                    = params['strike'], params['option_type'], params['vol'], params['underlying'], \
                     params['payoff'],  params['shorted'], params['month'], \
                     params['ordering'], params['lots'],\
-                    params['settlement'], params['bvol'], params['bvol2']
+                    params['settlement'], params['barrier_vol'], params['barrier_vol2']
                 # barrier params
                 direc, barrier, ki, ko, rebate, bvol, bvol2 = \
-                    params['direc'], params['barrier'], params[
-                        'ki'], params['ko'], params['rebate'], params['bvol'], params['bvol2']
+                    params['direction'], params['barrier'], params[
+                        'knock_in'], params['knock_out'], params['rebate'], params['barrier_vol'], params['barrier_vol2']
 
                 # creating the bullets corresponding to this daily option.
                 for tau in taus:
                     ui = copy.deepcopy(underlying)
-                    op_i = Option(strike, tau, char, vol, ui, payoff, shorted, month, direc=direc,
-                                  barrier=barrier, lots=lots, bullet=False, ki=ki, ko=ko, rebate=rebate,
-                                  ordering=ordering, settlement=settlement, bvol=bvol, bvol2=bvol2)
+                    op_i = Option(strike, tau, char, vol, ui, payoff, shorted, month, direction=direc,
+                                  barrier=barrier, lots=lots, bullet=False, knock_in=ki, knock_out=ko, rebate=rebate,
+                                  ordering=ordering, settlement=settlement, barrier_vol=bvol, barrier_vol2=bvol2)
                     bullets.append(op_i)
 
             lst.extend(bullets)
@@ -1054,7 +1002,7 @@ def timestep_recon(df):
     else:
         date_range = pd.to_datetime(df.value_date.unique())
         for date in date_range:
-            t = time.clock()
+            t = time.perf_counter()
             tdf = df[df.value_date == date]
             grps = tdf.groupby('underlying_id')
             # isolate the group with the least data
@@ -1081,7 +1029,7 @@ def timestep_recon(df):
                 dic_lst.extend(other_data)
             print('datalen: ', list(zip(*ords))[1])
             print('%s completed' % (date.strftime('%Y-%m-%d')))
-            print('elapsed: ', time.clock() - t)
+            print('elapsed: ', time.perf_counter() - t)
             print('--------------------------------------')
 
     fdf = pd.DataFrame.from_records(dic_lst)

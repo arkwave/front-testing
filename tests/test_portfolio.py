@@ -52,9 +52,9 @@ def generate_portfolio():
     op2 = Option(
         29, 0.2156100288506942, 'call', 0.45176132048500206, ft2, 'amer', False, 'Z7')
     op3 = Option(30, 0.21534276294769317, 'call', 0.14464169782291536,
-                 ft3, 'amer', True, 'Z7',  direc='up', barrier='amer', bullet=True, ko=35)
+                 ft3, 'amer', True, 'Z7',  direction='up', barrier='amer', bullet=True, knock_out=35)
     op4 = Option(33, 0.22365510948646386, 'put', 0.18282926924909026,
-                 ft4, 'amer', False, 'Z7', direc='down', barrier='amer', bullet=True, ki=28)
+                 ft4, 'amer', False, 'Z7', direction='down', barrier='amer', bullet=True, knock_in=28)
     op5 = Option(
         32, 0.010975090692443346, 'put', 0.8281728247909962, ft5, 'amer', True, 'Z7')
 
@@ -214,9 +214,9 @@ def test_remove_security_futures():
         # checking equality of options
         assert mar_option1.underlying.get_price(
         ) == mar_option2.underlying.get_price()
-        assert mar_option1.K == mar_option2.K
+        assert mar_option1.strike == mar_option2.strike
         assert mar_option1.tau == mar_option2.tau
-        assert mar_option1.char == mar_option2.char
+        assert mar_option1.option_type == mar_option2.option_type
         assert mar_option1.price == mar_option2.price
         assert mar_option1.get_product() == mar_option2.get_product()
 
@@ -273,9 +273,9 @@ def test_remove_security_options():
         # checking equality of options
         assert mar_option1.underlying.get_price(
         ) == mar_option2.underlying.get_price()
-        assert mar_option1.K == mar_option2.K
+        assert mar_option1.strike == mar_option2.strike
         assert mar_option1.tau == mar_option2.tau
-        assert mar_option1.char == mar_option2.char
+        assert mar_option1.option_type == mar_option2.option_type
         assert mar_option1.price == mar_option2.price
         assert mar_option1.get_product() == mar_option2.get_product()
 

@@ -55,12 +55,12 @@ def generate_portfolio(flag):
         'K7', ordering=2)
 
     op3 = Option(300, 0.473972602739726, 'call', 0.14464169782291536,
-                 ft3, 'amer', short, 'N7',  direc='up', barrier='amer', bullet=True,
-                 ko=350, ordering=2)
+                 ft3, 'amer', short, 'N7',  direction='up', barrier='amer', bullet=True,
+                 knock_out=350, ordering=2)
 
     op4 = Option(330, 0.473972602739726, 'put', 0.18282926924909026,
-                 ft4, 'amer', short, 'N7', direc='down', barrier='amer', bullet=True,
-                 ki=280, ordering=2)
+                 ft4, 'amer', short, 'N7', direction='down', barrier='amer', bullet=True,
+                 knock_in=280, ordering=2)
     op5 = Option(
         320, 0.473972602739726, 'put', 0.8281728247909962, ft5, 'amer', short,
         'N7', ordering=2)
