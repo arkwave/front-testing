@@ -564,27 +564,9 @@ class Option:
 
 class Future:
 
-    '''
-    Class representing a Future object. Instance variables are:
-    1) month     :  the contract month.
-    2) price     :  the quoted price of the future.
-    3) desc      :  string description of the object
-    4) lots      :  number of lots represented by each future contract.
-    5) product   :  the commodity of this future.
-    6) shorted   :  bool indicating whether this future is being shorted or long
-    7) delta     :  delta contribution of this future. 1 if shorted=False, -1 otherwise. 
-
-    Instance Methods:
-        1) get_desc       : returns 'future'
-        2) get_price      : returns price of the future.
-        3) update_price   : updates the price based on inputted data.
-        5) get_month      : returns contract month.
-        6) get_lots       : returns lot size
-        7) get_product    : returns the name of this contract (i.e. the commodity)
-
-    '''
-
-    def __init__(self, month, price, product, shorted=None, lots=1000, ordering=None, instructions={}):
+    def __init__(self, month: str, price: float, product: str,
+                 shorted: bool = None, lots: float = 1000,
+                 ordering: int = None) -> None:
         self.product = product
         self.ordering = ordering
         self.lots = lots
@@ -598,7 +580,7 @@ class Future:
         mult = -1 if shorted else 1
         self.delta = 1 * lots * mult
 
-    def __str__(self):
+    def __str__(self) -> str:
         string = self.product + ' ' + self.month + ' '
         string += str(self.price)
         string += ' S' if self.shorted else ' L'
@@ -606,41 +588,40 @@ class Future:
         string += ' [c_' + str(self.ordering) + ']'
         return string
 
-    def get_ordering(self):
+    def get_ordering(self) -> int:
         return self.ordering
 
-    def set_ordering(self, i):
+    def set_ordering(self, i: int) -> None:
         self.ordering = i
 
-    def decrement_ordering(self, i):
+    def decrement_ordering(self, i: int) -> None:
         self.ordering -= i
 
-    def get_price(self):
+    def get_price(self) -> float:
         return self.price
 
-    def get_desc(self):
+    def get_desc(self) -> str:
         return self.desc
 
-    def update_price(self, price):
-        # updates the price of the future object
+    def update_price(self, price: float) -> None:
         self.price = price
 
-    def get_month(self):
+    def get_month(self) -> str:
         return self.month
 
-    def get_lots(self):
+    def get_lots(self) -> float:
         return self.lots
 
-    def get_product(self):
+    def get_product(self) -> str:
         return self.product
 
-    def update_lots(self, lots):
+    def update_lots(self, lots: float) -> None:
         self.lots = lots
         mult = -1 if self.shorted else 1
         self.delta = 1 * lots * mult
 
-    def get_delta(self):
+    def get_delta(self) -> float:
         return self.delta
 
-    def get_uid(self):
+    def get_uid(self) -> str:
         return self.product + '  ' + self.month
