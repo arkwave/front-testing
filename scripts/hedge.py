@@ -10,45 +10,7 @@ import numpy as np
 from .util import create_straddle, create_underlying, create_strangle, create_vanilla_option
 from .calc import _compute_value
 from .hedge_mods import TrailingStop, HedgeParser
-
-multipliers = {
-    'LH':  [22.046, 18.143881, 0.025, 1, 400],
-    'LSU': [1, 50, 0.1, 10, 50],
-    'QC': [1.2153, 10, 1, 25, 12.153],
-    'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
-    'CC':  [1, 10, 1, 50, 10],
-    'CT':  [22.046, 22.679851, 0.01, 1, 500],
-    'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
-    'W':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'S':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'C':   [0.393678571428571, 127.007166832986, 0.25, 10, 50],
-    'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
-    'LC':  [22.046, 18.143881, 0.025, 1, 400],
-    'LRC': [1, 10, 1, 50, 10],
-    'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
-    'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
-    'COM': [1.0604, 50, 0.25, 2.5, 53.02],
-    'CA': [1.0604, 50, 0.25, 1, 53.02],
-    'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
-}
-
-op_ticksize = {
-
-    'QC': 1,
-    'CC': 1,
-    'SB': 0.01,
-    'LSU': 0.05,
-    'KC': 0.01,
-    'DF': 1,
-    'CT': 0.01,
-    'C': 0.125,
-    'S': 0.125,
-    'SM': 0.05,
-    'BO': 0.005,
-    'W': 0.125,
-    'MW': 0.125,
-    'KW': 0.125
-}
+from .constants import multipliers, op_ticksize
 
 
 class Hedge:
@@ -718,21 +680,21 @@ class Hedge:
             if self.book:
                 for op in ops:
                     try:
-                        cpi = 'C' if op.char == 'call' else 'P'
+                        cpi = 'C' if op.option_type == 'call' else 'P'
                         df = self.settlements
                         settle_vol = df[(df.vol_id == op.get_vol_id()) &
                                         (df.call_put_id == cpi) &
-                                        (df.strike == op.K)].vol.values[0]
+                                        (df.strike == op.strike)].vol.values[0]
                     except IndexError as e:
                         print('scripts.hedge - book vol case: cannot find vol: ',
-                              op.get_vol_id(), cpi, op.K)
+                              op.get_vol_id(), cpi, op.strike)
                         settle_vol = op.vol
                     # print(op.get_vol_id() + ' settle_vol: ', settle_vol)
                     # print('op.book vol: ', op.vol)
-                    true_value = _compute_value(op.char, op.tau, settle_vol, op.K,
-                                                op.underlying.get_price(), 0, 'amer', ki=op.ki,
-                                                ko=op.ko, barrier=op.barrier, d=op.direc,
-                                                product=op.get_product(), bvol=op.bvol)
+                    true_value = _compute_value(op.option_type, op.tau, settle_vol, op.strike,
+                                                op.underlying.get_price(), 0, 'amer', knock_in=op.knock_in,
+                                                knock_out=op.knock_out, barrier=op.barrier, d=op.direction,
+                                                product=op.get_product(), barrier_vol=op.barrier_vol)
                     # print('op value basis settlements: ', true_value)
                     pnl_mult = multipliers[op.get_product()][-1]
                     diff = (true_value - op.get_price()) * op.lots * pnl_mult

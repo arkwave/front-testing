@@ -17,27 +17,7 @@ from .global_vars import main_direc
 from joblib import Parallel, delayed
 import getpass
 
-contract_mths = {
-
-    'LH':  ['G', 'J', 'K', 'M', 'N', 'Q', 'V', 'Z'],
-    'LSU': ['H', 'K', 'Q', 'V', 'Z'],
-    'QC': ['H', 'K', 'N', 'U', 'Z'],
-    'SB':  ['H', 'K', 'N', 'V'],
-    'CC':  ['H', 'K', 'N', 'U', 'Z'],
-    'CT':  ['H', 'K', 'N', 'V', 'Z'],
-    'KC':  ['H', 'K', 'N', 'U', 'Z'],
-    'W':   ['H', 'K', 'N', 'U', 'Z'],
-    'S':   ['F', 'H', 'K', 'N', 'Q', 'U', 'X'],
-    'C':   ['H', 'K', 'N', 'U', 'Z'],
-    'BO':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
-    'LC':  ['G', 'J', 'M', 'Q', 'V' 'Z'],
-    'LRC': ['F', 'H', 'K', 'N', 'U', 'X'],
-    'KW':  ['H', 'K', 'N', 'U', 'Z'],
-    'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
-    'COM': ['G', 'K', 'Q', 'X'],
-    'CA': ['H', 'K', 'U', 'Z'],
-    'MW':  ['H', 'K', 'N', 'U', 'Z']
-}
+from .constants import contract_mths
 
 
 def pull_settlement_data(pdt, start_date=None, end_date=None, write_dump=False,
@@ -59,7 +39,7 @@ def pull_settlement_data(pdt, start_date=None, end_date=None, write_dump=False,
     assert (start_date is not None or end_date is not None) or write_dump
 
     print('starting clock..')
-    t = time.clock()
+    t = time.perf_counter()
 
     user = getpass.getuser()
     password = getpass.getpass()
@@ -94,7 +74,7 @@ def pull_settlement_data(pdt, start_date=None, end_date=None, write_dump=False,
     #           '_raw_data.csv', index=False)
 
     print('finished pulling data')
-    print('elapsed: ', time.clock() - t)
+    print('elapsed: ', time.perf_counter() - t)
 
     add = 1 if len(pdt) == 2 else 0
 
@@ -554,7 +534,7 @@ def pull_intraday_data(pdts, start_date=None, end_date=None, filepath='', contra
     """
     overnight_pdts = {'BO', 'C', 'KW', 'S', 'SM', 'W', 'CT', 'MW'}
 
-    t = time.clock()
+    t = time.perf_counter()
 
     par = True if len(pdts) > 1 else False
 
@@ -568,7 +548,7 @@ def pull_intraday_data(pdts, start_date=None, end_date=None, filepath='', contra
                                                                       overnight_pdts=overnight_pdts) for pdt in pdts)
         df = pd.concat(res)
 
-    print('elapsed: ', time.clock() - t)
+    print('elapsed: ', time.perf_counter() - t)
 
     return df
 

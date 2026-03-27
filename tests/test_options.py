@@ -27,14 +27,14 @@ def test_check_active_ko_american():
     # testing up and out
     # test 1: up and out at 50, spot at 30.
     op = Option(strike, tau, 'call', vol, ft, payoff, False, 'Z7',
-                direc=direc, barrier=barrier, bullet=False, ko=50, 
+                direction=direc, barrier=barrier, bullet=False, knock_out=50,
                 dailies=ttms)
     assert op.check_active() == True
     assert op.knockedout == False
 
     # test 2: up and out at 20, spot at 30
     op = Option(strike, tau, 'call', vol, ft, payoff, False, 'Z7',
-                direc=direc, barrier=barrier, bullet=False, ko=20, dailies=ttms)
+                direction=direc, barrier=barrier, bullet=False, knock_out=20, dailies=ttms)
     assert op.check_active() == False
     assert op.knockedout == True
 
@@ -51,7 +51,7 @@ def test_check_active_ko_american():
     direc2 = 'down'
     barrier2 = 'amer'
     op2 = Option(strike2, tau, 'call', vol, ft2, payoff, False, 'Z7',
-                 direc=direc2, barrier=barrier2, bullet=False, ko=50, dailies=ttms)
+                 direction=direc2, barrier=barrier2, bullet=False, knock_out=50, dailies=ttms)
     assert op2.check_active() == True
     assert op2.knockedout == False
 
@@ -71,7 +71,7 @@ def test_check_active_ki_american():
     direc = 'down'
     barrier = 'amer'
     op = Option(strike, tau, 'call', vol, ft, payoff, False, 'Z7',
-                direc=direc, barrier=barrier, bullet=False, ki=20, dailies=ttms)
+                direction=direc, barrier=barrier, bullet=False, knock_in=20, dailies=ttms)
 
     # testing down and in
     # test 1: down and in at 20, spot at 30.
@@ -93,7 +93,7 @@ def test_check_active_ki_american():
     ft2 = Future('march', 30, 'C')
     direc2 = 'up'
     op2 = Option(strike, tau, 'call', vol, ft2, payoff, False, 'Z7',
-                 direc=direc2, barrier=barrier, ki=50, dailies=ttms)
+                 direction=direc2, barrier=barrier, knock_in=50, dailies=ttms)
     assert op2.check_active() == True
     assert op2.knockedin == False
 
@@ -119,7 +119,7 @@ def test_check_active_ki_euro():
     direc = 'down'
     barrier = 'amer'
     op = Option(strike, tau, 'call', vol, ft, payoff, False, 'Z7',
-                direc=direc, barrier=barrier, bullet=True, ki=200, dailies=ttms)
+                direction=direc, barrier=barrier, bullet=True, knock_in=200, dailies=ttms)
 
     # testing down and in
     # test 1: down and in at 20, spot at 30.
@@ -146,7 +146,7 @@ def test_check_active_ki_euro():
     ft2 = Future('march', 300, 'C')
     direc2 = 'up'
     op2 = Option(strike, tau, 'call', vol, ft2, payoff, False, 'Z7',
-                 direc=direc2, barrier=barrier, ki=500, dailies=ttms)
+                 direction=direc2, barrier=barrier, knock_in=500, dailies=ttms)
     assert op2.check_active() == True
     assert op2.knockedin == False
 
@@ -168,7 +168,7 @@ def test_get_underlying():
     vol = 0.2
     payoff = 'euro'
     op = Option(strike, tau, 'call', vol, ft, payoff, False, 'Z7',
-                'up', barrier='amer', bullet=False, ko=50, dailies=ttms)
+                direction='up', barrier='amer', bullet=False, knock_out=50, dailies=ttms)
     assert op.get_underlying() == ft
 
 
@@ -179,7 +179,7 @@ def test_get_desc():
     vol = 0.2
     payoff = 'euro'
     op = Option(strike, tau, 'call', vol, ft, payoff, False, 'Z7',
-                direc='up', barrier='amer', bullet=False, ko=50, dailies=ttms)
+                direction='up', barrier='amer', bullet=False, knock_out=50, dailies=ttms)
     assert op.get_desc() == 'option'
 
 
@@ -190,7 +190,7 @@ def test_update_tau():
     vol = 0.2
     payoff = 'euro'
     op = Option(strike, tau, 'call', vol, ft, payoff, False, 'Z7',
-                direc='up', barrier='amer', bullet=False, ko=50, dailies=ttms)
+                direction='up', barrier='amer', bullet=False, knock_out=50, dailies=ttms)
     op.update_tau(0.1)
     assert op.tau == (327/365) - 0.1
 
@@ -202,7 +202,7 @@ def test_get_product():
     vol = 0.2
     payoff = 'euro'
     op = Option(strike, tau, 'call', vol, ft, payoff, False, 'Z7',
-                direc='up', barrier='amer', bullet=False, ko=50, dailies=ttms)
+                direction='up', barrier='amer', bullet=False, knock_out=50, dailies=ttms)
     assert op.get_product() == 'C'
 
 
@@ -232,7 +232,7 @@ def test_moneyness_american():
     vol = 0.2
     payoff = 'euro'
     op = Option(strike, tau, 'call', vol, ft, payoff, False, 'Z7',
-                direc='up', barrier='amer', bullet=False, ko=50, dailies=ttms)
+                direction='up', barrier='amer', bullet=False, knock_out=50, dailies=ttms)
     # at the money
     assert op.moneyness() == 0
     # in the moneu
@@ -256,7 +256,7 @@ def test_moneyness_american():
     strike2 = 20
     ft2 = Future('march', 20, 'C')
     op2 = Option(strike2, tau, 'put', vol, ft2, payoff, False, 'Z7',
-                 direc='up', barrier='amer', bullet=False, ko=50, dailies=ttms)
+                 direction='up', barrier='amer', bullet=False, knock_out=50, dailies=ttms)
     assert op2.moneyness() == 0
     ft2.update_price(30)
     assert op2.moneyness() == -1
@@ -273,7 +273,7 @@ def test_zero_options():
     vol = 0.2
     payoff = 'euro'
     op = Option(strike, tau, 'call', vol, ft, payoff, False, 'Z7',
-                direc='up', barrier='amer', bullet=True, ko=50)
+                direction='up', barrier='amer', bullet=True, knock_out=50)
     delta, gamma, theta, vega = op.greeks()
     initial_val = op.get_price()
     assert initial_val > 0
@@ -298,7 +298,7 @@ def test_barrier_options():
     payoff = 'euro'
     vanop = Option(strike, tau, 'call', vol, ft, 'amer', False, 'Z7')
     barOp = Option(strike, tau, 'call', vol, ft, payoff, False, 'Z7',
-                   direc='up', barrier='amer', bullet=True, ki=40)
+                   direction='up', barrier='amer', bullet=True, knock_in=40)
     d1, g1, t1, v1 = vanop.greeks()
     p1 = vanop.get_price()
     d2, g2, t2, v2 = barOp.greeks()
@@ -334,7 +334,7 @@ def test_barrier_options2():
     payoff2 = 'euro'
     vanop2 = Option(strike2, tau2, 'call', vol2, ft2, payoff2, False, 'Z7')
     barOp2 = Option(strike2, tau2, 'call', vol2, ft2, payoff2, False, 'Z7',
-                    direc='up', barrier='amer', bullet=False, ko=36, dailies=ttms)
+                    direction='up', barrier='amer', bullet=False, knock_out=36, dailies=ttms)
     d1, g1, t1, v1 = vanop2.greeks()
     p3 = vanop2.get_price()
     d2, g2, t2, v2 = barOp2.greeks()

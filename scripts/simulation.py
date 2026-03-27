@@ -29,85 +29,13 @@ import datetime
 ###########################################################################
 ######################## initializing variables ###########################
 ###########################################################################
-# Dictionary of multipliers for greeks/pnl calculation.
-# format  =  'product' : [dollar_mult, lot_mult, futures_tick,
-# options_tick, pnl_mult]
+from .constants import (multipliers, op_ticksize, contract_mths,
+                        month_to_sym, sym_to_month, DECADE, TIMESTEP,
+                        RANDOM_SEED)
 
-multipliers = {
-
-    'LH':  [22.046, 18.143881, 0.025, 1, 400],
-    'LSU': [1, 50, 0.1, 10, 50],
-    'QC': [1.2153, 10, 1, 25, 12.153],
-    'SB':  [22.046, 50.802867, 0.01, 0.25, 1120],
-    'CC':  [1, 10, 1, 50, 10],
-    'CT':  [22.046, 22.679851, 0.01, 1, 500],
-    'KC':  [22.046, 17.009888, 0.05, 2.5, 375],
-    'W':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'S':   [0.3674333, 136.07911, 0.25, 10, 50],
-    'C':   [0.393678571428571, 127.007166832986, 0.25, 10, 50],
-    'BO':  [22.046, 27.215821, 0.01, 0.5, 600],
-    'LC':  [22.046, 18.143881, 0.025, 1, 400],
-    'LRC': [1, 10, 1, 50, 10],
-    'KW':  [0.3674333, 136.07911, 0.25, 10, 50],
-    'SM':  [1.1023113, 90.718447, 0.1, 5, 100],
-    'COM': [1.0604, 50, 0.25, 2.5, 53.02],
-    'CA': [1.0604, 50, 0.25, 1, 53.02],
-    'MW':  [0.3674333, 136.07911, 0.25, 10, 50]
-}
-
-op_ticksize = {
-
-    'QC': 1,
-    'CC': 1,
-    'SB': 0.01,
-    'LSU': 0.05,
-    'KC': 0.01,
-    'DF': 1,
-    'CT': 0.01,
-    'C': 0.125,
-    'S': 0.125,
-    'SM': 0.05,
-    'BO': 0.005,
-    'W': 0.125,
-    'MW': 0.125,
-    'KW': 0.125
-}
-
-contract_mths = {
-
-    'LH':  ['G', 'J', 'K', 'M', 'N', 'Q', 'V', 'Z'],
-    'LSU': ['H', 'K', 'Q', 'V', 'Z'],
-    'QC': ['H', 'K', 'N', 'U', 'Z'],
-    'SB':  ['H', 'K', 'N', 'V'],
-    'CC':  ['H', 'K', 'N', 'U', 'Z'],
-    'CT':  ['H', 'K', 'N', 'Z'],
-    'KC':  ['H', 'K', 'N', 'U', 'Z'],
-    'W':   ['H', 'K', 'N', 'U', 'Z'],
-    'S':   ['F', 'H', 'K', 'N', 'Q', 'U', 'X'],
-    'C':   ['H', 'K', 'N', 'U', 'Z'],
-    'BO':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
-    'LC':  ['G', 'J', 'M', 'Q', 'V' 'Z'],
-    'LRC': ['F', 'H', 'K', 'N', 'U', 'X'],
-    'KW':  ['H', 'K', 'N', 'U', 'Z'],
-    'SM':  ['F', 'H', 'K', 'N', 'Q', 'U', 'V', 'Z'],
-    'COM': ['G', 'K', 'Q', 'X'],
-    'CA': ['H', 'K', 'U', 'Z'],
-    'MW':  ['H', 'K', 'N', 'U', 'Z']
-}
-
-
-# Dictionary mapping month to symbols and vice versa
-month_to_sym = {1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
-                7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'}
-sym_to_month = {'F': 1, 'G': 2, 'H': 3, 'J': 4, 'K': 5,
-                'M': 6, 'N': 7, 'Q': 8, 'U': 9, 'V': 10, 'X': 11, 'Z': 12}
-decade = 10
-
-
-# passage of time
-timestep = 1 / 365
-seed = 7
-np.random.seed(seed)
+decade = DECADE
+timestep = TIMESTEP
+np.random.seed(RANDOM_SEED)
 
 ########################################################################
 ########################################################################
@@ -175,8 +103,8 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         blockPrint()
 
     ##### timers #####
-    e1 = time.clock()
-    t = time.clock()
+    e1 = time.perf_counter()
+    t = time.perf_counter()
     ##################
 
     ########### initializing pnl variables ###########
@@ -731,7 +659,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
                                 'signal']],
                        on=['value_date', 'vol_id'])
 
-    elapsed = time.clock() - t
+    elapsed = time.perf_counter() - t
 
     print('Time elapsed: ', elapsed)
 
@@ -766,7 +694,7 @@ def run_simulation(voldata, pricedata, pf, flat_vols=False, flat_price=False,
         print('Max Drawdown [net]: ', min(np.diff(net_daily_values)))
 
     # time elapsed 2 #
-    e2 = time.clock() - e1
+    e2 = time.perf_counter() - e1
     print('SIMULATION RUNTIME: ', e2)
 
     print('######################################################')
@@ -1000,7 +928,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
         # update option attributes by feeding in vol.
         for op in pf.get_all_options():
             # info reqd: strike, order, product, tau
-            strike = op.K
+            strike = op.strike
             bvol2, b_vol, strike_vol = None, None, None
             # interpolate or round? currently rounding, interpolation easy.
             ticksize = multipliers[op.get_product()][-2]
@@ -1022,7 +950,7 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
 
             try:
                 if op.barrier is not None:
-                    barlevel = op.ki if op.ki is not None else op.ko
+                    barlevel = op.knock_in if op.knock_in is not None else op.knock_out
                     # b_val = voldf[(voldf.pdt == product) & (voldf.strike == barlevel) &
                     #               (voldf.vol_id == vid) & (voldf.call_put_id == cpi)]
                     # print('inputs: ', product, barlevel, vid, cpi)
@@ -1036,15 +964,15 @@ def feed_data(voldf, pdf, pf, init_val, brokerage=None,
 
             except (IndexError, ValueError):
                 print('### BARRIER VOLATILITY DATA MISSING ###')
-                b_vol = op.bvol
-                bvol2 = op.bvol2 
+                b_vol = op.barrier_vol
+                bvol2 = op.barrier_vol2
             # print('bvol: ', b_vol)
             # print('bvol2: ', bvol2)
             vol_change = save_vol_change(op, strike_vol, vol_change, 'strike')
             vol_change = save_vol_change(op, b_vol, vol_change, 'bvol')
             vol_change = save_vol_change(op, bvol2, vol_change, 'bvol2')
 
-            op.update_greeks(vol=strike_vol, bvol=b_vol, bvol2=bvol2)
+            op.update_greeks(vol=strike_vol, barrier_vol=b_vol, barrier_vol2=bvol2)
 
         pf.refresh()
 
@@ -1058,13 +986,13 @@ def save_vol_change(op, new_vol, vol_change_dic, flag):
     volid = op.get_vol_id() 
     if flag == 'strike':
         old_vol = op.vol 
-        strike = op.K 
+        strike = op.strike
     elif flag == 'bvol':
-        old_vol = op.bvol 
-        strike = op.ki if op.ki is not None else op.ko 
+        old_vol = op.barrier_vol
+        strike = op.knock_in if op.knock_in is not None else op.knock_out
     elif flag == 'bvol2':
-        old_vol = op.bvol2
-        strike = op.ki if op.ki is not None else op.ko
+        old_vol = op.barrier_vol2
+        strike = op.knock_in if op.knock_in is not None else op.knock_out
     try:
         vol_change = new_vol - old_vol
     except TypeError as e:
@@ -1130,18 +1058,18 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
     volid = op.get_vol_id()
     # print('vdf Z8: ', vdf)
 
-    vanop = create_vanilla_option(vdf, pdf, volid, op.char, op.shorted,
-                                  lots=op.lots, vol=op.vol, strike=op.K,
+    vanop = create_vanilla_option(vdf, pdf, volid, op.option_type, op.shorted,
+                                  lots=op.lots, vol=op.vol, strike=op.strike,
                                   bullet=op.bullet)
 
     # case 1: knockin case - option is not currently knocked in.
-    if op.ki is not None:
+    if op.knock_in is not None:
         # print('simulation.handle_barriers - knockin case')
         # case 1-1: di option, val is below barrier.
-        if op.direc == 'down' and val <= op.ki:
+        if op.direction == 'down' and val <= op.knock_in:
             # print('simulation.handle_barriers - down-in case ' + str(op))
             step = ft_ticksize
-        elif op.direc == 'up' and val >= op.ki:
+        elif op.direction == 'up' and val >= op.knock_in:
             # print('simulation.handle_barriers - up-in case ' + str(op))
             step = -ft_ticksize
         # knockin case with no action
@@ -1151,7 +1079,7 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
 
         # get delta after converting to vanilla option.
         # round barrier to closest future ticksize price.
-        ft_price = round(round(op.ki / ft_ticksize) * ft_ticksize, 2)
+        ft_price = round(round(op.knock_in / ft_ticksize) * ft_ticksize, 2)
         print('ftprice: ', ft_price)
         vanop.underlying.update_price(ft_price)
         van_delta = vanop.greeks()[0]
@@ -1178,7 +1106,7 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
         ret = pf, 0, [fts]
 
     # case 2: knockout.
-    elif op.ko is not None:
+    elif op.knock_out is not None:
         # print('simulation.handle_barriers - knockout case')
         if op.knockedout:
             print('simulation.handle_barriers - knockedout')
@@ -1186,10 +1114,10 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
 
         else:
             # case 1: updating price to val will initiate a knockout
-            if op.direc == 'up' and val > op.ko:
+            if op.direction == 'up' and val > op.knock_out:
                 # print('simulation.handle_barriers - up-out case ' + str(op))
                 step = -ft_ticksize
-            elif op.direc == 'down' and val < op.ko:
+            elif op.direction == 'down' and val < op.knock_out:
                 # print('simulation.handle_barriers - down-out case ' + str(op))
                 step = ft_ticksize
             else:
@@ -1197,7 +1125,7 @@ def handle_barriers(vdf, pdf, ft, val, pf, date):
                 return pf, 0, []
 
             ft_price = round(
-                round((op.ko + step) / ft_ticksize) * ft_ticksize, 2)
+                round((op.knock_out + step) / ft_ticksize) * ft_ticksize, 2)
             bar_op.underlying.update_price(ft_price)
             # print('future price: ', ft_price)
             delta_diff = bar_op.delta
@@ -1241,7 +1169,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
     if pf.empty() or pf.ops_empty():
         return 0, pf, False, []
     exercised = False
-    # t = time.clock()
+    # t = time.perf_counter()
     profit = 0
     tol = 1/365
     # handle options exercise
@@ -1277,8 +1205,8 @@ def handle_exercise(pf, brokerage=None, slippage=None):
                 # calculating the net profit from this exchange.
                 product = op.get_product()
                 pnl_mult = multipliers[product][-1]
-                ftprice, strike = op.get_underlying().get_price(), op.K
-                oppnl = op.lots * (ftprice - strike) * pnl_mult if op.char == 'call' else op.lots * (strike - ftprice) * pnl_mult
+                ftprice, strike = op.get_underlying().get_price(), op.strike
+                oppnl = op.lots * (ftprice - strike) * pnl_mult if op.option_type == 'call' else op.lots * (strike - ftprice) * pnl_mult
                 if op.shorted: 
                     oppnl = -oppnl
                 print('profit/loss on this exercise: ', oppnl)
@@ -1290,7 +1218,7 @@ def handle_exercise(pf, brokerage=None, slippage=None):
     # print('handle_exercise - tobeadded: ', [str(x) for x in tobeadded])
     # print('handle_exercise - options exercised: ', exercised)
     # print('handle_exercise - net exercise profit: ', profit)
-    # print('handle exercise time: ', time.clock() - t)
+    # print('handle exercise time: ', time.perf_counter() - t)
     return profit, pf, exercised, tobeadded
 
 
@@ -1589,9 +1517,9 @@ def contract_roll(pf, op, vdf, pdf, date, flag, slippage=None):
         else:
             r_delta = d_cond
     if strike is None:
-        strike = op.K
+        strike = op.strike
 
-    newop = create_vanilla_option(vdf, pdf, new_vol_id, op.char, op.shorted,
+    newop = create_vanilla_option(vdf, pdf, new_vol_id, op.option_type, op.shorted,
                                   date, lots=lots, strike=strike, delta=r_delta)
 
     # cost is > 0 if newop.price > op.price
@@ -1860,7 +1788,7 @@ def hedge_delta_roll_simple(pf, vdf, pdf, brokerage=None, slippage=None, book=Fa
         # case: option has already been processed due to its partner being
         # processed.
         print('simulation.hedge_delta_roll - option: ', op.get_product(),
-              op.char,  round(abs(op.delta / op.lots), 2))
+              op.option_type,  round(abs(op.delta / op.lots), 2))
         if op in toberemoved:
             print('option already handled')
             continue
@@ -1872,7 +1800,7 @@ def hedge_delta_roll_simple(pf, vdf, pdf, brokerage=None, slippage=None, book=Fa
         if (diff < bounds[0]) or (diff > bounds[1]):
             # if delta > bounds[1] or delta < bounds[0]:
             print('rolling delta: ', op.get_product(),
-                  op.char, round(abs(op.delta / op.lots), 2))
+                  op.option_type, round(abs(op.delta / op.lots), 2))
             newop, old_op, rcost = delta_roll(pf, op, roll_val, vdf, pdf, flag,
                                               slippage=slippage, brokerage=brokerage,
                                               book=book, settlements=settlements)
@@ -1962,7 +1890,7 @@ def hedge_delta_roll_comp(fpf, vdf, pdf, brokerage=None, slippage=None, book=Fal
             if (diff < bounds[0]) or (diff > bounds[1]):
                 # if delta > bounds[1] or delta < bounds[0]:
                 print('rolling delta: ', op.get_product(),
-                      op.char, round(abs(op.delta / op.lots), 2))
+                      op.option_type, round(abs(op.delta / op.lots), 2))
                 newop, old_op, rcost = delta_roll(pf, op, roll_val, vdf, pdf, flag,
                                                   slippage=slippage, brokerage=brokerage,
                                                   book=book, settlements=settlements)
@@ -1972,7 +1900,7 @@ def hedge_delta_roll_comp(fpf, vdf, pdf, brokerage=None, slippage=None, book=Fal
                 # if rolling option, roll all partners as well.
                 for opx in op.partners:
                     print('rolling delta: ', opx.get_product(),
-                          opx.char, round(abs(opx.delta / opx.lots), 2))
+                          opx.option_type, round(abs(opx.delta / opx.lots), 2))
                     if opx in pf.get_all_options():
                         tar = pf
                     else:
@@ -2024,7 +1952,7 @@ def delta_roll(pf, op, roll_val, vdf, pdf, flag, slippage=None,
     print('family rolling conds: ', pf.hedge_params['delta'])
     cost = 0
     vol_id = op.get_product() + '  ' + op.get_op_month() + '.' + op.get_month()
-    newop = create_vanilla_option(vdf, pdf, vol_id, op.char, op.shorted,
+    newop = create_vanilla_option(vdf, pdf, vol_id, op.option_type, op.shorted,
                                   lots=op.lots, delta=roll_val)
 
     # handle expenses: brokerage and old op price - new op price
@@ -2051,21 +1979,21 @@ def delta_roll(pf, op, roll_val, vdf, pdf, flag, slippage=None,
         print('volid, book vol: ', op.get_vol_id(), op.vol)
 
         try:
-            cpi = 'C' if op.char == 'call' else 'P'
+            cpi = 'C' if op.option_type == 'call' else 'P'
             df = settlements
             settle_vol = df[(df.vol_id == op.get_vol_id()) &
                             (df.call_put_id == cpi) &
-                            (df.strike == op.K)].vol.values[0]
+                            (df.strike == op.strike)].vol.values[0]
         except IndexError as e:
             print('scripts.simulaton.delta_roll - book vol case: cannot find vol: ',
-                  op.get_vol_id(), cpi, op.K)
+                  op.get_vol_id(), cpi, op.strike)
             settle_vol = op.vol
 
         print('volid, settle vol: ', op.get_vol_id(), settle_vol)
-        true_value = _compute_value(newop.char, newop.tau, settle_vol, newop.K,
-                                    newop.underlying.get_price(), 0, 'amer', ki=newop.ki,
-                                    ko=newop.ko, barrier=newop.barrier, d=newop.direc,
-                                    product=newop.get_product(), bvol=newop.bvol)
+        true_value = _compute_value(newop.option_type, newop.tau, settle_vol, newop.strike,
+                                    newop.underlying.get_price(), 0, 'amer', knock_in=newop.knock_in,
+                                    knock_out=newop.knock_out, barrier=newop.barrier, d=newop.direction,
+                                    product=newop.get_product(), barrier_vol=newop.barrier_vol)
 
         print('op value basis settlements: ', true_value)
         pnl_mult = multipliers[newop.get_product()][-1]
@@ -2165,13 +2093,13 @@ def write_log(pf, drawdown_limit, date, dailpnl, dailynet, grosspnl, netpnl, dai
         # pos = 'long' if not op.shorted else 'short'
         oplots = -op.lots if op.shorted else op.lots
         opvol = op.vol
-        strike = op.K
+        strike = op.strike
         vol_id = op.get_vol_id()
         tau = round(op.tau * 365)
-        
+
         underlying_id = op.get_uid()
         ftprice = settlement_prices[underlying_id]
-        dvol = vol_change[op.get_vol_id()][op.K] if vol_change else 0
+        dvol = vol_change[op.get_vol_id()][op.strike] if vol_change else 0
         dprice = price_change[op.get_uid()]
 
         dic = pf.get_aggregated_greeks()
@@ -2195,7 +2123,7 @@ def write_log(pf, drawdown_limit, date, dailpnl, dailynet, grosspnl, netpnl, dai
                   'op_vega', 'txn_costs']
 
         if op.barrier is not None:
-            barlevel = op.ki if op.ki is not None else op.ko
+            barlevel = op.knock_in if op.knock_in is not None else op.knock_out
             knockedin = op.knockedin
             knockedout = op.knockedout
             bvol_change = vol_change[op.get_vol_id()][barlevel]
